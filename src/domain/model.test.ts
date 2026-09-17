@@ -7,11 +7,20 @@ import {
   expressionFor,
   isCurrentRender,
   readBrowserDrafts,
+  restoreDraft,
   updateDraft,
   validateDraftEnvelope,
   writeBrowserDrafts,
 } from './model';
 import type { DraftEnvelope, ImperativeAnalysis, Passage, RenderResult } from './types';
+import type { CanvasState } from './canvas';
+
+function canvas(): CanvasState {
+  return {
+    fragments: [{ id: 'orphan', raw: '(emi * tym) # rascunho 🦜', x: 430, y: -80 }],
+    positions: { 'main:root': { x: 10, y: 20 }, 'orphan:root': { x: 450, y: -50 } },
+  };
+}
 
 const analysis: ImperativeAnalysis = {
   kind: 'imperative',
@@ -45,6 +54,69 @@ function passage(): Passage {
 }
 
 describe('independent drafts', () => {
+  it('changes raw and its detached forest atomically without touching the prior revision', () => {
+    const draft = { ...createDraft(passage()), canvas: canvas() };
+    const before = structuredClone(draft);
+    const nextCanvas = { ...canvas(), positions: { 'main:root': { x: 90, y: 70 } } };
+    const edited = updateDraft(draft, { raw: 'no * __studio_slot_a1', canvas: nextCanvas });
+    expect(edited.raw).toBe('no * __studio_slot_a1');
+    expect(edited.canvas).toEqual(nextCanvas);
+    expect(edited.analysis).toBeNull();
+    expect(edited.revisionId).not.toBe(draft.revisionId);
+    expect(draft).toEqual(before);
+    nextCanvas.fragments[0].raw = 'future change';
+    expect(edited.canvas!.fragments[0].raw).toBe('(emi * tym) # rascunho 🦜');
+    expect(restoreDraft(edited, passage()).canvas).toEqual(edited.canvas);
+  });
+
+  it('invalidates only main positions after external source edits and keeps all orphan work', () => {
+    const draft = { ...createDraft(passage()), canvas: canvas() };
+    const edited = updateDraft(draft, { raw: 'no + tym' });
+    expect(edited.canvas).toEqual({
+      ...canvas(),
+      positions: { 'orphan:root': { x: 450, y: -50 } },
+    });
+    expect(updateDraft(draft, { notes: 'nota' }).canvas).toEqual(canvas());
+    expect(updateDraft(draft, { raw: draft.raw }).canvas).toEqual(canvas());
+    expect(() =>
+      updateDraft(draft, { canvas: { ...canvas(), positions: { 'main:root': { x: NaN, y: 0 } } } }),
+    ).toThrow(/inválidos/);
+  });
+  it('migrates proved first-version drafts while preserving revision, notes and imperative edits', () => {
+    const source = { ...passage(), legacyExpressionFingerprint: 'source:legacy' };
+    const old = createDraft(source);
+    delete old.raw;
+    delete old.locators;
+    old.sourceFingerprint = 'source:legacy';
+    old.analysis = { ...analysis, negated: false };
+    const restored = restoreDraft(old, source);
+    expect(restored.raw).toBe('(+nde * apiti * moro).imp()');
+    expect(restored.revisionId).toBe(old.revisionId);
+    expect(draftConflicts(restored, source)).toBe(false);
+    expect(old.raw).toBeUndefined();
+    const edited = restoreDraft({ ...old, notes: 'My retained note' }, source);
+    expect(edited.notes).toBe('My retained note');
+    expect(draftConflicts(edited, source)).toBe(true);
+    expect(
+      restoreDraft({ ...old, sourceFingerprint: 'unrelated-source' }, source).raw,
+    ).toBeUndefined();
+  });
+  it('validates local completion independently of reference approval', () => {
+    const draft = {
+      ...createDraft(passage()),
+      workflow: { stage: 'complete' as const, updatedAt: new Date().toISOString() },
+    };
+    const envelope = { version: 1, projectId: 'p', drafts: { [draft.passageId]: draft } };
+    expect(validateDraftEnvelope(envelope)).toBe(true);
+    expect(
+      validateDraftEnvelope({
+        ...envelope,
+        drafts: {
+          [draft.passageId]: { ...draft, workflow: { ...draft.workflow, stage: 'approved' } },
+        },
+      }),
+    ).toBe(false);
+  });
   it('keeps baseline, source bytes, editorial status and original draft untouched', () => {
     const source = passage();
     const sourceBefore = structuredClone(source);
@@ -177,6 +249,43 @@ describe('browser draft persistence', () => {
     expect(
       validateDraftEnvelope({ ...data, drafts: { wrong: Object.values(data.drafts)[0] } }),
     ).toBe(false);
+  });
+
+  it('round-trips partial main expressions, incomplete orphan text and layout after restart', () => {
+    storage();
+    const data = envelope();
+    const draft = Object.values(data.drafts)[0];
+    data.drafts[draft.passageId] = updateDraft(draft, {
+      raw: 'tym * __studio_slot_a1',
+      canvas: {
+        ...canvas(),
+        fragments: [
+          ...canvas().fragments,
+          { id: 'unfinished', raw: 'helper( # continuar', x: 800, y: 40 },
+        ],
+      },
+    });
+    writeBrowserDrafts(data);
+    const restored = readBrowserDrafts(data.projectId)!;
+    expect(restored).toEqual(data);
+    expect(restoreDraft(restored.drafts[draft.passageId], passage()).canvas).toEqual(
+      data.drafts[draft.passageId].canvas,
+    );
+  });
+
+  it('refuses invalid saved canvas data instead of discarding orphan fragments during autosave', () => {
+    const values = storage();
+    const data = envelope();
+    const id = Object.keys(data.drafts)[0];
+    data.drafts[id].canvas = canvas();
+    const malformed = structuredClone(data);
+    malformed.drafts[id].canvas!.fragments[0].id = 'main';
+    const saved = JSON.stringify(malformed);
+    values.set(browserDraftKey(data.projectId), saved);
+    expect(validateDraftEnvelope(malformed)).toBe(false);
+    expect(() => readBrowserDrafts(data.projectId)).toThrow(/preservados/);
+    expect(() => writeBrowserDrafts(data)).toThrow(/preservados/);
+    expect(values.get(browserDraftKey(data.projectId))).toBe(saved);
   });
 
   it('preserves corrupted saved data instead of replacing it after a load failure', () => {

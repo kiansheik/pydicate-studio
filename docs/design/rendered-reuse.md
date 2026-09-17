@@ -1,0 +1,13 @@
+# Reuse by rendered Tupi
+
+Insertion fields share a search for the form a contributor would write in Tupi. Search ignores whitespace, Unicode composition and letter case, and normalizes typographic apostrophes. Diacritics remain meaningful for exact matches; suggestions found through accent relaxation say **Grafia aproximada**. Name and Portuguese-definition search remain available. Longer readings can find **Trecho reconhecido** candidates for already known portions, without automatically inventing a sentence analysis.
+
+The local index contains successfully evaluated predicates, source-expression steps, verified interiors of lexical definitions, and changed current drafts. Named entries and unnamed subexpressions both retain their Pydicate expression and provenance. Equal spelling does not merge different structures. Repeated occurrences of the same expression/structure retain their origins. Saved sources remain searchable alongside drafts.
+
+Search text is separate from executable code. A contributor chooses a form, the service checks its realization and structure in the destination namespace, and then the field holds the verified expression. If names differ between sources, insertion can use an expanded copy only when equivalence is checked. Otherwise the contributor gets an explicit error. Existing scope replacement, grouping, undo and review/apply rules govern the eventual edit. **Editar código Pydicate** remains available for direct entry, literal arguments and unsupported search cases.
+
+The index is keyed to project, corpus/engine/adapter fingerprint and draft contents. The saved-source portion can be reused across restarts; changed draft contents refresh the draft portion. A request reads current draft code, including changes not yet flushed to disk. Human notes/readings and archived or conflicted drafts without a verified source namespace are excluded. New-passage drafts currently target the Araújo source at its append context.
+
+Only the selected local engine evaluates structures. Search and insertion do not call an AI provider, create new lexical variables, alter historical source/reference files, or publish private drafts. Shared contributions become available when they exist in the local corpus. Parameterized helpers need concrete arguments; failed or unsupported analyses are reported rather than assigned a guessed form.
+
+Current transport limit: changed draft code travels with each search/resolve request under the existing 1 MB IPC ceiling. The current corpus is well below that boundary. Much larger draft collections need a separate incremental draft-index synchronization protocol; no drafts are silently truncated to fit.

@@ -1,0 +1,303 @@
+diff --git a/pydicate/pydicate/lang/tupilang/pos/deverbal.py b/pydicate/pydicate/lang/tupilang/pos/deverbal.py
+index ebdc2769..2dda3193 100644
+--- a/pydicate/pydicate/lang/tupilang/pos/deverbal.py
++++ b/pydicate/pydicate/lang/tupilang/pos/deverbal.py
+@@ -288,6 +288,17 @@ def emi_morphology(self, verb, annotated=False):
+         subj = verb.arguments[0]
+     else:
+         subj = None
++    referential = None
++    if subj is None:
++        referential = next(
++            (
++                adjunct
++                for adjunct in self.pre_adjuncts
++                if getattr(adjunct, "category", "") == "pronoun"
++                and "MAIN_CLAUSE_SUBJECT" in (getattr(adjunct, "tag", "") or "")
++            ),
++            None,
++        )
+     verb_base = verb.copy()
+     verb_base.arguments = []
+     nom = verb_base.base_nominal(True).noun.emi()
+@@ -299,12 +310,16 @@ def emi_morphology(self, verb, annotated=False):
+             None if subj.category == "pronoun" else subj.eval(annotated=True),
+         )
+     elif not subj:
+-        nom = nom.possessive("absoluta", self.pro_drop)
++        if referential is None:
++            nom = nom.possessive("absoluta", self.pro_drop)
+     else:
+         nom = nom.possessive(subj.inflection(), None)
+     if self.vocative:
+         nom = nom.vocativo()
+-    return nom.substantivo(annotated)
++    surface = nom.substantivo(annotated)
++    if referential is not None:
++        surface = f"{referential.eval(annotated=annotated)}{surface}"
++    return surface
+ 
+ 
+ def sara_morphology(self, verbin, annotated=False):
+diff --git a/pydicate/pydicate/lang/tupilang/pos/noun.py b/pydicate/pydicate/lang/tupilang/pos/noun.py
+index 873fd998..b3d4502a 100644
+--- a/pydicate/pydicate/lang/tupilang/pos/noun.py
++++ b/pydicate/pydicate/lang/tupilang/pos/noun.py
+@@ -411,7 +411,9 @@ class Pronoun(Noun):
+         """Return the noun in its base form."""
+         if neg:
+             return AnnotatedString(self.noun.eym().verbete()).verbete(annotated)
+-        return AnnotatedString(self.noun.verbete()).verbete(annotated)
++        variant = {"refl": "nhe", "mut": "nho"}.get(self.inflection())
++        surface = variant if self.variation_id == 1 and variant else self.noun.verbete()
++        return AnnotatedString(surface).verbete(annotated)
+ 
+ 
+ ixé = Pronoun("1ps", definition="I")
+@@ -448,6 +450,8 @@ moro.noun = TupiNoun("moro", moro.functional_definition, noroot=True)
+     "refl", definition="to oneself, one's own", tag="[OBJECT_PREFIX:REFLEXIVE]"
+ )
+ îo = Pronoun("mut", definition="to one another", tag="[OBJECT_PREFIX:RECIPROCAL]")
++nhe = îe.var(1)
++nho = îo.var(1)
+ og = Pronoun(
+     "o",
+     definition="refers to the subject of the main clause",
+diff --git a/pydicate/pydicate/lang/tupilang/pos/number.py b/pydicate/pydicate/lang/tupilang/pos/number.py
+index 987fa531..7130aa83 100644
+--- a/pydicate/pydicate/lang/tupilang/pos/number.py
++++ b/pydicate/pydicate/lang/tupilang/pos/number.py
+@@ -1,6 +1,7 @@
+ from pydicate import Predicate
+ from tupi import Noun as TupiNoun
+ from pydicate.lang.tupilang.pos.copula import *
++from pydicate.lang.tupilang.pos.noun import Noun
+ 
+ 
+ class Number(Predicate):
+@@ -31,6 +32,16 @@ class Number(Predicate):
+             cop.verbete += "a"
+         return cop
+ 
++    def base_nominal(self, annotated=False):
++        """Use a raw number as a noun without altering its surface form."""
++        if self.arguments:
++            raise ValueError("Only a raw number can be nominalized")
++        return Noun(
++            self.verbete,
++            definition=self.definition,
++            tag=f"{self.tag}[NOUN]",
++        )
++
+     def preval(self, annotated=False):
+         """Evaluate the Number object."""
+         tag = ""
+@@ -38,10 +49,16 @@ class Number(Predicate):
+             tag = self.tag
+         if self.arguments:
+             if self.arguments[0].posto == "posposto":
+-                return f"{self.verbete}{tag} {self.arguments[0].eval(annotated)}"
++                rendered = f"{self.verbete}{tag} {self.arguments[0].eval(annotated)}"
+             else:
+-                return f"{self.arguments[0].eval(annotated)} {self.verbete}{tag}"
+-        return f"{self.verbete}{tag}"
++                rendered = f"{self.arguments[0].eval(annotated)} {self.verbete}{tag}"
++        else:
++            rendered = f"{self.verbete}{tag}"
++        for adjunct in self.pre_adjuncts:
++            rendered = f"{adjunct.eval(annotated=annotated)} {rendered}"
++        for adjunct in self.post_adjuncts:
++            rendered = f"{rendered} {adjunct.eval(annotated=annotated)}"
++        return rendered.strip()
+ 
+     def __add__(self, other):
+         if hasattr(other, "__addpre__"):
+diff --git a/pydicate/pydicate/lang/tupilang/pos/verb.py b/pydicate/pydicate/lang/tupilang/pos/verb.py
+index cdcb7478..8a182465 100644
+--- a/pydicate/pydicate/lang/tupilang/pos/verb.py
++++ b/pydicate/pydicate/lang/tupilang/pos/verb.py
+@@ -185,6 +185,16 @@ class Verb(Predicate):
+             )
+         )
+ 
++    def _pronominal_variant(self):
++        for argument in self.arguments:
++            if (
++                getattr(argument, "category", None) == "pronoun"
++                and argument.inflection() in {"refl", "mut"}
++                and getattr(argument, "variation_id", None) == 1
++            ):
++                return 1
++        return None
++
+     def refresh_verbete(self, new_verbete):
+         self.verbete = new_verbete
+         self.verb = TupiVerb(self.verbete, self.verb.verb_class, self.definition)
+@@ -283,6 +293,7 @@ class Verb(Predicate):
+                         vadjs=vadjs,
+                         vadjs_pre=vadjs_pre,
+                         redup=base_verb.reduplicated,
++                        pronominal_variant=base_verb._pronominal_variant(),
+                         pos=arg0_obj.posto,
+                     )
+                 else:  # otherwise it's a direct object
+@@ -297,6 +308,7 @@ class Verb(Predicate):
+                         vadjs=vadjs,
+                         vadjs_pre=vadjs_pre,
+                         redup=base_verb.reduplicated,
++                        pronominal_variant=base_verb._pronominal_variant(),
+                         pos=arg0_obj.posto,
+                     )
+             else:  # intransitive
+@@ -312,6 +324,7 @@ class Verb(Predicate):
+                         vadjs=vadjs,
+                         vadjs_pre=vadjs_pre,
+                         redup=base_verb.reduplicated,
++                        pronominal_variant=base_verb._pronominal_variant(),
+                     )
+                 else:
+                     retval = base_verb.verb.conjugate(
+@@ -325,6 +338,7 @@ class Verb(Predicate):
+                         vadjs=vadjs,
+                         vadjs_pre=vadjs_pre,
+                         redup=base_verb.reduplicated,
++                        pronominal_variant=base_verb._pronominal_variant(),
+                     )
+         elif arglen == 2:  # transitive
+             suj = base_verb.subject()
+@@ -370,6 +384,7 @@ class Verb(Predicate):
+                 vadjs=vadjs,
+                 vadjs_pre=vadjs_pre,
+                 redup=base_verb.reduplicated,
++                pronominal_variant=base_verb._pronominal_variant(),
+             )
+         if obj_delocated:
+             retval = retval + " " + obj_delocated
+@@ -440,6 +455,7 @@ class Verb(Predicate):
+                 negative=False,
+                 anotar=annotated,
+                 redup=self.reduplicated,
++                pronominal_variant=self._pronominal_variant(),
+                 vadjs=vadjs,
+                 vadjs_pre=vadjs_pre,
+                 variation_id=self.variation_id,
+@@ -529,6 +545,7 @@ class Verb(Predicate):
+             vadjs=vadjs,
+             vadjs_pre=vadjs_pre,
+             redup=self.reduplicated,
++            pronominal_variant=self._pronominal_variant(),
+             variation_id=self.variation_id,
+         )
+         tn = TupiNoun(nom, self.raw_definition)
+@@ -626,6 +643,11 @@ class VerbAugmentor(Verb):
+         self.ero_switch = ero_switch
+         self._augmentee = None
+ 
++    def _prefix_form(self):
++        if self.verbete == "mo" and self.variation_id == 1:
++            return "mbo", "[CAUSATIVE_PREFIX:MBO]"
++        return self.verbete, self.tag
++
+     def __mul__(self, other):
+         """
+         Divide a Transitivizer with another object.
+@@ -651,7 +673,8 @@ class VerbAugmentor(Verb):
+                         definition=getattr(other, "definition", ""),
+                     )
+             new_verb = VerbAugmentor.from_existing(fin)
+-            new_verb.verb.verbete = f"{self.verbete}{self.tag}{fin.verbete}"
++            prefix, prefix_tag = self._prefix_form()
++            new_verb.verb.verbete = f"{prefix}{prefix_tag}{fin.verbete}"
+             new_verb.verb.transitivo = True
+             new_verb.verbete = new_verb.verb.verbete
+             new_verb.verb.pluriforme = False
+@@ -673,7 +696,8 @@ class VerbAugmentor(Verb):
+ 
+     def preval(self, annotated=False):
+         if not self._augmentee or len(self._augmentee) == 0:
+-            return AnnotatedString(f"{self.verbete}{self.tag}").verbete(
++            prefix, prefix_tag = self._prefix_form()
++            return AnnotatedString(f"{prefix}{prefix_tag}").verbete(
+                 annotated=annotated
+             )
+         cop = self.copy()
+@@ -695,6 +719,7 @@ mo = VerbAugmentor(
+     tag="[CAUSATIVE_PREFIX:MO]",
+     category="verb_transitivizer",
+ )  # TODO: Fix the phonetic rules for this
++mbo = mo.var(1)
+ ero = VerbAugmentor(
+     value="ero",
+     definition="to do an action with something/someone else (object of verb as company or instrument in modified)",
+diff --git a/tupi/tupi/noun.py b/tupi/tupi/noun.py
+index b6d29262..eac731e1 100644
+--- a/tupi/tupi/noun.py
++++ b/tupi/tupi/noun.py
+@@ -282,6 +282,10 @@ class Noun(TupiAntigo):
+         return repr(self)
+ 
+     def pluriform_prefix(self, person="absoluta"):
++        if self.m_pluriforme:
++            if person == "absoluta":
++                return "m[PLURIFORM_PREFIX:M:ABSOLUTE]"
++            return "p[PLURIFORM_PREFIX:P]"
+         plf = self.pluriforme
+         if plf:
+             if "3p" in person:
+@@ -301,11 +305,6 @@ class Noun(TupiAntigo):
+                     return prefix + "[AGENT_PREFIX:GENERIC:PEOPLE:ABSOLUTE]"
+             if "1p" in person or "2p" in person:
+                 return "r[PLURIFORM_PREFIX:R]"
+-        if self.m_pluriforme:
+-            if person == "absoluta":
+-                return "m[PLURIFORM_PREFIX:M:ABSOLUTE]"
+-            else:
+-                return "p[PLURIFORM_PREFIX:P]"
+         return ""
+ 
+     def supe(self, variation_id=0):
+@@ -505,7 +504,7 @@ class Noun(TupiAntigo):
+         vbt = ret_noun.latest_verbete
+ 
+         # Determine prefix (e.g., r[PLURIFORM_PREFIX:R]) for plural forms
+-        if possessor and self.pluriforme:
++        if possessor and self.pluriforme and not self.m_pluriforme:
+             prefix = "r[PLURIFORM_PREFIX:R]"
+         else:
+             prefix = ret_noun.pluriform_prefix(person)
+@@ -799,6 +798,8 @@ class Noun(TupiAntigo):
+                     suf = "embi"
+                 vbt.replace_clean(0, 1, self.nasal_prefix_map_emi[vbt[0]])
+                 vbt.insert_prefix(f"{suf}{token}")
++            else:
++                vbt.insert_prefix(f"emi{token}")
+         elif self.monosilibica() and not any(nasal in vbt for nasal in self.nasais):
+             vbt.insert_prefix(f"embi{token}")
+         else:
+diff --git a/tupi/tupi/verb.py b/tupi/tupi/verb.py
+index f6b4fb30..043be874 100644
+--- a/tupi/tupi/verb.py
++++ b/tupi/tupi/verb.py
+@@ -152,6 +152,7 @@ class Verb(TupiAntigo):
+         vadjs_pre="",
+         redup=False,
+         variation_id=None,
++        pronominal_variant=None,
+     ):
+         result = ""
+         perm_mode = False
+@@ -848,6 +849,14 @@ class Verb(TupiAntigo):
+                             if pos == "posposto"
+                             else f"{subj if not pro_drop else ''} {vadjs_pre}{vb}{vadjs}"
+                         )
++        if pronominal_variant == 1:
++            for old, new in (
++                ("îe[OBJECT:REFLEXIVE]", "nhe[OBJECT:REFLEXIVE]"),
++                ("îo[OBJECT:MUTUAL]", "nho[OBJECT:MUTUAL]"),
++                ("îe[SUBJECT:refl]", "nhe[SUBJECT:refl]"),
++                ("îo[SUBJECT:mut]", "nho[SUBJECT:mut]"),
++            ):
++                result = result.replace(old, new)
+         return (
+             result
+             if anotar

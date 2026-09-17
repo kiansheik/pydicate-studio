@@ -10,13 +10,14 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
 import tokenize
 import uuid
 
-ADAPTER_VERSION = "studio-imperative-v1"
+ADAPTER_VERSION = "studio-authoring-v2"
 ANALYSIS_KEYS = {"kind", "predicate", "subject", "object", "hiddenSubject", "mood", "negated"}
 ENGINE_ROOTS = ("pydicate", "tupi")
 CORPUS_ROOTS = ("historic", "ground_truth/records/historic", "authoring")
@@ -231,6 +232,7 @@ class IdentityRegistry:
     def __init__(self, state_dir: Path | None, project_id: str):
         self.path = state_dir / f"{project_id}.ids.json" if state_dir else None
         self.ids = {}
+        self.sources = {}
         if self.path and self.path.is_file():
             try:
                 payload = json.loads(self.path.read_text(encoding="utf-8"))
@@ -239,6 +241,7 @@ class IdentityRegistry:
                 if not all(isinstance(k, str) and isinstance(v, str) for k, v in payload["ids"].items()):
                     raise ValueError("identifiers")
                 self.ids = payload["ids"]
+                self.sources = payload.get("sources", {}) if isinstance(payload.get("sources", {}), dict) else {}
             except (ValueError, AttributeError) as exc:
                 raise AdapterError("O registro de identidades do Studio está inválido; os rascunhos foram preservados.", "STATE_ERROR") from exc
 
@@ -247,11 +250,59 @@ class IdentityRegistry:
             self.ids[key] = "passage:" + str(uuid.uuid4()) if self.path else "provisional:" + digest(key.encode())
         return self.ids[key]
 
+    def reconcile(self, source, fingerprints, entries):
+        previous = self.sources.get(source, [])
+        if not isinstance(previous, list) or not all(isinstance(item, dict) and isinstance(item.get('fingerprint'), str) and isinstance(item.get('id'), str) for item in previous): return {}
+        old = [item['fingerprint'] for item in previous]
+        # Source-only comments or lexical definitions can change without any
+        # expression edit. Preserve the whole sequence, including duplicates.
+        if old == fingerprints:
+            mapping = {index:item['id'] for index,item in enumerate(previous)}
+            # Distinct nearby comments are additional evidence when identical
+            # written expressions trade places; never use line numbers alone.
+            for fingerprint in set(old):
+                if old.count(fingerprint) < 2: continue
+                old_context = {(item.get('context') or ''): item['id'] for item in previous if item['fingerprint']==fingerprint}
+                contexts = [entry.get('commentBlock','') for fp,entry in zip(fingerprints,entries) if fp==fingerprint]
+                if len(old_context)==old.count(fingerprint) and len(set(contexts))==len(contexts) and set(contexts)==set(old_context):
+                    for index,(fp,entry) in enumerate(zip(fingerprints,entries)):
+                        if fp==fingerprint:mapping[index]=old_context[entry.get('commentBlock','')]
+            return mapping
+        if len(old) == len(fingerprints):
+            stationary = {}
+            for fingerprint in set(old):
+                previous_positions = [i for i,value in enumerate(old) if value==fingerprint]
+                current_positions = [i for i,value in enumerate(fingerprints) if value==fingerprint]
+                if previous_positions == current_positions:
+                    stationary.update({i:previous[i]['id'] for i in current_positions})
+            return stationary
+        # Keep only positions whose alignment is unique among all possible
+        # subsequence matches. Insertion of another identical expression remains
+        # ambiguous; inserting an unrelated line before duplicates does not.
+        def align(short,long):
+            early=[];position=0
+            for value in short:
+                while position<len(long) and long[position]!=value:position+=1
+                if position==len(long):return None
+                early.append(position);position+=1
+            late=[];position=len(long)-1
+            for value in reversed(short):
+                while position>=0 and long[position]!=value:position-=1
+                if position<0:return None
+                late.append(position);position-=1
+            late.reverse()
+            return {index:start for index,(start,end) in enumerate(zip(early,late)) if start==end}
+        inserted=align(old,fingerprints)
+        if inserted is not None:return {new:previous[old_index]['id'] for old_index,new in inserted.items()}
+        removed=align(fingerprints,old)
+        if removed is not None:return {new:previous[old_index]['id'] for new,old_index in removed.items()}
+        return {}
+
     def save(self):
         if self.path:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temporary = self.path.with_suffix(".tmp")
-            temporary.write_text(json.dumps({"version": 1, "ids": self.ids}, ensure_ascii=False), encoding="utf-8")
+            temporary.write_text(json.dumps({"version": 1, "ids": self.ids, "sources": self.sources}, ensure_ascii=False), encoding="utf-8")
             os.replace(temporary, self.path)
 
 
@@ -265,6 +316,10 @@ class ProjectAdapter:
         self.parent: Path | None = None
         self.project: dict | None = None
 
+    def invoke(self, method: str, params: dict):
+        from authoring_service import AuthoringService
+        return AuthoringService(self).invoke(method, params)
+
     def _snapshots(self) -> list[dict]:
         assert self.parent
         return [repository_snapshot(self.parent / "oldtupicorpus", CORPUS_ROOTS),
@@ -273,7 +328,8 @@ class ProjectAdapter:
     @staticmethod
     def _engine_fingerprint(snapshots: list[dict]) -> str:
         # Corpus fingerprint includes lexicon definitions; no clean-HEAD claim.
-        implementation = digest(Path(__file__).read_bytes() + Path(__file__).with_name("engine_render.py").read_bytes())
+        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'worker.py')
+        implementation = digest(b"".join((Path(__file__).parent / name).read_bytes() for name in runtime_files))
         material = ADAPTER_VERSION + ":" + sys.version + ":" + implementation + ":" + ":".join(item["fingerprint"] for item in snapshots)
         return "sha256:" + digest(material.encode())
 
@@ -304,16 +360,24 @@ class ProjectAdapter:
         project_id = "local-" + digest(str(corpus.resolve()).encode())[:24]
         registry = IdentityRegistry(self.state_dir, project_id)
         diagnostics = ["Referências salvas são bases legadas por posição; não comprovam aprovação humana nem correspondência com alterações externas.",
-                       "Somente a construção apiti / nde / moro é editável visualmente; outras expressões permanecem preservadas."]
-        diagnostics.append("Identidades locais do Studio são persistidas; expressões alteradas fora do Studio recebem nova identidade para preservar rascunhos anteriores."
+                       "O editor preserva a sintaxe concreta; capacidades estruturais e realização da gramática são verificadas separadamente."]
+        diagnostics.append("Identidades locais preservam alinhamentos inequívocos; alterações e duplicatas ambíguas recebem novos vínculos para preservar rascunhos anteriores."
                            if self.state_dir else "Identidades provisórias por conteúdo: configure o diretório de estado do Studio para persistir identificadores locais.")
         passages = []
         for path in sorted((corpus / "historic").glob("*.tu.py")):
-            if path.name == "lexicon.tu.py":
+            if path.name == "lexicon.tu.py" or "bettendorff" in path.name:
                 continue
             source = path.name.removesuffix(".tu.py")
             try:
-                entries = source_expressions(path)
+                legacy_entries = source_expressions(path)
+                from studio_authoring import source_entries as concrete_entries, authoritative_metadata
+                entries = concrete_entries(path)
+                for entry, legacy in zip(entries, legacy_entries): entry['contextualOverride'] = legacy['contextualOverride']
+                try:
+                    metadata_by_ordinal = authoritative_metadata(corpus, path) if (corpus / 'authoring/source_annotations.py').is_file() else {}
+                except Exception as metadata_error:
+                    metadata_by_ordinal = {}
+                    diagnostics.append(f"{path.name}: metadados autoritativos indisponíveis: {metadata_error}")
                 records, record_diagnostics = load_records(corpus / "ground_truth/records/historic" / f"{source}.jsonl")
                 diagnostics.extend(record_diagnostics)
             except (OSError, ValueError, SyntaxError, tokenize.TokenError, AdapterError) as exc:
@@ -321,35 +385,71 @@ class ProjectAdapter:
                 continue
             file_hash = digest(path.read_bytes())
             fingerprints = [digest(entry["expression"].encode()) for entry in entries]
+            reconciled_ids = registry.reconcile(source, fingerprints, entries)
+            source_identities = []
+            explicit_ids = [(entry.get('studio') or {}).get('passageId') for entry in entries]
             seen = {}
             missing = 0
             for ordinal, (entry, fingerprint) in enumerate(zip(entries, fingerprints), start=1):
                 seen[fingerprint] = seen.get(fingerprint, 0) + 1
                 duplicate = f":{file_hash}:{seen[fingerprint]}" if fingerprints.count(fingerprint) > 1 else ""
-                identifier = registry.identifier(f"{source}:{fingerprint}{duplicate}")
+                studio_identity = (entry.get('studio') or {}).get('passageId')
+                if studio_identity and explicit_ids.count(studio_identity) > 1:
+                    diagnostics.append(f"{source}:{ordinal}: identidade explícita duplicada; novo vínculo provisório requer conciliação.")
+                    studio_identity = None
+                identifier = studio_identity if isinstance(studio_identity, str) and studio_identity.startswith('passage:') else reconciled_ids.get(ordinal - 1) or registry.identifier(f"{source}:{fingerprint}{duplicate}")
+                source_identities.append({'fingerprint': fingerprint, 'id': identifier, 'context': entry.get('commentBlock', '')})
                 record = records.get(ordinal, {})
                 saved = _string(record.get("normalized_target")) or _string(record.get("surface")) or None
                 if saved is None:
                     missing += 1
-                locations = record.get("locations")
-                location = locations[-1] if isinstance(locations, list) and locations and isinstance(locations[-1], dict) else {}
+                source_metadata = metadata_by_ordinal.get(ordinal, {})
+                # Upstream optional fields normalize a blank directive to None.
+                # Presence still matters: an explicit empty @translation clears
+                # a legacy value instead of resurrecting it on refresh.
+                explicit_fields=set();found_directive=False
+                for comment in reversed(entry.get('commentBlock','').splitlines()):
+                    if not comment.strip():
+                        if found_directive:continue
+                        break
+                    directive=re.match(r'^\s*#\s*@([a-z][a-z0-9_-]*)\s*(.*?)\s*$',comment,re.IGNORECASE)
+                    if not directive:break
+                    found_directive=True;explicit_fields.add(directive.group(1).lower())
+                def scholarly_field(field,directive):
+                    if directive in explicit_fields:return _string(source_metadata.get(field))
+                    value=source_metadata.get(field)
+                    return _string(value if value is not None else record.get(field))
+                locations = source_metadata.get('locations') or record.get("locations")
+                location = locations[-1] if isinstance(locations, (list, tuple)) and locations and isinstance(locations[-1], dict) else {}
                 page = _string(location.get("page_start")) or None
                 if page and location.get("page_end"):
                     page += "–" + str(location["page_end"])
                 title = "Araújo · Catecismo" if source == "araujo_catecismo_1686" else source.replace("_", " ")
-                notes = record.get("notes")
+                notes = source_metadata.get("notes") if source_metadata.get("notes") is not None else record.get("notes")
+                if isinstance(notes, (list, tuple)): notes = [note for note in notes if not str(note).startswith(("studio:v1 ", "studio-lexical:v1 "))]
+                # Draft conflicts include scholarly metadata, while identity
+                # matching remains based on expressions and explicit IDs. Machine
+                # pointers and physical line movement do not invalidate a draft.
+                relevant_metadata = {key:value for key,value in source_metadata.items() if key not in {'source_line','status','notes'} and value}
+                human_source_notes = [note for note in source_metadata.get('notes',[]) if not str(note).startswith(('studio:v1 ','studio-lexical:v1 '))]
+                if human_source_notes: relevant_metadata['notes'] = human_source_notes
+                cleared_fields=[directive for field,directive in [('diplomatic','diplomatic'),('normalized_target','target'),('translation','translation')] if directive in explicit_fields and source_metadata.get(field) is None]
+                if cleared_fields:relevant_metadata['clearedFields']=cleared_fields
+                editorial_fingerprint = digest(json.dumps({'expression':entry['expression'],'metadata':relevant_metadata},ensure_ascii=False,sort_keys=True).encode('utf-8'))
                 passages.append({"id": identifier, "legacyId": f"{source}:{ordinal:04d}", "sourceId": source,
-                    "ordinal": ordinal, "title": f"{title} · {ordinal:04d}", "sourceExpression": entry["expression"],
-                    "sourceFingerprint": "sha256:" + fingerprint, "acceptedReference": saved,
+                    "ordinal": ordinal, "sourceLine": entry["statementLine"], "sourceEndLine": entry["endLine"], "sourceFileFingerprint": "sha256:" + file_hash, "sourceMetadata": source_metadata, "studioMetadata": entry.get("studio"), "title": f"{title} · {ordinal:04d}", "sourceExpression": entry["expression"],
+                    "sourceFingerprint": "sha256:" + editorial_fingerprint,
+                    "legacyExpressionFingerprint": "sha256:" + hashlib.sha256(entry['expression'].encode()).hexdigest(), "acceptedReference": saved,
                     "referenceProvenance": "legacy" if saved is not None else "none",
-                    "diplomatic": _string(record.get("diplomatic")), "normalized": _string(record.get("normalized_target")),
-                    "translation": _string(record.get("translation")),
-                    "notes": "\n".join(str(note) for note in notes) if isinstance(notes, list) else "",
+                    "diplomatic": scholarly_field("diplomatic","diplomatic"), "normalized": scholarly_field("normalized_target","target"),
+                    "translation": scholarly_field("translation","translation"),
+                    "notes": "\n".join(str(note) for note in notes) if isinstance(notes, (list, tuple)) else "",
                     "witness": {"title": _string(location.get("witness")) or title,
                                 "year": "1686" if source == "araujo_catecismo_1686" else "",
-                                "printedPage": page, "pdfPage": None, "region": None},
+                                "printedPage": page, "pdfPage": None, "region": None, "folio": location.get("folio_start"), "textualLine": location.get("line_start"), "section": location.get("section"), "subsection": location.get("subsection")},
                     "status": "analysis" if saved is not None else "untranscribed",
                     "analysis": None if entry["contextualOverride"] else parse_analysis(entry["expression"])})
+            registry.sources[source] = source_identities
             if missing:
                 diagnostics.append(f"{path.name}: {missing} expressão(ões) sem referência salva; nenhuma referência foi gerada.")
             if len(records) > len(entries):

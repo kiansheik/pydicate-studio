@@ -1,11 +1,28 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, ipcMain, net, protocol, session } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  net,
+  protocol,
+  session,
+} = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
+const { createHash } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { DraftStore } = require('./draft-store.cjs');
 const { PythonWorker } = require('./python-worker.cjs');
 const validate = require('./validation.cjs');
+const { createProjectWatch } = require('./project-watch.cjs');
+const { createNextService } = require('./next-service.cjs');
+const { createUsageService } = require('./usage-service.cjs');
+const { installApplicationPermissions } = require('./application-permissions.cjs');
+const { createDictionarySite } = require('./dictionary-site.cjs');
+const { serviceErrorReply } = require('./service-errors.cjs');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'studio', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -14,15 +31,152 @@ protocol.registerSchemesAsPrivileged([
 const DEV_URL = 'http://127.0.0.1:5173/';
 const applicationDirectory = path.resolve(__dirname, '..');
 const CONTENT_SECURITY_POLICY =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob:; connect-src 'self'; base-uri 'none'; form-action 'none'";
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob: studio://dictionary; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'";
 const development = !app.isPackaged && process.env.PYDICATE_STUDIO_DEV === '1';
 const entryURL = development ? DEV_URL : 'studio://app/index.html';
 const knownProjects = new Set(['example:araujo-0067']);
 let window;
 let worker;
 let activeProject;
+const dictionarySite = createDictionarySite({
+  getProject: () => activeProject,
+  parentOrigin: development ? new URL(DEV_URL).origin : 'studio://app',
+});
 let projectChanging = false;
 let drafts;
+let nextService;
+let usage;
+let projectParent;
+let draftSaveCount = 0;
+let draftSaveTimer;
+function flushDraftSaves() {
+  clearTimeout(draftSaveTimer);
+  if (draftSaveCount)
+    record({
+      event: 'draft.persist',
+      projectId: activeProject?.id,
+      outcome: 'succeeded',
+      details: { count: draftSaveCount },
+    });
+  draftSaveCount = 0;
+}
+const aiPhases = new Map();
+function record(event) {
+  void usage?.record(event).catch(() => {});
+}
+function buildIdentity() {
+  const hash = createHash('sha256');
+  const visit = (directory) => {
+    const root = path.join(applicationDirectory, directory);
+    if (!fs.existsSync(root)) return;
+    for (const name of fs.readdirSync(root).sort()) {
+      if (fs.statSync(path.join(root, name)).isDirectory()) {
+        if (directory.startsWith('src') || (directory === 'electron' && name === 'dictionary'))
+          visit(directory + '/' + name);
+      } else if (/\.(cjs|py|js|css|ts|tsx)$/.test(name))
+        hash.update(directory + '/' + name).update(fs.readFileSync(path.join(root, name)));
+    }
+  };
+  for (const directory of ['electron', 'python', 'dist/assets', ...(development ? ['src'] : [])])
+    visit(directory);
+  return hash.digest('hex').slice(0, 20);
+}
+let watchers = [];
+let sourceWrites = 0;
+function emit(event) {
+  if (event.type === 'ai' && event.phase && aiPhases.get(event.requestId) !== event.phase) {
+    aiPhases.set(event.requestId, event.phase);
+    record({
+      event: 'ai.phase',
+      projectId: event.projectId,
+      passageId: event.passageId,
+      revisionId: event.revisionId,
+      requestId: event.requestId,
+      ...(event.result?.finishedAt && event.result?.startedAt
+        ? {
+            durationMs: Math.max(
+              0,
+              Date.parse(event.result.finishedAt) - Date.parse(event.result.startedAt),
+            ),
+          }
+        : {}),
+      outcome:
+        event.phase === 'failed'
+          ? 'failed'
+          : event.phase === 'cancelled'
+            ? 'cancelled'
+            : event.phase === 'completed'
+              ? 'succeeded'
+              : 'started',
+      details: {
+        phase: event.phase,
+        status: event.status,
+        provider: event.result?.provider,
+        model: event.result?.model,
+        ...(event.phase === 'failed'
+          ? {
+              errorCode: /tempo limite|demorou/i.test(event.error || '')
+                ? 'PROVIDER_TIMEOUT'
+                : 'PROVIDER_FAILED',
+            }
+          : {}),
+      },
+    });
+    // Retain terminal phases briefly to deduplicate the final durable update.
+    if (aiPhases.size > 200) aiPhases.delete(aiPhases.keys().next().value);
+  }
+  window?.webContents.send('studio:event', event);
+}
+function watchProject(project) {
+  watchers.forEach((w) => w.close());
+  watchers = [];
+  const corpus = project.repositories.find((r) => r.name === 'oldtupicorpus');
+  if (!corpus) return;
+  try {
+    watchers.push(
+      createProjectWatch({
+        directory: path.join(corpus.path, 'historic'),
+        isSuppressed: () => sourceWrites > 0,
+        onChange: () => emit({ type: 'source-change', projectId: project.id }),
+      }),
+    );
+  } catch {}
+}
+async function duringProjectWrite(action) {
+  sourceWrites += 1;
+  let failed = false;
+  try {
+    return await action();
+  } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
+    sourceWrites -= 1;
+    if (sourceWrites === 0 && activeProject) {
+      const changedDuringFailure = failed && watchers.some((w) => w.suppressedChange);
+      watchProject(activeProject);
+      if (changedDuringFailure) emit({ type: 'source-change', projectId: activeProject.id });
+    }
+  }
+}
+async function openPath(parentPath, expectedProjectId) {
+  const candidate = createWorker();
+  try {
+    const project = validate.project(await candidate.request('open_project', { parentPath }));
+    if (expectedProjectId && project.id !== expectedProjectId)
+      throw new Error('A identidade do projeto mudou. Reabra o projeto.');
+    worker?.close();
+    worker = candidate;
+    activeProject = project;
+    projectParent = parentPath;
+    knownProjects.add(project.id);
+    watchProject(project);
+    return project;
+  } catch (e) {
+    candidate.close();
+    throw e;
+  }
+}
 
 function isApplicationURL(raw) {
   try {
@@ -77,10 +231,25 @@ async function changeProject(callback) {
 
 function installBridge() {
   const handle = (channel, arity, callback) =>
-    ipcMain.handle(channel, (event, ...args) => {
+    ipcMain.handle(channel, async (event, ...args) => {
       verifySender(event);
       if (args.length !== arity) throw new Error('Argumentos inesperados.');
-      return callback(...args);
+      try {
+        return await callback(...args);
+      } catch (error) {
+        if (channel !== 'studio:invoke' && channel !== 'studio:usage')
+          record({
+            event: 'bridge.failure',
+            projectId: activeProject?.id,
+            outcome: 'failed',
+            details: { method: channel, errorCode: error.code || 'BRIDGE_FAILED' },
+          });
+        if (channel === 'studio:invoke') {
+          const reply = serviceErrorReply(error);
+          if (reply) return reply;
+        }
+        throw error;
+      }
     });
   handle('studio:open-project', 0, () =>
     changeProject(async () => {
@@ -91,33 +260,71 @@ function installBridge() {
         properties: ['openDirectory'],
       });
       if (selection.canceled || selection.filePaths.length !== 1) return null;
-      const candidate = createWorker();
-      try {
-        const project = validate.project(
-          await candidate.request('open_project', { parentPath: selection.filePaths[0] }),
-        );
-        worker?.close();
-        worker = candidate;
-        activeProject = project;
-        knownProjects.add(project.id);
-        return project;
-      } catch (error) {
-        candidate.close();
-        throw error;
-      }
+      const project = await openPath(selection.filePaths[0]);
+      await nextService.saveSession({ parentPath: selection.filePaths[0] });
+      return project;
     }),
   );
   handle('studio:refresh-project', 0, () =>
     changeProject(async () => {
       if (!worker || !activeProject)
         throw new Error('Abra um projeto local para atualizar suas fontes.');
-      const project = validate.project(await worker.request('refresh_project', {}));
-      if (project.id !== activeProject.id)
-        throw new Error('A identidade do projeto mudou. Reabra o projeto.');
+      const project = await openPath(projectParent, activeProject.id);
       activeProject = project;
       return project;
     }),
   );
+  handle('studio:usage', 1, (event) => usage.recordUi(event));
+  handle('studio:copy-text', 1, (text) => {
+    if (typeof text !== 'string' || Buffer.byteLength(text, 'utf8') > 1_000_000)
+      throw new Error('Texto ausente ou muito grande para copiar.');
+    clipboard.writeText(text);
+  });
+  handle('studio:invoke', 2, async (method, params) => {
+    if (method === 'dictionary_status') return dictionarySite.status(params);
+    if (method === 'usage_status') return usage.status();
+    if (method === 'usage_report') return usage.report(params);
+    if (method === 'usage_export') return usage.export(params);
+    if (method === 'usage_configure') return usage.configure(params);
+    const started = performance.now();
+    // Never persist request bodies, generated text, or credentials.
+    const details = { method, provider: params?.provider, model: params?.model };
+    const context = {
+      projectId: activeProject?.id,
+      passageId: params?.passageId,
+      revisionId: params?.revisionId,
+    };
+    const shouldLog = !['session_select', 'ai_history', 'evidence_status'].includes(method);
+    if (shouldLog)
+      record({ event: 'operation.' + method, ...context, outcome: 'started', details });
+    try {
+      const result = await nextService.invoke(method, params);
+      const returnedError =
+        method === 'parse_expression' && !result?.root
+          ? 'PARSE_INVALID'
+          : method === 'session_restore' && result?.error
+            ? 'PROJECT_RESTORE_FAILED'
+            : null;
+      if (shouldLog)
+        record({
+          event: 'operation.' + method,
+          ...context,
+          outcome: returnedError ? 'failed' : 'succeeded',
+          durationMs: Math.round(performance.now() - started),
+          details: { ...details, ...(returnedError ? { errorCode: returnedError } : {}) },
+        });
+      return result;
+    } catch (error) {
+      record({
+        event: 'operation.' + method,
+        ...context,
+        outcome: 'failed',
+        durationMs: Math.round(performance.now() - started),
+        details: { ...details, errorCode: error.code || 'OPERATION_FAILED' },
+      });
+      throw error;
+    }
+  });
   handle('studio:render', 1, async (request) => {
     validate.renderRequest(request);
     if (projectChanging)
@@ -138,10 +345,23 @@ function installBridge() {
     authorizeProject(projectId);
     return drafts.load(projectId);
   });
-  handle('studio:save-drafts', 1, (envelope) => {
+  handle('studio:save-drafts', 1, async (envelope) => {
     validate.envelope(envelope);
     authorizeProject(envelope.projectId);
-    return drafts.save(envelope);
+    try {
+      await drafts.save(envelope);
+      draftSaveCount += 1;
+      clearTimeout(draftSaveTimer);
+      draftSaveTimer = setTimeout(flushDraftSaves, 1500);
+    } catch (error) {
+      record({
+        event: 'draft.save',
+        projectId: envelope.projectId,
+        outcome: 'failed',
+        details: { errorCode: 'DRAFT_WRITE_FAILED' },
+      });
+      throw error;
+    }
   });
 }
 
@@ -150,6 +370,7 @@ function serveApplication() {
   protocol.handle('studio', async (request) => {
     try {
       const url = new URL(request.url);
+      if (url.host === 'dictionary') return dictionarySite.handle(request);
       if (url.host !== 'app' || request.method !== 'GET')
         return new Response('Not found', { status: 404 });
       const target = path.resolve(directory, `.${decodeURIComponent(url.pathname)}`);
@@ -187,6 +408,9 @@ async function createWindow() {
       webSecurity: true,
       allowRunningInsecureContent: false,
       webviewTag: false,
+      // Keep tree fullscreen inside the app window. A macOS native fullscreen
+      // transition can race an immediate Escape and strand DOM fullscreen.
+      disableHtmlFullscreenWindowResize: true,
     },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -217,11 +441,39 @@ if (!app.requestSingleInstanceLock()) {
   app
     .whenReady()
     .then(async () => {
+      usage = createUsageService({
+        directory: path.join(app.getPath('userData'), 'usage'),
+        appVersion: app.getVersion(),
+        buildId: buildIdentity(),
+      });
+      record({ event: 'application.ready', outcome: 'succeeded' });
       drafts = new DraftStore(path.join(app.getPath('userData'), 'drafts'));
-      session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
-        callback(false),
-      );
-      session.defaultSession.setPermissionCheckHandler(() => false);
+      nextService = createNextService({
+        duringProjectWrite,
+        stateDirectory: app.getPath('userData'),
+        emit,
+        getProject: () => activeProject,
+        getWorker: () => worker,
+        openPath,
+        defaultParent:
+          process.env.PYDICATE_PROJECT_PARENT || path.resolve(applicationDirectory, '..'),
+        adoptProject: (project) => {
+          activeProject = validate.project(project);
+          watchProject(project);
+        },
+        chooseFile: async () => {
+          const selection = await dialog.showOpenDialog(window, {
+            title: 'Vincular PDF do testemunho',
+            properties: ['openFile'],
+            filters: [{ name: 'PDF', extensions: ['pdf'] }],
+          });
+          return selection.canceled ? null : selection.filePaths[0];
+        },
+      });
+      installApplicationPermissions(session.defaultSession, {
+        getWindow: () => window,
+        isApplicationURL,
+      });
       serveApplication();
       installBridge();
       await createWindow();
@@ -240,7 +492,21 @@ function showStartupError(error) {
   app.quit();
 }
 
-app.on('before-quit', () => worker?.close());
+let closingUsage = false;
+app.on('before-quit', (event) => {
+  flushDraftSaves();
+  worker?.close();
+  nextService?.close();
+  watchers.forEach((w) => w.close());
+  if (usage && !closingUsage) {
+    event.preventDefault();
+    closingUsage = true;
+    usage
+      .close()
+      .catch(() => {})
+      .finally(() => app.quit());
+  }
+});
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

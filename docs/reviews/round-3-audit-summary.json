@@ -1,0 +1,151 @@
+{
+  "source": "Araújo 1686",
+  "sourceSha256": "357b7e643d8ffe8e4c0386e3232016400be4421158b2668a4ab2e896a2a90a23",
+  "count": 82,
+  "generatedAt": "2026-09-17T03:46:19Z",
+  "repositories": [
+    {
+      "name": "oldtupicorpus",
+      "path": "/Users/kian/code/oldtupicorpus",
+      "revision": "292a28722a1790abf3f3b93083c29fbd47b4ffd0",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:ef4eebecaac3cd85c09a2a92aec5284e234be6bae8e944a80500faa648c100ed"
+    },
+    {
+      "name": "nhe-enga",
+      "path": "/Users/kian/code/nhe-enga",
+      "revision": "348686045bf0791c847be3cba1b15eaae7312a11",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:93147a2ad2162d4c8f8d54d60a2b3cf532645d6ccf47a2ea033d71c1c4a8bada"
+    }
+  ],
+  "totals": {
+    "import": 82,
+    "constructionTree": 82,
+    "spanEditRoundtrip": 82,
+    "serialize": 82,
+    "reimport": 82,
+    "sourceByteRoundtrip": 82,
+    "evaluation": 82,
+    "surfaceComparison": 82,
+    "annotationComparison": 82,
+    "structureComparison": 82,
+    "uiWorkflowVerified": 82
+  },
+  "methodInventory": [
+    "base_nominal",
+    "card",
+    "circ",
+    "imp",
+    "perm",
+    "redup",
+    "var",
+    "verbete",
+    "voc"
+  ],
+  "helperInventory": [
+    "cop",
+    "credo",
+    "n",
+    "pyreramo",
+    "saguera",
+    "v"
+  ],
+  "operators": [
+    "*",
+    "+",
+    "-",
+    "/",
+    "<<",
+    "==",
+    ">>",
+    "@"
+  ],
+  "limits": [
+    "constructionTree verifies recursive card encoding; spanEditRoundtrip verifies concrete replacement/reimport. visualEditingImplemented denotes available controls, while visualEditing/uiWorkflowVerified require source/dependency/UI/integration-matched per-expression native UI evidence. Unknown/mismatched evidence stays null. Tested interactions establish specific scope and lexical replacement workflows, not every possible linguistic edit.",
+    "Actual-engine direct module import is compared to the bounded AST interpreter with source context in execution order.",
+    "Morpheme tags are authoritative engine output; internal token-to-constituent alignment is not inferred.",
+    "Span-edit probe changes a leaf via the actual span serializer with redundant parentheses; syntax and all runtime structure, annotations and surfaces must remain equal.",
+    "Source byte comparison and targeted source-write tests are separate from editorial approval.",
+    "Structural comparison excludes volatile node IDs and includes grammatical flags, argument/adjunct order, lexical class and engine internal values."
+  ],
+  "command": "python3 -B python/audit_araujo.py --parent /Users/kian/code --output /tmp/critic-final-araujo-audit",
+  "criticTsCommand": "python3 -B scripts/critic-fidelity.py",
+  "criticTsResult": {
+    "expressions": 82,
+    "scopeReplacementProbes": 560,
+    "scopeFailures": 0
+  },
+  "contractCommands": [
+    {
+      "command": "node --test electron/tests/providers.test.cjs electron/tests/draft-store.test.cjs electron/tests/project-watch.test.cjs",
+      "passed": 15,
+      "realProviderCalls": false
+    },
+    {
+      "command": "npx playwright test tests/authoring-sync.spec.ts",
+      "passed": 8,
+      "transport": "Explicit local simulated responses for delayed parse/render and source concurrency"
+    },
+    {
+      "command": "npm test -- src/domain/ai.test.ts",
+      "passed": 2,
+      "transport": "Local state logic; no real provider call"
+    },
+    {
+      "command": "node --test tests/critic-ai-restart.test.cjs",
+      "passed": 3,
+      "transport": "Local synthetic provider; real child-process checkpoint/crash recovery, no credentials or network"
+    }
+  ],
+  "nativeUiEvidence": {
+    "path": "docs/reviews/round-3-all-expression-ui.json",
+    "totals": {
+      "uiWorkflowVerified": 82,
+      "scopeRoundtrip": 82,
+      "lexicalRoundtrip": 82,
+      "lexicalEvaluated": 82,
+      "lexicalDiagnosed": 0
+    },
+    "sourceBytesUnchanged": true,
+    "pageErrors": [],
+    "combinedRuns": {
+      "initial": {
+        "evidence": "docs/reviews/round-3-all-expression-ui-initial.json",
+        "verifiedRows": 41,
+        "boundary": "Original source and selected dependency content unchanged. Initial production bundle was not retained. Lead confirmed intervening useStudio write was formatter-only; current UI hashes are post-run capture, not an initial bundle hash."
+      },
+      "after-fixes": {
+        "verifiedRows": 41,
+        "boundary": "Frozen production UI and runtime through resumed native run; rows28/29 writer fixes verified."
+      }
+    }
+  },
+  "fixVerification": [
+    {
+      "finding": "R3-01",
+      "command": "python3 -B -m unittest python.tests.test_authoring.CorpusCopyTests.test_multiline_opening_parentheses_apply_metadata_with_same_identity -v",
+      "passed": 1,
+      "cases": [
+        28,
+        29
+      ],
+      "durationSeconds": 2.467,
+      "alsoVerified": "Native scope and lexical full-source preview/reimport for both expressions"
+    },
+    {
+      "finding": "R3-02",
+      "command": "node --test tests/critic-ai-restart.test.cjs",
+      "passed": 3
+    },
+    {
+      "finding": "R3-03",
+      "evidence": "docs/reviews/round-3-native-evidence.json",
+      "stage": "external-metadata-conflict-compare-reconcile"
+    }
+  ],
+  "finalMergedAuditCommand": "python3 -B python/audit_araujo.py --parent /Users/kian/code --output docs/coverage",
+  "finalMergedAuditEvidence": "docs/coverage/araujo.json"
+}

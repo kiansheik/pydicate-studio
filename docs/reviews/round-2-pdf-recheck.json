@@ -1,0 +1,58 @@
+{
+  "initialFailure": "The original probe used a canvas point scrolled under the fixed header after pressing the below-canvas drawing control. This recheck scrolls the actual canvas into view before measuring coordinates.",
+  "box": {
+    "x": 242,
+    "y": 426.5,
+    "width": 224.1953125,
+    "height": 336.2890625
+  },
+  "canvas": {
+    "width": 225,
+    "height": 337,
+    "blue": [
+      13,
+      76,
+      204,
+      255
+    ]
+  },
+  "rect": "79.99997822071995,360,260.00001088964007,480.00000000000006",
+  "theme": "light",
+  "physical": "1",
+  "saved": {
+    "version": 1,
+    "revision": 3,
+    "projectId": "local-92928d35193572ade87ba4fd",
+    "sourceId": "araujo_catecismo_1686",
+    "asset": {
+      "id": "37752044f280567c5e07b338879d9d58a40d69cf7957ff1651a66f9e715ae0c3",
+      "name": "critic-witness.pdf",
+      "bytes": 609,
+      "fingerprint": "37752044f280567c5e07b338879d9d58a40d69cf7957ff1651a66f9e715ae0c3",
+      "managedState": "ok",
+      "originalState": "ok"
+    },
+    "passage": {
+      "regions": [
+        {
+          "id": "048ddfec-2e6c-42f0-bf6f-62eaccb6641a",
+          "assetId": "37752044f280567c5e07b338879d9d58a40d69cf7957ff1651a66f9e715ae0c3",
+          "pageIndex": 0,
+          "rect": [
+            79.99997822071995,
+            360,
+            260.00001088964007,
+            480.00000000000006
+          ]
+        }
+      ],
+      "view": {
+        "pageIndex": 0,
+        "zoom": 1.5,
+        "rotation": 90
+      }
+    },
+    "retainedAssetCount": 1
+  },
+  "status": "passed"
+}

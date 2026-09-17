@@ -1,0 +1,2047 @@
+{
+  "startedAt": "2026-09-17T03:39:35.550Z",
+  "temp": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-all-ui-KAG87B",
+  "stages": [],
+  "pageErrors": [],
+  "policy": "Production Electron with disposable full dirty corpus copy; selected engine read-only symlink.",
+  "discoveredCount": 82,
+  "sourceId": "araujo_catecismo_1686",
+  "sourceSha256": "357b7e643d8ffe8e4c0386e3232016400be4421158b2668a4ab2e896a2a90a23",
+  "rows": [
+    {
+      "ordinal": 1,
+      "passageId": "passage:29fd30fc-b170-4de3-9dcc-b5f497f4b675",
+      "sourceExpression": "((saba * (santa_cruz * aang)) * esé)\n    + (endé * (pysyro.imp()) * oré)\n    + ((tupan == (oré * îara.voc())))\n    + ((sara * (-(oré * amotar))) * suí)",
+      "originalSurface": "Santa Cruzra'angaba resé orépysyrõ îepé Tupã oré îar oréamotare'ymbara suí",
+      "scopeCandidate": "(-(((saba * (santa_cruz * aang)) * esé)\n    + (endé * (pysyro.imp()) * oré)\n    + ((tupan == (oré * îara.voc())))\n    + ((sara * (-(oré * amotar))) * suí)))",
+      "scopeSurface": "Santa Cruzra'angaba resé orépysyrõ umẽ îepé Tupã oré îar oréamotare'ymbara suí",
+      "scopeStructureFingerprint": "sha256:778a54f3e845a21487a749294d690e250283efc3f96bb06707f36aa3f3f8ec66",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "suí"
+      },
+      "lexicalCandidate": "((saba * (santa_cruz * aang)) * esé)\n    + (endé * (pysyro.imp()) * oré)\n    + ((tupan == (oré * îara.voc())))\n    + ((sara * (-(oré * amotar))) * (suí + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Santa Cruzra'angaba resé orépysyrõ îepé Tupã oré îar oréamotare'ymbara suí amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 2,
+      "passageId": "passage:32a77247-055e-45b3-b0af-9e1e2d86e5ce",
+      "sourceExpression": "(((tuba + tayra + espirito_santo) * era) * pupé)",
+      "originalSurface": "tuba ta'yra Espírito Santo rera pupé",
+      "scopeCandidate": "((-(((tuba + tayra + espirito_santo) * era) * pupé)))",
+      "scopeSurface": "tuba ta'yra Espírito Santo rera pupé",
+      "scopeStructureFingerprint": "sha256:1c3da9faccf7a1db52c28b4093ccc431b91991bee5613bb443e2f1238e016d7d",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "pupé"
+      },
+      "lexicalCandidate": "(((tuba + tayra + espirito_santo) * era) * (pupé + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "tuba ta'yra Espírito Santo rera pupé amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 3,
+      "passageId": "passage:dab348b9-ff6e-4ab4-aa3a-3618803c57fc",
+      "sourceExpression": "(amen)",
+      "originalSurface": "amém",
+      "scopeCandidate": "((-(amen)))",
+      "scopeSurface": "amém",
+      "scopeStructureFingerprint": "sha256:0e79a07a14d1619dd91ff545e323f8dcf13f17ad84a1a5e28c3447839e070161",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root",
+        "name": "amen"
+      },
+      "lexicalCandidate": "((amen + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 4,
+      "passageId": "passage:8e637cac-f0d9-4525-9a87-3856477969e9",
+      "sourceExpression": "(oré * tuba).voc() @ (((pe * ybaka)) + (sara * ikó).voc())\n    + (amo * (pyra * moeté))\n    + ((nde * era) * ikó).perm()",
+      "originalSurface": "oré rub ybakype tekoar imoetepyramo nde rera toîkó",
+      "scopeCandidate": "(-((oré * tuba).voc() @ (((pe * ybaka)) + (sara * ikó).voc())\n    + (amo * (pyra * moeté))\n    + ((nde * era) * ikó).perm()))",
+      "scopeSurface": "oré rub ybakype tekoar imoetepyramo nde rera toîkó umẽ",
+      "scopeStructureFingerprint": "sha256:d1d4933e6894f81d5f0dfd720da98c6d01c306b21518fe5e262b6c8dba05e2e9",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/right",
+        "name": "ikó"
+      },
+      "lexicalCandidate": "(oré * tuba).voc() @ (((pe * ybaka)) + (sara * ikó).voc())\n    + (amo * (pyra * moeté))\n    + ((nde * era) * (ikó + amen)).perm()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "oré rub ybakype tekoar imoetepyramo nde rera toîkó amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 5,
+      "passageId": "passage:a6c742e2-bea6-4461-a677-43a4ad23698c",
+      "sourceExpression": "(ur * (nde * reino)).perm()",
+      "originalSurface": "tour nde Reino",
+      "scopeCandidate": "(-((ur * (nde * reino)).perm()))",
+      "scopeSurface": "tour umẽ nde Reino",
+      "scopeStructureFingerprint": "sha256:b7df393df125e2e9fa7117cafe83c522c491c35851ef87c728cd8dda568ccd8b",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/receiver/right/right",
+        "name": "reino"
+      },
+      "lexicalCandidate": "(ur * (nde * (reino + amen))).perm()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "tour nde Reino amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 6,
+      "passageId": "passage:a0659e5e-63df-4ab6-87cf-c86da13544b7",
+      "sourceExpression": "(monhang * (emi * (potar * nde)) * îe).perm()\n    + (pe * yby)\n    + (pe * ybaka)\n    + (îabé * (monhang * ae * îe))",
+      "originalSurface": "toîemonhang nde remimotara ybype ybakype oîemonhanga îabé",
+      "scopeCandidate": "(-((monhang * (emi * (potar * nde)) * îe).perm()\n    + (pe * yby)\n    + (pe * ybaka)\n    + (îabé * (monhang * ae * îe))))",
+      "scopeSurface": "toîemonhang umẽ nde remimotara ybype ybakype oîemonhanga îabé",
+      "scopeStructureFingerprint": "sha256:8be6e2d6160f43cc5741d0311afbf991d57a99e42d6ba805c660df8b59964c0a",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "îe"
+      },
+      "lexicalCandidate": "(monhang * (emi * (potar * nde)) * îe).perm()\n    + (pe * yby)\n    + (pe * ybaka)\n    + (îabé * (monhang * ae * (îe + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "toîemonhang nde remimotara ybype ybakype oîemonhanga îabé"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 7,
+      "passageId": "passage:797301a3-57bb-4837-8ef7-0356e63cf573",
+      "sourceExpression": "(((emi * (u * oré)) @ (nduara * (ara * iabiõ))) * (meeng * +endé).imp())\n    + kori\n    + orébe",
+      "originalSurface": "oré rembi'u 'ara îabi'õndûara eîme'eng kori orébe",
+      "scopeCandidate": "(-((((emi * (u * oré)) @ (nduara * (ara * iabiõ))) * (meeng * +endé).imp())\n    + kori\n    + orébe))",
+      "scopeSurface": "oré rembi'u 'ara îabi'õndûara eîme'eng umẽ kori orébe",
+      "scopeStructureFingerprint": "sha256:17f04a04d3dd3af571a80fe12fac22709ff167c709932be962de2415a61ab2ba",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "orébe"
+      },
+      "lexicalCandidate": "(((emi * (u * oré)) @ (nduara * (ara * iabiõ))) * (meeng * +endé).imp())\n    + kori\n    + (orébe + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "oré rembi'u 'ara îabi'õndûara eîme'eng kori orébe amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 8,
+      "passageId": "passage:3881f04d-113b-44ae-8ac1-bd4cf0cefaba",
+      "sourceExpression": "((+nde * nhyron).imp() + (oré * angaipaba * esé) + orébe)\n    + (îabé * ((((sara * (erekomemûã * oré))) * supé) + (oré * nhyron)))",
+      "originalSurface": "ndenhyrõ oré angaîpaba resé orébe orérerekomemûãsara supé orénhyrõ îabé",
+      "scopeCandidate": "(-(((+nde * nhyron).imp() + (oré * angaipaba * esé) + orébe)\n    + (îabé * ((((sara * (erekomemûã * oré))) * supé) + (oré * nhyron)))))",
+      "scopeSurface": "ndenhyrõ umẽ oré angaîpaba resé orébe orérerekomemûãsara supé orénhyrõ îabé",
+      "scopeStructureFingerprint": "sha256:d8ecce51f1a2eab7404fde7d32111abe182eeb656a74cc8a1d172db238882878",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right",
+        "name": "nhyron"
+      },
+      "lexicalCandidate": "((+nde * nhyron).imp() + (oré * angaipaba * esé) + orébe)\n    + (îabé * ((((sara * (erekomemûã * oré))) * supé) + (oré * (nhyron + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "ndenhyrõ oré angaîpaba resé orébe orérerekomemûãsara supé orénhyrõ amém îabé"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 9,
+      "passageId": "passage:b2c33abe-170d-4ac2-8b33-0806d451c871",
+      "sourceExpression": "(endé * -(mo * (ar / ukar)).imp() * oré) + (tentação * pupé)",
+      "originalSurface": "orémo'arukar umẽ îepé tentação pupé",
+      "scopeCandidate": "(-((endé * -(mo * (ar / ukar)).imp() * oré) + (tentação * pupé)))",
+      "scopeSurface": "orémo'arukar îepé tentação pupé",
+      "scopeStructureFingerprint": "sha256:87dce8c6ab0b6d660e31c8b5cbc66aae8facc738ff0f39c581755c1e57254bb8",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "pupé"
+      },
+      "lexicalCandidate": "(endé * -(mo * (ar / ukar)).imp() * oré) + (tentação * (pupé + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "orémo'arukar umẽ îepé tentação pupé amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 10,
+      "passageId": "passage:77b6d798-79e9-431e-b1ec-d98a56eb9ada",
+      "sourceExpression": "((oré * ((pysyro * endé))).imp() << te) + ((mbae / aiba) * suí)",
+      "originalSurface": "orépysyrõte îepé mba'eaíba suí",
+      "scopeCandidate": "(-(((oré * ((pysyro * endé))).imp() << te) + ((mbae / aiba) * suí)))",
+      "scopeSurface": "orépysyrõ umẽte îepé mba'eaíba suí",
+      "scopeStructureFingerprint": "sha256:e0810074b10f11a69699a7b483033c1dd79009c8095c75470241e0661da91aca",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "suí"
+      },
+      "lexicalCandidate": "((oré * ((pysyro * endé))).imp() << te) + ((mbae / aiba) * (suí + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "orépysyrõte îepé mba'eaíba suí amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 11,
+      "passageId": "passage:27f03b81-a3b0-4694-89bd-34e53e69bae3",
+      "sourceExpression": "(amen)",
+      "originalSurface": "amém",
+      "scopeCandidate": "((-(amen)))",
+      "scopeSurface": "amém",
+      "scopeStructureFingerprint": "sha256:0e79a07a14d1619dd91ff545e323f8dcf13f17ad84a1a5e28c3447839e070161",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root",
+        "name": "amen"
+      },
+      "lexicalCandidate": "((amen + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 12,
+      "passageId": "passage:092c69f7-6e39-4399-8cea-c19b72e8f271",
+      "sourceExpression": "cop() * avemaria * (bae * ((esé * graça) + v(ynysema)))",
+      "originalSurface": "Ave Maria graça resé tynysemba'e",
+      "scopeCandidate": "(-(cop() * avemaria * (bae * ((esé * graça) + v(ynysema)))))",
+      "scopeSurface": "nda Ave Maria ruã graça resé tynysemba'e",
+      "scopeStructureFingerprint": "sha256:aed500d79310fffb03990612b238474dcc2f1d100e5254fe9792fdc8f79fc202",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/arg0",
+        "name": "ynysema"
+      },
+      "lexicalCandidate": "cop() * avemaria * (bae * ((esé * graça) + v((ynysema + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Ave Maria graça resé tynysemba'e"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 13,
+      "passageId": "passage:cc4e34ee-bbc5-4eb1-be9e-5bca51da5628",
+      "sourceExpression": "(amo * (nde * irun)) + (ikó * (îandé * îara))",
+      "originalSurface": "nde irũnamo îandé îara rekóû",
+      "scopeCandidate": "(-((amo * (nde * irun)) + (ikó * (îandé * îara))))",
+      "scopeSurface": "nde irũnamo îandé îara rekóe'ymi",
+      "scopeStructureFingerprint": "sha256:298de65244bd1a40bac40f89c8aa57c34e5db86ed76f6ca901db7e3f87d9f293",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "îara"
+      },
+      "lexicalCandidate": "(amo * (nde * irun)) + (ikó * (îandé * (îara + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "nde irũnamo îandé îara amém rekóû"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 14,
+      "passageId": "passage:950b744e-bd83-49f3-8235-1b8a6ecef81f",
+      "sourceExpression": "(amo * (pyra * (mombeu / katu))) + (ikó * +endé) + (kunhã * suí)",
+      "originalSurface": "imombe'ukatupyramo ereikó kunhã suí",
+      "scopeCandidate": "(-((amo * (pyra * (mombeu / katu))) + (ikó * +endé) + (kunhã * suí)))",
+      "scopeSurface": "imombe'ukatupyramo nereikóî kunhã suí",
+      "scopeStructureFingerprint": "sha256:28d8a7f8440e5ccd8403b858d6bc2c48df2734bd27a6778e71e6a5c84f9bd325",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "suí"
+      },
+      "lexicalCandidate": "(amo * (pyra * (mombeu / katu))) + (ikó * +endé) + (kunhã * (suí + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "imombe'ukatupyramo ereikó kunhã suí amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 15,
+      "passageId": "passage:0db906ac-5700-4ffc-bbf6-be5cabe523b0",
+      "sourceExpression": "cop() * ((pyra * (mombeu / katu)) + abé) * (cop() * (nde * membyra) * jesus)",
+      "originalSurface": "imombe'ukatupyra abé nde membyra Jesus",
+      "scopeCandidate": "(-(cop() * ((pyra * (mombeu / katu)) + abé) * (cop() * (nde * membyra) * jesus)))",
+      "scopeSurface": "nd imombe'ukatupyra abé ruã nde membyra Jesus",
+      "scopeStructureFingerprint": "sha256:af26915d801135a404329dee42b31275c5c17632a749709bf7e663672182d20a",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "jesus"
+      },
+      "lexicalCandidate": "cop() * ((pyra * (mombeu / katu)) + abé) * (cop() * (nde * membyra) * (jesus + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "imombe'ukatupyra abé nde membyra Jesus amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 16,
+      "passageId": "passage:8b55ab6d-6d26-4f0b-b4a7-1c77be911512",
+      "sourceExpression": "(cop() * santamaria * (tupan * sy))\n    + (+endé * tupãmongetá).imp()\n    + (esé * (cop() * oré * (bae * v(angaipaba))))\n    + koyr\n    << (irã + ((îub * oré) >> (îekyî * oré)) << béno)",
+      "originalSurface": "Santa Maria Tupã sy etupãmongetá oré iangaîpaba'e resé ko'yr irã oré îekyî oré rúme béno",
+      "scopeCandidate": "(-((cop() * santamaria * (tupan * sy))\n    + (+endé * tupãmongetá).imp()\n    + (esé * (cop() * oré * (bae * v(angaipaba))))\n    + koyr\n    << (irã + ((îub * oré) >> (îekyî * oré)) << béno)))",
+      "scopeSurface": "Santa Maria Tupã sy etupãmongetá umẽ oré iangaîpaba'e resé ko'yr irã oré îekyî oré rúme béno",
+      "scopeStructureFingerprint": "sha256:be70d427966338ba938e31a6913d50312eecf536ca283ac8ddb7ba68edee9e3e",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "béno"
+      },
+      "lexicalCandidate": "(cop() * santamaria * (tupan * sy))\n    + (+endé * tupãmongetá).imp()\n    + (esé * (cop() * oré * (bae * v(angaipaba))))\n    + koyr\n    << (irã + ((îub * oré) >> (îekyî * oré)) << (béno + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Santa Maria Tupã sy etupãmongetá oré iangaîpaba'e resé ko'yr irã oré îekyî oré rúme béno amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 17,
+      "passageId": "passage:1e072334-c03f-48df-a41d-24cc33425973",
+      "sourceExpression": "(amen)",
+      "originalSurface": "amém",
+      "scopeCandidate": "((-(amen)))",
+      "scopeSurface": "amém",
+      "scopeStructureFingerprint": "sha256:0e79a07a14d1619dd91ff545e323f8dcf13f17ad84a1a5e28c3447839e070161",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root",
+        "name": "amen"
+      },
+      "lexicalCandidate": "((amen + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 18,
+      "passageId": "passage:d8da8a81-112f-41da-8c83-8b4a35beae11",
+      "sourceExpression": "(cop() * (salve_rainha == (poraûsubara * sy)) + ikobé.base_nominal(True))\n    + (bae * v(een))\n    + (saba * (oré * erobîar * îe))\n    + (salve)",
+      "originalSurface": "Salve Rainha moraûsubara sy tekobé se'ẽba'e oré îeerobîasaba salve",
+      "scopeCandidate": "(-((cop() * (salve_rainha == (poraûsubara * sy)) + ikobé.base_nominal(True))\n    + (bae * v(een))\n    + (saba * (oré * erobîar * îe))\n    + (salve)))",
+      "scopeSurface": "nda Salve Rainha moraûsubara sy ruã tekobé se'ẽba'e oré îeerobîasaba salve",
+      "scopeStructureFingerprint": "sha256:1f2286e268c5dd538a9243d010c7fd33c43aa116647e08973a34e79757589087",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "salve"
+      },
+      "lexicalCandidate": "(cop() * (salve_rainha == (poraûsubara * sy)) + ikobé.base_nominal(True))\n    + (bae * v(een))\n    + (saba * (oré * erobîar * îe))\n    + ((salve + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Salve Rainha moraûsubara sy tekobé se'ẽba'e oré îeerobîasaba amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 19,
+      "passageId": "passage:d17f39cb-8681-485a-a575-c95836eb3f50",
+      "sourceExpression": "(nde * supé)\n    + (+oré * sapukai.redup()).circ(False)\n    + (amo * (pyra * pea))\n    + (amo * (eva * membyra))",
+      "originalSurface": "endébo orosapukapukaî ipe'apyramo Eva membyramo",
+      "scopeCandidate": "(-((nde * supé)\n    + (+oré * sapukai.redup()).circ(False)\n    + (amo * (pyra * pea))\n    + (amo * (eva * membyra))))",
+      "scopeSurface": "endébo norosapukapukaî ipe'apyramo Eva membyramo",
+      "scopeStructureFingerprint": "sha256:0a74b5ee64cffacbde2c8a20c8ad3177e7e57aaab66627ab7af05c3af36b105f",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "membyra"
+      },
+      "lexicalCandidate": "(nde * supé)\n    + (+oré * sapukai.redup()).circ(False)\n    + (amo * (pyra * pea))\n    + (amo * (eva * (membyra + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "endébo orosapukapukaî ipe'apyramo Eva membyra amémamo"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 20,
+      "passageId": "passage:92ea37db-e0a9-497f-b38e-d5097cca53e6",
+      "sourceExpression": "(nde * supé) + ((+oré * nheangerur.circ(False)) << (oré * v(poasema)))\n    << ((+oré * îaseo) + (pupé * ((ikód * ybytygûaîa) == (saba * îaseo))))",
+      "originalSurface": "endébo oronhe'angerur orépoasemamo oroîasegûabo ikó ybytygûaîa îase'ûaba pupé",
+      "scopeCandidate": "(-((nde * supé) + ((+oré * nheangerur.circ(False)) << (oré * v(poasema)))\n    << ((+oré * îaseo) + (pupé * ((ikód * ybytygûaîa) == (saba * îaseo))))))",
+      "scopeSurface": "endébo noronhe'angeruri orépoasemamo oroîasegûabo ikó ybytygûaîa îase'ûaba pupé",
+      "scopeStructureFingerprint": "sha256:3c1489c243e6c8b8f7a5295e2649a1997278d1251cc06985e8ea2ad2c242ee54",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right/right",
+        "name": "îaseo"
+      },
+      "lexicalCandidate": "(nde * supé) + ((+oré * nheangerur.circ(False)) << (oré * v(poasema)))\n    << ((+oré * îaseo) + (pupé * ((ikód * ybytygûaîa) == (saba * (îaseo + amen)))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "endébo oronhe'angerur orépoasemamo oroîasegûabo ikó ybytygûaîa îase'ûaba amém pupé"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 21,
+      "passageId": "passage:650c51a3-8359-484a-835b-bbd2de7aa30d",
+      "sourceExpression": "enein + (sara * ((esé * oré) + (îeruré))).voc()",
+      "originalSurface": "ene'ĩ oré resé îeruresar",
+      "scopeCandidate": "(-(enein + (sara * ((esé * oré) + (îeruré))).voc()))",
+      "scopeSurface": "ene'ĩ oré resé îeruresar",
+      "scopeStructureFingerprint": "sha256:49bc9e3db13a43e92369b5030f5263f3978047a830c1934ee97588bfc6d8ecb1",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/right/right",
+        "name": "îeruré"
+      },
+      "lexicalCandidate": "enein + (sara * ((esé * oré) + ((îeruré + amen)))).voc()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "ene'ĩ oré resé îeruresar amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 22,
+      "passageId": "passage:645dbb38-4bd3-4b59-98da-d3feefe06adf",
+      "sourceExpression": "((eboûing * (nde * (esá / poraûsubara))) * (+endé * erobak.imp())) + (oré * koty)",
+      "originalSurface": "eboûing nde resaporaûsubara erobak oré koty",
+      "scopeCandidate": "(-(((eboûing * (nde * (esá / poraûsubara))) * (+endé * erobak.imp())) + (oré * koty)))",
+      "scopeSurface": "eboûing nde resaporaûsubara erobak umẽ oré koty",
+      "scopeStructureFingerprint": "sha256:1d961f6b3cb4fab3d061e58b081c9b9eef362159b714513125a54498562011f9",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "koty"
+      },
+      "lexicalCandidate": "((eboûing * (nde * (esá / poraûsubara))) * (+endé * erobak.imp())) + (oré * (koty + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "eboûing nde resaporaûsubara erobak oré koty amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 23,
+      "passageId": "passage:087f1661-9d35-4138-b84e-a94099a0c507",
+      "sourceExpression": "(aec)\n    + (\n        (iré * (syk * (ikód * (pûera * (saba * (pea * îe))))))\n        >> ((jatf * (+endé * (epîak / ukar))).imp() + orébe)\n    )",
+      "originalSurface": "a'e Jesus imombe'ukatupyra nde membyra ikó oîepe'asagûera sykiré esepîakukar orébe",
+      "scopeCandidate": "(-((aec)\n    + (\n        (iré * (syk * (ikód * (pûera * (saba * (pea * îe))))))\n        >> ((jatf * (+endé * (epîak / ukar))).imp() + orébe)\n    )))",
+      "scopeSurface": "a'e Jesus imombe'ukatupyra nde membyra ikó oîepe'asagûera sykiré esepîakukar umẽ orébe",
+      "scopeStructureFingerprint": "sha256:64b7b7618d5720615ef801e9e59f55faa84008bbc1977bca891e673a8494f026",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "orébe"
+      },
+      "lexicalCandidate": "(aec)\n    + (\n        (iré * (syk * (ikód * (pûera * (saba * (pea * îe))))))\n        >> ((jatf * (+endé * (epîak / ukar))).imp() + (orébe + amen))\n    )",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "a'e Jesus imombe'ukatupyra nde membyra ikó oîepe'asagûera sykiré esepîakukar orébe amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 24,
+      "passageId": "passage:70121899-a356-4008-abe0-0479e2087360",
+      "sourceExpression": "cop()\n    * (nheraneym.voc())\n    * ((sara * v(poreaûsuberekó)).voc())\n    * ((bae * v(een)).voc())\n    * virgem_maria.voc()",
+      "originalSurface": "nherane'ym poreaûsuberekoar se'ẽba'e Virgem Maria",
+      "scopeCandidate": "(-(cop()\n    * (nheraneym.voc())\n    * ((sara * v(poreaûsuberekó)).voc())\n    * ((bae * v(een)).voc())\n    * virgem_maria.voc()))",
+      "scopeSurface": "nda nherane'ym ruã poreaûsuberekoar se'ẽba'e Virgem Maria",
+      "scopeStructureFingerprint": "sha256:325ea2edbe6e9c5c94eb22d97f27010cecd55ac3c7b7ac27d48b61088d0cfeed",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver",
+        "name": "virgem_maria"
+      },
+      "lexicalCandidate": "cop()\n    * (nheraneym.voc())\n    * ((sara * v(poreaûsuberekó)).voc())\n    * ((bae * v(een)).voc())\n    * (virgem_maria + amen).voc()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "nherane'ym poreaûsuberekoar se'ẽba'e Virgem Maria amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 25,
+      "passageId": "passage:5d584ba1-eade-447f-ac77-3e79fd08a175",
+      "sourceExpression": "((cop() * santamaria * (tupan * sy)) + (v(angaturama).perm() * +oré) << ne)\n    + (esé * (pûera * (emi * (christo * enõî))))\n    + (\n        ri * (rama * (saba * (oré * îekosub)))\n    )",
+      "originalSurface": "Santa Maria Tupã sy toréangaturam ne Christo remienõîûera resé oré îekosubagûama ri",
+      "scopeCandidate": "(-(((cop() * santamaria * (tupan * sy)) + (v(angaturama).perm() * +oré) << ne)\n    + (esé * (pûera * (emi * (christo * enõî))))\n    + (\n        ri * (rama * (saba * (oré * îekosub)))\n    )))",
+      "scopeSurface": "Santa Maria Tupã sy toréangaturam umẽ ne Christo remienõîûera resé oré îekosubagûama ri",
+      "scopeStructureFingerprint": "sha256:36fb629b4d39222230510e9130172f1636896036b284ef7e201240085b9e07ea",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right/right",
+        "name": "îekosub"
+      },
+      "lexicalCandidate": "((cop() * santamaria * (tupan * sy)) + (v(angaturama).perm() * +oré) << ne)\n    + (esé * (pûera * (emi * (christo * enõî))))\n    + (\n        ri * (rama * (saba * (oré * (îekosub + amen))))\n    )",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Santa Maria Tupã sy toréangaturam ne Christo remienõîûera resé oré îekosubagûama amém ri"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 26,
+      "passageId": "passage:2b4ef031-4e90-4111-82f7-a88226b37af9",
+      "sourceExpression": "(amen)",
+      "originalSurface": "amém",
+      "scopeCandidate": "((-(amen)))",
+      "scopeSurface": "amém",
+      "scopeStructureFingerprint": "sha256:0e79a07a14d1619dd91ff545e323f8dcf13f17ad84a1a5e28c3447839e070161",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root",
+        "name": "amen"
+      },
+      "lexicalCandidate": "((amen + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 27,
+      "passageId": "passage:37bd2196-8bd0-4a79-b803-b41fbbc345dd",
+      "sourceExpression": "erobîar * +ixé * ((ttomtmetkbae) * (sara * (monhang * (abé + ybaka + yby))))",
+      "originalSurface": "arobîar Tupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e ybaka yby abémonhangara",
+      "scopeCandidate": "(-(erobîar * +ixé * ((ttomtmetkbae) * (sara * (monhang * (abé + ybaka + yby))))))",
+      "scopeSurface": "narobîari Tupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e ybaka yby abémonhangara",
+      "scopeStructureFingerprint": "sha256:c8d72e39214840427e58dcae09a452dbea8a00c4ec5f6f11ceffa84c3b4ea658",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right/right",
+        "name": "yby"
+      },
+      "lexicalCandidate": "erobîar * +ixé * ((ttomtmetkbae) * (sara * (monhang * (abé + ybaka + (yby + amen)))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar Tupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e ybaka yby amém abémonhangara"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 28,
+      "passageId": "passage:771ebefc-22d9-4955-b32a-8cd0a4073e28",
+      "sourceExpression": "(\n        +ixé\n        * erobîar\n        * ((cop() * (jesus / christo / abé)) * (tayra) * (oîepebae) * (asé * îara))\n    )",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar JesusChrixtoabé ta'yra oîepeba'e asé îara",
+      "scopeCandidate": "(\n        (-(+ixé\n        * erobîar\n        * ((cop() * (jesus / christo / abé)) * (tayra) * (oîepebae) * (asé * îara))))\n    )",
+      "scopeSurface": "narobîari JesusChrixtoabé ta'yra oîepeba'e asé îara",
+      "scopeStructureFingerprint": "sha256:ad64c87b1a48668522973787d4cbe43d291ca4450e58ac92fbe8db89805fcab0",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "îara"
+      },
+      "lexicalCandidate": "(\n        +ixé\n        * erobîar\n        * ((cop() * (jesus / christo / abé)) * (tayra) * (oîepebae) * (asé * (îara + amen)))\n    )",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar JesusChrixtoabé ta'yra oîepeba'e asé îara amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 29,
+      "passageId": "passage:cffbdebb-02af-4533-852b-f901385fd001",
+      "sourceExpression": "(\n        pûera\n        * (\n            bae\n            * (\n                (pe * (saba * (espirito_santo * monhang * ae)))\n                >> ((amo * pitangin) >> (((monhang) * îe)))\n            )\n        )\n    )",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "Espírito Santo imonhangápe pitangĩnamo oîemonhangyba'epûera",
+      "scopeCandidate": "(\n        (-(pûera\n        * (\n            bae\n            * (\n                (pe * (saba * (espirito_santo * monhang * ae)))\n                >> ((amo * pitangin) >> (((monhang) * îe)))\n            )\n        )))\n    )",
+      "scopeSurface": "Espírito Santo imonhangápe pitangĩnamo oîemonhangyba'epûere'yma",
+      "scopeStructureFingerprint": "sha256:e3dbe82a32098fa177d629da2a38964c1f0b51eff75872a626bd458ecb301aa0",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right/right",
+        "name": "îe"
+      },
+      "lexicalCandidate": "(\n        pûera\n        * (\n            bae\n            * (\n                (pe * (saba * (espirito_santo * monhang * ae)))\n                >> ((amo * pitangin) >> (((monhang) * (îe + amen))))\n            )\n        )\n    )",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Espírito Santo imonhangápe pitangĩnamo îe amém oîmonhangyba'epûera"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 30,
+      "passageId": "passage:5d069313-3f44-4609-91b2-ac87a1ef7a0c",
+      "sourceExpression": "(aebae * ar) + (suí * (cop() * (maria) * (ababykagûereyma)))",
+      "originalSurface": "a'eba'e o'ar Maria ababykagûere'yma suí",
+      "scopeCandidate": "(-((aebae * ar) + (suí * (cop() * (maria) * (ababykagûereyma)))))",
+      "scopeSurface": "a'eba'e no'ari Maria ababykagûere'yma suí",
+      "scopeStructureFingerprint": "sha256:9f9bda26095659edb970792f2d7133678ff1e686dde84896538ed7245350122c",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "ababykagûereyma"
+      },
+      "lexicalCandidate": "(aebae * ar) + (suí * (cop() * (maria) * ((ababykagûereyma + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "a'eba'e o'ar Maria ababykagûere'yma amém suí"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 31,
+      "passageId": "passage:ce6c20b4-333e-4754-8e93-33893f6f1983",
+      "sourceExpression": "(ponciopilato * ((amo * morubixaba) >> (ikó)))\n    >> ((amo * (pyra * (erekó / memûã))) + (+aebae * ikó))",
+      "originalSurface": "Poncio Pilato morubixabamo sekóreme serekomemûãmbyramo sekóû",
+      "scopeCandidate": "(-((ponciopilato * ((amo * morubixaba) >> (ikó)))\n    >> ((amo * (pyra * (erekó / memûã))) + (+aebae * ikó))))",
+      "scopeSurface": "Poncio Pilato morubixabamo sekóreme serekomemûãmbyramo sekóe'ymi",
+      "scopeStructureFingerprint": "sha256:7ab307393c6eba39328b37949c99192191fd10c041a03e88123006f5e03deb23",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "ikó"
+      },
+      "lexicalCandidate": "(ponciopilato * ((amo * morubixaba) >> (ikó)))\n    >> ((amo * (pyra * (erekó / memûã))) + (+aebae * (ikó + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Poncio Pilato morubixabamo sekóreme serekomemûãmbyramo sekóû amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 32,
+      "passageId": "passage:6923f240-3e48-4f6a-af01-bfd4d5cbd19f",
+      "sourceExpression": "(esé * ybyraîoasaba)\n    + (amo * (pyra * moîar) + (ikó * +aebae))\n    + (amo * (pyra * îuká))\n    + (amo * (pyra * tym) + (ikó * +aebae))",
+      "originalSurface": "ybyraîoasaba resé imoîarypyramo sekóû iîukapyramo itymymbyramo sekóû",
+      "scopeCandidate": "(-((esé * ybyraîoasaba)\n    + (amo * (pyra * moîar) + (ikó * +aebae))\n    + (amo * (pyra * îuká))\n    + (amo * (pyra * tym) + (ikó * +aebae))))",
+      "scopeSurface": "ybyraîoasaba resé imoîarypyramo sekóe'ymi iîukapyramo itymymbyramo sekóû",
+      "scopeStructureFingerprint": "sha256:286fb9507befcf4db1463be1035f5ed3cd14ee35a038faccb1334f43b88d9818",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/operand",
+        "name": "aebae"
+      },
+      "lexicalCandidate": "(esé * ybyraîoasaba)\n    + (amo * (pyra * moîar) + (ikó * +aebae))\n    + (amo * (pyra * îuká))\n    + (amo * (pyra * tym) + (ikó * +(aebae + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "ybyraîoasaba resé imoîarypyramo sekóû iîukapyramo itymymbyramo sekóû"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 33,
+      "passageId": "passage:9dba8b10-d95a-4f9e-9ed3-0bfb29072a66",
+      "sourceExpression": "(+jesus * gûeîyb + (pe * (yby * apytera)))",
+      "originalSurface": "ogûeîyb yby apyterype",
+      "scopeCandidate": "((-(+jesus * gûeîyb + (pe * (yby * apytera)))))",
+      "scopeSurface": "nogûeîybi yby apyterype",
+      "scopeStructureFingerprint": "sha256:9d2c34977392a97fb1e2d40512c0d93bcfd89a107c23f70eb8c621fdb64eefb8",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "apytera"
+      },
+      "lexicalCandidate": "(+jesus * gûeîyb + (pe * (yby * (apytera + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "ogûeîyb yby apytera amẽme"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 34,
+      "passageId": "passage:2308fd96-eeda-4ded-b6c8-fbdb347263c2",
+      "sourceExpression": "(pupé * third_day)\n    + ((suí * (pûera * (bae * (manõ)))) + (+jesus * (ikobé / îebyr)))",
+      "originalSurface": "'ara mosapyra pupé omanõba'epûera suí sekobeîebyri",
+      "scopeCandidate": "(-((pupé * third_day)\n    + ((suí * (pûera * (bae * (manõ)))) + (+jesus * (ikobé / îebyr)))))",
+      "scopeSurface": "'ara mosapyra pupé omanõba'epûera suí sekobeîebyre'ymi",
+      "scopeStructureFingerprint": "sha256:9da1b51d58e6f193623cfb786ff3db44b0336b27db2b91fa6406554d4a22005f",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right",
+        "name": "îebyr"
+      },
+      "lexicalCandidate": "(pupé * third_day)\n    + ((suí * (pûera * (bae * (manõ)))) + (+jesus * (ikobé / (îebyr + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "'ara mosapyra pupé omanõba'epûera suí sekobeîebyri"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 35,
+      "passageId": "passage:7ffcb24f-f6ce-4705-b333-56d7c00fa329",
+      "sourceExpression": "(upir * +jesus * îe) + (pe * ybaka)",
+      "originalSurface": "oîeupir ybakype",
+      "scopeCandidate": "(-((upir * +jesus * îe) + (pe * ybaka)))",
+      "scopeSurface": "noîeupiri ybakype",
+      "scopeStructureFingerprint": "sha256:b2b10ece02d572a81b7505587ef5769b26ad3732ff9810d3c13a2810fc9fcad4",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "ybaka"
+      },
+      "lexicalCandidate": "(upir * +jesus * îe) + (pe * (ybaka + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "oîeupir ybaka amẽme"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 36,
+      "passageId": "passage:a6e8bdd1-8185-49ff-8841-da035bad0402",
+      "sourceExpression": "(koty * (ttomtmetkbae * ekatûaba)) + (+jesus * inv)",
+      "originalSurface": "Tupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e 'ekatuaba koty seni",
+      "scopeCandidate": "(-((koty * (ttomtmetkbae * ekatûaba)) + (+jesus * inv)))",
+      "scopeSurface": "Tupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e 'ekatuaba koty sene'ymi",
+      "scopeStructureFingerprint": "sha256:01c9c4de0a297421934031812a418762ee11715f464c15c1d9d70c2d55884fbc",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "inv"
+      },
+      "lexicalCandidate": "(koty * (ttomtmetkbae * ekatûaba)) + (+jesus * (inv + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Tupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e 'ekatuaba koty seni amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 37,
+      "passageId": "passage:310931ea-afd6-436e-a364-8061d97de1ad",
+      "sourceExpression": "aesuí + (+jesus * îur)\n    << (\n        (\n            (((bae * (ikobé))) + ((pûera * (bae * (manõ)))) + paben)\n            * (+jesus * (ekomonhang))\n        )\n    )\n    + ne",
+      "originalSurface": "a'e suí turi oîkobeba'e omanõba'epûera pabẽ rekomonhanga ne",
+      "scopeCandidate": "(-(aesuí + (+jesus * îur)\n    << (\n        (\n            (((bae * (ikobé))) + ((pûera * (bae * (manõ)))) + paben)\n            * (+jesus * (ekomonhang))\n        )\n    )\n    + ne))",
+      "scopeSurface": "a'e suí ture'ymi oîkobeba'e omanõba'epûera pabẽ rekomonhanga ne",
+      "scopeStructureFingerprint": "sha256:48a984c7fc31485832c87ca007c7e0e640f07a553a6a099fe78cd2b0b124a4a3",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "ne"
+      },
+      "lexicalCandidate": "aesuí + (+jesus * îur)\n    << (\n        (\n            (((bae * (ikobé))) + ((pûera * (bae * (manõ)))) + paben)\n            * (+jesus * (ekomonhang))\n        )\n    )\n    + (ne + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "a'e suí turi oîkobeba'e omanõba'epûera pabẽ rekomonhanga ne amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 38,
+      "passageId": "passage:1c2cceac-49f4-48de-a89e-7bdc0e429b46",
+      "sourceExpression": "(arobiar * espirito_santo)",
+      "originalSurface": "arobîar Espírito Santo",
+      "scopeCandidate": "((-(arobiar * espirito_santo)))",
+      "scopeSurface": "narobîari Espírito Santo",
+      "scopeStructureFingerprint": "sha256:99815b28957a596d8d5bcc841647a83664fc347ab4b72de5b84676674bee5946",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "espirito_santo"
+      },
+      "lexicalCandidate": "(arobiar * (espirito_santo + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar Espírito Santo amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 39,
+      "passageId": "passage:5b6c6cc8-0ee6-4950-b369-7df10a90529c",
+      "sourceExpression": "arobiar * santa_igreja",
+      "originalSurface": "arobîar Santa Igreja Catholica",
+      "scopeCandidate": "(-(arobiar * santa_igreja))",
+      "scopeSurface": "narobîari Santa Igreja Catholica",
+      "scopeStructureFingerprint": "sha256:c4f4c76bbd739042e7c3d6d11411a0094889d7d9631eadb3fd4a70c60cc793e4",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "santa_igreja"
+      },
+      "lexicalCandidate": "arobiar * (santa_igreja + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar Santa Igreja Catholica amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 40,
+      "passageId": "passage:53c39e1d-503b-4948-9ae0-4439e678ab73",
+      "sourceExpression": "arobiar * (((santos * (ikó / katu)).base_nominal(True) * (mo * îaok) * îe).redup())",
+      "originalSurface": "arobîar Santos rekokatu îemoîa'oîa'oka",
+      "scopeCandidate": "(-(arobiar * (((santos * (ikó / katu)).base_nominal(True) * (mo * îaok) * îe).redup())))",
+      "scopeSurface": "narobîari Santos rekokatu îemoîa'oîa'oka",
+      "scopeStructureFingerprint": "sha256:73d52f8ba6988f2d20126d0e48546a8f2c83dd0b111642e68a4ea69860e211ee",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/right",
+        "name": "îe"
+      },
+      "lexicalCandidate": "arobiar * (((santos * (ikó / katu)).base_nominal(True) * (mo * îaok) * (îe + amen)).redup())",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar Santos rekokatu îemoîa'oîa'oka"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 41,
+      "passageId": "passage:94f470c3-ce88-40f0-8143-2269d5330839",
+      "sourceExpression": "(arobiar * ((ekoangaîpaba * esé) + (moro * supé) + (tupan * nhyron)))",
+      "originalSurface": "arobîar tekoangaîpaba resé moroupé Tupãnhyrõ",
+      "scopeCandidate": "((-(arobiar * ((ekoangaîpaba * esé) + (moro * supé) + (tupan * nhyron)))))",
+      "scopeSurface": "narobîari tekoangaîpaba resé moroupé Tupãnhyrõ",
+      "scopeStructureFingerprint": "sha256:ea7c30516e5fe26e29d1ab4d1b6f4c93150e33eeb0971abd7bb6d265d8b85848",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "nhyron"
+      },
+      "lexicalCandidate": "(arobiar * ((ekoangaîpaba * esé) + (moro * supé) + (tupan * (nhyron + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar tekoangaîpaba resé moroupé Tupãnhyrõ amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 42,
+      "passageId": "passage:c3671c0b-ff63-4b01-892f-4ded269b7739",
+      "sourceExpression": "arobiar * (rama * (saba * (asé * (ikobé / îebyr))))",
+      "originalSurface": "arobîar asé rekobeîebyragûama",
+      "scopeCandidate": "(-(arobiar * (rama * (saba * (asé * (ikobé / îebyr))))))",
+      "scopeSurface": "narobîari asé rekobeîebyragûama",
+      "scopeStructureFingerprint": "sha256:2858f04172f725544e90b1f6a4e06fa4962e3de559dc3b9d55bab2663bbebca6",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right/right",
+        "name": "îebyr"
+      },
+      "lexicalCandidate": "arobiar * (rama * (saba * (asé * (ikobé / (îebyr + amen)))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar asé rekobeîebyragûama"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 43,
+      "passageId": "passage:36762f74-33f9-4f9d-9cde-e8fca056f37d",
+      "sourceExpression": "((+(ixé)) * (erobîar)) * (((ikobé) @ (opbrmym)))",
+      "originalSurface": "arobîar tekobé opaba'erame'yma",
+      "scopeCandidate": "(-(((+(ixé)) * (erobîar)) * (((ikobé) @ (opbrmym)))))",
+      "scopeSurface": "narobîari tekobé opaba'erame'yma",
+      "scopeStructureFingerprint": "sha256:8811dd5cf9336101659b65ceaef5f770c480267c2ba8371f5e7c71ee1509df26",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "opbrmym"
+      },
+      "lexicalCandidate": "((+(ixé)) * (erobîar)) * (((ikobé) @ ((opbrmym + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar tekobé opaba'e amẽgûame'yma amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true,
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "initial"
+    },
+    {
+      "ordinal": 44,
+      "passageId": "passage:ae358c07-598d-4518-994b-3c8902972a2b",
+      "sourceExpression": "amen",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "amém",
+      "scopeCandidate": "(-(amen))",
+      "scopeSurface": "amém",
+      "scopeStructureFingerprint": "sha256:0e79a07a14d1619dd91ff545e323f8dcf13f17ad84a1a5e28c3447839e070161",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root",
+        "name": "amen"
+      },
+      "lexicalCandidate": "(amen + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 45,
+      "passageId": "passage:d0148f22-b53f-47ac-911a-19e8a429a94a",
+      "sourceExpression": "catorse * (rama * (asé * (emi * erobîar)))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "catorse asé remierobîarama",
+      "scopeCandidate": "(-(catorse * (rama * (asé * (emi * erobîar)))))",
+      "scopeSurface": "catorse asé remierobîarama",
+      "scopeStructureFingerprint": "sha256:c23146e9dc9392c7742a5aa6881604c31e55d5901ddb3ed307b56f8851789297",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right",
+        "name": "erobîar"
+      },
+      "lexicalCandidate": "catorse * (rama * (asé * (emi * (erobîar + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "catorse asé remierobîara amẽgûama amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 46,
+      "passageId": "passage:0138bd9d-2483-4ea8-9827-91228cfff2bc",
+      "sourceExpression": "((sete * ((nduara * (tupan * esé))))) + ((nã) + (+ae * ei))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "sete Tupã reséndûara nã e'i",
+      "scopeCandidate": "(-(((sete * ((nduara * (tupan * esé))))) + ((nã) + (+ae * ei))))",
+      "scopeSurface": "sete Tupã reséndûara nã ne'i",
+      "scopeStructureFingerprint": "sha256:821689d6719749fc05fd4ff7752356ca39b9a34afef519ba92c59f0e9df14886",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "ei"
+      },
+      "lexicalCandidate": "((sete * ((nduara * (tupan * esé))))) + ((nã) + (+ae * (ei + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "sete Tupã reséndûara nã e'i amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 47,
+      "passageId": "passage:0755d2b7-c705-44d1-b19a-176162165feb",
+      "sourceExpression": "arobiar * ((oîepé * (tupan)) @ (otmrme))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar oîepé Tupã opakatu mba'e tetiruã monhanga e'ikatuba'e",
+      "scopeCandidate": "(-(arobiar * ((oîepé * (tupan)) @ (otmrme))))",
+      "scopeSurface": "narobîari oîepé Tupã opakatu mba'e tetiruã monhanga e'ikatuba'e",
+      "scopeStructureFingerprint": "sha256:562fcae51e3bf376def1c8c2ad62e2c0635ed1188b3f220cf5c043b1aa74c79b",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "otmrme"
+      },
+      "lexicalCandidate": "arobiar * ((oîepé * (tupan)) @ ((otmrme + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar oîepé Tupã opakatu mba'e tetiruã monhanga e'ikatuba'e amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 48,
+      "passageId": "passage:c4c35068-00ff-4d07-9cdc-027cb04d5d14",
+      "sourceExpression": "credo(tuba)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar tubamo sekó",
+      "scopeCandidate": "(-(credo(tuba)))",
+      "scopeSurface": "narobîari tubamo sekó",
+      "scopeStructureFingerprint": "sha256:f01f34cf171538c80959db9a3f6ba99fb2a99940e480d66cadc66ec01c09ff15",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/arg0",
+        "name": "tuba"
+      },
+      "lexicalCandidate": "credo((tuba + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar tuba amémamo sekó"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 49,
+      "passageId": "passage:829ee603-0639-40c6-b203-50781b05170c",
+      "sourceExpression": "credo(tayra)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar ta'yramo sekó",
+      "scopeCandidate": "(-(credo(tayra)))",
+      "scopeSurface": "narobîari ta'yramo sekó",
+      "scopeStructureFingerprint": "sha256:e5e7637fdd9c6875d0515fe5f7a486b2ebb12fa1d2063201056deae802109d20",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/arg0",
+        "name": "tayra"
+      },
+      "lexicalCandidate": "credo((tayra + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar ta'yra amémamo sekó"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 50,
+      "passageId": "passage:7418ce7a-4ca9-4008-b1f5-c2cbe6be4e19",
+      "sourceExpression": "credo(espirito_santo)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar Espírito Santoramo sekó",
+      "scopeCandidate": "(-(credo(espirito_santo)))",
+      "scopeSurface": "narobîari Espírito Santoramo sekó",
+      "scopeStructureFingerprint": "sha256:7f769bb41dedda58311dc1b7030493f0ddf2b93a0631fed667e1f8547af95b09",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/arg0",
+        "name": "espirito_santo"
+      },
+      "lexicalCandidate": "credo((espirito_santo + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar Espírito Santo amémamo sekó"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 51,
+      "passageId": "passage:0dc90f41-7c6d-49e4-9e51-f64a05e4dec7",
+      "sourceExpression": "credo(sara * opakatumonhanga)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar opakatu mba'e tetiruãmonhangaramo sekó",
+      "scopeCandidate": "(-(credo(sara * opakatumonhanga)))",
+      "scopeSurface": "narobîari opakatu mba'e tetiruãmonhangaramo sekó",
+      "scopeStructureFingerprint": "sha256:9ec104ebb236f6adeedff8755270eb83639370637d47b32fa72578ef5d342f08",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/arg0/right",
+        "name": "opakatumonhanga"
+      },
+      "lexicalCandidate": "credo(sara * (opakatumonhanga + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar opakatu mba'e tetiruãmonhangara amémamo sekó"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 52,
+      "passageId": "passage:59530a3f-f748-4f0e-af65-7c94f18bef41",
+      "sourceExpression": "credo(sara.var(1) * (moro * pysyro))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar moropysyrõanamo sekó",
+      "scopeCandidate": "(-(credo(sara.var(1) * (moro * pysyro))))",
+      "scopeSurface": "narobîari moropysyrõanamo sekó",
+      "scopeStructureFingerprint": "sha256:ae5c44a7b3adb531ecc1263adee5aabff30c02bf9d95110fbcc4be6c7679a250",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/arg0/right/right",
+        "name": "pysyro"
+      },
+      "lexicalCandidate": "credo(sara.var(1) * (moro * (pysyro + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar moropysyrõana amémamo sekó"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 53,
+      "passageId": "passage:1445eaca-958e-4dcc-84a5-8d44f8b97fea",
+      "sourceExpression": "credo(\n    sara * (meeng * (ikobé @ opbrmym))\n)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar tekobé opaba'erame'ymame'engaramo sekó",
+      "scopeCandidate": "(-(credo(\n    sara * (meeng * (ikobé @ opbrmym))\n)))",
+      "scopeSurface": "narobîari tekobé opaba'erame'ymame'engaramo sekó",
+      "scopeStructureFingerprint": "sha256:5a92aecf7b4dd2a4a3f625ded07d25108391e783a83536b8fc6c394aa6078c65",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/arg0/right/right/right",
+        "name": "opbrmym"
+      },
+      "lexicalCandidate": "credo(\n    sara * (meeng * (ikobé @ (opbrmym + amen)))\n)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar tekobé opaba'e amẽgûame'yma amémme'engaramo sekó"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 54,
+      "passageId": "passage:dbef3e5f-320b-4a19-a162-56797e625f05",
+      "sourceExpression": "(sete * (nduara * ((pûera * (saba * (jesusxto * îar * (asé * carne)))) * esé))) + (\n    (nã) + (+ae * ei)\n)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "sete Jesus Christo asé ro'oraragûera reséndûara nã e'i",
+      "scopeCandidate": "(-((sete * (nduara * ((pûera * (saba * (jesusxto * îar * (asé * carne)))) * esé))) + (\n    (nã) + (+ae * ei)\n)))",
+      "scopeSurface": "sete Jesus Christo asé ro'oraragûera reséndûara nã ne'i",
+      "scopeStructureFingerprint": "sha256:a07ee2abec5e1ac546e466d209d14a7c912e7e878464601bfa65ba2df01f215d",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "ei"
+      },
+      "lexicalCandidate": "(sete * (nduara * ((pûera * (saba * (jesusxto * îar * (asé * carne)))) * esé))) + (\n    (nã) + (+ae * (ei + amen))\n)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "sete Jesus Christo asé ro'oraragûera reséndûara nã e'i amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 55,
+      "passageId": "passage:fc6f82c2-9c2f-4477-9774-7916394886a6",
+      "sourceExpression": "(arobiar << (aé)) * (\n    (\n        (\n            (\n                ((tupan @ tayra) + (pe * (saba * (espirito_santo * monhang * +ae))))\n                + ((amo * pitanga) + (pûera * (saba * (+ae * monhang * (îe)))))\n            )\n        )\n    )\n)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar aé Tupã ta'yra Espírito Santo imonhangápe pitangamo oîemonhangagûera",
+      "scopeCandidate": "(-((arobiar << (aé)) * (\n    (\n        (\n            (\n                ((tupan @ tayra) + (pe * (saba * (espirito_santo * monhang * +ae))))\n                + ((amo * pitanga) + (pûera * (saba * (+ae * monhang * (îe)))))\n            )\n        )\n    )\n)))",
+      "scopeSurface": "narobîari aé Tupã ta'yra Espírito Santo imonhangápe pitangamo oîemonhangagûera",
+      "scopeStructureFingerprint": "sha256:d7bb647c3da4b392a41637b33dee95e0c384111b30fc52faeb70de64c752a917",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right/right/right",
+        "name": "îe"
+      },
+      "lexicalCandidate": "(arobiar << (aé)) * (\n    (\n        (\n            (\n                ((tupan @ tayra) + (pe * (saba * (espirito_santo * monhang * +ae))))\n                + ((amo * pitanga) + (pûera * (saba * (+ae * monhang * ((îe + amen))))))\n            )\n        )\n    )\n)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar aé Tupã ta'yra Espírito Santo imonhangápe pitangamo oîemonhangagûera"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 56,
+      "passageId": "passage:c5fec884-5dc5-4ad0-92ec-23d043c10622",
+      "sourceExpression": "(\n    arobiar\n    * (\n        ((virgem_maria * suí) + (saguera(ae * ar)))\n        + (((amo * ababykagûereyma) + (ikó * +ae)).base_nominal() * pupé)\n    )\n) + memen",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar Virgem Maria suí i 'aragûera ababykagûere'ymamo sekó pupé memẽ",
+      "scopeCandidate": "(-((\n    arobiar\n    * (\n        ((virgem_maria * suí) + (saguera(ae * ar)))\n        + (((amo * ababykagûereyma) + (ikó * +ae)).base_nominal() * pupé)\n    )\n) + memen))",
+      "scopeSurface": "narobîari Virgem Maria suí i 'aragûera ababykagûere'ymamo sekó pupé memẽ",
+      "scopeStructureFingerprint": "sha256:ea428065e8a5de69e1622fab7af2569781d33fd23c74cada264e6a7fcc063682",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "memen"
+      },
+      "lexicalCandidate": "(\n    arobiar\n    * (\n        ((virgem_maria * suí) + (saguera(ae * ar)))\n        + (((amo * ababykagûereyma) + (ikó * +ae)).base_nominal() * pupé)\n    )\n) + (memen + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar Virgem Maria suí i 'aragûera ababykagûere'ymamo sekó pupé memẽ amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 57,
+      "passageId": "passage:79f31816-d4f1-4df2-86ca-acec2c8c21f4",
+      "sourceExpression": "arobiar * (\n    (asé * esé)\n    + (\n        ybyraîoasaba * esé\n        + (pyreramo(moîar) + (pyreramo(îuká) + (pyreramo(tym) + (+ae * ikó))))\n    )\n)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar asé resé ybyraîoasaba resé imoîarypyrûeramo iîukapyrûeramo itymymbyrûeramo sekó",
+      "scopeCandidate": "(-(arobiar * (\n    (asé * esé)\n    + (\n        ybyraîoasaba * esé\n        + (pyreramo(moîar) + (pyreramo(îuká) + (pyreramo(tym) + (+ae * ikó))))\n    )\n)))",
+      "scopeSurface": "narobîari asé resé ybyraîoasaba resé imoîarypyrûeramo iîukapyrûeramo itymymbyrûeramo sekó",
+      "scopeStructureFingerprint": "sha256:3341a2f5044b98252b6bc6afcd37705458138355b11022dc56b3f547101bd89c",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right/right/right/right",
+        "name": "ikó"
+      },
+      "lexicalCandidate": "arobiar * (\n    (asé * esé)\n    + (\n        ybyraîoasaba * esé\n        + (pyreramo(moîar) + (pyreramo(îuká) + (pyreramo(tym) + (+ae * (ikó + amen)))))\n    )\n)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar asé resé ybyraîoasaba resé imoîarypyrûeramo iîukapyrûeramo itymymbyrûeramo sekó amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 58,
+      "passageId": "passage:2b05f207-10aa-444a-932b-5837f9f77097",
+      "sourceExpression": "arobiar * (\n    (\n        (abé.var(1) * ((pe * (yby * apytera)) + saguera(+ae * gûeîyb)))\n        * (\n            saguera(\n                (\n                    (\n                        (\n                            (asé * (tuba / ypyOrigin))\n                            @ ((karaiba / etá) * (pûera * soul))\n                        )\n                        @ (\n                            bae\n                            * (\n                                (\n                                    rama\n                                    * ((((((aepe >> (+tupan * îur)))).base_nominal())))\n                                    * arõ\n                                )\n                            )\n                        )\n                    )\n                    * (enosem)\n                )\n            )\n        )\n    )\n)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar yby apyterype i gûeîybagûera asé rubypy karaíbetá 'angûera i a'epe turama osarõba'erenosemagûera bé",
+      "scopeCandidate": "(-(arobiar * (\n    (\n        (abé.var(1) * ((pe * (yby * apytera)) + saguera(+ae * gûeîyb)))\n        * (\n            saguera(\n                (\n                    (\n                        (\n                            (asé * (tuba / ypyOrigin))\n                            @ ((karaiba / etá) * (pûera * soul))\n                        )\n                        @ (\n                            bae\n                            * (\n                                (\n                                    rama\n                                    * ((((((aepe >> (+tupan * îur)))).base_nominal())))\n                                    * arõ\n                                )\n                            )\n                        )\n                    )\n                    * (enosem)\n                )\n            )\n        )\n    )\n)))",
+      "scopeSurface": "narobîari yby apyterype i gûeîybagûera asé rubypy karaíbetá 'angûera i a'epe turama osarõba'erenosemagûera bé",
+      "scopeStructureFingerprint": "sha256:5da599ffc7b792aa533ace484885a8da300f93e6671d416ef22542c0e959cf4f",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/arg0/right",
+        "name": "enosem"
+      },
+      "lexicalCandidate": "arobiar * (\n    (\n        (abé.var(1) * ((pe * (yby * apytera)) + saguera(+ae * gûeîyb)))\n        * (\n            saguera(\n                (\n                    (\n                        (\n                            (asé * (tuba / ypyOrigin))\n                            @ ((karaiba / etá) * (pûera * soul))\n                        )\n                        @ (\n                            bae\n                            * (\n                                (\n                                    rama\n                                    * ((((((aepe >> (+tupan * îur)))).base_nominal())))\n                                    * arõ\n                                )\n                            )\n                        )\n                    )\n                    * ((enosem + amen))\n                )\n            )\n        )\n    )\n)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar yby apyterype i gûeîybagûera asé rubypy karaíbetá 'angûera i a'epe turama osarõba'erenosemagûera amém bé"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 59,
+      "passageId": "passage:658a99c9-e4ce-4d0d-b3da-031650e52bb5",
+      "sourceExpression": "arobiar * ((esé * third_day) + (saguera(((+jesus * (ikobé / îebyr))))))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar 'ara mosapyra resé sekobeîebyragûera",
+      "scopeCandidate": "(-(arobiar * ((esé * third_day) + (saguera(((+jesus * (ikobé / îebyr))))))))",
+      "scopeSurface": "narobîari 'ara mosapyra resé sekobeîebyragûera",
+      "scopeStructureFingerprint": "sha256:7ecdf3708743daca5f2b6c845be38c01d213d6574b43c556df89ece01b83161f",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/arg0/right/right",
+        "name": "îebyr"
+      },
+      "lexicalCandidate": "arobiar * ((esé * third_day) + (saguera(((+jesus * (ikobé / (îebyr + amen)))))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar 'ara mosapyra resé sekobeîebyragûera"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 60,
+      "passageId": "passage:028abbd1-ed13-446c-8edc-a275e15812b9",
+      "sourceExpression": "arobiar * ((abé.var(1) * risetoheaven) * rightsidegod)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar ybakype oîeupiragûera Tupã tuba 'ekatûaba koty sena bé",
+      "scopeCandidate": "(-(arobiar * ((abé.var(1) * risetoheaven) * rightsidegod)))",
+      "scopeSurface": "narobîari ybakype oîeupiragûera Tupã tuba 'ekatûaba koty sena bé",
+      "scopeStructureFingerprint": "sha256:11bf1d5200cf5c6efabbd25c13a79fa29982aa6b6b7d151f2243445374810ae4",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "rightsidegod"
+      },
+      "lexicalCandidate": "arobiar * ((abé.var(1) * risetoheaven) * (rightsidegod + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar ybakype oîeupiragûera Tupã tuba 'ekatûaba koty sena amém bé"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 61,
+      "passageId": "passage:16825da1-f05a-4cc8-ad9d-c716c07b2e62",
+      "sourceExpression": "arobiar * ((abé.var(1) * bondadenomundo * (pûera * n(ae * sinfullife))) * payment)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "arobîar 'ara papápe turagûama oîkobeba'e omanõba'e pabẽ rekokatûagûera sekosagûera bérepyme'enga",
+      "scopeCandidate": "(-(arobiar * ((abé.var(1) * bondadenomundo * (pûera * n(ae * sinfullife))) * payment)))",
+      "scopeSurface": "narobîari 'ara papápe turagûama oîkobeba'e omanõba'e pabẽ rekokatûagûera sekosagûera bérepyme'enga",
+      "scopeStructureFingerprint": "sha256:d67fdfff604aa3eecfdb4b2b8a07c15a07b3d4d3f2b3f7745be5520e79d2a2b9",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "payment"
+      },
+      "lexicalCandidate": "arobiar * ((abé.var(1) * bondadenomundo * (pûera * n(ae * sinfullife))) * (payment + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "arobîar 'ara papápe turagûama oîkobeba'e omanõba'e pabẽ rekokatûagûera sekosagûera bérepyme'enga amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 62,
+      "passageId": "passage:615adce0-a14f-4570-894d-abb8bc4bef46",
+      "sourceExpression": "dez * (saba * (asé * (tupan * ekomonhang)))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "dez Tupã asérekomonhangaba",
+      "scopeCandidate": "(-(dez * (saba * (asé * (tupan * ekomonhang)))))",
+      "scopeSurface": "dez Tupã asérekomonhangaba",
+      "scopeStructureFingerprint": "sha256:30852cf99e344ab6fa0afff3fa4db9dbe0621961cc65d58bb0e7c48fb00dcd7a",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right",
+        "name": "ekomonhang"
+      },
+      "lexicalCandidate": "dez * (saba * (asé * (tupan * (ekomonhang + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "dez Tupã asérekomonhangaba amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 63,
+      "passageId": "passage:4ac4170c-3cf7-4b83-a9fa-e185bfc2af49",
+      "sourceExpression": "(eimoeté * (oîepé * tupan)).imp()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "eîmoeté oîepé Tupã",
+      "scopeCandidate": "(-((eimoeté * (oîepé * tupan)).imp()))",
+      "scopeSurface": "eîmoeté umẽ oîepé Tupã",
+      "scopeStructureFingerprint": "sha256:72d34a33f857f56e9996f3b56a32665fe2857f5a22d885462b06a5729ce6375d",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/receiver/right/right",
+        "name": "tupan"
+      },
+      "lexicalCandidate": "(eimoeté * (oîepé * (tupan + amen))).imp()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "eîmoeté oîepé Tupã amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 64,
+      "passageId": "passage:540119d1-c55c-4315-8191-8583f62fb7eb",
+      "sourceExpression": "(anheté + (+nde * (-ei / tenhen)) << (nde * enõî * (tupan * era))).imp()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "anheté eretenhẽ umẽ Tupã rera renõîa",
+      "scopeCandidate": "(-((anheté + (+nde * (-ei / tenhen)) << (nde * enõî * (tupan * era))).imp()))",
+      "scopeSurface": "anheté eretenhẽ Tupã rera renõîa",
+      "scopeStructureFingerprint": "sha256:15f6ea56fa96744e0bb783a51d660e6351d8eb821014ced537019ab3b8f34ea5",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/receiver/right/right/right",
+        "name": "era"
+      },
+      "lexicalCandidate": "(anheté + (+nde * (-ei / tenhen)) << (nde * enõî * (tupan * (era + amen)))).imp()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "anheté eretenhẽ umẽ Tupã rera amém renõîa"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 65,
+      "passageId": "passage:895192c7-1f97-46bd-aec7-dbf1ae4d2a9d",
+      "sourceExpression": "eimoeté * (domingo_e_feriado)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "eîmoeté domingo 'ara marãtekoabe'yma bé",
+      "scopeCandidate": "(-(eimoeté * (domingo_e_feriado)))",
+      "scopeSurface": "eîmoeté umẽ domingo 'ara marãtekoabe'yma bé",
+      "scopeStructureFingerprint": "sha256:e6a45a402d36be433433974e1acc18d6f8f93155fb1f63954a1f388571581b02",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "domingo_e_feriado"
+      },
+      "lexicalCandidate": "eimoeté * ((domingo_e_feriado + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "eîmoeté domingo 'ara marãtekoabe'yma bé amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 66,
+      "passageId": "passage:6e801491-4d55-4f7b-8839-3b864249149c",
+      "sourceExpression": "eimoeté * pais",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "eîmoeté nde ruba nde sy abé",
+      "scopeCandidate": "(-(eimoeté * pais))",
+      "scopeSurface": "eîmoeté umẽ nde ruba nde sy abé",
+      "scopeStructureFingerprint": "sha256:0802d4004d0a3c494bca34f8f7d27e1ae52ca89d23c14ac07483c29a9acbd5fa",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "pais"
+      },
+      "lexicalCandidate": "eimoeté * (pais + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "eîmoeté nde ruba nde sy abé amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 67,
+      "passageId": "passage:be91a86c-1527-494a-9403-909502e69542",
+      "sourceExpression": "-(+nde * apiti * moro).imp()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "eporoapiti umẽ",
+      "scopeCandidate": "(-(-(+nde * apiti * moro).imp()))",
+      "scopeSurface": "eporoapiti",
+      "scopeStructureFingerprint": "sha256:c01f52e8693889faded4d0efd91aa0e1416ea9524aee62d36e06127c03ddb405",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/operand/receiver/right",
+        "name": "moro"
+      },
+      "lexicalCandidate": "-(+nde * apiti * (moro + amen)).imp()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "eporoapiti umẽ"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 68,
+      "passageId": "passage:30240c7c-fb42-4f01-9f3b-3e65f5b07805",
+      "sourceExpression": "-(+nde * potar * moro).imp()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "eporopotar umẽ",
+      "scopeCandidate": "(-(-(+nde * potar * moro).imp()))",
+      "scopeSurface": "eporopotar",
+      "scopeStructureFingerprint": "sha256:a8da74d73a26df8b1e7d02760bde21a8bcc86e7e1c20d9bcc0465ec75729505a",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/operand/receiver/right",
+        "name": "moro"
+      },
+      "lexicalCandidate": "-(+nde * potar * (moro + amen)).imp()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "eporopotar umẽ"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 69,
+      "passageId": "passage:9e9471a2-0f64-4371-a35c-1ea1faf757d7",
+      "sourceExpression": "-(+nde * mondarõ).imp()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "emondarõ umẽ",
+      "scopeCandidate": "(-(-(+nde * mondarõ).imp()))",
+      "scopeSurface": "emondarõ",
+      "scopeStructureFingerprint": "sha256:a0493371f1a8fb5dd77ea3dc1fef1a31c785dd7d91bb2abc43b395903844711e",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/operand/receiver/right",
+        "name": "mondarõ"
+      },
+      "lexicalCandidate": "-(+nde * (mondarõ + amen)).imp()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "emondarõ umẽ amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 70,
+      "passageId": "passage:9b0a7615-6b0b-4ac7-b80f-6538539d259e",
+      "sourceExpression": "-(+nde * v(moem)).imp() + (esé * abá)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "nderemo'em umẽ abá resé",
+      "scopeCandidate": "(-(-(+nde * v(moem)).imp() + (esé * abá)))",
+      "scopeSurface": "nderemo'em abá resé",
+      "scopeStructureFingerprint": "sha256:83cc31fa3be760296cb4cbcdc58f78654cf0cf9d4519bbd0d464ebc8100b60f7",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right",
+        "name": "abá"
+      },
+      "lexicalCandidate": "-(+nde * v(moem)).imp() + (esé * (abá + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "nderemo'em umẽ abá amém resé"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 71,
+      "passageId": "passage:6fe3f1a9-55c2-4f72-9517-01da3e2acba6",
+      "sourceExpression": "-(+nde * momotar * îe).imp() + esé * ((nde * apixara) * emirekó)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "eîemomotar umẽ nde rapixara remirekó resé",
+      "scopeCandidate": "(-(-(+nde * momotar * îe).imp() + esé * ((nde * apixara) * emirekó)))",
+      "scopeSurface": "eîemomotar nde rapixara remirekó resé",
+      "scopeStructureFingerprint": "sha256:bc77767782c769bdb6b75f0aa1f0cc6772e9b4be69bd3ee1925812929a4f5e70",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "emirekó"
+      },
+      "lexicalCandidate": "-(+nde * momotar * îe).imp() + esé * ((nde * apixara) * (emirekó + amen))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "eîemomotar umẽ nde rapixara remirekó amém resé"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 72,
+      "passageId": "passage:0339ac36-9bf7-4924-af5a-a2ab614651c8",
+      "sourceExpression": "nã + ((bae * ei) * pupé) + (paben + (aîpo * îub))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "nã e'iba'e pupé pabẽ aîpoba'e ruî",
+      "scopeCandidate": "(-(nã + ((bae * ei) * pupé) + (paben + (aîpo * îub))))",
+      "scopeSurface": "nã e'iba'e pupé pabẽ aîpoba'e ruîe'ymi",
+      "scopeStructureFingerprint": "sha256:c08c092ed170409ec7928f42e7d3d40aca8cd042edfaef1dc62683044d9106d3",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right",
+        "name": "îub"
+      },
+      "lexicalCandidate": "nã + ((bae * ei) * pupé) + (paben + (aîpo * (îub + amen)))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "nã e'iba'e pupé pabẽ aîpoba'e ruî amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 73,
+      "passageId": "passage:af905301-4e78-463f-8f9c-593fa3d29732",
+      "sourceExpression": "(\n    opkmbt\n    + (((asé * aûsub * +opkmbt).base_nominal()) * sosé)\n    + (asé * (tupan * aûsub.base_nominal()))\n)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "opakatu mba'e tetiruã asé saûsuba sosé asé Tupã raûsuba",
+      "scopeCandidate": "(\n    (-(opkmbt\n    + (((asé * aûsub * +opkmbt).base_nominal()) * sosé)\n    + (asé * (tupan * aûsub.base_nominal()))))\n)",
+      "scopeSurface": "opakatu mba'e tetiruã asé saûsuba sosé asé Tupã raûsuba",
+      "scopeStructureFingerprint": "sha256:2af7fb94e16f35e4381546c907a7bda00cb12643024b6466bcc581c8b3c73f8d",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/receiver",
+        "name": "aûsub"
+      },
+      "lexicalCandidate": "(\n    opkmbt\n    + (((asé * aûsub * +opkmbt).base_nominal()) * sosé)\n    + (asé * (tupan * (aûsub + amen).base_nominal()))\n)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "opakatu mba'e tetiruã asé saûsuba sosé asé Tupã raûsuba amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 74,
+      "passageId": "passage:09937303-5bd8-448c-8883-14821cb8a4bd",
+      "sourceExpression": "(îabé * (+asé * aûsub * îe)) + n((asé * aûsub) * (og * apixara)) + no",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "oîeaûsuba îabé asé oapixararaûsuba no",
+      "scopeCandidate": "(-((îabé * (+asé * aûsub * îe)) + n((asé * aûsub) * (og * apixara)) + no))",
+      "scopeSurface": "oîeaûsuba îabé asé oapixararaûsube'yma no",
+      "scopeStructureFingerprint": "sha256:5defa5964445c4b94b52cc7bac670238683488ffe7352503ddc8a7c09150b9d9",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "no"
+      },
+      "lexicalCandidate": "(îabé * (+asé * aûsub * îe)) + n((asé * aûsub) * (og * apixara)) + (no + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "oîeaûsuba îabé asé oapixararaûsuba no amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 75,
+      "passageId": "passage:673e6613-0ea5-4262-8b99-0f12ba20358f",
+      "sourceExpression": "sinco * (saba * (asé * (smi * ekomonhang)))",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "sinco Santa Madre Igreja asérekomonhangaba",
+      "scopeCandidate": "(-(sinco * (saba * (asé * (smi * ekomonhang)))))",
+      "scopeSurface": "sinco Santa Madre Igreja asérekomonhangaba",
+      "scopeStructureFingerprint": "sha256:95f81641c26c0c6ac4044f29b270dfc04b02b0eb3a327278b43d230756aec5ae",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/right",
+        "name": "ekomonhang"
+      },
+      "lexicalCandidate": "sinco * (saba * (asé * (smi * (ekomonhang + amen))))",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "sinco Santa Madre Igreja asérekomonhangaba amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 76,
+      "passageId": "passage:fc93b151-2bdb-4eab-9f4c-a6a4e3c761dd",
+      "sourceExpression": "(esé * domingo) + ((esebé * noworkday)) + (missa * endub).base_nominal()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "domingo resé 'ara marãtekoabe'yma resebé missarenduba",
+      "scopeCandidate": "(-((esé * domingo) + ((esebé * noworkday)) + (missa * endub).base_nominal()))",
+      "scopeSurface": "domingo resé 'ara marãtekoabe'yma resebé missarendube'yma",
+      "scopeStructureFingerprint": "sha256:234e421469e12e303061a31b6d9ef2c83c42c0067b3b70398ded5d1cbe16927b",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/right",
+        "name": "endub"
+      },
+      "lexicalCandidate": "(esé * domingo) + ((esebé * noworkday)) + (missa * (endub + amen)).base_nominal()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "domingo resé 'ara marãtekoabe'yma resebé missarenduba amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 77,
+      "passageId": "passage:308c30b0-2bcd-4d6c-af80-09fcc0ddef62",
+      "sourceExpression": "(iabiõ * seîxu) + (îe * mombeu).var(1).base_nominal()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "seîxu îabi'õ îemombe'u",
+      "scopeCandidate": "(-((iabiõ * seîxu) + (îe * mombeu).var(1).base_nominal()))",
+      "scopeSurface": "seîxu îabi'õ îemombe'ue'yma",
+      "scopeStructureFingerprint": "sha256:2bae05489fb6136efd55b4061e20b400f1dddd51e5a389e2586cf24ea7a9743c",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/receiver/right",
+        "name": "mombeu"
+      },
+      "lexicalCandidate": "(iabiõ * seîxu) + (îe * (mombeu + amen)).var(1).base_nominal()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "seîxu îabi'õ îemombe'u amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 78,
+      "passageId": "passage:b542e559-0fe4-441e-a8b7-8419364aa779",
+      "sourceExpression": "(iabiõ * Pascoa) + (tupan * îar).var(1).base_nominal()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "Pascoa îabi'õ Tupãrara",
+      "scopeCandidate": "(-((iabiõ * Pascoa) + (tupan * îar).var(1).base_nominal()))",
+      "scopeSurface": "Pascoa îabi'õ Tupãrare'yma",
+      "scopeStructureFingerprint": "sha256:5b9acd0a590d92bf207b0bcfd20c52197e2330116d3a0bf9d3abc844bccfc9a5",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/receiver/right",
+        "name": "îar"
+      },
+      "lexicalCandidate": "(iabiõ * Pascoa) + (tupan * (îar + amen)).var(1).base_nominal()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Pascoa îabi'õ Tupãrara amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 79,
+      "passageId": "passage:72545daa-5719-4f47-8dce-ab2fb2e6ad3c",
+      "sourceExpression": "(iabiõ * n(îe * ((smi) * (kuakub / puai)))) + (îekuakub).var(1).base_nominal()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "Santa Madre Igreja îekuakupûaîa îabi'õ îekuakuba",
+      "scopeCandidate": "(-((iabiõ * n(îe * ((smi) * (kuakub / puai)))) + (îekuakub).var(1).base_nominal()))",
+      "scopeSurface": "Santa Madre Igreja îekuakupûaîa îabi'õ îekuakube'yma",
+      "scopeStructureFingerprint": "sha256:eaf13c746a9a4ac91ef5fb87a835485d2bee734c00f0f3da602eb538ecd307b4",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/receiver",
+        "name": "îekuakub"
+      },
+      "lexicalCandidate": "(iabiõ * n(îe * ((smi) * (kuakub / puai)))) + ((îekuakub + amen)).var(1).base_nominal()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "Santa Madre Igreja îekuakupûaîa îabi'õ îekuakuba amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 80,
+      "passageId": "passage:20ccbedc-7265-4869-88f7-c92042f9bc15",
+      "sourceExpression": "(iabiõ * n(opakombó)) + (\n    (supé * tupan) + (oîepé * (asé * moîaoka * mbae).base_nominal())\n)",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "opakombó îabi'õ Tupã supé oîepé asé mba'emoîa'oka",
+      "scopeCandidate": "(-((iabiõ * n(opakombó)) + (\n    (supé * tupan) + (oîepé * (asé * moîaoka * mbae).base_nominal())\n)))",
+      "scopeSurface": "opakombó îabi'õ Tupã supé oîepé asé mba'emoîa'oka",
+      "scopeStructureFingerprint": "sha256:16a8b2f30a301dc2e73c19acdbeea57f0ad93b9b969588df5420bbdbba9e0eec",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/right/right/receiver/right",
+        "name": "mbae"
+      },
+      "lexicalCandidate": "(iabiõ * n(opakombó)) + (\n    (supé * tupan) + (oîepé * (asé * moîaoka * (mbae + amen)).base_nominal())\n)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "opakombó îabi'õ Tupã supé oîepé asé mba'e amémmoîa'oka"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 81,
+      "passageId": "passage:0a8be184-ba69-4226-bc54-81e9a221fc4e",
+      "sourceExpression": "(pupé * ((pûera * (og * (emi * tym))) / ypy)) + (tupapotaba * meeng) + no",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "oemitymbûerypy pupé Tupã potabame'engi no",
+      "scopeCandidate": "(-((pupé * ((pûera * (og * (emi * tym))) / ypy)) + (tupapotaba * meeng) + no))",
+      "scopeSurface": "oemitymbûerypy pupé Tupã potabame'enge'ymi no",
+      "scopeStructureFingerprint": "sha256:8d0eaf923cfd1322477ad58654a6b5780f9edff36d8b70816b2b1ea0a46999ff",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right",
+        "name": "no"
+      },
+      "lexicalCandidate": "(pupé * ((pûera * (og * (emi * tym))) / ypy)) + (tupapotaba * meeng) + (no + amen)",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "oemitymbûerypy pupé Tupã potabame'engi no amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    },
+    {
+      "ordinal": 82,
+      "passageId": "passage:87c684d0-fbea-4498-b707-1d8c14481d13",
+      "sourceExpression": "((ae * karaiba) * pupé) + (îe * moîasuk).var(1).base_nominal()",
+      "sourceId": "araujo_catecismo_1686",
+      "verificationRun": "after-fixes",
+      "originalSurface": "i karaíba pupé îemboîasuka",
+      "scopeCandidate": "(-(((ae * karaiba) * pupé) + (îe * moîasuk).var(1).base_nominal()))",
+      "scopeSurface": "i karaíba pupé îemboîasuke'yma",
+      "scopeStructureFingerprint": "sha256:7f078798b89a395ca4920e4ef77101b7623666b27df619e895273f805c9bd9c3",
+      "scopeRoundtrip": true,
+      "lexicalSelection": {
+        "nodeId": "root/right/receiver/receiver/right",
+        "name": "moîasuk"
+      },
+      "lexicalCandidate": "((ae * karaiba) * pupé) + (îe * (moîasuk + amen)).var(1).base_nominal()",
+      "lexicalRoundtrip": true,
+      "lexicalEvaluation": {
+        "status": "evaluated",
+        "surface": "i karaíba pupé îemboîasuka amém"
+      },
+      "restoredOriginal": true,
+      "uiWorkflowVerified": true
+    }
+  ],
+  "resumedFrom": "docs/reviews/round-3-all-expression-ui-initial.json",
+  "sourceBytesUnchanged": true,
+  "totals": {
+    "uiWorkflowVerified": 82,
+    "scopeRoundtrip": 82,
+    "lexicalRoundtrip": 82,
+    "lexicalEvaluated": 82,
+    "lexicalDiagnosed": 0
+  },
+  "finishedAt": "2026-09-17T03:44:35.266Z",
+  "repositories": [
+    {
+      "name": "oldtupicorpus",
+      "path": "/private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-all-ui-KAG87B/projects/oldtupicorpus",
+      "revision": "292a28722a1790abf3f3b93083c29fbd47b4ffd0",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:ef4eebecaac3cd85c09a2a92aec5284e234be6bae8e944a80500faa648c100ed"
+    },
+    {
+      "name": "nhe-enga",
+      "path": "/private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-all-ui-KAG87B/projects/nhe-enga",
+      "revision": "348686045bf0791c847be3cba1b15eaae7312a11",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:93147a2ad2162d4c8f8d54d60a2b3cf532645d6ccf47a2ea033d71c1c4a8bada"
+    }
+  ],
+  "engineFingerprint": "sha256:a0b671e68fe2184bc940dc3b439e4345d4e489f2bca7d51c2932ff71e55a7bd6",
+  "authoringUiSha256": {
+    "src/components/AuthoringEditor.tsx": "1c2579cff0500764292d70faa76896ff2dea3885b0a524c3e94d9144b2b43afd",
+    "src/domain/authoring.ts": "a6fcccb14f16797b9f75ebb033067b5bc4b746f664e4a94814a6327d88250720",
+    "src/useStudio.ts": "0a43064feb92f6e6ead8ff54e76ff1dc01bdc119a5957eddf3584064b6e6c193",
+    "src/styles.css": "8e6d5caa05609548152bc892ea521fa682ca502a470926b9d02b494f35480ef0"
+  },
+  "provenanceCapture": "Repository metadata recovered immediately after the frozen resumed run by reopening the exact disposable project. UI hashes capture current files; the initial41 reuse boundary is documented separately.",
+  "provenanceCapturedAt": "2026-09-17T03:45:00.587379+00:00",
+  "productionAssets": {
+    "dist/assets/index-Bfzs2LcX.js": "7a6d675e6f6971a16b17e3ca23efecc4a321b5f2f7a18d3585421279adb06ab0",
+    "dist/assets/index-SWw3TJgb.css": "b7fe134f5c5113990bb24ae65037dfa4d10d8fb1fc5b866b751a7883f32f0e3d"
+  },
+  "integrationSha256": {
+    "python/adapter.py": "d6042350b4a602b0e6a58adac45d5cdc4a3fd8afd313c7c6ffc9812c88a3c3d8",
+    "python/authoring_runtime.py": "005b22e62b0b44d9a54e97f664637b2f627df23c57d84425a636f5dc512a7e03",
+    "python/authoring_service.py": "493b4e423699b4bcbc47e3982cd41b5952bda22f8f093f499f9fdd35f147d129",
+    "python/studio_authoring.py": "7e1a0c9fe56e1ba1480c8eaca1a6d30e237fd6d2bd9a3bf9e9ac534b89c3d7e3",
+    "python/worker.py": "6dbff00f7c07e1757937fe1b344b603d7c8bb7468cfcf96d078c31e761384a13",
+    "python/navarro_search.py": "2966423a43c9f4be5247ba2a45673c566efa6abc526f01686c1d79f7c481b156",
+    "electron/main.cjs": "7a8eabeae9ea075419d993e5e8501a368faaefc2d9858d4b11a0a7ce636cacb0",
+    "electron/next-service.cjs": "ba08e5895f4e6f95c2ee64b8bf8c082c4265a33731313347272000df87a843dc",
+    "electron/python-worker.cjs": "57b7cb1e6d10a5278ccdff23590815403ee9a69e74b182364ae359e6736ea580",
+    "electron/preload.cjs": "fc2e75a0d3d4d469b2b27ca19358601b6993294265138af0fe27417f38d474e3",
+    "electron/validation.cjs": "31f88889ebde829d3f5c48a63e291c61d60b7e85db11cd05638f098ed4f48743",
+    "src/App.tsx": "6bbeb2fe12784efb9ac90ad8ce4ad822a7c277c35b2fb69a9fdf76a665d7e2c8"
+  },
+  "integrationCapture": "Post-run hashes of frozen integration code, excluding the report generator. Initial41 UI reuse and post-fix all82 backend probes remain distinguished in the review.",
+  "verificationRuns": {
+    "initial": {
+      "evidence": "docs/reviews/round-3-all-expression-ui-initial.json",
+      "verifiedRows": 41,
+      "boundary": "Original source and selected dependency content unchanged. Initial production bundle was not retained. Lead confirmed intervening useStudio write was formatter-only; current UI hashes are post-run capture, not an initial bundle hash."
+    },
+    "after-fixes": {
+      "verifiedRows": 41,
+      "boundary": "Frozen production UI and runtime through resumed native run; rows28/29 writer fixes verified."
+    }
+  }
+}

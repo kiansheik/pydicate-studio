@@ -1,41 +1,24 @@
 # Desktop boundary
 
-`main.cjs` owns the native project picker, Python process and draft files. The
-sandboxed renderer receives only the five named operations in `preload.cjs`;
-every IPC call checks its sender and argument shape. Production assets are
-served from `dist/` on the local `studio://app` origin. New windows, external
-navigation and permission requests are denied. Production responses include a
-Content Security Policy permitting local application assets and selected blob
-images/PDFs; remote scripts and evaluated script strings are disallowed.
+`main.cjs` owns native file selection, the active project, Python workers, file watching and the application lifecycle. The sandboxed/context-isolated renderer uses the preload bridge; every IPC request verifies its sender. The generic `invoke` route exposes an explicit method allowlist in `next-service.cjs` and `python-worker.cjs`, plus validated evidence/provider services. It does not expose arbitrary filesystem or shell access.
 
-`python-worker.cjs` exchanges newline-delimited JSON with `python/worker.py`.
-Requests are limited to `open_project`, `refresh_project` and `render`. Responses
-retain request IDs; a process failure or 60-second timeout rejects all pending
-requests. Reopening a project starts a new worker. The application invokes
-`python3 -B` by default; set `PYDICATE_PYTHON` to a Python executable path when
-using a prepared virtual environment. No shell command string is evaluated.
+Production assets use `studio://app`. CSP permits packaged scripts, local assets and the packaged PDF.js worker; it excludes remote scripts and evaluated strings. New windows, remote navigation and device permission requests are denied. PDF managed copies are returned by the main evidence service; renderer blob URLs are presentation objects, not persistence.
 
-`draft-store.cjs` keeps schema-versioned drafts below Electron's `userData`
-directory, using a SHA-256 project key as the filename. Saves are serialized per
-project, flushed to a temporary file and renamed atomically. Invalid existing
-files produce an error with their recovery path and cannot be overwritten by
-autosave. A single application instance owns each user-data directory, avoiding
-competing desktop writers. Drafts have no accepted-reference or approval fields.
+## Services
 
-Run `npm run desktop` for Vite plus Electron, or `npm run build && npm start`
-for the compiled application. Run `npm run test:desktop` for persistence,
-validation and worker lifecycle tests; these tests do not launch a GUI.
-Launch scripts clear an inherited `ELECTRON_RUN_AS_NODE` switch so terminals
-hosted inside an Electron application can launch the native Studio correctly.
+- `python-worker.cjs`: bounded JSONL requests with IDs, UTF-8 framing, size limits, failure propagation and a 60-second timeout. A fresh worker is created on project open. `PYDICATE_PYTHON` selects the executable; no shell command string is evaluated. The trusted selected engine remains normal Python, not an untrusted-repository sandbox.
+- `next-service.cjs`: project/session restoration, explicit corpus operations, durable evidence and provider integration. Provider context derives actual active repository paths in main; it does not trust renderer-supplied paths.
+- `draft-store.cjs`: schema-versioned atomic, serialized draft persistence under Electron userData. Invalid existing files remain intact. Pending reading-only passages use the same store and reserve eventual passage IDs. Drafts contain no approval field.
+- `project-watch.cjs`: external source notifications; successful Studio writes reset the watch and suppress their own events. Closing a watch cancels pending callbacks. Authoritative source/dependency checks still occur before apply/evaluate.
+- `evidence-service.cjs`: managed fingerprinted PDFs, relocation/replacement checks, optimistic revisions and persistent page-point regions. See [evidence schema](../docs/design/pdf-evidence.md).
+- `provider-service.cjs` and provider modules: Codex App Server and Claude Messages streams, cancellation, exact revision provenance and immutable original responses. Credentials remain in main/environment. See [provider contract](../docs/design/providers.md).
 
-After building, `node scripts/smoke-desktop.mjs` launches the compiled desktop
-with temporary application data and checks renderer isolation, the production
-policy, a local scan image and draft save/reopen. An optional parent folder argument also checks native project
-opening and live Python realization. The folder dialog is replaced only inside
-the test process; existing application data and corpus sources remain untouched.
+Source preview/apply, lexical edits, verification, reference acceptance and recovery are delegated to the [Python service](../python/README.md). The native picker is used only for selected project/PDF paths. Source write-back is explicit; normal draft autosave does not mutate historical files.
 
-There is no packaged contributor runtime yet. A future installer must include
-`dist/`, `electron/` and the package metadata, copy `python/` to
-`resources/python/`, and supply a tested Python runtime and dependency set.
-Installing the desktop shell alone does not establish a compatible corpus and
-engine snapshot.
+## Run and test
+
+`npm run desktop` starts Vite and Electron. `npm run build && npm start` opens the compiled desktop. Launch scripts remove an inherited `ELECTRON_RUN_AS_NODE`. The last project/passage and dark/light preference are persistent.
+
+`npm run test:desktop` runs service and boundary tests without a GUI. After building, `npm run test:smoke` launches production Electron with temporary application data and disposable copies of the actual corpus. It exercises real native authoring, dictionary, PDF and save/restart workflows; picker replacement is confined to the test process. Historical corpus source and records are hash-checked unchanged. Browser race tests deliberately simulate delayed responses; authenticated provider checks remain separate.
+
+There is no installer or bundled Python runtime. A future package must include `dist`, Electron modules, Python service resources, and a verified dependency set. The current developer workspace is reproduced through [recorded dependency instructions](../docs/design/dependencies.md).

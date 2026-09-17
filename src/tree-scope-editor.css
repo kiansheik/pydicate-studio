@@ -1,0 +1,122 @@
+.tree-scope-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+.tree-scope-caption {
+  color: var(--tree-muted);
+  font-size: 11px;
+}
+.tree-current-expression {
+  margin-top: -7px;
+  color: var(--tree-ink);
+}
+.tree-operation-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--tree-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.tree-selected-operation-help {
+  margin-bottom: 4px;
+}
+.tree-composer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: end;
+  gap: 9px;
+  border: 1px solid var(--tree-line);
+  border-radius: 8px;
+  margin: 0;
+  padding: 10px;
+  min-width: 0;
+}
+.tree-composer legend {
+  padding: 0 5px;
+  color: var(--tree-ink);
+  font-weight: 600;
+}
+.tree-scope-editor label {
+  display: grid;
+  gap: 5px;
+  color: var(--tree-muted);
+  font-size: 11px;
+}
+.tree-scope-editor input,
+.tree-scope-editor select,
+.tree-scope-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--tree-line);
+  border-radius: 5px;
+  padding: 6px 7px;
+  color: var(--tree-ink);
+  background: var(--tree-card);
+  font: inherit;
+}
+.tree-scope-editor textarea {
+  resize: vertical;
+  font-family: ui-monospace, monospace;
+}
+.tree-operation-preview {
+  grid-column: 1 / -1;
+  display: block;
+  border-radius: 5px;
+  background: var(--tree-canvas);
+  padding: 8px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 130px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+.tree-apply-operation {
+  justify-self: start;
+  border-color: var(--tree-accent) !important;
+}
+.tree-scope-editor details {
+  border-top: 1px solid var(--tree-line);
+  padding-top: 9px;
+}
+.tree-scope-editor summary {
+  cursor: pointer;
+  color: var(--tree-muted);
+  font-size: 12px;
+}
+.tree-scope-editor details[open] > summary {
+  margin-bottom: 9px;
+}
+.tree-scope-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.tree-scope-editor .tree-keep-child {
+  display: grid;
+  justify-items: start;
+  justify-content: start;
+  text-align: left;
+  width: 100%;
+  margin-top: 6px;
+}
+.tree-keep-child code {
+  color: var(--tree-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.tree-lexical-match {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+.tree-lexical-match > span {
+  color: var(--tree-muted);
+  font-size: 11px;
+}
+.tree-raw-replacement > button {
+  margin-top: 7px;
+}

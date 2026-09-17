@@ -1,0 +1,255 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-17T05:30:12.843Z",
+  "productionOrigin": "studio://app/index.html",
+  "temporaryDirectory": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq",
+  "sourcePolicy": "User corpus copied with dirty content; all writes target disposable copy. Engine symlink used only for reads.",
+  "stages": [
+    {
+      "name": "startup-isolation",
+      "startedAt": "2026-09-17T05:30:12.922Z",
+      "status": "passed",
+      "evidence": {
+        "count": 82,
+        "selectedOrdinal": 67,
+        "repositories": [
+          {
+            "name": "oldtupicorpus",
+            "path": "/private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus",
+            "revision": "292a28722a1790abf3f3b93083c29fbd47b4ffd0",
+            "branch": "main",
+            "dirty": true,
+            "fingerprint": "sha256:ef4eebecaac3cd85c09a2a92aec5284e234be6bae8e944a80500faa648c100ed"
+          },
+          {
+            "name": "nhe-enga",
+            "path": "/private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/nhe-enga",
+            "revision": "348686045bf0791c847be3cba1b15eaae7312a11",
+            "branch": "main",
+            "dirty": true,
+            "fingerprint": "sha256:93147a2ad2162d4c8f8d54d60a2b3cf532645d6ccf47a2ea033d71c1c4a8bada"
+          }
+        ],
+        "engineFingerprint": "sha256:800cedd89bf001de7a133a846104f2e400de2d4f788b22ec9818e96527a3ad9c",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'",
+        "sandbox": true,
+        "darkDefault": true
+      },
+      "finishedAt": "2026-09-17T05:30:15.231Z",
+      "screenshot": "docs/coverage/native-screenshots/01-startup-isolation.png"
+    },
+    {
+      "name": "construction-families",
+      "startedAt": "2026-09-17T05:30:15.381Z",
+      "status": "passed",
+      "evidence": [
+        {
+          "family": "subordination",
+          "ordinal": 10,
+          "expression": "((oré * ((pysyro * endé))).imp() << te) + ((mbae / aiba) * suí)",
+          "originalSurface": "orépysyrõte îepé mba'eaíba suí",
+          "scopeEdit": "outer negation",
+          "emittedVisualEdit": "(-(((oré * ((pysyro * endé))).imp() << te) + ((mbae / aiba) * suí)))",
+          "undoRedo": true,
+          "rawCandidate": "(((oré * ((pysyro * endé))).imp() << te) + ((mbae / aiba) * suí)).copy()",
+          "rawCandidateSurface": "orépysyrõte îepé mba'eaíba suí"
+        },
+        {
+          "family": "nominalization",
+          "ordinal": 18,
+          "expression": "(cop() * (salve_rainha == (poraûsubara * sy)) + ikobé.base_nominal(True))\n    + (bae * v(een))\n    + (saba * (oré * erobîar * îe))\n    + (salve)",
+          "originalSurface": "Salve Rainha moraûsubara sy tekobé se'ẽba'e oré îeerobîasaba salve",
+          "scopeEdit": "outer negation",
+          "emittedVisualEdit": "(-((cop() * (salve_rainha == (poraûsubara * sy)) + ikobé.base_nominal(True))\n    + (bae * v(een))\n    + (saba * (oré * erobîar * îe))\n    + (salve)))",
+          "undoRedo": true,
+          "rawCandidate": "((cop() * (salve_rainha == (poraûsubara * sy)) + ikobé.base_nominal(True))\n    + (bae * v(een))\n    + (saba * (oré * erobîar * îe))\n    + (salve)).copy()",
+          "rawCandidateSurface": "Salve Rainha moraûsubara sy tekobé se'ẽba'e oré îeerobîasaba salve"
+        },
+        {
+          "family": "helper",
+          "ordinal": 48,
+          "expression": "credo(tuba)",
+          "originalSurface": "arobîar tubamo sekó",
+          "scopeEdit": "outer negation",
+          "emittedVisualEdit": "(-(credo(tuba)))",
+          "undoRedo": true,
+          "rawCandidate": "credo(tayra)",
+          "rawCandidateSurface": "arobîar ta'yramo sekó"
+        }
+      ],
+      "finishedAt": "2026-09-17T05:30:25.533Z",
+      "screenshot": "docs/coverage/native-screenshots/02-construction-families.png"
+    },
+    {
+      "name": "invalid-draft-save-restart",
+      "startedAt": "2026-09-17T05:30:25.673Z",
+      "status": "passed",
+      "evidence": {
+        "passageId": "passage:91199238-f7fd-4806-987f-3d749b3be079",
+        "incompleteRaw": "(nde *",
+        "notesAndTranscriptionRecovered": true,
+        "selectionRecovered": true,
+        "lightThemeRecovered": true
+      },
+      "finishedAt": "2026-09-17T05:30:28.985Z",
+      "screenshot": "docs/coverage/native-screenshots/03-invalid-draft-save-restart.png"
+    },
+    {
+      "name": "pdf-native-canvas-regions",
+      "startedAt": "2026-09-17T05:30:29.145Z",
+      "status": "passed",
+      "evidence": {
+        "pdfCoordinates": [
+          100,
+          300,
+          260.0001284950658,
+          400.00000000000006
+        ],
+        "nativePickerControlled": true,
+        "productionPdfJsCanvas": true,
+        "rotation": 90,
+        "zoom": 1.5,
+        "restartAndNavigationPreserved": true,
+        "nextPassageInheritedEditableLocation": true,
+        "asset": {
+          "id": "37752044f280567c5e07b338879d9d58a40d69cf7957ff1651a66f9e715ae0c3",
+          "name": "witness-original.pdf",
+          "bytes": 609,
+          "fingerprint": "37752044f280567c5e07b338879d9d58a40d69cf7957ff1651a66f9e715ae0c3",
+          "managedState": "ok",
+          "originalState": "ok"
+        }
+      },
+      "finishedAt": "2026-09-17T05:30:31.287Z",
+      "screenshot": "docs/coverage/native-screenshots/04-pdf-native-canvas-regions.png"
+    },
+    {
+      "name": "dictionary-sense-definition-apply",
+      "startedAt": "2026-09-17T05:30:31.432Z",
+      "status": "passed",
+      "evidence": {
+        "actualQuery": "casa",
+        "sense": "'apiramõ\nNavarro\n\n(etim. - molhar a pele da cabeça) (v.tr.) - 1) mergulhar; regar, aguar (p.ex., a casa) (VLB, I, 24; II, 99); 2) molhar a cabeça de; batizar: 'Y pupé asé 'apiramõû. - Com água nos molham a cabeça. (Ar., Cat., 80v); Marãîasûaramo temõ abaré xe 'apiramõneme xe angaîpab'e'ymebé xe re'õ mã!... - Ah, que bom seria minha morte ao me batizar o padre, antes de eu pecar. (Ar., Cat., 1686, 249)\n\nNavarro · verbete 3151 · nhe-enga/pydicate/pydicate/tupi_only.db\nUsar esta acepção",
+        "headword": "'apiramõ",
+        "definition": "(etim. - molhar a pele da cabeça) (v.tr.) - 1) mergulhar; regar, aguar (p.ex., a casa) (VLB, I, 24; II, 99); 2) molhar a cabeça de; batizar: 'Y pupé asé 'apiramõû. - Com água nos molham a cabeça. (Ar., Cat., 80v); Marãîasûaramo temõ abaré xe 'apiramõneme xe angaîpab'e'ymebé xe re'õ mã!... - Ah, que bom seria minha morte ao me batizar o padre, antes de eu pecar. (Ar., Cat., 1686, 249)",
+        "diff": "--- /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n+++ /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n@@ -2,6 +2,10 @@\n \n globals().update(load_lexicon())\n # call it l for writting convenience\n+\n+# @note studio-lexical:v1 {\"id\": \"lexical:599bd875-7a16-54ee-ba9e-358d60a1fd6e\", \"name\": \"apiramo_621afe78\", \"scope\": \"source\", \"provenance\": {\"source\": \"dictionary\", \"id\": \"navarro:3151:8837b68b53990b92\", \"citation\": \"Navarro · verbete 3151 · nhe-enga/pydicate/pydicate/tupi_only.db\"}}\n+apiramo_621afe78 = Verb(\"'apiramõ\", definition=\"(etim. - molhar a pele da cabeça) (v.tr.) - 1) mergulhar; regar, aguar (p.ex., a casa) (VLB, I, 24; II, 99); 2) molhar a cabeça de; batizar: 'Y pupé asé 'apiramõû. - Com água nos molham a cabeça. (Ar., Cat., 80v); Marãîasûaramo temõ abaré xe 'apiramõneme xe angaîpab'e'ymebé xe re'õ mã!... - Ah, que bom seria minha morte ao me batizar o padre, antes de eu pecar. (Ar., Cat., 1686, 249)\")\n+\n l = [\n     # @page 1\n     # @section Livro I. Dos primeiros elementos da Fé Christãa, Summa dos mysterios, & doutrina Christãa\n",
+        "disposableSourceChanged": true
+      },
+      "finishedAt": "2026-09-17T05:30:35.847Z",
+      "screenshot": "docs/coverage/native-screenshots/05-dictionary-sense-definition-apply.png"
+    },
+    {
+      "name": "reuse-compound-reference",
+      "startedAt": "2026-09-17T05:30:36.043Z",
+      "status": "passed",
+      "evidence": {
+        "namedReference": "salve_rainha",
+        "actualSurface": "Salve Rainha",
+        "copiedExpression": false
+      },
+      "finishedAt": "2026-09-17T05:30:40.610Z",
+      "screenshot": "docs/coverage/native-screenshots/06-reuse-compound-reference.png"
+    },
+    {
+      "name": "reviewed-source-writeback",
+      "startedAt": "2026-09-17T05:30:40.763Z",
+      "status": "passed",
+      "evidence": {
+        "candidate": "(-(+nde * apiti * moro).imp()).copy()",
+        "diff": "--- /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n+++ /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n@@ -212,7 +212,10 @@\n l += eimoeté * (domingo_e_feriado)\n \n l += eimoeté * pais\n-l += -(+nde * apiti * moro).imp()\n+# @diplomatic Contribuição mesmo sem análise executável.\n+# @note Leitura incompleta preservada no desktop: hipótese, não aprovação.\n+# @note studio:v1 {\"passageId\":\"passage:91199238-f7fd-4806-987f-3d749b3be079\"}\n+l += (-(+nde * apiti * moro).imp()).copy()\n l += -(+nde * potar * moro).imp()\n l += -(+nde * mondarõ).imp()\n l += -(+nde * v(moem)).imp() + (esé * abá)\n",
+        "identityPreserved": "passage:91199238-f7fd-4806-987f-3d749b3be079",
+        "pdfRetained": true,
+        "countUnchanged": true,
+        "explicitGroundTruthConfirmed": true,
+        "otherReferenceRecordsUnchanged": true,
+        "otherReferenceBytesUnchanged": true
+      },
+      "finishedAt": "2026-09-17T05:30:46.491Z",
+      "screenshot": "docs/coverage/native-screenshots/07-reviewed-source-writeback.png"
+    },
+    {
+      "name": "new-passage-ui",
+      "startedAt": "2026-09-17T05:30:46.634Z",
+      "status": "passed",
+      "evidence": {
+        "originalCount": 82,
+        "newCount": 83,
+        "diff": "--- /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n+++ /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n@@ -244,6 +244,11 @@\n # @subsection Sacramentos. Sete Santa Madre Igreja Sacramentos.\n l += ((ae * karaiba) * pupé) + (îe * moîasuk).var(1).base_nominal()\n \n+\n+# @note studio:v1 {\"passageId\": \"passage:47121fcd-20c5-4742-bdd1-f3f9ee1dd1e1\"}\n+l += (nde\n+)\n+\n araujo_catecismo_1686 = l\n if __name__ == \"__main__\":\n     for expr in araujo_catecismo_1686:\n",
+        "contributorInput": "nde",
+        "sourceExpression": "(nde\n)"
+      },
+      "finishedAt": "2026-09-17T05:30:48.428Z",
+      "screenshot": "docs/coverage/native-screenshots/08-new-passage-ui.png"
+    },
+    {
+      "name": "reading-only-pending-restart-and-apply",
+      "startedAt": "2026-09-17T05:30:48.561Z",
+      "status": "passed",
+      "evidence": {
+        "beforeCount": 83,
+        "afterCount": 84,
+        "pendingId": "pending:edf3d02b-f594-4155-b29b-cd65398bbd7d",
+        "canonicalId": "passage:edf3d02b-f594-4155-b29b-cd65398bbd7d",
+        "emptyAnalysisSaved": true,
+        "sourceUnchangedUntilReviewApplied": true,
+        "restoredDialogAndSidebar": true,
+        "metadata": {
+          "diplomatic": "Nova leitura sem análise — testemunho de teste.",
+          "normalized": "Leitura normalizada ainda incerta.",
+          "translation": "Interpretação provisória do colaborador.",
+          "notes": "Conferir a leitura no testemunho. Análise a preparar depois.",
+          "locators": {
+            "printedPage": "123",
+            "folio": "61r",
+            "line": "3-4"
+          }
+        },
+        "diff": "--- /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n+++ /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-7HXHmq/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n@@ -249,6 +249,18 @@\n l += (nde\n )\n \n+\n+# @diplomatic Nova leitura sem análise — testemunho de teste.\n+# @target Leitura normalizada ainda incerta.\n+# @translation Interpretação provisória do colaborador.\n+# @note Conferir a leitura no testemunho. Análise a preparar depois.\n+# @page 123\n+# @folio 61r\n+# @line 3-4\n+# @note studio:v1 {\"passageId\": \"passage:edf3d02b-f594-4155-b29b-cd65398bbd7d\"}\n+l += (nde\n+)\n+\n araujo_catecismo_1686 = l\n if __name__ == \"__main__\":\n     for expr in araujo_catecismo_1686:\n",
+        "permanentDraftSurvivedRestart": true,
+        "readingOnlyScreenshot": "docs/coverage/native-screenshots/09-reading-only-restored.png"
+      },
+      "finishedAt": "2026-09-17T05:30:55.224Z",
+      "screenshot": "docs/coverage/native-screenshots/09-reading-only-pending-restart-and-apply.png"
+    },
+    {
+      "name": "provider-ui-configuration",
+      "startedAt": "2026-09-17T05:30:55.375Z",
+      "status": "passed",
+      "evidence": {
+        "codexState": "Autenticação chatgpt reconhecida pelo Codex local; geração ainda depende do acesso ao modelo.",
+        "tasks": [
+          "Traduzir para português",
+          "Explicar construção",
+          "Propor expressão",
+          "Investigar problema no motor"
+        ],
+        "credentialsAbsentFromRenderer": true,
+        "explicitScope": "passage",
+        "generation": "Not requested. Provider generation tests remain simulated; this stage inspects configuration and the explicit full-passage target only."
+      },
+      "finishedAt": "2026-09-17T05:30:56.502Z",
+      "screenshot": "docs/coverage/native-screenshots/10-provider-ui-configuration.png"
+    },
+    {
+      "name": "external-source-conflict",
+      "startedAt": "2026-09-17T05:30:56.648Z",
+      "status": "passed",
+      "evidence": {
+        "staleApplyRejected": true,
+        "externalSourceRetained": true,
+        "draftRetained": true,
+        "alert": "Error invoking remote method 'studio:invoke': Error: O arquivo mudou externamente. Nada foi aplicado; mantenha o rascunho e atualize."
+      },
+      "finishedAt": "2026-09-17T05:30:58.506Z",
+      "screenshot": "docs/coverage/native-screenshots/11-external-source-conflict.png"
+    }
+  ],
+  "pageErrors": [],
+  "originalCorpusUnchanged": {
+    "historic/araujo_catecismo_1686.tu.py": true,
+    "historic/lexicon.tu.py": true,
+    "ground_truth/records/historic/araujo_catecismo_1686.jsonl": true
+  },
+  "finishedAt": "2026-09-17T05:30:58.789Z",
+  "passed": true
+}

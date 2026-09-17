@@ -25,7 +25,7 @@ def dispatch(adapter: ProjectAdapter, request: object):
         return adapter.refresh_project()
     if method == "render":
         return adapter.render(params)
-    raise AdapterError("Operação indisponível neste serviço.", "UNKNOWN_METHOD")
+    return adapter.invoke(method, params)
 
 
 def main():

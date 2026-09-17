@@ -1,0 +1,611 @@
+.general-authoring,
+.lexicon-panel {
+  padding: 22px 25px;
+  min-width: 0;
+}
+.general-toolbar,
+.general-toolbar > span,
+.general-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.general-toolbar {
+  justify-content: space-between;
+  margin-bottom: 17px;
+}
+.raw-editor textarea {
+  font:
+    13px/1.65 ui-monospace,
+    SFMono-Regular,
+    monospace;
+  tab-size: 4;
+  white-space: pre;
+  overflow: auto;
+  min-height: 120px;
+}
+.raw-editor small {
+  font-size: 11px;
+  line-height: 1.6;
+}
+.author-node {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px;
+  margin: 6px 0;
+  min-width: 0;
+  background: var(--paper);
+}
+.author-node-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  padding: 9px;
+  border-radius: 4px;
+  min-width: 0;
+}
+.author-node-heading.is-selected {
+  outline: 2px solid #649d81;
+  background: #dfeee2;
+}
+.author-node-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  opacity: 0.8;
+}
+.author-node-heading strong {
+  font-size: 12px;
+}
+.author-node-heading code {
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  opacity: 0.85;
+}
+.author-node-children {
+  padding-left: 8px;
+  border-left: 2px solid #71977644;
+}
+.author-slot > span {
+  font-size: 10px;
+  opacity: 0.8;
+}
+.author-node .text-button {
+  font-size: 10px;
+  padding: 5px 7px;
+}
+.constituent-editor {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  margin-top: 22px;
+}
+.constituent-editor h3,
+.lexicon-panel h2 {
+  font-size: 17px;
+  margin-bottom: 12px;
+}
+.constituent-editor > p {
+  font-size: 12px;
+  margin: 10px 0;
+}
+.constituent-editor input,
+.construction-operation select,
+.construction-operation input,
+.lexicon-panel input,
+.lexicon-panel textarea,
+.lexicon-panel select,
+.source-actions input {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 9px;
+  background: var(--paper);
+  color: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.constituent-editor > .button {
+  margin: 10px 0;
+}
+.construction-operation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 15px 0;
+}
+.construction-operation label {
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.construction-operation button {
+  grid-column: 1/-1;
+  justify-self: start;
+}
+.lexicon-search {
+  display: flex;
+  gap: 8px;
+}
+.lexicon-search input {
+  flex: 1;
+}
+.lexicon-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 15px 0;
+  max-height: 500px;
+  overflow: auto;
+}
+.lexicon-results article {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.lexicon-results article > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lexicon-results p {
+  font-size: 12px;
+  line-height: 1.75;
+  margin: 9px 0;
+  max-height: 140px;
+  overflow: auto;
+}
+.lexicon-results code,
+.lexicon-results small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+.lexicon-results code {
+  white-space: pre-wrap;
+}
+.lexicon-panel details > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0;
+  font-size: 12px;
+}
+.lexicon-panel details summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 12px 0;
+  font-size: 13px;
+}
+.lexical-choice {
+  border: 1px solid var(--border);
+  padding: 15px;
+  margin: 18px 0;
+}
+.lexical-choice p {
+  font-size: 12px;
+  margin: 10px 0;
+}
+.lexical-choice button {
+  margin: 5px;
+}
+.source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0;
+}
+.source-actions details {
+  padding: 15px;
+  border: 1px solid var(--border);
+  width: 100%;
+}
+.source-actions details > p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.source-actions input {
+  margin-bottom: 12px;
+}
+.source-width-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.source-width-control input {
+  width: 95px;
+  accent-color: var(--green);
+}
+.new-passage {
+  margin: 10px 20px 15px;
+}
+.review-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0008;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+}
+.review-overlay > section {
+  width: 850px;
+  max-width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--paper);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 25px;
+}
+.review-overlay h2 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 27px;
+}
+.review-overlay p {
+  font-size: 13px;
+  line-height: 1.8;
+  margin: 14px 0;
+}
+.review-overlay pre {
+  background: #182320;
+  color: #d1e8d9;
+  padding: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 50vh;
+  overflow: auto;
+  font:
+    12px/1.8 ui-monospace,
+    monospace;
+}
+.review-overlay button {
+  margin: 8px 10px 0 0;
+}
+.source-review-lexicon,
+.source-review-file {
+  margin-top: 20px;
+}
+.source-review-lexicon h3,
+.source-review-file h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.source-review-lexicon table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.source-review-lexicon :is(th, td) {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.source-review-lexicon th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.review-overlay label {
+  display: flex;
+  flex-direction: column;
+  margin: 15px 0;
+  gap: 8px;
+}
+.review-overlay textarea {
+  font:
+    13px/1.8 ui-monospace,
+    monospace;
+  min-height: 120px;
+  background: var(--paper);
+  color: inherit;
+  border: 1px solid var(--border);
+  padding: 12px;
+}
+.workspace-top .work-modes {
+  flex-wrap: wrap;
+}
+.workspace-top .work-modes button {
+  font-size: 10px;
+  flex: 1 0 auto;
+}
+.source-pane .pdf-evidence {
+  margin: 0 15px 15px;
+}
+.source-pane .pdf-stage {
+  min-height: 440px;
+}
+.source-pane .reading-fields {
+  padding-bottom: 24px;
+}
+.evidence-pointer-notice {
+  font-size: 11px;
+  padding: 10px 20px;
+  color: var(--green);
+}
+@media (min-width: 1001px) {
+  .desk-columns {
+    grid-template-columns: minmax(280px, var(--source-width, 44%)) minmax(0, 1fr);
+  }
+  .navigator {
+    width: 205px;
+  }
+}
+@media (max-width: 700px) {
+  .general-authoring,
+  .lexicon-panel {
+    padding: 18px 15px;
+  }
+  .construction-operation {
+    grid-template-columns: 1fr;
+  }
+  .source-width-control {
+    display: none;
+  }
+  .general-toolbar {
+    flex-wrap: wrap;
+  }
+  .header-end .local-indicator {
+    display: none;
+  }
+  .brand {
+    font-size: 14px;
+  }
+  .brand img {
+    width: 25px;
+  }
+  .header-end > .button {
+    font-size: 9px;
+  }
+  .app-header {
+    gap: 7px;
+  }
+  .review-overlay {
+    padding: 15px;
+  }
+  .author-node-children {
+    padding-left: 3px;
+  }
+  .author-node {
+    padding: 5px;
+  }
+}
+.engine-roles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.engine-roles span {
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+.node-definition,
+.node-dispatch {
+  font-size: 11px;
+  line-height: 1.6;
+  display: block;
+  padding: 0 8px;
+  overflow-wrap: anywhere;
+}
+.node-definition {
+  max-height: 90px;
+  overflow: auto;
+}
+.lexical-input {
+  position: relative;
+  width: 100%;
+}
+.lexical-suggestions {
+  position: absolute;
+  z-index: 3;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 20px #0003;
+  max-height: 260px;
+  overflow: auto;
+}
+.lexical-suggestions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px;
+  border-bottom: 1px solid var(--border);
+}
+.lexical-suggestions small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.helper-parameters label {
+  display: block;
+  font-size: 12px;
+  margin: 12px 0;
+}
+.helper-parameters h4 {
+  font-size: 13px;
+  margin-top: 15px;
+}
+.recovery-note pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  padding: 10px;
+  background: var(--paper);
+}
+.recovery-note p {
+  font-size: 12px;
+  margin: 8px 0;
+}
+.recovery-note details {
+  margin: 10px 0;
+}
+.recovery-note article {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+.pending-passages {
+  padding: 0 18px 15px;
+  max-height: 200px;
+  overflow: auto;
+}
+.pending-passages > strong {
+  font-size: 11px;
+  display: block;
+  margin: 8px 0;
+}
+.pending-passages button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 5px 0;
+  font-size: 12px;
+}
+.pending-passages small {
+  font-size: 10px;
+  display: block;
+  margin-top: 3px;
+}
+.review-overlay details summary {
+  cursor: pointer;
+  padding: 10px 0;
+}
+.review-overlay textarea[rows='2'] {
+  min-height: 68px;
+}
+.conflict-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 16px 0;
+  table-layout: fixed;
+}
+.conflict-table th,
+.conflict-table td {
+  border: 1px solid var(--border);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.conflict-table th:first-child {
+  width: 23%;
+}
+
+.workflow-control {
+  display: grid;
+  gap: 8px;
+  max-width: 310px;
+  font-size: 12px;
+}
+.workflow-control label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+}
+.workflow-control select,
+.usage-panel select,
+.usage-panel input:not([type='checkbox']) {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--paper);
+  color: inherit;
+}
+.workflow-control small {
+  line-height: 1.4;
+  color: var(--muted);
+}
+.status-dot.complete {
+  background: #54a685;
+}
+.evaluation-retry,
+.usage-controls,
+.usage-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.navigator-filter {
+  flex-wrap: wrap;
+}
+.usage-panel {
+  width: min(760px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 28px;
+  background: var(--paper);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 20px 80px #0006;
+}
+.usage-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.usage-panel p {
+  line-height: 1.6;
+}
+.usage-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 10px 0 20px;
+}
+.usage-panel td,
+.usage-panel th {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.usage-panel code {
+  overflow-wrap: anywhere;
+}
+.usage-panel details {
+  margin: 18px 0;
+}
+.usage-totals strong {
+  flex: 1;
+  background: var(--green-light);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: #0008;
+  padding: 20px;
+}

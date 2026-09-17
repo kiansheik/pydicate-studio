@@ -17,13 +17,28 @@ import {
   Layers,
   Leaf,
   MessageSquareText,
-  PanelLeftClose,
+  Plus,
   RefreshCw,
   Search,
   Undo2,
   X,
 } from 'lucide-react';
 import { compareReference, expressionFor } from './domain/model';
+import { SourceRecovery } from './components/SourceRecovery';
+import { AuthoringEditor, LexiconPanel } from './components/AuthoringEditor';
+import { DictionaryTab } from './components/DictionaryTab';
+import { AssistantPanel } from './components/AssistantPanel';
+import { PydicateTree } from './components/RuntimeTree';
+import { UsagePanel } from './components/UsagePanel';
+import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
+import { PassageLexicon } from './components/PassageLexicon';
+import { GroundTruthPanel } from './components/GroundTruthPanel';
+import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
+import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
+import { DraftArchive } from './components/DraftArchive';
+import { track } from './domain/usage';
+import './workbench.css';
+import { flattenNodes, invoke, type SourcePreview } from './domain/authoring';
 import { SourcePane } from './components/SourcePane';
 import { PhraseEditor, SelectionNote, nodeLabels } from './components/PhraseEditor';
 import { useStudio } from './useStudio';
@@ -37,6 +52,7 @@ const statusLabels = {
   review: 'Precisa de revisão',
   approved: 'Aprovado',
   changed: 'Resultado mudou',
+  complete: 'Concluída',
 };
 
 function exportContribution(studio: Studio) {
@@ -75,13 +91,51 @@ function Projections({
   tab,
   selected,
   select,
+  inspectLexeme,
+  prepareDiagnostic,
 }: {
   studio: Studio;
   tab: Tab;
   selected: string;
   select: (id: string) => void;
+  inspectLexeme: () => void;
+  prepareDiagnostic: (report: CanvasDiagnostic) => void;
 }) {
   const { draft, passage, result } = studio;
+  if (studio.project.mode === 'local' && tab === 'Árvore')
+    return (
+      <PydicateTree
+        evaluatedRoot={result?.tree}
+        failures={result?.failures}
+        selectedSourceNodeId={selected}
+        onSelectSourceNode={select}
+        status={studio.pending ? 'Avaliando a estrutura…' : studio.renderError || undefined}
+        authoringRoot={studio.parsed?.root}
+        raw={draft?.raw ?? passage.sourceExpression}
+        revisionId={draft?.revisionId}
+        passageId={passage.id}
+        sourceId={passage.sourceId}
+        engineFingerprint={studio.project.engineFingerprint}
+        onChangeRaw={(raw) => studio.edit({ raw })}
+        canvas={draft?.canvas}
+        onChangeCanvas={(changes) => studio.edit(changes)}
+        onPrepareDiagnostic={prepareDiagnostic}
+        onUndo={studio.undo}
+        onRedo={studio.redo}
+        canUndo={studio.canUndo}
+        canRedo={studio.canRedo}
+        onInspectLexeme={inspectLexeme}
+      />
+    );
+  if (studio.project.mode === 'local' && ['Construção', 'Código'].includes(tab))
+    return (
+      <AuthoringEditor
+        studio={studio}
+        selected={selected}
+        onSelect={select}
+        codeOnly={tab === 'Código'}
+      />
+    );
   if (tab === 'Construção')
     return <PhraseEditor studio={studio} selected={selected} select={select} />;
   if (tab === 'Morfemas')
@@ -210,7 +264,7 @@ function Projections({
           Tradução proposta
           <textarea
             rows={7}
-            disabled={!studio.ready || studio.conflict}
+            disabled={!studio.ready}
             value={draft?.translation ?? ''}
             onChange={(e) => studio.edit({ translation: e.target.value })}
             placeholder="Como você interpreta esta passagem?"
@@ -257,7 +311,9 @@ function Projections({
           <div>
             <span className="timeline-dot" />
             <strong>
-              {result?.origin === 'engine' ? 'Avaliação pelo motor local' : 'Resultado de exemplo'}
+              {studio.project.mode === 'local'
+                ? 'Avaliação pelo motor local'
+                : 'Resultado de exemplo'}
             </strong>
             <p>
               {result
@@ -386,22 +442,91 @@ export default function App() {
   const { project, passage, draft, result } = studio;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
-  const [tab, setTab] = useState<Tab>('Construção');
+  const [tab, setTab] = useState<Tab>(window.studio ? 'Árvore' : 'Construção');
   const [selected, setSelected] = useState('object');
-  const [mode, setMode] = useState<'analysis' | 'reading' | 'review'>('analysis');
+  const [mode, setMode] = useState<
+    'analysis' | 'reading' | 'review' | 'lexicon' | 'dictionary' | 'assistant'
+  >('analysis');
   const [projectDialog, setProjectDialog] = useState(false);
   const [details, setDetails] = useState(false);
-  const [sourceVisible, setSourceVisible] = useState(() => window.innerWidth > 700);
+  const [usageOpen, setUsageOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const layout = useWorkspaceLayout();
+  const [theme, setTheme] = useState(() => localStorage.getItem('studio-theme') || 'dark');
+  const [preview, setPreview] = useState<SourcePreview | null>(null);
+  const publishesLexicon = preview?.lexicalAdditions?.some((entry) => !entry.reused) ?? false;
+  const previewHasChanges = Boolean(preview?.diff || preview?.files?.some((file) => file.diff));
+  const [grammarReport, setGrammarReport] = useState<CanvasDiagnostic | null>(null);
+  const restoredPendingProject = useRef('');
+  useEffect(() => {
+    if (!studio.ready || restoredPendingProject.current === project.id) return;
+    restoredPendingProject.current = project.id;
+    const saved = localStorage.getItem('studio-pending:' + project.id);
+    if (saved && studio.envelope.drafts[saved]) {
+      studio.setSelectedId(saved);
+      setMode('analysis');
+      setTab('Árvore');
+    }
+    localStorage.removeItem('studio-pending:' + project.id);
+  }, [studio.ready, project.id, studio.envelope]);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [evidencePointer, setEvidencePointer] = useState<Record<string, unknown> | null>(null);
+  const [reviewError, setReviewError] = useState('');
+  const [gitContribution, setGitContribution] = useState<{
+    patch: string;
+    instructions: string;
+    repositories: unknown[];
+  } | null>(null);
+  useEffect(() => {
+    setEvidencePointer(null);
+    setPreview(null);
+    setReviewError('');
+    setSelected('root');
+    setGrammarReport(null);
+  }, [project.id, passage.id]);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('studio-theme', theme);
+  }, [theme]);
   const [notice, setNotice] = useState('');
   const note = useRef<HTMLTextAreaElement>(null);
   const activePassage = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     activePassage.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [passage.id]);
-  const comparison = result ? compareReference(result.surface, passage.acceptedReference) : null;
+  }, [passage.id, layout.state.hidden.navigator, layout.state.maximized]);
+  const comparison =
+    result && result.evaluationStatus !== 'partial'
+      ? compareReference(result.surface, passage.acceptedReference)
+      : null;
+  const stage = draft?.workflow?.stage ?? (passage.status === 'review' ? 'review' : 'analysis');
+  const completed = project.passages.filter(
+    (p) => studio.envelope.drafts[p.id]?.workflow?.stage === 'complete',
+  ).length;
+  function changeMode(next: typeof mode) {
+    track('navigation.mode', { from: mode, to: next });
+    setMode(next);
+  }
+  function changeTab(next: Tab) {
+    track('navigation.projection', { from: tab, to: next });
+    setTab(next);
+    requestAnimationFrame(() =>
+      document
+        .querySelector('.tab-content')
+        ?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+    );
+  }
+
+  useEffect(() => {
+    if (!query) return;
+    const timer = setTimeout(() => track('navigation.search', { count: query.length }), 800);
+    return () => clearTimeout(timer);
+  }, [query]);
   const passages = project.passages.filter(
     (p) =>
-      (filter !== 'editable' || p.analysis) &&
+      (filter !== 'editable' || project.mode === 'local' || p.analysis) &&
+      (filter !== 'complete' || studio.envelope.drafts[p.id]?.workflow?.stage === 'complete') &&
+      (filter !== 'open' || studio.envelope.drafts[p.id]?.workflow?.stage !== 'complete') &&
       `${p.title} ${p.ordinal} ${p.acceptedReference ?? ''}`
         .normalize('NFD')
         .replace(/\p{M}/gu, '')
@@ -416,6 +541,18 @@ export default function App() {
     setNotice('');
     setSelected('object');
   };
+  function addNextPassage() {
+    if (!studio.createPendingDraft()) return;
+    setMode('analysis');
+    setTab('Árvore');
+    setSelected('root');
+    setQuery('');
+    setFilter('all');
+    setNotice('');
+    if (layout.state.hidden.editor) layout.toggle('editor');
+    if (layout.state.hidden.source) layout.toggle('source');
+    if (layout.state.maximized) layout.maximize(layout.state.maximized);
+  }
   async function save() {
     try {
       await studio.persist();
@@ -424,6 +561,714 @@ export default function App() {
       studio.setError(String(e));
     }
   }
+  function reviewSource() {
+    if (!draft || reviewBusy) return;
+    setReviewBusy(true);
+    const metadata: Record<string, unknown> = {};
+    for (const key of ['diplomatic', 'normalized', 'translation', 'notes'] as const)
+      if (draft[key] !== passage[key]) metadata[key] = draft[key];
+    const locators: Record<string, string> = {
+      printedPage: passage.witness.printedPage ?? '',
+      folio: passage.witness.folio ?? '',
+      line: String(passage.witness.textualLine ?? ''),
+      section: passage.witness.section ?? '',
+      subsection: passage.witness.subsection ?? '',
+    };
+    for (const [key, value] of Object.entries(draft.locators ?? {}))
+      if (value !== locators[key]) metadata[key] = value;
+    if (evidencePointer) metadata.evidence = evidencePointer;
+    void studio
+      .sourcePreview(false, metadata)
+      .then(setPreview)
+      .catch((e) => studio.setError(e.message))
+      .finally(() => setReviewBusy(false));
+  }
+  const navigationPane = (
+    <aside className="navigator" aria-label="Passagens">
+      <div className="navigator-top">
+        <span className="eyebrow">MESA DE LEITURA</span>
+        <span className="edition-number">01</span>
+      </div>
+      <h1>Suas passagens</h1>
+      <label className="search-box">
+        <Search size={15} />
+        <input
+          aria-label="Buscar passagem"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar passagem…"
+        />
+        <span>⌕</span>
+      </label>
+      <div className="navigator-filter">
+        <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
+          Todas <span>{project.passages.length}</span>
+        </button>
+        <button className={filter === 'open' ? 'active' : ''} onClick={() => setFilter('open')}>
+          Em trabalho
+        </button>
+        <button
+          className={filter === 'complete' ? 'active' : ''}
+          onClick={() => setFilter('complete')}
+        >
+          Concluídas <span>{completed}</span>
+        </button>
+      </div>
+      <div className="passage-list">
+        {sourceIds.map((sourceId) => (
+          <section key={sourceId}>
+            <div className="source-group">
+              <ChevronDown size={12} />
+              <BookOpen size={13} />
+              <span>
+                {sourceId.includes('araujo')
+                  ? 'Araújo · Catecismo'
+                  : sourceId.includes('bettendorff')
+                    ? 'Bettendorff · Compêndio'
+                    : sourceId}
+              </span>
+            </div>
+            {passages
+              .filter((p) => p.sourceId === sourceId)
+              .map((p) => (
+                <button
+                  key={p.id}
+                  ref={passage.id === p.id ? activePassage : undefined}
+                  className={`passage-item ${passage.id === p.id ? 'active' : ''}`}
+                  onClick={() => changePassage(p.id)}
+                  aria-current={passage.id === p.id ? 'page' : undefined}
+                >
+                  <span className="passage-item-top">
+                    <span className="ordinal">{String(p.ordinal).padStart(4, '0')}</span>
+                    {p.analysis && (
+                      <span className="editable-dot" title="Editor visual disponível" />
+                    )}
+                  </span>
+                  <span className="passage-reading" lang="tpw">
+                    {p.acceptedReference ?? 'Por transcrever'}
+                  </span>
+                  <span className="passage-status">
+                    <span
+                      className={`status-dot ${studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status}`}
+                    />
+                    {statusLabels[studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status]}
+                  </span>
+                </button>
+              ))}
+          </section>
+        ))}
+        {!passages.length && <p className="empty-search">Nenhuma passagem encontrada.</p>}
+      </div>
+      <div className="navigator-bottom">
+        <div className="notebook-icon">
+          <FileText size={18} />
+        </div>
+        <div>
+          <strong>Seu caderno de trabalho</strong>
+          <p>Uma leitura de cada vez.</p>
+        </div>
+      </div>
+      <button
+        className="button new-passage"
+        disabled={project.mode !== 'local' || !studio.ready}
+        onClick={addNextPassage}
+      >
+        <Plus size={15} /> Adicionar próxima passagem
+      </button>
+      <div className="navigator-version">
+        TUPI ANTIGO <span>v0.2</span>
+      </div>
+    </aside>
+  );
+  const editorPane = (
+    <div className="desk workspace-desk">
+      <header className="desk-header">
+        <div className="breadcrumbs">
+          <span>{passage.sourceId.includes('araujo') ? 'Araújo, 1686' : 'Corpus histórico'}</span>
+          <ChevronRight size={13} />
+          <strong>Passagem {String(passage.ordinal).padStart(4, '0')}</strong>
+          {passage.id.startsWith('pending:') && (
+            <span className="new-passage-badge">Nova · rascunho local</span>
+          )}
+        </div>
+        <div className="desk-nav">
+          {project.mode === 'local' && (
+            <button
+              className="button small add-next-passage"
+              disabled={!studio.ready}
+              onClick={addNextPassage}
+            >
+              <Plus size={14} /> Adicionar próxima passagem
+            </button>
+          )}
+          <button
+            className="icon-button"
+            aria-label="Passagem anterior"
+            disabled={selectedIndex <= 0 || !studio.ready}
+            onClick={() => changePassage(project.passages[selectedIndex - 1].id)}
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Próxima passagem"
+            disabled={selectedIndex >= project.passages.length - 1 || !studio.ready}
+            onClick={() => changePassage(project.passages[selectedIndex + 1].id)}
+          >
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </header>
+      <div className="desk-columns">
+        <main
+          className="analysis-pane"
+          id="analysis"
+          data-tree-active={mode === 'analysis' && tab === 'Árvore'}
+        >
+          <div className="workspace-top">
+            <div className="work-modes">
+              <button
+                className={mode === 'reading' ? 'active' : ''}
+                onClick={() => {
+                  changeMode('reading');
+                  setTimeout(() => note.current?.focus(), 0);
+                }}
+              >
+                <FileText size={14} />
+                Contribuir uma leitura
+              </button>
+              <button
+                className={mode === 'analysis' ? 'active' : ''}
+                onClick={() => changeMode('analysis')}
+              >
+                <GitBranch size={14} />
+                Montar a análise
+              </button>
+              <button
+                className={mode === 'review' ? 'active' : ''}
+                onClick={() => changeMode('review')}
+              >
+                <ClipboardCheck size={14} />
+                Revisar
+              </button>
+              <button
+                className={mode === 'lexicon' ? 'active' : ''}
+                onClick={() => changeMode('lexicon')}
+              >
+                Léxico
+              </button>
+              <button
+                className={mode === 'dictionary' ? 'active' : ''}
+                onClick={() => changeMode('dictionary')}
+              >
+                Dicionário
+              </button>
+              <button
+                className={mode === 'assistant' ? 'active' : ''}
+                onClick={() => changeMode('assistant')}
+              >
+                Assistência IA
+              </button>
+            </div>
+            <div className="workspace-title">
+              <div className="workflow-control">
+                <label>
+                  Etapa do meu trabalho
+                  <select
+                    aria-label="Etapa do trabalho"
+                    value={stage}
+                    disabled={!studio.ready}
+                    onChange={(event) => studio.setWorkflow(event.target.value as typeof stage)}
+                  >
+                    <option value="analysis">Em análise</option>
+                    <option value="review">Precisa de revisão</option>
+                    <option value="complete">Concluída</option>
+                  </select>
+                </label>
+                {stage !== 'complete' && (
+                  <button
+                    className="button primary small"
+                    disabled={!studio.ready}
+                    onClick={() => studio.setWorkflow('complete')}
+                  >
+                    <Check size={14} /> Concluir passagem
+                  </button>
+                )}
+                {project.mode === 'local' &&
+                  (passage.id.startsWith('pending:') ? (
+                    <button
+                      className="button small ground-truth-shortcut"
+                      disabled={!draft?.raw?.trim() || !studio.ready || reviewBusy}
+                      onClick={reviewSource}
+                    >
+                      <Check size={14} /> Revisar nova passagem
+                    </button>
+                  ) : (
+                    <button
+                      className="button small ground-truth-shortcut"
+                      onClick={() => {
+                        changeMode('review');
+                        requestAnimationFrame(() =>
+                          document
+                            .querySelector('.ground-truth-panel')
+                            ?.scrollIntoView({ block: 'start' }),
+                        );
+                      }}
+                    >
+                      <ClipboardCheck size={14} /> Salvar como ground truth
+                    </button>
+                  ))}
+              </div>
+            </div>
+            <div
+              className={`comparison-grid${project.mode === 'local' && !compareOpen ? ' is-compact' : ''}`}
+            >
+              <div
+                className="reference-surface"
+                hidden={project.mode === 'local' && !compareOpen}
+                id="saved-reference"
+              >
+                <div className="surface-label">
+                  <BookOpen size={13} />
+                  {project.mode === 'example' ? 'REFERÊNCIA DO EXEMPLO' : 'REFERÊNCIA SALVA'}
+                </div>
+                <p data-testid="reference-surface" lang="tpw">
+                  {passage.acceptedReference ?? 'Sem referência salva'}
+                </p>
+                <span className="surface-caption">
+                  {passage.acceptedReference
+                    ? 'Preservada · origem legada'
+                    : 'Aguardando decisão editorial'}
+                </span>
+              </div>
+              <div
+                className={`generated-surface ${comparison?.kind === 'different' ? 'different' : ''}`}
+              >
+                <div className="surface-label">
+                  <Layers size={13} />
+                  {project.mode === 'local' ? 'RESULTADO ATUAL' : 'RESULTADO DO EXEMPLO'}
+                </div>
+                <p data-testid="generated-surface" lang="tpw">
+                  {studio.pending
+                    ? 'Avaliando…'
+                    : result?.evaluationStatus === 'partial'
+                      ? 'Confira as etapas destacadas na árvore'
+                      : (result?.surface ??
+                        (studio.renderError
+                          ? 'Não foi possível avaliar'
+                          : !draft?.raw?.trim()
+                            ? 'Comece pelo botão + na árvore'
+                            : 'Sem resultado nesta revisão'))}
+                </p>
+                <span className="surface-caption">
+                  {result?.origin === 'engine'
+                    ? 'Motor local · revisão atual'
+                    : result
+                      ? 'Resultado previamente avaliado'
+                      : !draft?.raw?.trim()
+                        ? 'Sua próxima leitura começa aqui'
+                        : 'Aguardando análise válida e avaliação'}
+                </span>
+              </div>
+            </div>
+            <div className="agreement-bar">
+              {project.mode === 'local' && (
+                <button
+                  className="compare-toggle"
+                  aria-expanded={compareOpen}
+                  aria-controls="saved-reference"
+                  onClick={() => setCompareOpen((value) => !value)}
+                >
+                  {compareOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                  {compareOpen ? 'Recolher referência' : 'Comparar referência'}
+                </button>
+              )}
+              <span
+                className={comparison?.kind === 'exact' ? 'agreement-exact' : 'agreement-other'}
+              >
+                {comparison?.kind === 'exact' ? (
+                  <Check size={13} />
+                ) : (
+                  <span className="status-dot" />
+                )}
+                {comparison?.kind === 'exact'
+                  ? 'Forma coincide'
+                  : comparison?.kind === 'different'
+                    ? 'Resultado mudou'
+                    : comparison?.kind === 'normalized'
+                      ? 'Diferença de normalização'
+                      : 'Sem comparação'}
+              </span>
+              <span className="agreement-separator" />
+              <span>
+                Minha etapa <strong>{statusLabels[stage].toLowerCase()}</strong>
+              </span>
+              <span className="agreement-separator" />
+              <span>
+                {project.mode === 'example'
+                  ? 'Motor do exemplo registrado'
+                  : 'Motor local identificado'}
+              </span>
+            </div>
+            {(studio.renderError || studio.conflict) && (
+              <p role="alert" className="inline-error">
+                {studio.conflict
+                  ? 'A fonte mudou desde este rascunho. Compare as duas versões abaixo; ambas foram preservadas.'
+                  : studio.renderError}
+              </p>
+            )}
+            {studio.renderError && (
+              <div className="evaluation-retry">
+                <button
+                  className="button small"
+                  disabled={studio.pending}
+                  onClick={studio.retryEvaluation}
+                >
+                  Tentar avaliar novamente
+                </button>
+                <button
+                  className="button small"
+                  disabled={studio.busy}
+                  onClick={() => void studio.refresh()}
+                >
+                  Atualizar motor e avaliar
+                </button>
+              </div>
+            )}
+            {studio.conflict && (
+              <div className="recovery-note">
+                <h3>Conciliar versões</h3>
+                <p>Fonte atual</p>
+                <pre>{passage.sourceExpression}</pre>
+                <p>Seu rascunho</p>
+                <pre>{draft?.raw}</pre>
+                <table className="conflict-table">
+                  <thead>
+                    <tr>
+                      <th>Campo</th>
+                      <th>Fonte atual</th>
+                      <th>Seu rascunho</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(
+                      [
+                        ['diplomatic', 'Transcrição'],
+                        ['normalized', 'Leitura normalizada'],
+                        ['translation', 'Tradução'],
+                        ['notes', 'Notas'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <tr key={key}>
+                        <th>{label}</th>
+                        <td>{passage[key] || '—'}</td>
+                        <td>{draft?.[key] || '—'}</td>
+                      </tr>
+                    ))}
+                    <tr>
+                      <th>Página / fólio / linhas</th>
+                      <td>
+                        {[
+                          passage.witness.printedPage,
+                          passage.witness.folio,
+                          passage.witness.textualLine,
+                        ]
+                          .filter(Boolean)
+                          .join(' / ') || '—'}
+                      </td>
+                      <td>
+                        {[
+                          draft?.locators?.printedPage,
+                          draft?.locators?.folio,
+                          draft?.locators?.line,
+                        ]
+                          .filter(Boolean)
+                          .join(' / ') || '—'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Seção / subseção</th>
+                      <td>
+                        {[passage.witness.section, passage.witness.subsection]
+                          .filter(Boolean)
+                          .join(' / ') || '—'}
+                      </td>
+                      <td>
+                        {[draft?.locators?.section, draft?.locators?.subsection]
+                          .filter(Boolean)
+                          .join(' / ') || '—'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <button className="button" onClick={() => studio.reconcileDraft()}>
+                  Continuar meu rascunho sobre esta versão
+                </button>
+              </div>
+            )}
+            {orphaned > 0 && (
+              <button className="archive-link" onClick={() => setArchiveOpen(true)}>
+                Rascunhos preservados ({orphaned})
+              </button>
+            )}
+          </div>
+          {mode === 'analysis' && (
+            <>
+              <div className="projection-tabs" role="tablist" aria-label="Projeções da análise">
+                {tabs.map((item) => (
+                  <button
+                    key={item}
+                    role="tab"
+                    aria-selected={tab === item}
+                    className={tab === item ? 'active' : ''}
+                    onClick={() => changeTab(item)}
+                  >
+                    {item === 'Código' && <Code2 size={13} />} {item}
+                  </button>
+                ))}
+              </div>
+              <div className="tab-content" role="tabpanel" aria-label={tab}>
+                <Projections
+                  studio={studio}
+                  tab={tab}
+                  selected={selected}
+                  select={setSelected}
+                  inspectLexeme={() => changeMode('lexicon')}
+                  prepareDiagnostic={setGrammarReport}
+                />
+              </div>
+              {draft?.analysis && <SelectionNote studio={studio} selected={selected} />}
+            </>
+          )}
+          <DictionaryTab
+            projectId={project.id}
+            passageId={passage.id}
+            sourceId={passage.sourceId}
+            revisionId={draft?.revisionId ?? ''}
+            engineFingerprint={project.engineFingerprint}
+            active={mode === 'dictionary'}
+            disabled={project.mode !== 'local' || !studio.ready || studio.busy || studio.conflict}
+            onInsert={(expression, expectedRevision) => {
+              if (!studio.insertPiece(expression, expectedRevision)) return false;
+              setMode('analysis');
+              setTab('Árvore');
+              setSelected('root');
+              setNotice('Peça do dicionário adicionada à árvore.');
+              return true;
+            }}
+          />
+          {mode === 'lexicon' && (
+            <div className="lexicon-workspace">
+              <PassageLexicon
+                projectId={project.id}
+                sourceId={passage.sourceId}
+                passageId={passage.id}
+                revisionId={draft?.revisionId ?? ''}
+                raw={draft?.raw ?? passage.sourceExpression}
+                engineFingerprint={project.engineFingerprint}
+                selectedNodeId={selected}
+                onSelectNode={setSelected}
+                onRevealNode={(id) => {
+                  setSelected(id);
+                  changeMode('analysis');
+                  changeTab('Árvore');
+                }}
+              />
+              <details>
+                <summary>Catálogo do projeto e dicionário Navarro</summary>
+                <LexiconPanel studio={studio} onPreview={setPreview} selected={selected} />
+              </details>
+            </div>
+          )}
+          {mode === 'assistant' && draft && (
+            <AssistantPanel
+              projectId={project.id}
+              passage={passage}
+              draft={draft}
+              raw={draft.raw ?? passage.sourceExpression}
+              selectedNode={
+                flattenNodes(studio.parsed?.root ?? null).find((n) => n.id === selected) ??
+                studio.parsed?.root
+              }
+              evaluation={result}
+              engineFingerprint={project.engineFingerprint}
+              onAcceptTranslation={(text) => studio.edit({ translation: text })}
+              onAcceptExpression={(text) => studio.edit({ raw: text })}
+            />
+          )}
+          {mode === 'reading' && (
+            <div className="reading-contribution">
+              <span className="eyebrow">SUA CONTRIBUIÇÃO</span>
+              <h3>Uma dúvida também merece registro.</h3>
+              <p>
+                Use a fonte ao lado para propor uma transcrição ou leitura. Acrescente o que ajuda
+                outra pessoa a entender sua escolha.
+              </p>
+              <label className="editor-label">
+                Tradução proposta
+                <textarea
+                  rows={3}
+                  value={draft?.translation ?? ''}
+                  disabled={!studio.ready}
+                  placeholder="Uma interpretação possível em português…"
+                  onChange={(e) => studio.edit({ translation: e.target.value })}
+                />
+              </label>
+              <label className="editor-label">
+                Nota de leitura
+                <textarea
+                  ref={note}
+                  rows={5}
+                  value={draft?.notes ?? ''}
+                  disabled={!studio.ready}
+                  placeholder="Uma letra incerta, uma alternativa, uma justificativa…"
+                  onChange={(e) => studio.edit({ notes: e.target.value })}
+                />
+              </label>
+              <div className="teaching-note">
+                <Leaf size={18} />
+                <p>
+                  Seu rascunho pode ficar incompleto. Ele será guardado com a passagem e poderá ser
+                  retomado depois.
+                </p>
+              </div>
+            </div>
+          )}
+          {mode === 'review' && (
+            <div className="review-view">
+              {project.mode === 'local' && (
+                <GroundTruthPanel studio={studio} onReviewSource={reviewSource} />
+              )}
+              <div className="section-intro">
+                <div>
+                  <h2>Compare antes de compartilhar</h2>
+                  <p>
+                    {comparison?.message ?? 'Esta passagem ainda não tem avaliação disponível.'}
+                  </p>
+                </div>
+              </div>
+              <div className="review-item">
+                <span>Leitura proposta</span>
+                <p>{draft?.normalized || 'Nenhuma leitura proposta.'}</p>
+              </div>
+              <div className="review-item">
+                <span>Tradução proposta</span>
+                <p>{draft?.translation || 'Ainda não informada.'}</p>
+              </div>
+              <div className="review-item">
+                <span>Nota de leitura</span>
+                <p>{draft?.notes || 'Nenhuma nota adicionada.'}</p>
+              </div>
+              <div className="teaching-note">
+                <ClipboardCheck size={19} />
+                <div>
+                  <strong>Pronto para uma revisão humana</strong>
+                  <p>
+                    Exporte a contribuição com a análise, a referência preservada e as versões
+                    usadas. A aprovação explícita usa o fluxo editorial sequencial do corpus.
+                  </p>
+                </div>
+              </div>
+              {project.mode === 'local' && (
+                <div className="source-actions">
+                  <button
+                    className="button"
+                    disabled={studio.busy}
+                    onClick={() => void studio.refresh()}
+                  >
+                    Recarregar fonte e comparar rascunhos
+                  </button>
+                  <SourceRecovery onPreview={setPreview} />
+
+                  <button
+                    className="button"
+                    onClick={() =>
+                      void invoke<{
+                        patch: string;
+                        instructions: string;
+                        repositories: unknown[];
+                      }>('contribution_prepare', { passageId: passage.id, draft })
+                        .then(setGitContribution)
+                        .catch((e) => studio.setError(e.message))
+                    }
+                  >
+                    Preparar contribuição Git
+                  </button>
+                </div>
+              )}
+              <button
+                className="button primary"
+                disabled={!studio.ready}
+                onClick={() => exportContribution(studio)}
+              >
+                <ArrowDownToLine size={16} />
+                Exportar contribuição
+              </button>
+            </div>
+          )}
+          {mode === 'analysis' && (
+            <div className="quick-note">
+              <MessageSquareText size={15} />
+              <label>
+                Nota de leitura
+                <textarea
+                  rows={1}
+                  value={draft?.notes ?? ''}
+                  disabled={!studio.ready}
+                  placeholder="Deixe uma observação para a revisão…"
+                  onChange={(e) => studio.edit({ notes: e.target.value })}
+                />
+              </label>
+            </div>
+          )}
+          <footer className="workspace-footer">
+            <span className="save-status" role="status">
+              <span className={studio.saveState.includes('salvo') ? 'saved-dot' : 'status-dot'} />
+              {studio.saveState}
+            </span>
+            <div>
+              <button
+                className="icon-button"
+                aria-label="Desfazer"
+                title="Desfazer última edição desta passagem"
+                disabled={!studio.canUndo || !studio.ready || studio.conflict}
+                onClick={studio.undo}
+              >
+                <Undo2 size={17} />
+              </button>
+              <button
+                className="button"
+                disabled={!draft || !studio.ready || studio.conflict}
+                onClick={() => void studio.verify()}
+              >
+                <RefreshCw size={14} className={studio.busy ? 'spin' : ''} />
+                Verificar
+              </button>
+              <button
+                className="button primary"
+                disabled={!studio.ready}
+                onClick={() => void save()}
+              >
+                <Check size={15} />
+                Salvar rascunho
+              </button>
+            </div>
+          </footer>
+          {(notice || studio.verification) && (
+            <div className="notice" role="status">
+              {notice || studio.verification}
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+  const sourcePane = (
+    <SourcePane
+      studio={studio}
+      onEvidence={(value) => setEvidencePointer(value as unknown as Record<string, unknown>)}
+    />
+  );
   return (
     <div className="studio-app">
       <header className="app-header">
@@ -448,6 +1293,20 @@ export default function App() {
           <ChevronDown size={13} />
         </button>
         <div className="header-end">
+          <button className="button small" onClick={() => setUsageOpen(true)}>
+            Atividade
+          </button>
+          <button
+            className="button small"
+            aria-label="Alternar tema"
+            onClick={() => {
+              const next = theme === 'dark' ? 'light' : 'dark';
+              track('ui.theme', { from: theme, to: next });
+              setTheme(next);
+            }}
+          >
+            {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+          </button>
           <span className="local-indicator">
             <span />
             {project.mode === 'example' ? 'Exemplo avaliado' : 'Projeto local'}
@@ -476,445 +1335,10 @@ export default function App() {
           </button>
         </div>
       )}
-      <div className="app-layout">
-        <aside className="navigator" aria-label="Passagens">
-          <div className="navigator-top">
-            <span className="eyebrow">MESA DE LEITURA</span>
-            <span className="edition-number">01</span>
-          </div>
-          <h1>Suas passagens</h1>
-          <label className="search-box">
-            <Search size={15} />
-            <input
-              aria-label="Buscar passagem"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar passagem…"
-            />
-            <span>⌕</span>
-          </label>
-          <div className="navigator-filter">
-            <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
-              Todas <span>{project.passages.length}</span>
-            </button>
-            <button
-              className={filter === 'editable' ? 'active' : ''}
-              onClick={() => setFilter('editable')}
-            >
-              Editor visual
-            </button>
-          </div>
-          <div className="passage-list">
-            {sourceIds.map((sourceId) => (
-              <section key={sourceId}>
-                <div className="source-group">
-                  <ChevronDown size={12} />
-                  <BookOpen size={13} />
-                  <span>
-                    {sourceId.includes('araujo')
-                      ? 'Araújo · Catecismo'
-                      : sourceId.includes('bettendorff')
-                        ? 'Bettendorff · Compêndio'
-                        : sourceId}
-                  </span>
-                </div>
-                {passages
-                  .filter((p) => p.sourceId === sourceId)
-                  .map((p) => (
-                    <button
-                      key={p.id}
-                      ref={passage.id === p.id ? activePassage : undefined}
-                      className={`passage-item ${passage.id === p.id ? 'active' : ''}`}
-                      onClick={() => changePassage(p.id)}
-                      aria-current={passage.id === p.id ? 'page' : undefined}
-                    >
-                      <span className="passage-item-top">
-                        <span className="ordinal">{String(p.ordinal).padStart(4, '0')}</span>
-                        {p.analysis && (
-                          <span className="editable-dot" title="Editor visual disponível" />
-                        )}
-                      </span>
-                      <span className="passage-reading" lang="tpw">
-                        {p.acceptedReference ?? 'Por transcrever'}
-                      </span>
-                      <span className="passage-status">
-                        <span className={`status-dot ${p.status}`} />
-                        {statusLabels[p.status]}
-                      </span>
-                    </button>
-                  ))}
-              </section>
-            ))}
-            {!passages.length && <p className="empty-search">Nenhuma passagem encontrada.</p>}
-          </div>
-          <div className="navigator-bottom">
-            <div className="notebook-icon">
-              <FileText size={18} />
-            </div>
-            <div>
-              <strong>Seu caderno de trabalho</strong>
-              <p>Uma leitura de cada vez.</p>
-            </div>
-          </div>
-          <div className="navigator-version">
-            TUPI ANTIGO <span>v0.1</span>
-          </div>
-        </aside>
-        <div className={`desk ${!sourceVisible ? 'source-hidden' : ''}`}>
-          <header className="desk-header">
-            <div className="breadcrumbs">
-              <span>
-                {passage.sourceId.includes('araujo') ? 'Araújo, 1686' : 'Corpus histórico'}
-              </span>
-              <ChevronRight size={13} />
-              <strong>Passagem {String(passage.ordinal).padStart(4, '0')}</strong>
-            </div>
-            <div className="desk-nav">
-              <button
-                className="icon-button source-toggle"
-                aria-label={sourceVisible ? 'Ocultar fonte' : 'Mostrar fonte'}
-                onClick={() => setSourceVisible(!sourceVisible)}
-              >
-                <PanelLeftClose size={16} />
-                <span className="source-toggle-label">
-                  {sourceVisible ? 'Ocultar fonte' : 'Ver fonte'}
-                </span>
-              </button>
-              <span className="desk-nav-divider" />
-              <button
-                className="icon-button"
-                aria-label="Passagem anterior"
-                disabled={selectedIndex <= 0 || !studio.ready}
-                onClick={() => changePassage(project.passages[selectedIndex - 1].id)}
-              >
-                <ArrowLeft size={16} />
-              </button>
-              <button
-                className="icon-button"
-                aria-label="Próxima passagem"
-                disabled={selectedIndex >= project.passages.length - 1 || !studio.ready}
-                onClick={() => changePassage(project.passages[selectedIndex + 1].id)}
-              >
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </header>
-          <div className="desk-columns">
-            {sourceVisible && <SourcePane studio={studio} />}
-            <main className="analysis-pane" id="analysis">
-              <div className="workspace-top">
-                <div className="work-modes">
-                  <button
-                    className={mode === 'reading' ? 'active' : ''}
-                    onClick={() => {
-                      setMode('reading');
-                      setTimeout(() => note.current?.focus(), 0);
-                    }}
-                  >
-                    <FileText size={14} />
-                    Contribuir uma leitura
-                  </button>
-                  <button
-                    className={mode === 'analysis' ? 'active' : ''}
-                    onClick={() => setMode('analysis')}
-                  >
-                    <GitBranch size={14} />
-                    Montar a análise
-                  </button>
-                  <button
-                    className={mode === 'review' ? 'active' : ''}
-                    onClick={() => setMode('review')}
-                  >
-                    <ClipboardCheck size={14} />
-                    Revisar
-                  </button>
-                </div>
-                <div className="workspace-title">
-                  <div>
-                    <span className="eyebrow">
-                      {mode === 'review'
-                        ? 'LEITURA E EVIDÊNCIAS'
-                        : mode === 'reading'
-                          ? 'CADERNO DE LEITURA'
-                          : 'ANÁLISE DA PASSAGEM'}
-                    </span>
-                    <h2>
-                      {mode === 'review'
-                        ? 'Cada decisão, à luz da fonte.'
-                        : mode === 'reading'
-                          ? 'O que você lê nesta passagem?'
-                          : 'Da leitura à estrutura.'}
-                    </h2>
-                  </div>
-                  <span className="tag amber">
-                    <span className="status-dot" />
-                    Em análise
-                  </span>
-                </div>
-                <div className="comparison-grid">
-                  <div className="reference-surface">
-                    <div className="surface-label">
-                      <BookOpen size={13} />
-                      {project.mode === 'example' ? 'REFERÊNCIA DO EXEMPLO' : 'REFERÊNCIA SALVA'}
-                    </div>
-                    <p data-testid="reference-surface" lang="tpw">
-                      {passage.acceptedReference ?? 'Sem referência salva'}
-                    </p>
-                    <span className="surface-caption">
-                      {passage.acceptedReference
-                        ? 'Preservada · origem legada'
-                        : 'Aguardando decisão editorial'}
-                    </span>
-                  </div>
-                  <div
-                    className={`generated-surface ${comparison?.kind === 'different' ? 'different' : ''}`}
-                  >
-                    <div className="surface-label">
-                      <Layers size={13} />
-                      {result?.origin === 'engine' ? 'RESULTADO ATUAL' : 'RESULTADO DO EXEMPLO'}
-                    </div>
-                    <p data-testid="generated-surface" lang="tpw">
-                      {studio.pending
-                        ? 'Avaliando…'
-                        : (result?.surface ??
-                          (studio.renderError
-                            ? 'Não foi possível avaliar'
-                            : 'Avaliação indisponível'))}
-                    </p>
-                    <span className="surface-caption">
-                      {result?.origin === 'engine'
-                        ? 'Motor local · revisão atual'
-                        : result
-                          ? 'Resultado previamente avaliado'
-                          : 'Disponível no editor de Araújo 0067'}
-                    </span>
-                  </div>
-                </div>
-                <div className="agreement-bar">
-                  <span
-                    className={comparison?.kind === 'exact' ? 'agreement-exact' : 'agreement-other'}
-                  >
-                    {comparison?.kind === 'exact' ? (
-                      <Check size={13} />
-                    ) : (
-                      <span className="status-dot" />
-                    )}
-                    {comparison?.kind === 'exact'
-                      ? 'Forma coincide'
-                      : comparison?.kind === 'different'
-                        ? 'Resultado mudou'
-                        : comparison?.kind === 'normalized'
-                          ? 'Diferença de normalização'
-                          : 'Sem comparação'}
-                  </span>
-                  <span className="agreement-separator" />
-                  <span>
-                    Revisão editorial <strong>pendente</strong>
-                  </span>
-                  <span className="agreement-separator" />
-                  <span>
-                    {project.mode === 'example'
-                      ? 'Motor do exemplo registrado'
-                      : 'Motor local identificado'}
-                  </span>
-                </div>
-                {(studio.renderError || studio.conflict || orphaned > 0) && (
-                  <p role="alert" className="inline-error">
-                    {studio.conflict
-                      ? 'A fonte mudou desde este rascunho. Exporte sua contribuição antes de reconciliar as versões.'
-                      : studio.renderError ||
-                        `${orphaned} rascunho(s) de versões anteriores foram preservados; a associação com as passagens exige revisão.`}
-                  </p>
-                )}
-                {orphaned > 0 && (
-                  <div className="recovery-note">
-                    <button
-                      className="button"
-                      onClick={() => {
-                        const url = URL.createObjectURL(
-                          new Blob([JSON.stringify(studio.envelope, null, 2)], {
-                            type: 'application/json',
-                          }),
-                        );
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = 'pydicate-rascunhos-preservados.json';
-                        link.click();
-                        setTimeout(() => URL.revokeObjectURL(url), 1000);
-                      }}
-                    >
-                      <ArrowDownToLine size={14} />
-                      Exportar todos os rascunhos preservados
-                    </button>
-                  </div>
-                )}
-              </div>
-              {mode === 'analysis' && (
-                <>
-                  <div className="projection-tabs" role="tablist" aria-label="Projeções da análise">
-                    {tabs.map((item) => (
-                      <button
-                        key={item}
-                        role="tab"
-                        aria-selected={tab === item}
-                        className={tab === item ? 'active' : ''}
-                        onClick={() => setTab(item)}
-                      >
-                        {item === 'Código' && <Code2 size={13} />} {item}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="tab-content" role="tabpanel" aria-label={tab}>
-                    <Projections
-                      studio={studio}
-                      tab={tab}
-                      selected={selected}
-                      select={setSelected}
-                    />
-                  </div>
-                  {draft?.analysis && <SelectionNote studio={studio} selected={selected} />}
-                </>
-              )}
-              {mode === 'reading' && (
-                <div className="reading-contribution">
-                  <span className="eyebrow">SUA CONTRIBUIÇÃO</span>
-                  <h3>Uma dúvida também merece registro.</h3>
-                  <p>
-                    Use a fonte ao lado para propor uma transcrição ou leitura. Acrescente o que
-                    ajuda outra pessoa a entender sua escolha.
-                  </p>
-                  <label className="editor-label">
-                    Tradução proposta
-                    <textarea
-                      rows={3}
-                      value={draft?.translation ?? ''}
-                      disabled={!studio.ready || studio.conflict}
-                      placeholder="Uma interpretação possível em português…"
-                      onChange={(e) => studio.edit({ translation: e.target.value })}
-                    />
-                  </label>
-                  <label className="editor-label">
-                    Nota de leitura
-                    <textarea
-                      ref={note}
-                      rows={5}
-                      value={draft?.notes ?? ''}
-                      disabled={!studio.ready || studio.conflict}
-                      placeholder="Uma letra incerta, uma alternativa, uma justificativa…"
-                      onChange={(e) => studio.edit({ notes: e.target.value })}
-                    />
-                  </label>
-                  <div className="teaching-note">
-                    <Leaf size={18} />
-                    <p>
-                      Seu rascunho pode ficar incompleto. Ele será guardado com a passagem e poderá
-                      ser retomado depois.
-                    </p>
-                  </div>
-                </div>
-              )}
-              {mode === 'review' && (
-                <div className="review-view">
-                  <div className="section-intro">
-                    <div>
-                      <h2>Compare antes de compartilhar</h2>
-                      <p>
-                        {comparison?.message ?? 'Esta passagem ainda não tem avaliação disponível.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="review-item">
-                    <span>Leitura proposta</span>
-                    <p>{draft?.normalized || 'Nenhuma leitura proposta.'}</p>
-                  </div>
-                  <div className="review-item">
-                    <span>Tradução proposta</span>
-                    <p>{draft?.translation || 'Ainda não informada.'}</p>
-                  </div>
-                  <div className="review-item">
-                    <span>Nota de leitura</span>
-                    <p>{draft?.notes || 'Nenhuma nota adicionada.'}</p>
-                  </div>
-                  <div className="teaching-note">
-                    <ClipboardCheck size={19} />
-                    <div>
-                      <strong>Pronto para uma revisão humana</strong>
-                      <p>
-                        Exporte a contribuição com a análise, a referência preservada e as versões
-                        usadas. A aprovação de referências será integrada ao fluxo editorial do
-                        corpus.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    className="button primary"
-                    disabled={!studio.ready}
-                    onClick={() => exportContribution(studio)}
-                  >
-                    <ArrowDownToLine size={16} />
-                    Exportar contribuição
-                  </button>
-                </div>
-              )}
-              {mode === 'analysis' && (
-                <div className="quick-note">
-                  <MessageSquareText size={15} />
-                  <label>
-                    Nota de leitura
-                    <textarea
-                      rows={1}
-                      value={draft?.notes ?? ''}
-                      disabled={!studio.ready || studio.conflict}
-                      placeholder="Deixe uma observação para a revisão…"
-                      onChange={(e) => studio.edit({ notes: e.target.value })}
-                    />
-                  </label>
-                </div>
-              )}
-              <footer className="workspace-footer">
-                <span className="save-status" role="status">
-                  <span
-                    className={studio.saveState.includes('salvo') ? 'saved-dot' : 'status-dot'}
-                  />
-                  {studio.saveState}
-                </span>
-                <div>
-                  <button
-                    className="icon-button"
-                    aria-label="Desfazer"
-                    title="Desfazer última edição desta passagem"
-                    disabled={!studio.canUndo || !studio.ready || studio.conflict}
-                    onClick={studio.undo}
-                  >
-                    <Undo2 size={17} />
-                  </button>
-                  <button
-                    className="button"
-                    disabled={!draft?.analysis || !studio.ready || studio.conflict}
-                    onClick={() => void studio.verify()}
-                  >
-                    <RefreshCw size={14} className={studio.busy ? 'spin' : ''} />
-                    Verificar
-                  </button>
-                  <button
-                    className="button primary"
-                    disabled={!studio.ready}
-                    onClick={() => void save()}
-                  >
-                    <Check size={15} />
-                    Salvar rascunho
-                  </button>
-                </div>
-              </footer>
-              {(notice || studio.verification) && (
-                <div className="notice" role="status">
-                  {notice || studio.verification}
-                </div>
-              )}
-            </main>
-          </div>
-        </div>
-      </div>
+      <WorkspaceLayout
+        layout={layout}
+        panes={{ navigator: navigationPane, editor: editorPane, source: sourcePane }}
+      />
       <footer className="app-status">
         <span>
           <span className="status-dot" />
@@ -924,7 +1348,156 @@ export default function App() {
           Português · Tupi antigo <span className="status-divider">/</span> Pydicate Studio
         </span>
       </footer>
+      {usageOpen && <UsagePanel onClose={() => setUsageOpen(false)} />}
+      {archiveOpen && <DraftArchive studio={studio} onClose={() => setArchiveOpen(false)} />}
+      {preview && (
+        <div
+          className="review-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={
+            publishesLexicon ? 'Revisar passagem e léxico' : 'Revisar alterações na fonte'
+          }
+        >
+          <section>
+            <h2>
+              {publishesLexicon ? 'Revisar passagem e léxico' : 'Revisar alterações na fonte'}
+            </h2>
+            <p>
+              {publishesLexicon
+                ? 'Confira a passagem e as novas entradas do léxico juntas. Ao aplicar, os arquivos serão verificados e salvos com cópias de recuperação.'
+                : 'Confira a diferença completa. A aplicação verificará se o arquivo continua nesta versão e conservará uma cópia de recuperação.'}
+            </p>
+            <p role="alert">{reviewError}</p>
+            {preview.name && (
+              <p>
+                Entrada: <strong>{preview.name}</strong> · {preview.scope} · usos afetados:{' '}
+                {JSON.stringify(preview.affectedUses ?? [])}
+              </p>
+            )}
+            {!!preview.lexicalAdditions?.length && (
+              <section
+                className="source-review-lexicon"
+                aria-label="Entradas do léxico nesta revisão"
+              >
+                <h3>Nomes usados na passagem</h3>
+                <p>
+                  Novas entradas ficam disponíveis no léxico compartilhado. A passagem passa a usar
+                  os nomes abaixo.
+                </p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nome no léxico</th>
+                      <th>Palavra</th>
+                      <th>Entrada</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.lexicalAdditions.map((entry) => (
+                      <tr key={entry.name}>
+                        <td>
+                          <code title={entry.expression}>{entry.name}</code>
+                        </td>
+                        <td>{entry.headword || '—'}</td>
+                        <td>{entry.reused ? 'Já existente' : 'Nova entrada'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
+            {preview.files?.length ? (
+              <div className="source-review-files" aria-label="Arquivos desta revisão">
+                {preview.files.map((file) => (
+                  <section className="source-review-file" key={file.path} aria-label={file.path}>
+                    <h3>{file.path}</h3>
+                    <pre>{file.diff || 'Nenhuma alteração neste arquivo.'}</pre>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <pre>{preview.diff || 'Nenhuma alteração na fonte.'}</pre>
+            )}
+            <div>
+              <button className="button" onClick={() => setPreview(null)} disabled={reviewBusy}>
+                Voltar sem aplicar
+              </button>
+              <button
+                className="button primary"
+                disabled={reviewBusy || !previewHasChanges}
+                onClick={() => {
+                  setReviewBusy(true);
+                  void studio
+                    .applySource(preview)
+                    .then(() => {
+                      setPreview(null);
+                      setEvidencePointer(null);
+                      setReviewError('');
+                    })
+                    .catch((e) => setReviewError(e.message))
+                    .finally(() => setReviewBusy(false));
+                }}
+              >
+                {publishesLexicon ? 'Aplicar passagem e léxico' : 'Aplicar edição revisada'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {gitContribution && (
+        <div
+          className="review-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Compartilhar contribuição Git"
+        >
+          <section>
+            <h2>Compartilhar pelo Git</h2>
+            <p>
+              O patch inclui as diferenças locais da fonte e dos registros desde HEAD, inclusive
+              trabalho anterior. Revise o conteúdo antes de compartilhar.
+            </p>
+            <pre>
+              {gitContribution.patch ||
+                'Nenhuma edição aplicada na fonte. Os rascunhos podem ser exportados separadamente.'}
+            </pre>
+            <p>{gitContribution.instructions}</p>
+            <p>
+              Em um clone de revisão: <code>git apply --check contribuicao.patch</code>, depois{' '}
+              <code>git apply contribuicao.patch</code>. Crie seu commit e pull request nesse clone.
+            </p>
+            <button className="button" onClick={() => setGitContribution(null)}>
+              Fechar
+            </button>
+            <button
+              className="button primary"
+              disabled={!gitContribution.patch}
+              onClick={() => {
+                const url = URL.createObjectURL(
+                  new Blob([gitContribution.patch], { type: 'text/x-diff' }),
+                );
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'contribuicao.patch';
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+              }}
+            >
+              Exportar patch Git revisado
+            </button>
+          </section>
+        </div>
+      )}
       {projectDialog && <ProjectDialog studio={studio} close={() => setProjectDialog(false)} />}
+      {grammarReport && (
+        <GrammarDiagnosticDialog
+          project={project}
+          passage={passage}
+          report={grammarReport}
+          onClose={() => setGrammarReport(null)}
+        />
+      )}
       {details && (
         <aside className="project-details" aria-label="Informações do projeto">
           <div className="dialog-header">
@@ -964,8 +1537,8 @@ export default function App() {
             className="button"
             onClick={() => {
               setDetails(false);
-              setTab('Histórico');
-              setMode('analysis');
+              changeTab('Histórico');
+              changeMode('analysis');
             }}
           >
             <History size={15} />

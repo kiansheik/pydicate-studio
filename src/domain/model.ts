@@ -1,7 +1,18 @@
 import type { Draft, DraftEnvelope, ImperativeAnalysis, Passage, RenderResult } from './types';
+import { clearCanvasPositions, isCanvasState } from './canvas';
 
 type DraftChanges = Partial<
-  Pick<Draft, 'diplomatic' | 'normalized' | 'translation' | 'notes' | 'analysis'>
+  Pick<
+    Draft,
+    | 'diplomatic'
+    | 'normalized'
+    | 'translation'
+    | 'notes'
+    | 'analysis'
+    | 'raw'
+    | 'locators'
+    | 'canvas'
+  >
 >;
 export type ReferenceComparison = {
   kind: 'exact' | 'normalized' | 'different' | 'missing';
@@ -50,6 +61,14 @@ export function expressionFor(analysis: ImperativeAnalysis): string {
 export function createDraft(passage: Passage): Draft {
   return {
     passageId: passage.id,
+    locators: {
+      printedPage: passage.witness.printedPage ?? '',
+      folio: passage.witness.folio ?? '',
+      line: passage.witness.textualLine == null ? '' : String(passage.witness.textualLine),
+      section: passage.witness.section ?? '',
+      subsection: passage.witness.subsection ?? '',
+    },
+    raw: passage.sourceExpression,
     revisionId: revisionId(),
     sourceFingerprint: passage.sourceFingerprint,
     diplomatic: passage.diplomatic,
@@ -63,13 +82,33 @@ export function createDraft(passage: Passage): Draft {
 
 /** Baselines, source identity and approval are deliberately outside a draft's editable fields. */
 export function updateDraft(draft: Draft, changes: DraftChanges): Draft {
+  if (changes.canvas !== undefined && !isCanvasState(changes.canvas))
+    throw new Error('A área de trabalho contém dados inválidos.');
+  const raw =
+    changes.raw !== undefined
+      ? changes.raw
+      : changes.analysis
+        ? expressionFor(changes.analysis)
+        : draft.raw;
   const next = {
     ...draft,
+    locators: changes.locators ?? draft.locators,
+    raw,
+    ...(changes.canvas !== undefined
+      ? { canvas: structuredClone(changes.canvas) }
+      : raw !== draft.raw && draft.canvas
+        ? { canvas: clearCanvasPositions(draft.canvas) }
+        : {}),
     diplomatic: changes.diplomatic ?? draft.diplomatic,
     normalized: changes.normalized ?? draft.normalized,
     translation: changes.translation ?? draft.translation,
     notes: changes.notes ?? draft.notes,
-    analysis: changes.analysis === undefined ? draft.analysis : changes.analysis,
+    analysis:
+      changes.raw !== undefined
+        ? null
+        : changes.analysis === undefined
+          ? draft.analysis
+          : changes.analysis,
     revisionId: revisionId(),
     updatedAt: new Date().toISOString(),
   };
@@ -79,6 +118,26 @@ export function updateDraft(draft: Draft, changes: DraftChanges): Draft {
 
 export function draftConflicts(draft: Draft, passage: Passage): boolean {
   return draft.passageId !== passage.id || draft.sourceFingerprint !== passage.sourceFingerprint;
+}
+
+/** Upgrade only a proved legacy source identity; preserve all human work and revisions. */
+export function restoreDraft(saved: Draft | undefined, passage: Passage): Draft {
+  if (!saved) return createDraft(passage);
+  const legacy = saved.sourceFingerprint === passage.legacyExpressionFingerprint;
+  const sameSource = saved.sourceFingerprint === passage.sourceFingerprint;
+  if (saved.passageId !== passage.id || (!legacy && !sameSource)) return saved;
+  const humanUnchanged = (['diplomatic', 'normalized', 'translation', 'notes'] as const).every(
+    (field) => saved[field] === passage[field],
+  );
+  return {
+    ...saved,
+    raw: saved.raw ?? (saved.analysis ? expressionFor(saved.analysis) : passage.sourceExpression),
+    locators: { ...createDraft(passage).locators, ...saved.locators },
+    sourceFingerprint:
+      sameSource || (legacy && humanUnchanged)
+        ? passage.sourceFingerprint
+        : saved.sourceFingerprint,
+  };
 }
 
 function normalizeReference(value: string): string {
@@ -127,8 +186,7 @@ export function isCurrentRender(
     !!result &&
     result.revisionId === draft.revisionId &&
     result.engineFingerprint === engineFingerprint &&
-    draft.analysis !== null &&
-    result.expression === expressionFor(draft.analysis)
+    result.expression === (draft.raw ?? (draft.analysis ? expressionFor(draft.analysis) : ''))
   );
 }
 
@@ -154,7 +212,31 @@ function isDraft(value: unknown, passageId: string): value is Draft {
     ) &&
     typeof value.updatedAt === 'string' &&
     Number.isFinite(Date.parse(value.updatedAt)) &&
+    (value.raw === undefined || (typeof value.raw === 'string' && value.raw.length <= 100000)) &&
+    (value.canvas === undefined || isCanvasState(value.canvas)) &&
+    (value.pending === undefined ||
+      (passageId.startsWith('pending:') &&
+        isObject(value.pending) &&
+        hasOnlyKeys(value.pending, ['sourceId', 'previousPassageId', 'ordinal']) &&
+        typeof value.pending.sourceId === 'string' &&
+        /^[a-zA-Z0-9_-]{1,200}$/.test(value.pending.sourceId) &&
+        Number.isSafeInteger(value.pending.ordinal) &&
+        Number(value.pending.ordinal) > 0 &&
+        (value.pending.previousPassageId === undefined ||
+          (typeof value.pending.previousPassageId === 'string' &&
+            value.pending.previousPassageId.length > 0 &&
+            value.pending.previousPassageId.length <= 200)))) &&
+    (value.locators === undefined ||
+      (isObject(value.locators) &&
+        hasOnlyKeys(value.locators, ['printedPage', 'folio', 'line', 'section', 'subsection']) &&
+        Object.values(value.locators).every((v) => typeof v === 'string' && v.length <= 1000))) &&
     (value.analysis === null || isImperativeAnalysis(value.analysis)) &&
+    (value.workflow === undefined ||
+      (isObject(value.workflow) &&
+        hasOnlyKeys(value.workflow, ['stage', 'updatedAt']) &&
+        ['analysis', 'review', 'complete'].includes(String(value.workflow.stage)) &&
+        typeof value.workflow.updatedAt === 'string' &&
+        Number.isFinite(Date.parse(value.workflow.updatedAt)))) &&
     hasOnlyKeys(value, [
       'passageId',
       'revisionId',
@@ -164,7 +246,12 @@ function isDraft(value: unknown, passageId: string): value is Draft {
       'translation',
       'notes',
       'analysis',
+      'raw',
+      'locators',
       'updatedAt',
+      'workflow',
+      'canvas',
+      'pending',
     ])
   );
 }

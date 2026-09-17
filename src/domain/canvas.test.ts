@@ -1,0 +1,514 @@
+import { execFileSync } from 'node:child_process';
+import { describe, expect, it } from 'vitest';
+import type { AuthorNode, ParsedExpression } from './authoring';
+import {
+  CANVAS_LIMITS,
+  bindCanvasAddress,
+  canvasPositionKey,
+  createCanvasHole,
+  editCanvas,
+  emptyCanvas,
+  isCanvasHole,
+  isCanvasState,
+  type CanvasDocument,
+  type CanvasState,
+} from './canvas';
+
+function parse(raw: string): AuthorNode {
+  const parsed: ParsedExpression = JSON.parse(
+    execFileSync(
+      'python3',
+      [
+        '-B',
+        '-c',
+        'import json,sys;from python.studio_authoring import expression_tree;print(json.dumps(expression_tree(sys.stdin.read())))',
+      ],
+      { input: raw, encoding: 'utf8' },
+    ),
+  );
+  if (!parsed.root) throw new Error(JSON.stringify(parsed.diagnostics));
+  return parsed.root;
+}
+function document(raw: string, canvas: CanvasState = emptyCanvas()): CanvasDocument {
+  return {
+    raw,
+    canvas,
+    roots: Object.fromEntries([
+      ['main', raw.trim() ? parse(raw) : null],
+      ...canvas.fragments.map((fragment) => [fragment.id, parse(fragment.raw)]),
+    ]),
+  };
+}
+const source = (nodeId = 'root', fragmentId?: string) => ({ nodeId, fragmentId });
+const sample = (): CanvasState => ({
+  fragments: [{ id: 'saved', raw: 'ypy', x: 500, y: 20 }],
+  positions: { 'main:root': { x: 10, y: 20 }, 'saved:root': { x: 500, y: 20 } },
+});
+
+describe('source-bound draft canvas edits', () => {
+  it('combines independent roots with an explicit operation while retaining layout, comments and unrelated pieces', () => {
+    const original = 'emi * tym # explicação 🦜\n';
+    const canvas: CanvasState = {
+      ...sample(),
+      layout: 'bottom-up',
+      fragments: [...sample().fragments, { id: 'untouched', raw: 'no', x: 900, y: 90 }],
+    };
+    const result = editCanvas(document(original, canvas), {
+      type: 'combine',
+      source: source('root', 'saved'),
+      target: source(),
+      operator: '/',
+      order: 'target-first',
+    });
+    const root = parse(result.raw);
+    expect(root.operator).toBe('/');
+    expect(root.children[0].node.code).toBe('emi * tym');
+    expect(root.children[1].node.code).toBe('ypy');
+    expect(result.raw).toContain('# explicação 🦜\n');
+    expect(result.canvas.layout).toBe('bottom-up');
+    expect(result.canvas.fragments).toEqual([canvas.fragments[1]]);
+    expect(result.canvas.positions).toEqual({});
+  });
+
+  it('combines two loose roots without replacing the existing main result', () => {
+    const canvas: CanvasState = {
+      layout: 'horizontal',
+      fragments: [
+        { id: 'a', raw: 'emi', x: 0, y: 0 },
+        { id: 'b', raw: 'tym', x: 300, y: 0 },
+      ],
+      positions: {},
+    };
+    const result = editCanvas(document('no', canvas), {
+      type: 'combine',
+      source: source('root', 'a'),
+      target: source('root', 'b'),
+      operator: '*',
+      order: 'source-first',
+    });
+    expect(result.raw).toBe('no');
+    expect(result.canvas.fragments).toEqual([{ ...canvas.fragments[1], raw: '(emi) * (tym)' }]);
+    expect(result.canvas.layout).toBe('horizontal');
+  });
+
+  it('rejects combining nested or stale parts, and rejects invented operators', () => {
+    const doc = document('emi * tym', sample());
+    expect(() =>
+      editCanvas(doc, {
+        type: 'combine',
+        source: source('root/left'),
+        target: source('root', 'saved'),
+        operator: '*',
+      }),
+    ).toThrow(/independentes/);
+    expect(() =>
+      editCanvas(doc, {
+        type: 'combine',
+        source: { ...source(), expectedRaw: 'no' },
+        target: source('root', 'saved'),
+        operator: '*',
+      }),
+    ).toThrow(/mudou/);
+    expect(() =>
+      editCanvas(doc, {
+        type: 'combine',
+        source: source(),
+        target: source('root', 'saved'),
+        operator: 'exec',
+      }),
+    ).toThrow(/válida/);
+  });
+
+  it('validates orientation and preserves it through ordinary canvas edits', () => {
+    expect(isCanvasState({ ...emptyCanvas(), layout: 'bottom-up' })).toBe(true);
+    expect(isCanvasState({ ...emptyCanvas(), layout: 'sideways' })).toBe(false);
+    const result = editCanvas(document('tym', { ...emptyCanvas(), layout: 'bottom-up' }), {
+      type: 'duplicate',
+      source: source(),
+      fragmentId: 'copy',
+    });
+    expect(result.canvas.layout).toBe('bottom-up');
+  });
+  it('detaches only the selected Unicode occurrence, retaining outer comments and unrelated fragments', () => {
+    const raw = 'Noun("🦜î") + (oré * (emi * tym)) # manter 🌿';
+    const doc = document(raw, sample());
+    const before = structuredClone(doc);
+    const node = doc.roots.main!.children[1].node.children[1].node;
+    const result = editCanvas(doc, {
+      type: 'detach',
+      source: source(node.id),
+      fragmentId: 'detached',
+      position: { x: 900, y: -40 },
+    });
+    const hole = parse(result.raw).children[1].node.children[1].node;
+    expect(isCanvasHole(hole)).toBe(true);
+    expect(result.raw).toBe(raw.slice(0, node.start) + hole.code + raw.slice(node.end));
+    expect(result.canvas.fragments).toEqual([
+      ...sample().fragments,
+      { id: 'detached', raw: 'emi * tym', x: 900, y: -40 },
+    ]);
+    expect(result.canvas.positions).toEqual({ 'saved:root': { x: 500, y: 20 } });
+    expect(doc).toEqual(before);
+  });
+
+  it('preserves an entire root including wrapping trivia when detached or duplicated', () => {
+    const raw = '(\n  emi * tym\n) # guardar 🦜\n';
+    const doc = document(raw);
+    const detached = editCanvas(doc, { type: 'detach', source: source(), fragmentId: 'whole' });
+    expect(detached.raw).toBe('');
+    expect(detached.canvas.fragments[0].raw).toBe(raw);
+    const duplicate = editCanvas(doc, { type: 'duplicate', source: source(), fragmentId: 'copy' });
+    expect(duplicate.raw).toBe(raw);
+    expect(duplicate.canvas.fragments[0].raw).toBe(raw);
+  });
+
+  it('fills a hole by moving an orphan root and removes only that consumed fragment', () => {
+    const hole = createCanvasHole();
+    const canvas = sample();
+    canvas.fragments[0].raw = 'emi * tym # nota interna';
+    const doc = document(`no + ${hole}`, canvas);
+    const result = editCanvas(doc, {
+      type: 'connect',
+      source: source('root', 'saved'),
+      target: source('root/right'),
+    });
+    expect(result.raw).toBe('no + (emi * tym # nota interna\n)');
+    expect(parse(result.raw).children[1].node.operator).toBe('*');
+    expect(result.canvas).toEqual(emptyCanvas());
+  });
+
+  it('recognizes an uppercase reserved slot as an empty target', () => {
+    const result = editCanvas(document('no + __studio_slot_A1', sample()), {
+      type: 'connect',
+      source: source('root', 'saved'),
+      target: source('root/right'),
+    });
+    expect(result.raw).toBe('no + (ypy)');
+    expect(result.canvas.fragments).toEqual([]);
+  });
+
+  it('moves an existing nested part into a hole without duplicating the original', () => {
+    const raw = `(emi * tym) + ${createCanvasHole()}`;
+    const result = editCanvas(document(raw), {
+      type: 'connect',
+      source: source('root/left'),
+      target: source('root/right'),
+    });
+    const parsed = parse(result.raw);
+    expect(isCanvasHole(parsed.children[0].node)).toBe(true);
+    expect(parsed.children[1].node.code).toBe('emi * tym');
+    expect(result.canvas.fragments).toEqual([]);
+  });
+
+  it('drops onto an occupied scope by swapping exact disjoint ranges in one transaction', () => {
+    const raw = '(emi * tym) / ypy # manter 🦜';
+    const result = editCanvas(document(raw), {
+      type: 'connect',
+      source: source('root/left'),
+      target: source('root/right'),
+    });
+    const parsed = parse(result.raw);
+    expect(parsed.operator).toBe('/');
+    expect(parsed.children[0].node.code).toBe('ypy');
+    expect(parsed.children[1].node.code).toBe('emi * tym');
+    expect(result.raw.endsWith(' # manter 🦜')).toBe(true);
+  });
+
+  it('swaps a fragment root and an occupied main branch while preserving fragment identity', () => {
+    const canvas = sample();
+    canvas.fragments[0].raw = 'emi * tym # explicação';
+    const result = editCanvas(document('no + ypy', canvas), {
+      type: 'swap',
+      source: source('root', 'saved'),
+      target: source('root/right'),
+    });
+    expect(result.raw).toBe('no + (emi * tym # explicação\n)');
+    expect(result.canvas.fragments).toEqual([{ id: 'saved', raw: 'ypy', x: 500, y: 20 }]);
+    expect(result.canvas.positions).toEqual({});
+    expect(parse(result.raw).children[1].node.operator).toBe('*');
+  });
+
+  it('duplicates a repeated reference from its exact occurrence and leaves every original byte unchanged', () => {
+    const raw = 'Noun("🌿") + (tym * tym)';
+    const doc = document(raw, sample());
+    const result = editCanvas(doc, {
+      type: 'duplicate',
+      source: source('root/right/right'),
+      fragmentId: 'occurrence',
+    });
+    expect(result.raw).toBe(raw);
+    expect(result.canvas.fragments.at(-1)!.raw).toBe('tym');
+    expect(result.canvas.positions).toEqual(sample().positions);
+    const replaced = editCanvas(doc, {
+      type: 'replace',
+      source: source('root/right/right'),
+      raw: 'og * tym',
+    });
+    expect(replaced.raw).toBe('Noun("🌿") + (tym * (og * tym))');
+  });
+
+  it('removes a nested node as a valid slot and deletes a fragment root without touching main', () => {
+    const removed = editCanvas(document('emi * tym', sample()), {
+      type: 'remove',
+      source: source('root/right'),
+    });
+    expect(isCanvasHole(parse(removed.raw).children[1].node)).toBe(true);
+    expect(removed.canvas.fragments).toEqual(sample().fragments);
+    const deleted = editCanvas(document(removed.raw, removed.canvas), {
+      type: 'remove',
+      source: source('root', 'saved'),
+    });
+    expect(deleted.raw).toBe(removed.raw);
+    expect(deleted.canvas).toEqual(emptyCanvas());
+    const emptyRoot = editCanvas(document(createCanvasHole()), {
+      type: 'remove',
+      source: source(),
+    });
+    expect(emptyRoot.raw).toBe('');
+  });
+
+  it('promotes an orphan to main while preserving the previous complete analysis as an orphan', () => {
+    const doc = document('no + tym # antigo', sample());
+    const result = editCanvas(doc, {
+      type: 'make-main',
+      source: source('root', 'saved'),
+      position: { x: 600, y: 300 },
+    });
+    expect(result.raw).toBe('ypy');
+    expect(result.canvas.fragments).toHaveLength(1);
+    expect(result.canvas.fragments[0]).toMatchObject({ raw: 'no + tym # antigo', x: 600, y: 300 });
+    expect(result.canvas.fragments[0].id).not.toBe('saved');
+    expect(result.canvas.positions).toEqual({});
+  });
+
+  it('promotes a nested main branch and retains the rest as an incomplete editable fragment', () => {
+    const result = editCanvas(document('no + (emi * tym)'), {
+      type: 'make-main',
+      source: source('root/right'),
+    });
+    expect(result.raw).toBe('emi * tym');
+    expect(result.canvas.fragments).toHaveLength(1);
+    const remaining = parse(result.canvas.fragments[0].raw);
+    expect(remaining.children[0].node.code).toBe('no');
+    expect(isCanvasHole(remaining.children[1].node)).toBe(true);
+  });
+
+  it('rejects ancestor/descendant rewiring, stale roots and old pointer-down source bindings', () => {
+    const doc = document('no + (emi * tym)');
+    const bound = bindCanvasAddress(doc, source('root/right/right'));
+    expect(() =>
+      editCanvas(doc, { type: 'swap', source: source(), target: source('root/right') }),
+    ).toThrow(/contém/);
+    expect(() =>
+      editCanvas(doc, {
+        type: 'connect',
+        source: source('root/right'),
+        target: source('root/right/right'),
+      }),
+    ).toThrow(/contém/);
+    const next = document('ypy + (emi * tym)');
+    expect(() => editCanvas(next, { type: 'remove', source: bound })).toThrow(/mudou/);
+    expect(() =>
+      editCanvas(
+        { ...doc, raw: 'no + (og * tym)' },
+        { type: 'remove', source: source('root/right/right') },
+      ),
+    ).toThrow(/mudou/);
+    expect(() =>
+      editCanvas(document('tym + no'), {
+        type: 'swap',
+        source: source('missing'),
+        target: source(),
+      }),
+    ).toThrow(/atual/);
+  });
+
+  it('preserves no-op source/comments/layout and does not fabricate a predicate from a hole', () => {
+    const raw = '(\n  tym # comentário\n  * tym\n)';
+    const doc = document(raw, sample());
+    expect(editCanvas(doc, { type: 'replace', source: source(), raw })).toEqual({
+      raw,
+      canvas: sample(),
+    });
+    expect(
+      editCanvas(doc, { type: 'swap', source: source('root/left'), target: source('root/right') }),
+    ).toEqual({ raw, canvas: sample() });
+    expect(editCanvas(doc, { type: 'swap', source: source(), target: source() })).toEqual({
+      raw,
+      canvas: sample(),
+    });
+    expect(() =>
+      editCanvas(document(createCanvasHole()), { type: 'duplicate', source: source() }),
+    ).toThrow(/não contém/);
+  });
+
+  it('preserves root wrapping comments during source replacement and no-op inspector edits', () => {
+    const raw = '(\n  tym\n) # nota externa 🦜\n';
+    const doc = document(raw, sample());
+    expect(editCanvas(doc, { type: 'replace', source: source(), raw: 'tym' })).toEqual({
+      raw,
+      canvas: sample(),
+    });
+    const result = editCanvas(doc, { type: 'replace', source: source(), raw: 'emi * tym' });
+    expect(result.raw).toBe('(\n  (emi * tym)\n) # nota externa 🦜\n');
+    expect(parse(result.raw).code).toBe('emi * tym');
+  });
+
+  it('stores positions separately and preserves non-executable fragment text as draft material', () => {
+    const doc = document('tym', sample());
+    const moved = editCanvas(doc, {
+      type: 'position',
+      address: source('root', 'saved'),
+      position: { x: -50, y: 150 },
+    });
+    expect(moved.raw).toBe('tym');
+    expect(moved.canvas.fragments).toEqual(sample().fragments);
+    expect(moved.canvas.positions[canvasPositionKey(source('root', 'saved'))]).toEqual({
+      x: -50,
+      y: 150,
+    });
+    const incomplete = editCanvas(doc, {
+      type: 'add',
+      raw: 'helper( # continuar',
+      fragmentId: 'unfinished',
+    });
+    expect(incomplete.canvas.fragments.at(-1)!.raw).toBe('helper( # continuar');
+    expect(isCanvasState(incomplete.canvas)).toBe(true);
+  });
+});
+
+describe('incomplete orphan recovery', () => {
+  it('repairs or clears a bound malformed primary while preserving detached work', () => {
+    const raw = 'helper( # continuar';
+    const doc: CanvasDocument = {
+      raw,
+      canvas: sample(),
+      roots: { main: null, saved: parse('ypy') },
+    };
+    const bound = bindCanvasAddress(doc, source('root'));
+    expect(bound.expectedRaw).toBe(raw);
+    expect(editCanvas(doc, { type: 'replace', source: bound, raw: 'emi * tym' })).toEqual({
+      raw: '(emi * tym)',
+      canvas: { ...sample(), positions: { 'saved:root': sample().positions['saved:root'] } },
+    });
+    expect(editCanvas(doc, { type: 'remove', source: bound })).toEqual({
+      raw: '',
+      canvas: { ...sample(), positions: { 'saved:root': sample().positions['saved:root'] } },
+    });
+    expect(() => editCanvas(doc, { type: 'replace', source: source('root'), raw: 'tym' })).toThrow(
+      /mudou/,
+    );
+    expect(() =>
+      editCanvas(doc, { type: 'replace', source: { ...bound, nodeId: 'root/arg0' }, raw: 'tym' }),
+    ).toThrow(/mudou/);
+    expect(() =>
+      editCanvas({ ...doc, raw: 'helper(tym, # novo' }, { type: 'remove', source: bound }),
+    ).toThrow(/mudou/);
+  });
+
+  it('repairs or discards a source-bound incomplete orphan without inventing child scopes', () => {
+    const state = editCanvas(document('no', sample()), {
+      type: 'add',
+      raw: 'helper( # continuar',
+      fragmentId: 'unfinished',
+    });
+    const doc: CanvasDocument = {
+      ...state,
+      roots: { main: parse('no'), saved: parse('ypy'), unfinished: null },
+    };
+    const bound = bindCanvasAddress(doc, source('root', 'unfinished'));
+    expect(bound.expectedRaw).toBe('helper( # continuar');
+    const repaired = editCanvas(doc, { type: 'replace', source: bound, raw: 'emi * tym' });
+    expect(
+      parse(repaired.canvas.fragments.find((fragment) => fragment.id === 'unfinished')!.raw).code,
+    ).toBe('emi * tym');
+    expect(repaired.raw).toBe('no');
+    expect(repaired.canvas.fragments.find((fragment) => fragment.id === 'saved')).toEqual(
+      sample().fragments[0],
+    );
+    const deleted = editCanvas(doc, { type: 'remove', source: bound });
+    expect(deleted).toEqual({ raw: 'no', canvas: sample() });
+    expect(() => editCanvas(doc, { type: 'remove', source: source('root', 'unfinished') })).toThrow(
+      /mudou/,
+    );
+    expect(() =>
+      editCanvas(doc, { type: 'replace', source: { ...bound, nodeId: 'root/arg0' }, raw: 'tym' }),
+    ).toThrow(/mudou/);
+    const newer = {
+      ...doc,
+      canvas: {
+        ...state.canvas,
+        fragments: state.canvas.fragments.map((fragment) =>
+          fragment.id === 'unfinished' ? { ...fragment, raw: 'helper(tym, # novo' } : fragment,
+        ),
+      },
+    };
+    expect(() => editCanvas(newer, { type: 'remove', source: bound })).toThrow(/mudou/);
+  });
+});
+
+describe('canvas persistence contract', () => {
+  it('rejects ambiguous IDs, unsupported fields, nonfinite coordinates and unknown position containers', () => {
+    const good = sample();
+    expect(isCanvasState(good)).toBe(true);
+    expect(isCanvasState({ ...good, version: 2 })).toBe(false);
+    expect(isCanvasState({ ...good, fragments: [...good.fragments, good.fragments[0]] })).toBe(
+      false,
+    );
+    for (const id of ['main', '__proto__', 'constructor', 'bad:id'])
+      expect(isCanvasState({ ...good, fragments: [{ ...good.fragments[0], id }] })).toBe(false);
+    for (const x of [NaN, Infinity, CANVAS_LIMITS.coordinate + 1, '1'])
+      expect(isCanvasState({ ...good, positions: { 'main:root': { x, y: 0 } } })).toBe(false);
+    expect(isCanvasState({ ...good, positions: { 'missing:root': { x: 0, y: 0 } } })).toBe(false);
+    expect(isCanvasState({ ...good, fragments: [{ ...good.fragments[0], approved: true }] })).toBe(
+      false,
+    );
+  });
+
+  it('bounds fragment count, source length, total text and positions without truncating work', () => {
+    expect(
+      isCanvasState({
+        fragments: Array.from({ length: CANVAS_LIMITS.fragments + 1 }, (_, index) => ({
+          id: `f${index}`,
+          raw: 'tym',
+          x: 0,
+          y: 0,
+        })),
+        positions: {},
+      }),
+    ).toBe(false);
+    expect(
+      isCanvasState({
+        fragments: [{ id: 'long', raw: 'a'.repeat(CANVAS_LIMITS.raw + 1), x: 0, y: 0 }],
+        positions: {},
+      }),
+    ).toBe(false);
+    expect(
+      isCanvasState({
+        fragments: Array.from({ length: 11 }, (_, index) => ({
+          id: `f${index}`,
+          raw: 'a'.repeat(CANVAS_LIMITS.raw),
+          x: 0,
+          y: 0,
+        })),
+        positions: {},
+      }),
+    ).toBe(false);
+    expect(
+      isCanvasState({
+        fragments: [],
+        positions: Object.fromEntries(
+          Array.from({ length: CANVAS_LIMITS.positions + 1 }, (_, index) => [
+            `main:root/${index}`,
+            { x: 0, y: 0 },
+          ]),
+        ),
+      }),
+    ).toBe(false);
+    const doc = document('tym');
+    expect(() => editCanvas(doc, { type: 'add', raw: 'a'.repeat(CANVAS_LIMITS.raw + 1) })).toThrow(
+      /limites/,
+    );
+    expect(doc.canvas).toEqual(emptyCanvas());
+  });
+});

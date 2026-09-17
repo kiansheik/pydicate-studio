@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-17T05:40:29.935Z",
+  "scope": "Production Electron; isolated temporary profile; actual passage 1; read-only corpus; no model requests or source/ground-truth writes.",
+  "rendererAsset": "index-Dlb-qdpV.js",
+  "pageErrors": [],
+  "checks": [
+    {
+      "name": "default-first-level-tree-visible",
+      "nodes": 6,
+      "relationships": 5,
+      "rootInViewport": true,
+      "allNodesAboveFooter": true,
+      "footerTop": 868,
+      "nodeBounds": [
+        {
+          "id": "runtime:1",
+          "top": 530.014892578125,
+          "bottom": 574.7354125976562
+        },
+        {
+          "id": "runtime:2",
+          "top": 588.1515502929688,
+          "bottom": 632.8720703125
+        },
+        {
+          "id": "runtime:3",
+          "top": 646.2882080078125,
+          "bottom": 691.0086669921875
+        },
+        {
+          "id": "runtime:4",
+          "top": 704.4248046875,
+          "bottom": 749.1453247070312
+        },
+        {
+          "id": "runtime:5",
+          "top": 762.5615234375,
+          "bottom": 807.281982421875
+        },
+        {
+          "id": "runtime:0",
+          "top": 646.2882080078125,
+          "bottom": 691.0086669921875
+        }
+      ],
+      "sourcePosition": "right",
+      "viewport": {
+        "width": 1512,
+        "height": 950,
+        "devicePixelRatio": 2
+      },
+      "canvas": {
+        "x": 239,
+        "y": 474.6484375,
+        "width": 854,
+        "height": 388
+      },
+      "root": {
+        "x": 528.1490478515625,
+        "y": 645.7291870117188,
+        "width": 114.41741943359375,
+        "height": 45.8385009765625
+      }
+    },
+    {
+      "name": "full-passage-lexical-inventory",
+      "entries": 12,
+      "occurrences": 14,
+      "oreOccurrences": 3
+    },
+    {
+      "name": "explicit-lexical-occurrence-revealed",
+      "runtimeNodeId": "runtime:2",
+      "selected": true,
+      "inViewport": true,
+      "canvas": {
+        "x": 239,
+        "y": 471.6484375,
+        "width": 854,
+        "height": 388
+      },
+      "node": {
+        "x": 543.75,
+        "y": 614.3984375,
+        "width": 244.5,
+        "height": 102.5
+      }
+    }
+  ],
+  "status": "passed",
+  "sourceUnchanged": true,
+  "sourceSha256": "357b7e643d8ffe8e4c0386e3232016400be4421158b2668a4ab2e896a2a90a23",
+  "finishedAt": "2026-09-17T05:40:35.185Z"
+}

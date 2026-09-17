@@ -120,13 +120,30 @@ class AdapterTests(unittest.TestCase):
         registry = json.loads(next((self.root / "studio-state").glob("*.ids.json")).read_text())
         self.assertIn(before["id"], registry["ids"].values())
 
-    def test_duplicate_identity_does_not_follow_an_ordinal_across_source_changes(self):
+    def test_duplicate_identity_survives_unambiguous_insertion(self):
         self.source.write_text("l = [same, same]\n", encoding="utf-8")
         adapter = self.adapter()
         before = adapter.open_project(str(self.root))["passages"]
         self.assertNotEqual(before[0]["id"], before[1]["id"])
         self.source.write_text("l = [new, same, same]\n", encoding="utf-8")
         after = adapter.refresh_project()["passages"]
+        self.assertEqual([p["id"] for p in before], [p["id"] for p in after[1:]])
+
+    def test_duplicate_ids_survive_unrelated_source_definition_and_other_expression_edit(self):
+        self.source.write_text("l = [same, different, same]\n", encoding="utf-8")
+        adapter=self.adapter();before=adapter.open_project(str(self.root))["passages"]
+        self.source.write_text("x = 'a local definition'\nl = [same, corrected, same]\n", encoding="utf-8")
+        after=adapter.refresh_project()["passages"]
+        self.assertEqual(before[0]["id"],after[0]["id"]);self.assertEqual(before[2]["id"],after[2]["id"])
+        self.assertNotEqual(before[1]["id"],after[1]["id"])
+        restarted=self.adapter().open_project(str(self.root))["passages"]
+        self.assertEqual([p["id"] for p in after],[p["id"] for p in restarted])
+
+    def test_ambiguous_identical_insertion_does_not_reassign_drafts(self):
+        self.source.write_text("l = [same, same]\n", encoding="utf-8")
+        adapter=self.adapter();before=adapter.open_project(str(self.root))["passages"]
+        self.source.write_text("l = [same, same, same]\n", encoding="utf-8")
+        after=adapter.refresh_project()["passages"]
         self.assertTrue(set(p["id"] for p in before).isdisjoint(p["id"] for p in after))
 
     def test_dirty_and_untracked_relevant_content_changes_fingerprint(self):

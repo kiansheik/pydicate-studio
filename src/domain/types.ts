@@ -14,6 +14,10 @@ export interface Witness {
   printedPage: string | null;
   pdfPage: number | null;
   region: [number, number, number, number] | null;
+  folio?: string | null;
+  textualLine?: string | number | null;
+  section?: string | null;
+  subsection?: string | null;
 }
 export interface Passage {
   id: string;
@@ -23,6 +27,7 @@ export interface Passage {
   title: string;
   sourceExpression: string;
   sourceFingerprint: string;
+  legacyExpressionFingerprint?: string;
   acceptedReference: string | null;
   referenceProvenance: 'legacy' | 'none' | 'example';
   diplomatic: string;
@@ -32,6 +37,8 @@ export interface Passage {
   witness: Witness;
   status: PassageStatus;
   analysis: ImperativeAnalysis | null;
+  sourceMetadata?: { folio?: string; lines?: string; line?: string; [key: string]: unknown };
+  studioMetadata?: Record<string, unknown>;
 }
 export interface RepositorySnapshot {
   name: string;
@@ -51,6 +58,20 @@ export interface StudioProject {
   diagnostics: string[];
 }
 export interface Draft {
+  /** A new passage uses the ordinary editor before a reviewed source append. */
+  pending?: { sourceId: string; previousPassageId?: string; ordinal: number };
+  /** Detached expressions and layout remain local draft material. */
+  canvas?: import('./canvas').CanvasState;
+  workflow?: { stage: 'analysis' | 'review' | 'complete'; updatedAt: string };
+  locators?: {
+    printedPage?: string;
+    folio?: string;
+    line?: string;
+    section?: string;
+    subsection?: string;
+  };
+  /** Raw input remains authoritative even while incomplete or invalid. */
+  raw?: string;
   passageId: string;
   revisionId: string;
   sourceFingerprint: string;
@@ -68,6 +89,8 @@ export interface Morpheme {
   explanation: string;
 }
 export interface RenderResult {
+  evaluationStatus?: 'complete' | 'partial';
+  failures?: import('./authoring').EvaluationFailure[];
   revisionId: string;
   engineFingerprint: string;
   expression: string;
@@ -75,6 +98,8 @@ export interface RenderResult {
   annotated: string;
   morphemes: Morpheme[];
   origin: 'engine' | 'snapshot';
+  tree?: import('./authoring').AuthorNode;
+  runtimeTree?: import('./runtime-tree').RuntimeGraph;
 }
 export interface RenderRequest {
   revisionId: string;
@@ -87,6 +112,10 @@ export interface DraftEnvelope {
   drafts: Record<string, Draft>;
 }
 export interface StudioBridge {
+  copyText?(text: string): Promise<void>;
+  recordUsage?(event: Record<string, unknown>): Promise<void>;
+  invoke?(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  onEvent?(listener: (event: any) => void): () => void;
   openProject(): Promise<StudioProject | null>;
   refreshProject(): Promise<StudioProject>;
   render(request: RenderRequest): Promise<RenderResult>;

@@ -1,0 +1,11 @@
+# AI analysis scope
+
+Translation defaults to the entire current draft. The UI shows its exact expression and current surface before sending; selecting a tree node does not change that scope. A contributor may explicitly select constituent scope only when that node's UTF-16 source span still matches the current draft. Partial translations can be copied for review but cannot replace the passage translation through acceptance.
+
+The main process requests a fresh full evaluation from `assistant_context`, bound to the exact raw expression, revision and engine fingerprint. Translation stops before any provider call when that evaluation is absent, invalid or stale. `analysisTarget` in immutable request provenance defines the scope, exact expression, full expression and full evaluation. Syntax-tree intermediate role snapshots are omitted from the provider prompt; evaluated runtime relationships and annotated morphology remain available. Neighbors, lexical definitions, historical references and MCP results are supporting context.
+
+The prompt requires every constituent of a full target, including final adjuncts and vocatives. It asks the provider to compare complete SUBJECT/OBJECT tags with runtime roles at the same scope, distinguish an allomorph from a different grammatical person and report actual contradictions. This is a prompt contract, not a guarantee of linguistic correctness.
+
+The saved first-line request inspected on September 17, 2026 contained the full raw expression, full generated surface and all twelve direct lexical references. Its selected syntax node covered only the first two of four additive constituents, while the previous task prompt requested the selected analysis. The model returned that prefix. This was ambiguous scope, not truncated source context. Historical records are not rewritten: partial selections lacking declared scope receive a visible warning and cannot silently replace the full passage translation.
+
+Validation uses simulated transports, a fresh local full-line engine evaluation, and read-only replay of the captured request through the scope builder. It does not make a live provider request or consume generation usage. Routine provider tests remain simulated.

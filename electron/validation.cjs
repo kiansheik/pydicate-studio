@@ -66,6 +66,60 @@ function renderRequest(value) {
   return value;
 }
 
+function canvas(value) {
+  object(value, 'área de trabalho', ['fragments', 'positions', 'layout']);
+  if (value.layout !== undefined && !['bottom-up', 'horizontal'].includes(value.layout))
+    fail('orientação da área de trabalho');
+  if (!Array.isArray(value.fragments) || value.fragments.length > 128)
+    fail('trechos da área de trabalho');
+  object(value.positions, 'posições da área de trabalho');
+  const identifiers = new Set();
+  let total = 0;
+  for (const fragment of value.fragments) {
+    object(fragment, 'trecho da área de trabalho', ['id', 'raw', 'x', 'y']);
+    if (
+      typeof fragment.id !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(fragment.id) ||
+      ['main', '__proto__', 'prototype', 'constructor'].includes(fragment.id) ||
+      identifiers.has(fragment.id)
+    )
+      fail('identificador do trecho');
+    identifiers.add(fragment.id);
+    string(fragment.raw, 'código do trecho');
+    total += fragment.raw.length;
+    canvasPoint({ x: fragment.x, y: fragment.y });
+  }
+  if (total > 1_000_000) fail('texto da área de trabalho');
+  const positions = Object.entries(value.positions);
+  if (positions.length > 4096) fail('quantidade de posições');
+  for (const [key, value] of positions) {
+    const separator = key.indexOf(':');
+    const container = key.slice(0, separator);
+    const node = key.slice(separator + 1);
+    if (
+      separator < 1 ||
+      key.length > 4096 ||
+      (container !== 'main' && !identifiers.has(container)) ||
+      !(node === 'root' || node.startsWith('root/')) ||
+      /[\s\u0000-\u001f]/u.test(node)
+    )
+      fail('identificador da posição');
+    canvasPoint(value);
+  }
+  return value;
+}
+
+function canvasPoint(value) {
+  object(value, 'posição', ['x', 'y']);
+  for (const axis of ['x', 'y'])
+    if (
+      typeof value[axis] !== 'number' ||
+      !Number.isFinite(value[axis]) ||
+      Math.abs(value[axis]) > 1_000_000
+    )
+      fail('coordenada');
+}
+
 function envelope(value) {
   object(value, 'rascunhos', ['version', 'projectId', 'drafts']);
   if (value.version !== 1) fail('versão dos rascunhos');
@@ -84,8 +138,45 @@ function envelope(value) {
       'translation',
       'notes',
       'analysis',
+      'raw',
+      'locators',
       'updatedAt',
+      'workflow',
+      'canvas',
+      'pending',
     ]);
+    if (draft.raw !== undefined) string(draft.raw, 'código');
+    if (draft.canvas !== undefined) canvas(draft.canvas);
+    if (draft.pending !== undefined) {
+      object(draft.pending, 'contexto da nova passagem', [
+        'sourceId',
+        'previousPassageId',
+        'ordinal',
+      ]);
+      if (!key.startsWith('pending:') || !/^[a-zA-Z0-9_-]{1,200}$/.test(draft.pending.sourceId))
+        fail('fonte da nova passagem');
+      if (typeof draft.pending.sourceId !== 'string') fail('fonte da nova passagem');
+      if (!Number.isSafeInteger(draft.pending.ordinal) || draft.pending.ordinal < 1)
+        fail('ordem da nova passagem');
+      if (draft.pending.previousPassageId !== undefined)
+        string(draft.pending.previousPassageId, 'passagem anterior', 200, true);
+    }
+    if (draft.workflow !== undefined) {
+      object(draft.workflow, 'etapa', ['stage', 'updatedAt']);
+      oneOf(draft.workflow.stage, ['analysis', 'review', 'complete'], 'etapa');
+      string(draft.workflow.updatedAt, 'data da etapa', 40, true);
+      if (!Number.isFinite(Date.parse(draft.workflow.updatedAt))) fail('data da etapa');
+    }
+    if (draft.locators !== undefined) {
+      object(draft.locators, 'localização', [
+        'printedPage',
+        'folio',
+        'line',
+        'section',
+        'subsection',
+      ]);
+      Object.values(draft.locators).forEach((value) => string(value, 'localização', 1000));
+    }
     id(draft.passageId, 'passagem');
     if (key !== draft.passageId) fail('passagem do rascunho');
     id(draft.revisionId, 'revisão');
@@ -174,4 +265,4 @@ function renderResult(value) {
   return value;
 }
 
-module.exports = { LIMITS, id, analysis, renderRequest, envelope, project, renderResult };
+module.exports = { LIMITS, id, analysis, renderRequest, envelope, project, renderResult, canvas };

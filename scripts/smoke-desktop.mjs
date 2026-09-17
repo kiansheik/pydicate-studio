@@ -25,7 +25,12 @@ require(${JSON.stringify(path.join(root, 'electron', 'main.cjs'))});
 let application;
 
 async function launch() {
-  const environment = { ...process.env, PYDICATE_STUDIO_DEV: '0' };
+  const environment = {
+    ...process.env,
+    PYDICATE_STUDIO_DEV: '0',
+    // This retained smoke explicitly exercises the browser example fallback.
+    PYDICATE_PROJECT_PARENT: path.join(temporary, 'no-local-project'),
+  };
   delete environment.ELECTRON_RUN_AS_NODE;
   application = await electron.launch({ args: [bootstrap], env: environment, timeout: 30_000 });
   const window = await application.firstWindow();

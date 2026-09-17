@@ -1,6 +1,6 @@
 {
   "name": "pydicate-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A reading and authoring desk for Old Tupi and Pydicate.",
   "type": "module",
@@ -20,12 +20,18 @@
     "test:python": "python3 -B -m unittest discover -s python/tests -v",
     "test:e2e": "playwright test",
     "check": "npm run format:check && npm run build && npm test && npm run test:desktop && npm run test:python",
-    "test:smoke": "node scripts/smoke-desktop.mjs",
+    "test:smoke": "node scripts/smoke-next.mjs",
     "format": "prettier --write src tests electron scripts *.ts *.json *.html",
-    "format:check": "prettier --check src tests electron scripts *.ts *.json *.html"
+    "format:check": "prettier --check src tests electron scripts *.ts *.json *.html",
+    "doctor": "python3 -B scripts/check-project.py",
+    "audit:araujo": "python3 -B python/audit_araujo.py",
+    "test:smoke:example": "node scripts/smoke-desktop.mjs",
+    "usage": "node scripts/usage-report.cjs",
+    "test:session": "node scripts/smoke-session.mjs"
   },
   "dependencies": {
     "lucide-react": "0.475.0",
+    "pdfjs-dist": "5.4.624",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

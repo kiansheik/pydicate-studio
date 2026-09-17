@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "date": "2026-09-17",
+  "reviewer": "/root/critic/ai_crash_review",
+  "scope": "Independent Round 3 AI persistence review using the actual provider service and exclusively local synthetic transports/context.",
+  "runtime": "Node v24.15.0",
+  "networkRequests": 0,
+  "credentialsUsed": false,
+  "historicalRepositoriesReadOrWritten": false,
+  "implementationChangedByReviewer": false,
+  "command": "node --test tests/critic-ai-restart.test.cjs",
+  "result": {
+    "exitCode": 1,
+    "tests": 3,
+    "passed": 2,
+    "failed": 1,
+    "durationMs": 133.204584
+  },
+  "inspectedFiles": [
+    "docs/agent/index.md",
+    "docs/agent/current-state.md",
+    "docs/agent/repo-map.md",
+    "docs/agent/open-questions.md",
+    "electron/provider-service.cjs",
+    "electron/tests/providers.test.cjs",
+    "src/components/AssistantPanel.tsx",
+    "package.json"
+  ],
+  "fileSha256AtVerification": {
+    "electron/provider-service.cjs": "1168dd5cfeb29009f9f54150169f93169d08d2d1964744ae754c38175ff71662",
+    "tests/critic-ai-restart.test.cjs": "e4af9bc394bf904022c038ba5ee18814699e575c139fc8d070deee9608538e22"
+  },
+  "verified": [
+    "A separate child process runs the real createProviderService with injected local providers and an empty environment. The test waits until the actual atomically written history record contains the synthetic partial response before killing its own child with SIGKILL.",
+    "A newly instantiated service on the same temporary state retains the exact partial text, original project/passage/revision/request identities, input context hash and context. Interrupted streaming is surfaced as failed with a restart explanation. Reading history leaves the original checkpoint bytes unchanged.",
+    "Reusing the interrupted request identity is rejected. A distinct request with a new revision completes through the real service, retaining both records. Acceptance with the old revision is rejected. No editorial approval is created.",
+    "Malformed JSON raises an error and its exact original bytes remain unchanged."
+  ],
+  "findings": [
+    {
+      "id": "R3-AI-HISTORY-SCHEMA",
+      "severity": "medium",
+      "status": "fixed-and-independently-verified",
+      "affected": "Any passage with a structurally corrupt but parseable version-1 AI history file.",
+      "location": "electron/provider-service.cjs:158",
+      "reproduction": "Write the structurally corrupt fixture in tests/critic-ai-restart.test.cjs into the service's expected hashed history filename. The fixture matches projectId/passageId/requestId/version but has text:42, acceptances:'corrupt', status:'completed', and omits revision/context/timestamps. Call ai_history.",
+      "expected": "Reject the record as corrupt, expose a recoverable error, and preserve the original file bytes.",
+      "observed": "ai_history resolves with the invalid completed record. The regression assertion fails with Missing expected rejection.",
+      "impact": "The renderer receives data violating its AIRecord contract. Missing revision and timestamps defeat useful provenance display; malformed response/acceptance fields may break history rendering or acceptance. A completed status is trusted without validating a completed result's structure.",
+      "recommendedFix": "Validate the complete durable record shape before returning history, including request identity/file correspondence, revision, action/provider, text and status, context, timestamps, suggestion, acceptances, and immutable editorial approval invariant. Preserve corrupt bytes and provide an actionable history error."
+    }
+  ],
+  "limits": [
+    "This verifies checkpoint recovery, not recovery of deltas received after the latest checkpoint.",
+    "No external AI generation was attempted. Authenticated generation and end-to-end provider UI behavior are separate evidence.",
+    "The corruption finding is demonstrated at the real service boundary; its possible renderer impact is inferred from AssistantPanel's typed field usage, not claimed as a reproduced native renderer crash."
+  ],
+  "fixVerification": {
+    "reviewer": "/root/critic",
+    "command": "node --test tests/critic-ai-restart.test.cjs",
+    "tests": 3,
+    "passed": 3,
+    "failed": 0,
+    "networkRequests": 0,
+    "implementationSha256": "ca084b2b463ca85062395bcc5ba402f7c442e615bd0a37379d7a561affaf6774",
+    "result": "All independent crash/corruption tests now pass; initial failure retained above."
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "runtimeSnapshotMaxDepth": 24,
+  "affected": [],
+  "interpretation": "Structural snapshots are bounded; source AST/card spans and full surfaces/annotations are separate exact comparisons."
+}

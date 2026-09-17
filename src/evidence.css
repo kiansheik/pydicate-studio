@@ -1,0 +1,173 @@
+.pdf-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+.evidence-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.evidence-controls button,
+.evidence-region-list button {
+  border: 1px solid var(--border, #5c626d);
+  border-radius: 5px;
+  background: var(--bg-elevated, #252933);
+  color: var(--text, #eee);
+  padding: 7px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.evidence-controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.evidence-controls button[aria-pressed='true'],
+.evidence-region-list button[aria-pressed='true'] {
+  outline: 2px solid #e4ae58;
+}
+.evidence-controls input,
+.evidence-controls select {
+  background: var(--bg-elevated, #252933);
+  color: var(--text, #eee);
+  border: 1px solid var(--border, #5c626d);
+  border-radius: 4px;
+  padding: 5px;
+}
+.evidence-controls input {
+  width: 65px;
+}
+.evidence-view-controls label {
+  font-size: 12px;
+}
+.evidence-asset {
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.evidence-asset small {
+  color: var(--muted, #adb4c2);
+}
+.evidence-asset p {
+  line-height: 1.45;
+  margin: 5px 0;
+}
+.evidence-locators {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 11px;
+}
+.evidence-locators div {
+  flex: 1;
+  min-width: 85px;
+}
+.evidence-locators dt {
+  color: var(--muted, #adb4c2);
+  margin-bottom: 3px;
+}
+.evidence-locators dd {
+  margin: 0;
+}
+.evidence-scroller {
+  width: 100%;
+  height: 500px;
+  min-height: 260px;
+  max-height: 80vh;
+  resize: vertical;
+  overflow: auto;
+  padding: 10px;
+  box-sizing: border-box;
+  background: #353535;
+  border-radius: 6px;
+  position: relative;
+}
+.evidence-empty {
+  max-width: 250px;
+  margin: 100px auto;
+  text-align: center;
+  line-height: 1.6;
+  color: #eee;
+  font-size: 13px;
+}
+.evidence-surface {
+  position: relative;
+  background: #fff;
+  touch-action: none;
+}
+.evidence-surface canvas {
+  display: block;
+}
+.evidence-surface.is-drawing {
+  cursor: crosshair;
+}
+.evidence-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.evidence-overlay g > rect {
+  fill: #ffb62926;
+  stroke: #c15b00;
+  stroke-width: 2;
+  cursor: move;
+}
+.evidence-overlay g.is-selected > rect {
+  stroke: #025ec6;
+  fill: #398ffa25;
+}
+.evidence-overlay .evidence-handle {
+  fill: #fff;
+  stroke: #025ec6;
+  stroke-width: 2;
+}
+.evidence-overlay .evidence-guide-region,
+.evidence-overlay .evidence-guide-region > rect {
+  pointer-events: none;
+  cursor: default;
+}
+.evidence-overlay .evidence-guide-region > rect {
+  fill: #4c535d14;
+  stroke: #5c64757a;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+.evidence-guide-hint {
+  color: var(--muted, #adb4c2);
+}
+.evidence-overlay [data-handle='nw'],
+.evidence-overlay [data-handle='se'] {
+  cursor: nwse-resize;
+}
+.evidence-overlay [data-handle='ne'],
+.evidence-overlay [data-handle='sw'] {
+  cursor: nesw-resize;
+}
+.evidence-region-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pdf-evidence .field-hint {
+  margin: 0;
+}
+html[data-theme='light'] .evidence-controls button,
+html[data-theme='light'] .evidence-region-list button,
+html[data-theme='light'] .evidence-controls input,
+html[data-theme='light'] .evidence-controls select {
+  background: #fffaf0;
+  color: #29251f;
+  border-color: #a39983;
+}
+html[data-theme='light'] .evidence-asset small,
+html[data-theme='light'] .evidence-locators dt {
+  color: #625744;
+}

@@ -2,6 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // Independent Node crash probes run via node --test, outside the browser runner.
+  testIgnore: '**/*.test.cjs',
   fullyParallel: false,
   workers: 1,
   timeout: 30_000,

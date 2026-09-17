@@ -1,0 +1,220 @@
+.passage-lexicon {
+  min-width: 0;
+  display: grid;
+  gap: 0.9rem;
+  box-sizing: border-box;
+  padding: 18px;
+  container-type: inline-size;
+}
+.passage-lexicon :is(input, select, textarea, button) {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--border, #7775);
+  border-radius: 6px;
+  background: var(--paper, #f7f8f3);
+}
+.passage-lexicon :is(input, select, textarea) {
+  padding: 8px 10px;
+  min-width: 0;
+}
+.passage-lexicon button {
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.passage-lexicon :is(input, select, textarea, button):focus-visible {
+  outline: 2px solid var(--green, #408b6c);
+  outline-offset: 2px;
+}
+.passage-lexicon button:hover {
+  background: var(--green-light, #e6eee5);
+}
+.passage-lexicon summary {
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.passage-lexicon > input {
+  width: 100%;
+  font-size: 13px;
+}
+.passage-lexicon > input::placeholder {
+  color: var(--muted, #66705d);
+}
+.lexical-heading,
+.lexical-entry-title,
+.lexical-save,
+.lexical-notebook-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.lexical-heading h3,
+.lexical-entry-title h4 {
+  margin: 0;
+}
+.lexical-heading h3 {
+  font-size: 20px;
+}
+.lexical-heading p {
+  font-size: 0.85rem;
+  opacity: 0.72;
+  margin: 0.4rem 0 0;
+  max-width: 62ch;
+  line-height: 1.5;
+}
+.lexical-heading > span {
+  white-space: nowrap;
+  font-size: 0.78rem;
+  opacity: 0.72;
+}
+.lexical-workspace {
+  display: grid;
+  grid-template-columns: minmax(155px, 0.7fr) minmax(230px, 1.5fr);
+  gap: 1rem;
+  align-items: start;
+}
+.lexical-inventory {
+  max-height: 580px;
+  overflow: auto;
+  display: grid;
+  gap: 0.25rem;
+}
+.lexical-inventory button {
+  display: flex;
+  justify-content: space-between;
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  background: transparent;
+  border-color: transparent;
+}
+.lexical-inventory button > span:first-child {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.lexical-inventory button[aria-pressed='true'],
+.lexical-note-scopes button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent, #be985f) 15%, transparent);
+  border-color: var(--accent, #be985f);
+}
+.lexical-inventory small,
+.lexical-entry-title > span {
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+.lexical-entry-detail {
+  min-width: 0;
+  display: grid;
+  gap: 0.8rem;
+  border-left: 1px solid var(--border, #7775);
+  padding-left: 1rem;
+}
+.lexical-entry-title {
+  flex-wrap: wrap;
+}
+.lexical-engine-definition {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lexical-entry-detail pre {
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 200px;
+  overflow: auto;
+}
+.lexical-entry-detail p {
+  margin: 0.15rem 0;
+}
+.lexical-entry-detail small {
+  overflow-wrap: anywhere;
+}
+.lexical-note-scopes {
+  display: flex;
+  gap: 0.35rem;
+}
+.lexical-note-scopes button {
+  flex: 1;
+}
+.lexical-note-editor {
+  display: grid;
+  gap: 0.8rem;
+}
+.lexical-note-editor label,
+.lexical-entry-detail > label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+.lexical-note-editor textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+.lexical-save {
+  align-items: start;
+}
+.lexical-save small {
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.lexical-save button {
+  white-space: nowrap;
+}
+.lexical-notebook {
+  border-top: 1px solid var(--border, #7775);
+  padding-top: 0.8rem;
+}
+.lexical-notebook > details {
+  margin-top: 0.65rem;
+}
+.lexical-notebook-tools input {
+  flex: 1;
+  min-width: 120px;
+}
+.lexical-notebook details p {
+  white-space: pre-wrap;
+}
+.lexical-diagnostics {
+  font-size: 0.8rem;
+}
+@container (max-width: 540px) {
+  .lexical-workspace {
+    grid-template-columns: 1fr;
+  }
+  .lexical-inventory {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    max-height: 190px;
+  }
+  .lexical-entry-detail {
+    border-left: none;
+    padding-left: 0;
+  }
+  .lexical-heading,
+  .lexical-notebook-tools {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+@media (max-width: 680px) {
+  .lexical-workspace {
+    grid-template-columns: 1fr;
+  }
+  .lexical-inventory {
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    max-height: 210px;
+  }
+  .lexical-entry-detail {
+    border-left: none;
+    padding-left: 0;
+  }
+  .lexical-heading,
+  .lexical-notebook-tools {
+    align-items: start;
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,615 @@
+.runtime-tree {
+  --tree-canvas: #f4f7f7;
+  --tree-card: #fff;
+  --tree-ink: #203b3b;
+  --tree-muted: #526c6b;
+  --tree-line: #b8cdcb;
+  --tree-accent: #26776d;
+  color: var(--tree-ink);
+  padding: 22px;
+  min-width: 0;
+}
+[data-theme='dark'] .runtime-tree {
+  --tree-canvas: #111b21;
+  --tree-card: #1c2c34;
+  --tree-ink: #e0efed;
+  --tree-muted: #a1bcb9;
+  --tree-line: #45636b;
+  --tree-accent: #82d5bc;
+}
+.runtime-tree h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.runtime-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.runtime-heading p {
+  margin: 5px 0 14px;
+  color: var(--tree-muted);
+  font-size: 12px;
+}
+.runtime-tree button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--tree-line);
+  border-radius: 6px;
+  background: var(--tree-card);
+  color: var(--tree-ink);
+  padding: 6px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.runtime-tree button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.runtime-tree button:hover:not(:disabled) {
+  border-color: var(--tree-accent);
+}
+.runtime-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.runtime-search {
+  flex: 1 1 240px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--tree-line);
+  background: var(--tree-card);
+  border-radius: 8px;
+  padding: 5px 6px 5px 9px;
+}
+.runtime-search input {
+  min-width: 80px;
+  width: 100%;
+  padding: 3px 0;
+  background: transparent;
+  border: 0;
+  color: var(--tree-ink);
+  outline: 0;
+  font-size: 12px;
+}
+.runtime-search:focus-within {
+  outline: 2px solid var(--tree-accent);
+  outline-offset: 2px;
+}
+.runtime-search input::placeholder {
+  color: var(--tree-muted);
+}
+.runtime-search span {
+  white-space: nowrap;
+  font-size: 11px;
+}
+.runtime-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.runtime-tools output {
+  width: 38px;
+  text-align: center;
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.runtime-options {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.runtime-options label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  margin-left: auto;
+  color: var(--tree-muted);
+}
+.runtime-options input {
+  accent-color: var(--tree-accent);
+}
+.runtime-viewport {
+  position: relative;
+  height: clamp(370px, 55vh, 680px);
+  overflow: hidden;
+  background-color: var(--tree-canvas);
+  background-image: radial-gradient(var(--tree-line) 0.6px, transparent 0.6px);
+  background-size: 18px 18px;
+  border: 1px solid var(--tree-line);
+  border-radius: 12px;
+}
+.runtime-viewport svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.runtime-viewport svg:active {
+  cursor: grabbing;
+}
+.runtime-edge path {
+  fill: none;
+  stroke: var(--tree-line);
+  stroke-width: 1.8;
+}
+.runtime-edge text {
+  fill: var(--tree-muted);
+  stroke: var(--tree-canvas);
+  stroke-width: 4px;
+  paint-order: stroke;
+  font-size: 10px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.runtime-edge.is-reference path {
+  stroke: #8c84bd;
+  stroke-dasharray: 5 5;
+  stroke-width: 1.2;
+}
+.expression-connection {
+  cursor: pointer;
+}
+.expression-connection .expression-connection-hit {
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+}
+.expression-connection.is-selected > path:not(.expression-connection-hit),
+.expression-connection:focus-visible > path:not(.expression-connection-hit) {
+  stroke: var(--tree-accent);
+  stroke-width: 2.5;
+}
+.expression-connection:focus-visible {
+  outline: none;
+}
+.runtime-junction .runtime-node-body {
+  fill: var(--tree-canvas);
+  stroke: var(--tree-accent);
+}
+.runtime-operation-label {
+  fill: var(--tree-ink);
+  font:
+    17px ui-monospace,
+    monospace !important;
+}
+.runtime-operation-name {
+  fill: var(--tree-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+.runtime-inspector .runtime-operation-description {
+  font-size: 11px;
+  color: var(--tree-muted);
+}
+.runtime-junction.category-method .runtime-operation-label,
+.runtime-junction.category-call .runtime-operation-label {
+  font-size: 14px !important;
+}
+.runtime-junction-count {
+  fill: var(--tree-muted);
+  font-size: 10px;
+}
+.runtime-result-connector {
+  fill: none;
+  stroke: var(--tree-line);
+  stroke-width: 1.8;
+}
+.runtime-result-background {
+  fill: var(--tree-card);
+  stroke: var(--tree-line);
+  stroke-width: 0.8;
+}
+.runtime-step-result.is-final .runtime-result-background {
+  stroke: var(--tree-accent);
+  stroke-width: 1.5;
+}
+.runtime-result-caption {
+  fill: var(--tree-muted);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.runtime-result-text {
+  fill: var(--tree-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.runtime-step-result[data-evaluation-state='unavailable'] .runtime-result-text {
+  fill: var(--tree-muted);
+  font-weight: 400;
+  font-size: 11px;
+}
+.runtime-node-flags.runtime-leaf-result {
+  fill: var(--tree-accent);
+  font-weight: 600;
+}
+.runtime-evaluation {
+  margin: 8px 0 14px;
+  padding: 10px;
+  border: 1px solid var(--tree-line);
+  border-radius: 8px;
+}
+.runtime-evaluation > small {
+  color: var(--tree-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.runtime-inspector .runtime-evaluation > p {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+  color: var(--tree-accent);
+}
+.runtime-inspector .runtime-evaluation[data-evaluation-state='unavailable'] > p,
+.runtime-evaluation > span {
+  font-size: 11px;
+  color: var(--tree-muted);
+}
+.runtime-node {
+  --node-accent: var(--tree-accent);
+  cursor: pointer;
+}
+.runtime-node.category-verb {
+  --node-accent: #cb9f69;
+}
+.runtime-node.category-pronoun {
+  --node-accent: #9c91d2;
+}
+.runtime-node.category-postposition {
+  --node-accent: #77aeca;
+}
+.expression-tree .category-reference {
+  --node-accent: #9c91d2;
+}
+.expression-tree .category-method,
+.expression-tree .category-call {
+  --node-accent: #cb9f69;
+}
+.expression-tree .runtime-node-label {
+  font-family: ui-monospace, monospace !important;
+}
+.runtime-node-body {
+  fill: var(--tree-card);
+  stroke: var(--tree-line);
+  stroke-width: 1.2;
+}
+.runtime-node-accent {
+  stroke: var(--node-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.runtime-node text {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  pointer-events: none;
+}
+.runtime-node-type {
+  fill: var(--node-accent);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  font-weight: 700;
+}
+.runtime-node-label {
+  fill: var(--tree-ink);
+  font-size: 19px;
+  font-family: Georgia, serif !important;
+}
+.runtime-node-definition {
+  fill: var(--tree-muted);
+  font-size: 11px;
+}
+.runtime-node-flags {
+  fill: var(--tree-muted);
+  font-size: 10px;
+}
+.runtime-node.is-selected .runtime-node-body {
+  stroke: var(--tree-accent);
+  stroke-width: 2.5;
+}
+.runtime-node.is-match .runtime-node-body {
+  stroke: #d9a948;
+  stroke-width: 3;
+}
+.runtime-node [role='button']:focus-visible {
+  outline: none;
+}
+.runtime-node [role='button']:focus-visible .runtime-node-body {
+  stroke: var(--tree-accent);
+  stroke-width: 4;
+}
+.runtime-collapse circle {
+  fill: var(--tree-card);
+  stroke: var(--tree-line);
+  stroke-width: 1.2;
+}
+.runtime-collapse-chevron {
+  fill: none;
+  stroke: var(--tree-ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.runtime-collapse:focus-visible circle {
+  stroke: var(--tree-accent);
+  stroke-width: 3;
+}
+.runtime-canvas-hint,
+.runtime-visible-count {
+  position: absolute;
+  bottom: 10px;
+  padding: 4px 6px;
+  color: var(--tree-muted);
+  background: var(--tree-canvas);
+  font-size: 10px;
+  pointer-events: none;
+  border-radius: 4px;
+}
+.runtime-canvas-hint {
+  left: 10px;
+}
+.runtime-visible-count {
+  right: 10px;
+}
+.runtime-inspector {
+  border: 1px solid var(--tree-line);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 12px;
+  background: var(--tree-card);
+}
+.runtime-inspector-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.runtime-inspector-heading small {
+  color: var(--tree-muted);
+  font-size: 11px;
+}
+.runtime-inspector-heading h3 {
+  font:
+    23px Georgia,
+    serif;
+  margin: 5px 0;
+}
+.runtime-inspector-heading code {
+  font-size: 11px;
+  color: var(--tree-muted);
+  overflow-wrap: anywhere;
+}
+.runtime-inspector p {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 6px 0;
+  white-space: pre-wrap;
+}
+.runtime-inspector-flags {
+  color: var(--tree-accent);
+}
+.runtime-roles p {
+  border-left: 2px solid var(--tree-accent);
+  padding-left: 10px;
+}
+.runtime-roles small {
+  display: block;
+  color: var(--tree-muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.runtime-relations {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.runtime-relations button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.runtime-relations span {
+  color: var(--tree-muted);
+  font-size: 10px;
+}
+.runtime-inspector details {
+  margin: 10px 0;
+}
+.runtime-inspector summary {
+  cursor: pointer;
+  color: var(--tree-muted);
+  font-size: 12px;
+}
+.runtime-properties {
+  font:
+    11px ui-monospace,
+    monospace;
+  margin: 10px 0;
+}
+.runtime-properties > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 2fr;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--tree-line);
+}
+.runtime-properties dt {
+  color: var(--tree-muted);
+  overflow-wrap: anywhere;
+}
+.runtime-properties dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.runtime-mapping {
+  color: var(--tree-muted);
+  border-top: 1px solid var(--tree-line);
+  padding-top: 10px;
+}
+.runtime-diagnostic {
+  color: #bd8a35;
+  font-size: 12px;
+}
+.runtime-tree-empty p {
+  color: var(--tree-muted);
+}
+.runtime-tree:fullscreen {
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--tree-canvas);
+}
+.runtime-tree:fullscreen .runtime-viewport {
+  height: calc(100vh - 185px);
+}
+@media (max-width: 720px) {
+  .runtime-tree {
+    padding: 14px;
+  }
+  .runtime-tools {
+    flex-wrap: wrap;
+  }
+  .runtime-canvas-hint {
+    max-width: 70%;
+  }
+}
+
+.runtime-viewport svg:focus-visible {
+  outline: 2px solid var(--tree-accent);
+  outline-offset: -3px;
+}
+.runtime-options label + label {
+  margin-left: 4px;
+}
+.runtime-scope-editor {
+  margin: 12px 0;
+  padding: 10px 0 14px;
+  border-top: 1px solid var(--tree-line);
+  border-bottom: 1px solid var(--tree-line);
+}
+.runtime-scope-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--tree-muted);
+  font-size: 11px;
+  flex: 1;
+  min-width: 0;
+}
+.runtime-scope-editor input,
+.runtime-scope-editor select,
+.runtime-scope-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--tree-line);
+  border-radius: 6px;
+  background: var(--tree-canvas);
+  color: var(--tree-ink);
+  padding: 8px;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.runtime-scope-editor textarea {
+  resize: vertical;
+  margin-bottom: 7px;
+}
+.runtime-scope-toolbar,
+.runtime-operation {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+.runtime-scope-toolbar > button {
+  flex: 0 0 auto;
+}
+.runtime-operation > select,
+.runtime-operation > input {
+  flex: 1 1 160px;
+  width: auto;
+}
+.runtime-source-preview {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--tree-muted);
+  font:
+    11px/1.5 ui-monospace,
+    monospace;
+  padding: 8px 0;
+  max-height: 130px;
+  overflow-y: auto;
+}
+.runtime-lexical-insert > button {
+  display: flex;
+  text-align: left;
+  justify-content: start;
+  width: 100%;
+  margin-top: 5px;
+}
+.runtime-lexical-insert > button span {
+  font-size: 10px;
+  color: var(--tree-muted);
+}
+.runtime-lexical-insert > small,
+.runtime-edit-hint {
+  display: block;
+  color: var(--tree-muted);
+  font-size: 10px;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+.runtime-expansion {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--tree-accent);
+  border-radius: 8px;
+}
+.runtime-expansion button + button {
+  margin-left: 8px;
+}
+.runtime-tree:fullscreen {
+  padding: 18px;
+}
+.runtime-tree:fullscreen .runtime-viewport {
+  width: calc(100% - 352px);
+  height: calc(100vh - 175px);
+  min-height: 300px;
+}
+.runtime-tree:fullscreen .runtime-inspector {
+  position: absolute;
+  top: 145px;
+  right: 18px;
+  width: 300px;
+  bottom: 18px;
+  margin-top: 0;
+  overflow-y: auto;
+}
+@media (max-width: 850px) {
+  .runtime-tree:fullscreen .runtime-viewport {
+    width: 100%;
+    height: 55vh;
+  }
+  .runtime-tree:fullscreen .runtime-inspector {
+    position: static;
+    width: auto;
+    margin-top: 12px;
+  }
+}

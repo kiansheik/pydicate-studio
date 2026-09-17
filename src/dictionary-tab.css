@@ -1,0 +1,62 @@
+.dictionary-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 620px;
+  height: min(900px, 78vh);
+  min-width: 0;
+  padding: 14px;
+  color: var(--text, #e5e9e8);
+}
+.dictionary-tab[hidden] {
+  display: none !important;
+}
+.dictionary-tab-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dictionary-tab-heading h2 {
+  margin: 0 0 5px;
+  font-size: 20px;
+  font-weight: 500;
+}
+.dictionary-tab-heading p {
+  margin: 0;
+  color: var(--muted, #aab8bf);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dictionary-tab iframe {
+  flex: 1;
+  min-height: 380px;
+  width: 100%;
+  border: 1px solid var(--border, #344951);
+  border-radius: 10px;
+  background: #fff;
+}
+.dictionary-tab > .dictionary-entry-creation {
+  flex: 0 0 auto;
+  max-height: 340px;
+  overflow: auto;
+}
+.dictionary-unavailable {
+  padding: 22px;
+  border: 1px solid var(--border, #344951);
+  border-radius: 9px;
+}
+.dictionary-unavailable p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dictionary-unavailable button,
+.dictionary-tab-heading button {
+  border: 1px solid var(--border, #344951);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: inherit;
+  background: var(--bg-elevated, #1b2b33);
+  cursor: pointer;
+}

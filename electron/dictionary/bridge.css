@@ -1,0 +1,59 @@
+.studio-dictionary-note,
+.studio-dictionary-status {
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0.75rem 0;
+}
+.studio-dictionary-status:empty {
+  display: none;
+}
+.studio-entry-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  font-family: system-ui, sans-serif;
+}
+.studio-add-entry,
+.studio-source-overlay > button {
+  border: 1px solid #32634b;
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  background: #235c40;
+  color: #fff;
+  font:
+    600 0.85rem system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+.studio-add-entry:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.studio-entry-actions small {
+  font-size: 0.75rem;
+}
+.studio-source-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #f8f5ec;
+  padding: 0.75rem;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.6rem;
+}
+.studio-source-overlay > button {
+  justify-self: start;
+}
+.studio-source-overlay iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: white;
+}
+[hidden] {
+  display: none !important;
+}

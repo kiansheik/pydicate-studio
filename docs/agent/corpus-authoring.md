@@ -1,0 +1,16 @@
+# Corpus authoring adapter
+
+The selected Araújo source currently contains 82 expressions and 80 saved legacy references. `python/audit_araujo.py` discovers the count; never use those numbers as parser constants. Bettendorff is excluded from this milestone. See [complete coverage](../coverage/araujo.md) and the [Python service contract](../../python/README.md).
+
+- `python/studio_authoring.py`: concrete token spans and recursive AST cards. Collection expressions need synthetic parentheses for standalone parsing because their original list supplied implicit continuation. The raw text remains exact; node offsets are UTF-16 for JavaScript. Avoid naming this module `authoring.py`, which collides with the corpus package.
+- `python/authoring_runtime.py`: fresh engine children, allowed candidate interpreter, source-order lexical context, actual class/operator dispatch, engine subject/object roles, helper templates and whole runtime graph snapshots. The current engine/corpus imports without extra dependencies under the recorded Python 3.14.4. The source-local `.definition` assignments are real context, not warnings to ignore.
+- `python/authoring_service.py`: parse/evaluate, lexical/reference/dictionary context, lossless source previews, atomic apply/recovery, new passages, lexical creation/updates, explicit authoritative reference approval and Git patch preparation. The authoritative approval rule stays in corpus `authoring.service.commit_ground_truth`; Studio wraps its persistence sink for atomic replacement and recovery evidence.
+- `python/adapter.py`: project fingerprints, read-only source import, authoritative metadata and stable ID reconciliation. `IdentityRegistry.sources` augments the existing version-1 sidecar. Unchanged/stationary/unambiguously aligned repeated expressions retain IDs; truly ambiguous identical insertion receives new IDs instead of silently reassigning evidence.
+
+The corpus's metadata parser rejects unknown directives. Source-adjacent IDs and PDF pointers therefore use supported `# @note studio:v1 {JSON}`. Human source notes are imported into new drafts; machine notes are excluded from the contributor's notes field. Preserve source-adjacent scholarly metadata rather than copying editorial truth into a second store.
+
+Named lexical references and expanded copies are distinct. Helpers expose signature, return template and prerequisite source statements. `v` has class-inference prerequisites; showing its return template does not make its internal Python statements visually editable. Copying an occurrence with a changed gloss inserts the small `studio_define` helper explicitly in the reviewed source diff, so exported source runs without Studio.
+
+The coverage matrix separates construction-card encoding, span edit/re-import, actual-engine surface/annotation/graph comparisons and UI interaction verification. `visualEditingImplemented` is capability; `uiWorkflowVerified` is not inferred from a parser result. Independent critic reports own UI evidence.
+
+All source/approval mutation tests use disposable copies. Local source recovery stores prior bytes before atomic replacement; records approval additionally records the reviewed surface and source/engine identity. No commits, pushes, upstream source changes or baseline regenerations were performed during implementation.

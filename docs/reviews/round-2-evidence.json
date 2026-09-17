@@ -1,0 +1,207 @@
+{
+  "startedAt": "2026-09-17T03:03:55.073Z",
+  "temp": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-round2-CdG7mA",
+  "stages": [
+    {
+      "name": "unfamiliar-families-role-cards",
+      "evidence": [
+        {
+          "ordinal": 2,
+          "surface": "tuba ta'yra Espírito Santo rera pupé",
+          "roles": [],
+          "typed": [
+            "Noun * Postposition → Postposition",
+            "Conjunction * Noun → Noun",
+            "Conjunction + ProperNoun → Conjunction",
+            "Noun + Noun → Conjunction"
+          ],
+          "copyEditSurfaceEqual": true
+        },
+        {
+          "ordinal": 16,
+          "surface": "Santa Maria Tupã sy etupãmongetá oré iangaîpaba'e resé ko'yr irã oré îekyî oré rúme béno",
+          "roles": [
+            "Sujeito endé · subentendido explicitamente",
+            "Sujeito endé · subentendido explicitamente",
+            "Sujeito endé · subentendido explicitamente",
+            "Sujeito endé · subentendido explicitamente",
+            "Sujeito oré · expresso",
+            "Sujeito oré · expresso",
+            "Sujeito oré · expresso"
+          ],
+          "typed": [
+            "Verb << Verb → Verb",
+            "Verb + Adverb → Verb",
+            "Verb + Postposition → Verb",
+            "Copula + Verb → Verb",
+            "Postposition * Copula → Postposition",
+            "Verb << Adverb → Verb",
+            "Adverb + Verb → Verb",
+            "Verb >> Verb → Verb"
+          ],
+          "copyEditSurfaceEqual": true
+        },
+        {
+          "ordinal": 40,
+          "surface": "arobîar Santos rekokatu îemoîa'oîa'oka",
+          "roles": [
+            "Sujeito ixé · subentendido explicitamenteObjeto Santos[PROPER_NOUN][SUBJECT:3p:DIRECT] r[PLURIFORM_PREFIX:R]ekokatu[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][NOUN][SUBJECT:3p:DIRECT] îe[OBJECT:REFLEXIVE]mo[CAUSATIVE_PREFIX:MO]îa'o[ROOT]îa'ok[REDUPLICATION:ASPECT:CONTINUOUS][ROOT] · expresso",
+            "Sujeito 3p · inferido pelo motorObjeto ixé · subentendido explicitamente",
+            "Sujeito Santos[PROPER_NOUN][SUBJECT:3p:DIRECT] r[PLURIFORM_PREFIX:R]ekokatu[ROOT] · expressoObjeto îe · expresso",
+            "Sujeito Santos[PROPER_NOUN][SUBJECT:3p:DIRECT] r[PLURIFORM_PREFIX:R]ekokatu[ROOT] · expressoObjeto îe · expresso",
+            "Sujeito 3p · inferido pelo motorObjeto Santos[PROPER_NOUN][SUBJECT:3p:DIRECT] r[PLURIFORM_PREFIX:R]ekokatu[ROOT] · expresso"
+          ],
+          "typed": [
+            "Verb * VerbAugmentor → Verb",
+            "VerbAugmentor * Pronoun → VerbAugmentor",
+            "Noun * VerbAugmentor → VerbAugmentor"
+          ],
+          "copyEditSurfaceEqual": true
+        },
+        {
+          "ordinal": 58,
+          "surface": "arobîar yby apyterype i gûeîybagûera asé rubypy karaíbetá 'angûera i a'epe turama osarõba'erenosemagûera bé",
+          "roles": [
+            "Sujeito ixé · subentendido explicitamenteObjeto abé · expresso",
+            "Sujeito 3p · inferido pelo motorObjeto ixé · subentendido explicitamente",
+            "Sujeito 3p · inferido pelo motorObjeto = · expresso"
+          ],
+          "typed": [
+            "Verb * Conjunction → Verb",
+            "Conjunction * Classifier → Conjunction",
+            "Conjunction * Classifier → Conjunction",
+            "Locative + Classifier → Classifier",
+            "Copula * Verb → Verb"
+          ],
+          "copyEditSurfaceEqual": true
+        },
+        {
+          "ordinal": 74,
+          "surface": "oîeaûsuba îabé asé oapixararaûsuba no",
+          "roles": [
+            "Sujeito asé · subentendido explicitamenteObjeto îe · expresso",
+            "Sujeito asé · expressoObjeto apixara · expresso"
+          ],
+          "typed": [
+            "Noun + Adverb → Noun",
+            "Postposition + Noun → Noun",
+            "Postposition * Verb → Postposition",
+            "Verb * Pronoun → Verb",
+            "Verb * Noun → Verb"
+          ],
+          "copyEditSurfaceEqual": true
+        },
+        {
+          "ordinal": 79,
+          "surface": "Santa Madre Igreja îekuakupûaîa îabi'õ îekuakuba",
+          "roles": [
+            "Sujeito Santa Madre Igreja · expressoObjeto îe · expresso",
+            "Sujeito 3p · inferido pelo motorObjeto îe · expresso",
+            "Sujeito 3p · inferido pelo motorObjeto îe · expresso"
+          ],
+          "typed": [
+            "Postposition + Noun → Noun",
+            "Postposition * Noun → Postposition",
+            "Pronoun * Verb → Verb"
+          ],
+          "copyEditSurfaceEqual": true
+        },
+        {
+          "ordinal": 82,
+          "surface": "i karaíba pupé îemboîasuka",
+          "roles": [
+            "Sujeito 3p · inferido pelo motorObjeto îe · expresso",
+            "Sujeito 3p · inferido pelo motorObjeto îe · expresso"
+          ],
+          "typed": [
+            "Postposition + Noun → Noun",
+            "Noun * Postposition → Postposition",
+            "Pronoun * Noun → Noun",
+            "Pronoun * VerbAugmentor → VerbAugmentor"
+          ],
+          "copyEditSurfaceEqual": true
+        }
+      ],
+      "status": "passed",
+      "screenshot": "docs/reviews/round-2-screenshots/01-unfamiliar-families-role-cards.png"
+    },
+    {
+      "name": "named-compound-inspection-and-reuse",
+      "evidence": {
+        "reused": "rightsidegod",
+        "result": "Tupã tuba 'ekatûaba koty sena",
+        "referenceRetained": true
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-2-screenshots/02-named-compound-inspection-and-reuse.png"
+    },
+    {
+      "name": "parameterized-helper-reuse",
+      "evidence": {
+        "helper": "credo",
+        "parameter": "tayra",
+        "result": "arobîar ta'yramo sekó"
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-2-screenshots/03-parameterized-helper-reuse.png"
+    },
+    {
+      "name": "raw-invalid-independent-reading-save",
+      "evidence": {
+        "passageId": "passage:0fe75efe-02e0-4ab5-af54-753f959400d9",
+        "raw": "n(îe *",
+        "revisionId": "a1aa2f33-8f9c-4674-888c-415335b4d619",
+        "sourceFingerprint": "sha256:2aa2c50732ada0e60dde8fe212f262c61f606d85f1a786bc1850b9b795e3cd03",
+        "diplomatic": "Leitura provisória do fac-símile.",
+        "normalized": "",
+        "translation": "",
+        "notes": "Dúvida humana sem análise executável — critic round 2.",
+        "analysis": null,
+        "updatedAt": "2026-09-17T03:04:24.011Z"
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-2-screenshots/04-raw-invalid-independent-reading-save.png"
+    },
+    {
+      "name": "navarro-sense-create-and-reuse",
+      "evidence": {
+        "query": "casa",
+        "dictionaryRows": 40,
+        "headword": "'apiramõ",
+        "name": "apiramo_2a15f05d",
+        "diff": "--- /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-round2-CdG7mA/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n+++ /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-round2-CdG7mA/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n@@ -2,6 +2,10 @@\n \n globals().update(load_lexicon())\n # call it l for writting convenience\n+\n+# @note studio-lexical:v1 {\"id\": \"lexical:83c50d1f-1605-57f2-b9f2-fd7e0d4edcc8\", \"name\": \"apiramo_2a15f05d\", \"scope\": \"source\", \"provenance\": {\"source\": \"dictionary\", \"id\": \"navarro:3151:8837b68b53990b92\", \"citation\": \"Navarro · verbete 3151 · nhe-enga/pydicate/pydicate/tupi_only.db\"}}\n+apiramo_2a15f05d = Noun(\"'apiramõ\", definition=\"(etim. - molhar a pele da cabeça) (v.tr.) - 1) mergulhar; regar, aguar (p.ex., a casa) (VLB, I, 24; II, 99); 2) molhar a cabeça de; batizar: 'Y pupé asé 'apiramõû. - Com água nos molham a cabeça. (Ar., Cat., 80v); Marãîasûaramo temõ abaré xe 'apiramõneme xe angaîpab'e'ymebé xe re'õ mã!... - Ah, que bom seria minha morte ao me batizar o padre, antes de eu pecar. (Ar., Cat., 1686, 249)\")\n+\n l = [\n     # @page 1\n     # @section Livro I. Dos primeiros elementos da Fé Christãa, Summa dos mysterios, & doutrina Christãa\n"
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-2-screenshots/05-navarro-sense-create-and-reuse.png"
+    },
+    {
+      "name": "new-passage-reviewed-source-write",
+      "evidence": {
+        "diff": "--- /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-round2-CdG7mA/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n+++ /private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-round2-CdG7mA/projects/oldtupicorpus/historic/araujo_catecismo_1686.tu.py\n@@ -241,6 +241,11 @@\n # @subsection Sacramentos. Sete Santa Madre Igreja Sacramentos.\n l += ((ae * karaiba) * pupé) + (îe * moîasuk).var(1).base_nominal()\n \n+\n+# @note studio:v1 {\"passageId\": \"passage:8402c558-3b95-43fc-bbfe-f90378d5ebc9\"}\n+l += (credo(tayra)\n+)\n+\n araujo_catecismo_1686 = l\n if __name__ == \"__main__\":\n     for expr in araujo_catecismo_1686:\n",
+        "selectedNewPassage": true
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-2-screenshots/06-new-passage-reviewed-source-write.png"
+    },
+    {
+      "name": "pdf-region-native-color-and-locators",
+      "status": "failed",
+      "error": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  getByTestId('pdf-region')\nExpected: 1\nReceived: 0\nTimeout:  5000ms\n\nCall log:\n  - Expect \"toHaveCount\" getByTestId('pdf-region') with timeout 5000ms\n  - waiting for getByTestId('pdf-region')\n    14 × locator resolved to 0 elements\n       - unexpected value \"0\"\n",
+      "screenshot": "docs/reviews/round-2-screenshots/07-pdf-region-native-color-and-locators.png"
+    },
+    {
+      "name": "ai-configuration-ui-local-only",
+      "evidence": {
+        "codexState": "Consultando o provedor…",
+        "claudeState": "Consultando o provedor…",
+        "generation": "Not sent: automatic approval review rejected the proposed corpus-context egress; no retry or indirect request performed."
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-2-screenshots/08-ai-configuration-ui-local-only.png"
+    }
+  ],
+  "pageErrors": [],
+  "policy": "Production Electron with disposable full dirty corpus copy; selected engine read-only symlink.",
+  "finishedAt": "2026-09-17T03:04:38.312Z",
+  "appTextTail": "\n0007\noré rembi'u 'ara îabi'õndûara eîme'eng kori orébe\nEm análise\n0008\nndenhyrõ oré angaîpaba resé orébe orérerekomemûãsara supé orénhyrõ îabé\nEm análise\n0009\norémo'arukar umẽ îepé tentação pupé\nEm análise\n0010\norépysyrõte îepé mba'eaíba suí\nEm análise\n0011\namém\nEm análise\n0012\nAve Maria graça resé tynysemba'e\nEm análise\n0013\nnde irũnamo îandé îara rekóû\nEm análise\n0014\nimombe'ukatupyramo ereikó kunhã suí\nEm análise\n0015\nimombe'ukatupyra abé nde membyra Jesus\nEm análise\n0016\nSanta Maria Tupã sy etupãmongetá oré iangaîpaba'e resé ko'yr irã oré îekyî oré rúme béno\nEm análise\n0017\namém\nEm análise\n0018\nSalve Rainha moraûsubara sy tekobé se'ẽba'e oré îeerobîasaba salve\nEm análise\n0019\nendébo orosapukapukaî ipe'apyramo Eva membyramo\nEm análise\n0020\nendébo oronhe'angerur orépoasemamo oroîasegûabo ikó ybytygûaîa îase'ûaba pupé\nEm análise\n0021\nene'ĩ oré resé îeruresar\nEm análise\n0022\neboûing nde resaporaûsubara erobak oré koty\nEm análise\n0023\na'e Jesus imombe'ukatupyra nde membyra ikó oîepe'asagûera sykiré esepîakukar orébe\nEm análise\n0024\nnherane'ym poreaûsuberekoar se'ẽba'e Virgem Maria\nEm análise\n0025\nSanta Maria Tupã sy toréangaturam ne Christo remienõîûera resé oré îekosubagûama ri\nEm análise\n0026\namém\nEm análise\n0027\narobîar Tupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e ybaka yby abémonhangara\nEm análise\n0028\narobîar JesusChrixtoabé ta'yra oîepeba'e asé îara\nEm análise\n0029\nEspírito Santo imonhangápe pitangĩnamo oîemonhangyba'epûera\nEm análise\n0030\na'eba'e o'ar Maria ababykagûere'yma suí\nEm análise\n0031\nPoncio Pilato morubixabamo sekóreme serekomemûãmbyramo sekóû\nEm análise\n0032\nybyraîoasaba resé imoîarypyramo sekóû iîukapyramo itymymbyramo sekóû\nEm análise\n0033\nogûeîyb yby apyterype\nEm análise\n0034\n'ara mosapyra pupé omanõba'epûera suí sekobeîebyri\nEm análise\n0035\noîeupir ybakype\nEm análise\n0036\nTupã tuba opakatu mba'e tetiruã monhanga e'ikatuba'e 'ekatuaba koty seni\nEm análise\n0037\na'e suí turi oîkobeba'e omanõba'epûera pabẽ rekomonhanga ne\nEm análise\n0038\narobîar Espírito Santo\nEm análise\n0039\narobîar Santa Igreja Catholica\nEm análise\n0040\narobîar Santos rekokatu îemoîa'oîa'oka\nEm análise\n0041\narobîar tekoangaîpaba resé moroupé Tupãnhyrõ\nEm análise\n0042\narobîar asé rekobeîebyragûama\nEm análise\n0043\narobîar tekobé opaba'erame'yma\nEm análise\n0044\namém\nEm análise\n0045\ncatorse asé remierobîarama\nEm análise\n0046\nsete Tupã reséndûara nã e'i\nEm análise\n0047\narobîar oîepé Tupã opakatu mba'e tetiruã monhanga e'ikatuba'e\nEm análise\n0048\narobîar tubamo sekó\nEm análise\n0049\narobîar ta'yramo sekó\nEm análise\n0050\narobîar Espírito Santoramo sekó\nEm análise\n0051\narobîar opakatu mba'e tetiruãmonhangaramo sekó\nEm análise\n0052\narobîar moropysyrõanamo sekó\nEm análise\n0053\narobîar tekobé opaba'erame'ymame'engaramo sekó\nEm análise\n0054\nsete Jesus Christo asé ro'oraragûera reséndûara nã e'i\nEm análise\n0055\narobîar aé Tupã ta'yra Espírito Santo imonhangápe pitangamo oîemonhangagûera\nEm análise\n0056\narobîar Virgem Maria suí i 'aragûera ababykagûere'ymamo sekó pupé memẽ\nEm análise\n0057\narobîar asé resé ybyraîoasaba resé imoîarypyrûeramo iîukapyrûeramo itymymbyrûeramo sekó\nEm análise\n0058\narobîar yby apyterype i gûeîybagûera asé rubypy karaíbetá 'angûera i a'epe turama osarõba'erenosemagûera bé\nEm análise\n0059\narobîar 'ara mosapyra resé sekobeîebyragûera\nEm análise\n0060\narobîar ybakype oîeupiragûera Tupã tuba 'ekatûaba koty sena bé\nEm análise\n0061\narobîar 'ara papápe turagûama oîkobeba'e omanõba'e pabẽ rekokatûagûera sekosagûera bérepyme'enga\nEm análise\n0062\ndez Tupã asérekomonhangaba\nEm análise\n0063\neîmoeté oîepé Tupã\nEm análise\n0064\nanheté eretenhẽ umẽ Tupã rera renõîa\nEm análise\n0065\neîmoeté domingo 'ara marãtekoabe'yma bé\nEm análise\n0066\neîmoeté nde ruba nde sy abé\nEm análise\n0067\neporoapiti umẽ\nEm análise\n0068\neporopotar umẽ\nEm análise\n0069\nemondarõ umẽ\nEm análise\n0070\nnderemo'em umẽ abá resé\nEm análise\n0071\neîemomotar umẽ nde rapixara remirekó resé\nEm análise\n0072\nnã e'iba'e pupé pabẽ aîpoba'e ruî\nEm análise\n0073\nopakatu mba'e tetiruã asé saûsuba sosé asé Tupã raûsuba\nEm análise\n0074\noîeaûsuba îabé asé oapixararaûsuba no\nEm análise\n0075\nsinco Santa Madre Igreja asérekomonhangaba\nEm análise\n0076\ndomingo resé 'ara marãtekoabe'yma resebé missarenduba\nEm análise\n0077\nseîxu îabi'õ îemombe'u\nEm análise\n0078\nPascoa îabi'õ Tupãrara\nEm análise\n0079\nSanta Madre Igreja îekuakupûaîa îabi'õ îekuakuba\nEm análise\n0080\nopakombó îabi'õ Tupã supé oîepé asé mba'emoîa'oka\nEm análise\n0081\nPor transcrever\nPor transcrever\n0082\nPor transcrever\nPor transcrever\n0083\nPor transcrever\nPor transcrever\nSeu caderno de trabalho\n\nUma leitura de cada vez.\n\nNova passagem\nTUPI ANTIGO\nv0.1\nAraújo, 1686\nPassagem 0002\nFonte\nTestemunho\nFONTE PRIMÁRIA\nAraújo · Catecismo\n1686 · p. 1 impressa\nVincular outro testemunho\nRelocalizar mesmo PDF\ncritic-witness.pdf\nSHA-256 37752044f280567c… · cópia gerenciada\nPágina impressa\n1\nFólio\nnão informado\nLinhas no texto\nnão informadas\nPágina física do PDF  / 2\nZoom \n50%\n75%\n100%\n125%\n150%\n200%\n300%\n400%\nGirar 90°\n0°\nMarcar região\nRemover região\nSalvar regiões\n\nEvidência salva no computador. 0 região(ões).\n\nTranscrição diplomática · como está na fonte\nLeitura normalizada\n\nUma leitura já é uma contribuição. Você pode salvar sem completar a análise.\n\nContribuir uma leitura\nMontar a análise\nRevisar\nLéxico\nAssistência IA\nANÁLISE DA PASSAGEM\nDa leitura à estrutura.\nEm análise\nREFERÊNCIA SALVA\n\ntuba ta'yra Espírito Santo rera pupé\n\nPreservada · origem legada\nRESULTADO ATUAL\n\ntuba ta'yra Espírito Santo rera pupé\n\nMotor local · revisão atual\nForma coincide\nRevisão editorial\npendente\nMotor local identificado\nAssistência de IA\nVerificando…\nProvedor\nCodex local\nClaude API\nModelo\n\nConsultando o provedor…\n\nConfiguração e dados enviados\nTarefa\nTraduzir análise\nExplicar construção\nPropor expressão\nInvestigar problema no motor\nDescrição, dúvida ou contraste linguístico\nSolicitar assistência\nRascunho salvo neste dispositivo\nVerificar\nSalvar rascunho\nSeu trabalho fica neste dispositivo\nPortuguês · Tupi antigo\n/\nPydicate Studio"
+}

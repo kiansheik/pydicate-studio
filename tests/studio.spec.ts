@@ -156,7 +156,9 @@ test('the reading desk fits a narrow screen without horizontal page scrolling', 
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openDesk(page);
+  await page.getByRole('button', { name: 'Mostrar Passagens', exact: true }).click();
   await expect(page.getByRole('button', { name: /0067/ })).toBeInViewport();
+  await page.getByRole('button', { name: 'Mostrar Editor', exact: true }).click();
   await expect(page.getByTestId('generated-surface')).toBeInViewport();
   await expect(
     page.getByRole('textbox', { name: 'Transcrição diplomática', exact: true }),
@@ -169,8 +171,7 @@ test('the reading desk fits a narrow screen without horizontal page scrolling', 
   await expect(page.getByRole('button', { name: 'Salvar rascunho', exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/desk-mobile.png', fullPage: true });
   await page.screenshot({ path: 'test-results/desk-mobile-viewport.png' });
-  const showSource = page.getByRole('button', { name: 'Mostrar fonte', exact: true });
-  await expect(showSource).toContainText('Ver fonte');
+  const showSource = page.getByRole('button', { name: 'Mostrar Fonte', exact: true });
   await showSource.click();
   const diplomatic = page.getByRole('textbox', { name: 'Transcrição diplomática', exact: true });
   await diplomatic.scrollIntoViewIfNeeded();

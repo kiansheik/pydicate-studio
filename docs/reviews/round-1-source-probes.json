@@ -1,0 +1,57 @@
+{
+  "identityChangesAfterUnrelatedMetadataEdit": [
+    {
+      "ordinal": 3,
+      "raw": "(amen)",
+      "oldId": "passage:c4ca184a-3e46-4f71-bbe7-cafd79f63070",
+      "newId": "passage:fed7e3e2-db0e-4ef3-a538-70896879bcea"
+    },
+    {
+      "ordinal": 11,
+      "raw": "(amen)",
+      "oldId": "passage:8aabe533-cbda-4ac8-a213-2424273fd463",
+      "newId": "passage:d093116a-f0ec-49ec-b2bb-1be0e304e9c0"
+    },
+    {
+      "ordinal": 17,
+      "raw": "(amen)",
+      "oldId": "passage:2079b144-57eb-42e2-acfa-087ebebde8cc",
+      "newId": "passage:96139879-7816-4ca1-b7dc-993f7c0ee6a0"
+    },
+    {
+      "ordinal": 26,
+      "raw": "(amen)",
+      "oldId": "passage:6e4b28c3-cb9c-4a6b-8bc2-5e14a400b16c",
+      "newId": "passage:0a5a6f23-766f-46dd-b7f2-3ab67544f394"
+    }
+  ],
+  "reimportedPassageNotes": "",
+  "authoritativeMetadata": {
+    "source_line": 213,
+    "locations": [
+      {
+        "witness": null,
+        "edition": null,
+        "page_start": "5",
+        "page_end": null,
+        "folio_start": null,
+        "folio_end": null,
+        "line_start": null,
+        "line_end": null,
+        "section": "Livro I. Dos primeiros elementos da Fé Christãa, Summa dos mysterios, & doutrina Christãa",
+        "subsection": "Mandamentos da Ley de Deos",
+        "url": null,
+        "note": null
+      }
+    ],
+    "diplomatic": null,
+    "normalized_target": null,
+    "translation": null,
+    "analysis": null,
+    "status": "approved",
+    "notes": [
+      "CRITIC note from source",
+      "studio:v1 {\"passageId\":\"passage:7297ca5a-9fae-40cd-b40a-86c59efce430\"}"
+    ]
+  }
+}

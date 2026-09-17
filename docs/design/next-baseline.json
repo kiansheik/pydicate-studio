@@ -1,0 +1,699 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-17T02:49:20Z",
+  "python": "3.14.4 (v3.14.4:23116f998f6, Apr  7 2026, 09:45:22) [Clang 17.0.0 (clang-1700.6.4.2)]",
+  "pythonExecutable": "/usr/local/bin/python3",
+  "repositories": [
+    {
+      "name": "oldtupicorpus",
+      "path": "/Users/kian/code/oldtupicorpus",
+      "revision": "292a28722a1790abf3f3b93083c29fbd47b4ffd0",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:ef4eebecaac3cd85c09a2a92aec5284e234be6bae8e944a80500faa648c100ed",
+      "status": " M docs/agent/current-state.md\n M docs/agent/log.md\n M historic/lexicon.tu.py\n?? docs/agent/reflexive-nasal-review.md\n?? docs/agent/session-handoffs/2026-09-16-mo-mbo-variation.md\n?? docs/agent/session-handoffs/2026-09-16-reflexive-nasal-review.md\n?? tests/mo_mbo_variation_test.py\n?? tests/reflexive_nasal_variation_test.py\n",
+      "dirtyPatch": {
+        "path": "docs/design/dependency-patches/oldtupicorpus.patch",
+        "sha256": "8bbf1119fb9ca83cf15b171d0de14608c77c259dff9fbb4bfd4634ed53cbadea"
+      },
+      "files": [
+        {
+          "path": "authoring/__init__.py",
+          "sha256": "38c570da982ba4be9eeee4f2b56023f28c76c20dcdf9375b1a51dae0fde4d5bc",
+          "bytes": 282
+        },
+        {
+          "path": "authoring/ground_truth_cli.py",
+          "sha256": "73d9db2ca70adca374d450c509d8555c6c01695ca8a8841db84b9dc6dd8ff504",
+          "bytes": 7219
+        },
+        {
+          "path": "authoring/last_ground_truth.py",
+          "sha256": "ac9f7694610c7221f6467fdf7a8ecf79d700bbd6490496d6054e4a73cd0b3a57",
+          "bytes": 3785
+        },
+        {
+          "path": "authoring/mcp_server.py",
+          "sha256": "69f09d8c17f717dcff86330353dc7a7389c1ca7c931b0f717a7abdfc5b281f21",
+          "bytes": 7615
+        },
+        {
+          "path": "authoring/records.py",
+          "sha256": "0896520277508424ff9b30bb50e034b2b1a169236fddbb210c928cf04785fe70",
+          "bytes": 10545
+        },
+        {
+          "path": "authoring/regenerate.py",
+          "sha256": "a5b93f048b5b142e92089cb8e021087e50cc14e5349bf85c2e3c35340e57059b",
+          "bytes": 1459
+        },
+        {
+          "path": "authoring/service.py",
+          "sha256": "ce7105cac57ccc956b3a28ae726c6ab44c81564767b201cf99269cfb1e0a763b",
+          "bytes": 21250
+        },
+        {
+          "path": "authoring/source_annotations.py",
+          "sha256": "c8f3a263a15d94822e8346518aa91280bb9b0a2f8ff2bf8346742c5ae551243e",
+          "bytes": 14302
+        },
+        {
+          "path": "ground_truth/records/historic/araujo_catecismo_1686.jsonl",
+          "sha256": "53bbe14d3b7fe696a5cc06c76c0c9f919bb240724f1b17a7e70359b0214d8d64",
+          "bytes": 28071
+        },
+        {
+          "path": "ground_truth/records/historic/bettendorff_compendio.jsonl",
+          "sha256": "74709246dae50c1e7e59385af11b019fb135a135a48e5238aea6b5127960997e",
+          "bytes": 7742
+        },
+        {
+          "path": "historic/AGENTS.md",
+          "sha256": "51e17758dd7657a6678aa9fcbf75ce067dcb8221bfc506dec209e80b6403284a",
+          "bytes": 1546
+        },
+        {
+          "path": "historic/__init__.py",
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+          "bytes": 1
+        },
+        {
+          "path": "historic/araujo_catecismo_1686.tu.py",
+          "sha256": "357b7e643d8ffe8e4c0386e3232016400be4421158b2668a4ab2e896a2a90a23",
+          "bytes": 8987
+        },
+        {
+          "path": "historic/bettendorff_compendio.tu.py",
+          "sha256": "b219700ac49b37ccd8b6132ea3d24c86d1b24b51e164107821963781aeb567f4",
+          "bytes": 4385
+        },
+        {
+          "path": "historic/lexicon.py",
+          "sha256": "290bad236236bcdc34181bf3a1c5d959d24c423f233081c7548a566e75e5fe8a",
+          "bytes": 1166
+        },
+        {
+          "path": "historic/lexicon.tu.py",
+          "sha256": "369ef98e9a3034661c9eb5bb944b109e2f3017858ad765e90cd146170268e6a0",
+          "bytes": 14090
+        },
+        {
+          "path": "historic/primary_sources.py",
+          "sha256": "6d1b5e878635411729c0e28d11780849645811ededd06dd60b813c6a1b6e929f",
+          "bytes": 1780
+        }
+      ],
+      "localArchive": {
+        "path": ".local/dependencies/oldtupicorpus-relevant.tar.gz",
+        "sha256": "68d502de8957b97231cb6cc94dc344f825f65729c1658e1dd10925ac5154a0b1",
+        "bytes": 30347
+      }
+    },
+    {
+      "name": "nhe-enga",
+      "path": "/Users/kian/code/nhe-enga",
+      "revision": "348686045bf0791c847be3cba1b15eaae7312a11",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:93147a2ad2162d4c8f8d54d60a2b3cf532645d6ccf47a2ea033d71c1c4a8bada",
+      "status": " M AGENT_NOTES.md\n M docs/agent/grammar-navigation.md\n M pydicate/pydicate/lang/tupilang/pos/deverbal.py\n M pydicate/pydicate/lang/tupilang/pos/noun.py\n M pydicate/pydicate/lang/tupilang/pos/number.py\n M pydicate/pydicate/lang/tupilang/pos/verb.py\n M tupi/tupi/noun.py\n M tupi/tupi/verb.py\n",
+      "dirtyPatch": {
+        "path": "docs/design/dependency-patches/nhe-enga.patch",
+        "sha256": "07f0d1a9dff14329f6545ca4d04bf13747bc8abc3a78ce76b6eabf0ea3def031"
+      },
+      "files": [
+        {
+          "path": "pydicate/MANIFEST.in",
+          "sha256": "605beda3aec17a7714a7dc3300d8310a754a29fd452bfd5bc3bb52e98a873495",
+          "bytes": 64
+        },
+        {
+          "path": "pydicate/pydicate/__init__.py",
+          "sha256": "11894129d8b61ab621ea344e0ba816db2c2ed2c45c562c21c51820adeba242d7",
+          "bytes": 101
+        },
+        {
+          "path": "pydicate/pydicate/compiler/__init__.py",
+          "sha256": "3c3dee1cdfac33476378235e779223cd82c45df36aa06f0f52d43ce861fec64c",
+          "bytes": 950
+        },
+        {
+          "path": "pydicate/pydicate/compiler/__main__.py",
+          "sha256": "3d2438ae92f4746e9ffaa1f837b1fe803f6281091d1f31f8c95643716f257d9a",
+          "bytes": 80
+        },
+        {
+          "path": "pydicate/pydicate/compiler/cli.py",
+          "sha256": "5532b9c83a4d59f8ea7397e25842001d0d953294484b14fd6a5786701d55799e",
+          "bytes": 34492
+        },
+        {
+          "path": "pydicate/pydicate/compiler/constraints.py",
+          "sha256": "3652c2cebb22619859448d624a747719b72c9cef33e6a529c07c0ecdc3bec4db",
+          "bytes": 5636
+        },
+        {
+          "path": "pydicate/pydicate/compiler/ir.py",
+          "sha256": "7047e55f5a444a267f18b4596877f1110179af2fe1156a28cf1601748f868698",
+          "bytes": 1381
+        },
+        {
+          "path": "pydicate/pydicate/compiler/lexeme_normalization.csv",
+          "sha256": "131bb52a13df5985eee9dde657aae538b6cf39f648404d4bb4705f921c55acd6",
+          "bytes": 76
+        },
+        {
+          "path": "pydicate/pydicate/compiler/lexicon.py",
+          "sha256": "4ed1754d370626331fcf2ee48ed6f911c1b5c3ef75bc4538561d8b43a969f35f",
+          "bytes": 2757
+        },
+        {
+          "path": "pydicate/pydicate/compiler/normalize.py",
+          "sha256": "2940acd05cb8f718b0438299afcabd8fcd0c7e01c1de132cf26810ccc4f7c70c",
+          "bytes": 1419
+        },
+        {
+          "path": "pydicate/pydicate/compiler/pretty.py",
+          "sha256": "e456b8842e68c5d9cacba5e2b4d302cd624c91262af74ee8605fb48fc1e387b7",
+          "bytes": 18297
+        },
+        {
+          "path": "pydicate/pydicate/compiler/registry.py",
+          "sha256": "a360fbd5d38de0e53560a44e6c7df1c38a8f5deb4c0336ed0a2fbbd67ba1d9e2",
+          "bytes": 3022
+        },
+        {
+          "path": "pydicate/pydicate/compiler/scoring.py",
+          "sha256": "7b606f1814da91d145563371695ce0d27d6006bd96f6e7a41ff80a6370b05300",
+          "bytes": 4831
+        },
+        {
+          "path": "pydicate/pydicate/compiler/search.py",
+          "sha256": "6dd622c54acfd386b7120fd36b3de0216cd4758b647146bfb60b1f02129de9e8",
+          "bytes": 82290
+        },
+        {
+          "path": "pydicate/pydicate/compiler/synthetic.py",
+          "sha256": "7e7f2c916f0e8d8dbf43673f11d7113ebef50702f90bdf6391e8e3234f9aff79",
+          "bytes": 2681
+        },
+        {
+          "path": "pydicate/pydicate/compiler/tokens.py",
+          "sha256": "447dd5057eb1923fbc93605c4138647a79055306438c6d379f1c14b0ab0adec5",
+          "bytes": 5224
+        },
+        {
+          "path": "pydicate/pydicate/dbexplorer.py",
+          "sha256": "5e9e7730b16aeda0b2f7355019bed6e1f111a017ce3669e2a1a1266a896df71f",
+          "bytes": 12250
+        },
+        {
+          "path": "pydicate/pydicate/lang/__init__.py",
+          "sha256": "5cd14681bf5858fb22a8c0f0ed847831ff5f11f2aeec5fbc3db01bb07fd3ce39",
+          "bytes": 37
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/__init__.py",
+          "sha256": "ca7960b4ad419f6d28a3b088352bb2855cb52d40ed46743429aaaf4151d882b7",
+          "bytes": 43
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/data/dict-conjugated.json.gz",
+          "sha256": "1625811b904caf1de3465724b817ff7592d78f9838f5e7aeba5bbb65833ea70d",
+          "bytes": 2151607
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/nouns.py",
+          "sha256": "2dcca3711e6ebbb73fde8e4012e5c6c32c5da68ed0822953b6363a7c62d86352",
+          "bytes": 181
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/__init__.py",
+          "sha256": "4b2d8c417d7a5c31c80e44d1a5642c1560157e055a2d052f3babf4e6414db24c",
+          "bytes": 1154
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/adverb.py",
+          "sha256": "6d135d785599414a36ec11c46208fad1f5cc50ce8bbe94fa8342a06094004347",
+          "bytes": 1570
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/composition.py",
+          "sha256": "76a1b1b73dc1492c279f0815c8cdc4c73148a893d30437ddbf9ff7cbce90288f",
+          "bytes": 2115
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/copula.py",
+          "sha256": "bbdae45020489b6afc140f9fc9fe96112c494e189448f595b60a3e4914437377",
+          "bytes": 2220
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/deadverbal.py",
+          "sha256": "3c5df2c842d5b73c997d04831d369da3b06ce38fc2bcc209ff1de14bd8838c1e",
+          "bytes": 3730
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/demonstrative.py",
+          "sha256": "101dc3052a5b641af78f8627b9082d693d5d38c8eef3b6b068c8fd511aecdc47",
+          "bytes": 3240
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/deverbal.py",
+          "sha256": "82abb4e1a9dc03324bb711c54074165634543e8df6a9cb36aea2b5b842f00df5",
+          "bytes": 17190
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/interjection.py",
+          "sha256": "c635c43133586f83ccfcf27025b347a6c794fbba0cbb6bf5d1db814644956c46",
+          "bytes": 764
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/noun.py",
+          "sha256": "df8198889fae423cff746bbe432b39b044c4097ba844df89ed3b376bb94bf735",
+          "bytes": 17664
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/number.py",
+          "sha256": "ba5cdcbbfee40011cee25615dec0143b656768a7524a2b855c4df1cdb1092b33",
+          "bytes": 5920
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/particle.py",
+          "sha256": "4cbddd64c98fee4a5f53a53f4ba1b15859157153f30bfc78a294e031d74abd35",
+          "bytes": 1262
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/postposition.py",
+          "sha256": "f7907a4ef7bd4fc1a92c18db555b43957fafb249d1fc099b090edac486b3b2f3",
+          "bytes": 10556
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/verb.py",
+          "sha256": "51aac546f926196d5c81809623323bc7ab1d2499a8090675d00083d0cabb268f",
+          "bytes": 28448
+        },
+        {
+          "path": "pydicate/pydicate/lang/tupilang/pos/y_fix.py",
+          "sha256": "b8f96cbb6c7172e349a6c7ffdf54b5f47919176589c467cdcb633c7d9a711dc2",
+          "bytes": 587
+        },
+        {
+          "path": "pydicate/pydicate/predicate.py",
+          "sha256": "f1015ba64ff14afaca6b406ab7a8c2775d9c84686df404db5aeb15c2b719064a",
+          "bytes": 67087
+        },
+        {
+          "path": "pydicate/pydicate/trackable.py",
+          "sha256": "fb0820157c5ffe04ecc5f892553b69adb50819c6ea4c0192556f3c341d3bad73",
+          "bytes": 1016
+        },
+        {
+          "path": "pydicate/pydicate/tupi_only.db",
+          "sha256": "69668a352b15a84f83d4c289289817294d7df757274edee48338df239b6e14a7",
+          "bytes": 24739840
+        },
+        {
+          "path": "pydicate/setup.py",
+          "sha256": "70b539dd08766b4c7198229e4fbb16d77aaab10f513e2efd5f33e46e72746b89",
+          "bytes": 579
+        },
+        {
+          "path": "tupi/AGENTS.md",
+          "sha256": "921d706e65e32ad73ff1bf2e2c3a315cd710d37175b03a975e60c323b10fe27d",
+          "bytes": 815
+        },
+        {
+          "path": "tupi/editirreg.html",
+          "sha256": "c86a8126e1acec81e83561adbe36b0208c13f43db47eed9a640641b26c740565",
+          "bytes": 17345
+        },
+        {
+          "path": "tupi/irreg_test.py",
+          "sha256": "d78d69c9407aecbc9ec7b39f938c4ce1c9d87c9668897e55df23e9314a37b51c",
+          "bytes": 14812
+        },
+        {
+          "path": "tupi/setup.py",
+          "sha256": "0bd56ed5186b061263b0f80b6c71d8b29db60bc2e49408a52df2f3181d48d28a",
+          "bytes": 531
+        },
+        {
+          "path": "tupi/tupi/__init__.py",
+          "sha256": "be9ca184cd7b57157ce62945e5ee95a0362a2cc9059ae3d4b4b9a869100d69c2",
+          "bytes": 475
+        },
+        {
+          "path": "tupi/tupi/allophone.py",
+          "sha256": "93ed3accf7e64055eae143fc1c07174d992aadfbba7b161cf9c4f4d03e49f729",
+          "bytes": 1694
+        },
+        {
+          "path": "tupi/tupi/alt_ort/ARAUJO.csv",
+          "sha256": "a340d55821a3d680690f4da14c9418bb5622be5f54334799a7e4135bbacc340b",
+          "bytes": 462
+        },
+        {
+          "path": "tupi/tupi/alt_ort/INTETL_1.csv.old",
+          "sha256": "d5f028baf391724d4994700cf06e97137dcfe9924ba6f01f4546e7d2bef159ce",
+          "bytes": 458
+        },
+        {
+          "path": "tupi/tupi/alt_ort/JAPANESE.csv",
+          "sha256": "7e2fb94d53d94d7a12678a4d60ddfa62018146d0f065ad37e97717caf48f6770",
+          "bytes": 3481
+        },
+        {
+          "path": "tupi/tupi/alt_ort/JAPANESE.csv.old",
+          "sha256": "7e2fb94d53d94d7a12678a4d60ddfa62018146d0f065ad37e97717caf48f6770",
+          "bytes": 3481
+        },
+        {
+          "path": "tupi/tupi/alt_ort/J_INSTEAD.csv",
+          "sha256": "c25dea57979d57e52a6d083de4b122b98d9f8d603d19d7972af9fd3a83adb55b",
+          "bytes": 312
+        },
+        {
+          "path": "tupi/tupi/alt_ort/NAVARRO.csv",
+          "sha256": "825832939e2ef8c96ca218bdba4bef671273db80514ef40865bf45dfe450f147",
+          "bytes": 331
+        },
+        {
+          "path": "tupi/tupi/alt_ort/PARAGUAI.csv",
+          "sha256": "ec6fa5fc80ec8c8a0653e3cd33e7836d21b20caa6d2b9a27106ec2b32f61b3d6",
+          "bytes": 341
+        },
+        {
+          "path": "tupi/tupi/alt_ort/PHONEMIC_OT_FINBOW.csv",
+          "sha256": "f4894b72d98614b889f1be94878e25be254b92dab2cfb263a31c9b1544d7904c",
+          "bytes": 307
+        },
+        {
+          "path": "tupi/tupi/alt_ort/POTIGUARA.csv",
+          "sha256": "a4f7e2b74879ed70738f6f77830685e819a699e3ac836d9231488f489f9af4ca",
+          "bytes": 321
+        },
+        {
+          "path": "tupi/tupi/alt_ort/SEM_DIACRITICO.csv",
+          "sha256": "a7299cbdc61973a9a6d513f7388faf00d28eae3ecacb302bca2a658c7342561f",
+          "bytes": 312
+        },
+        {
+          "path": "tupi/tupi/alt_ort/TUPINAMBA.csv",
+          "sha256": "3be64f028982b044ea295e7c1f2a9a5133b57abf28439da8633bc9ea9f4b598f",
+          "bytes": 477
+        },
+        {
+          "path": "tupi/tupi/alt_ort/nasal_cluster_scores.json",
+          "sha256": "e75bacdcea615b51d7cdfc317e1bb8364d8e05b29f242ac913f20d938bff8421",
+          "bytes": 1145982
+        },
+        {
+          "path": "tupi/tupi/annotated_string.py",
+          "sha256": "672694e2c28809903b102fdbf0b90bded598e2d955474b37a526b95daab100a5",
+          "bytes": 10420
+        },
+        {
+          "path": "tupi/tupi/emit.py",
+          "sha256": "893a2bce1d7f6e181c8e95a467178bff24949bc2e807fbd355201de651c1f774",
+          "bytes": 6010
+        },
+        {
+          "path": "tupi/tupi/gpt_test.py",
+          "sha256": "8cfaf09e436b9ef88955492d4e47f26cfc32f101b9f1611418e0c671e21603f1",
+          "bytes": 19116
+        },
+        {
+          "path": "tupi/tupi/irregular.zip",
+          "sha256": "48c7a98e403c18b9655da0287fb8c01eddcf11f3f3a19b7e618025808031e955",
+          "bytes": 24242
+        },
+        {
+          "path": "tupi/tupi/irregular/'i_4605.json",
+          "sha256": "0f9d2016f1f37c367b9525ce5a77efba83f32492d3737934441dbf713b2c285d",
+          "bytes": 3346
+        },
+        {
+          "path": "tupi/tupi/irregular/'i_4606.json",
+          "sha256": "0f9d2016f1f37c367b9525ce5a77efba83f32492d3737934441dbf713b2c285d",
+          "bytes": 3346
+        },
+        {
+          "path": "tupi/tupi/irregular/'i_4607.json",
+          "sha256": "0f9d2016f1f37c367b9525ce5a77efba83f32492d3737934441dbf713b2c285d",
+          "bytes": 3346
+        },
+        {
+          "path": "tupi/tupi/irregular/'i_4608.json",
+          "sha256": "0f9d2016f1f37c367b9525ce5a77efba83f32492d3737934441dbf713b2c285d",
+          "bytes": 3346
+        },
+        {
+          "path": "tupi/tupi/irregular/'ia'ub_4879.json",
+          "sha256": "f03e3611021f84838ec0fab9802e815062ea87334b52e1cd3f3ffee3f735a5ae",
+          "bytes": 3364
+        },
+        {
+          "path": "tupi/tupi/irregular/'ikatu_5193.json",
+          "sha256": "d3b138ecb7af79b1d1b1302376e02629f47b5087db79ce25e9de5951511b0936",
+          "bytes": 2144
+        },
+        {
+          "path": "tupi/tupi/irregular/'u_10661.json",
+          "sha256": "56391f35f1209a4bc0cca8e8b76890ef8117cde04ca5ce8e40f9cf94bdd22b3a",
+          "bytes": 1672
+        },
+        {
+          "path": "tupi/tupi/irregular/eroîké_4145.json",
+          "sha256": "df0e282b33408af754b790155db5e85ad654f4cfee4aeb9876d97928b3e78b04",
+          "bytes": 791
+        },
+        {
+          "path": "tupi/tupi/irregular/ikoaibĩ_5205.json",
+          "sha256": "d182b5514c3f56003bbfa797d42bd744329947a784cdfe1fca54f59a1aa35f8f",
+          "bytes": 3517
+        },
+        {
+          "path": "tupi/tupi/irregular/ikoangaîpab_5206.json",
+          "sha256": "ea578900bd35e5135b41c2316c3ec57d247a14ab9da8727c0654957db215ec7c",
+          "bytes": 3631
+        },
+        {
+          "path": "tupi/tupi/irregular/ikoaíb_5204.json",
+          "sha256": "24922315be1a2a2c35c446e52e371fc803f24bdd2c232bc68f399f46391aebc2",
+          "bytes": 3481
+        },
+        {
+          "path": "tupi/tupi/irregular/ikobé_5208.json",
+          "sha256": "ffb56d87c36eca0743d852893fe4e5ce4bc0c10f209005130f297b1e55e3e036",
+          "bytes": 3451
+        },
+        {
+          "path": "tupi/tupi/irregular/ikoeté_5210.json",
+          "sha256": "38d4bc7792102fce61c53525b8a28f228e3fc7891a3b7bcdcb49d1d9d7f979b1",
+          "bytes": 3481
+        },
+        {
+          "path": "tupi/tupi/irregular/ikomarã_5211.json",
+          "sha256": "08b6330da430ecccd7f9c85a0fe024696491c6a18fa4b1cc791f841b76b87024",
+          "bytes": 3511
+        },
+        {
+          "path": "tupi/tupi/irregular/ikomarã_5212.json",
+          "sha256": "08b6330da430ecccd7f9c85a0fe024696491c6a18fa4b1cc791f841b76b87024",
+          "bytes": 3511
+        },
+        {
+          "path": "tupi/tupi/irregular/ikomemûã_5213.json",
+          "sha256": "996fee22d7d0952bdb01fe23f700dac5e1fe4f80fc8bfe918fbbcc7214fbb517",
+          "bytes": 3571
+        },
+        {
+          "path": "tupi/tupi/irregular/ikomemûã_5214.json",
+          "sha256": "996fee22d7d0952bdb01fe23f700dac5e1fe4f80fc8bfe918fbbcc7214fbb517",
+          "bytes": 3571
+        },
+        {
+          "path": "tupi/tupi/irregular/ikonhote_5216.json",
+          "sha256": "5a3e7f66e0786a7fabf8eb07dc2667c03d7ac1ab899b4a8739c3c18668da56ad",
+          "bytes": 3511
+        },
+        {
+          "path": "tupi/tupi/irregular/ikonhẽ_5215.json",
+          "sha256": "3e0598568a60a542d1591b95e5ba4187cb8422778be7c55425f88cb33f006645",
+          "bytes": 3503
+        },
+        {
+          "path": "tupi/tupi/irregular/ikopepu_5217.json",
+          "sha256": "5e67150e16672b71840a74eb208622b5abd8fbcdf039eec33e26d257504b374b",
+          "bytes": 3481
+        },
+        {
+          "path": "tupi/tupi/irregular/ikoporeaûsub_5218.json",
+          "sha256": "5ac024ad29484ce5949114d61118323d21999c69cf3a11cba63afa3f3abeb5e4",
+          "bytes": 3661
+        },
+        {
+          "path": "tupi/tupi/irregular/ikopotar_3889.json",
+          "sha256": "98e464f97a5915c58feeabfcc85669ea295a606ac083365ec2d356406b2d7162",
+          "bytes": 2845
+        },
+        {
+          "path": "tupi/tupi/irregular/ikopuku_5219.json",
+          "sha256": "81526c02a25e0828dcd0d93c373f526fb6fe7ab402f1857b3c81f8633e594755",
+          "bytes": 3481
+        },
+        {
+          "path": "tupi/tupi/irregular/ikotebẽ_5220.json",
+          "sha256": "48acb8a8d69c01efbdf45347d074ba89ac0550b5446b0d1bb9fa43674b6abd05",
+          "bytes": 3521
+        },
+        {
+          "path": "tupi/tupi/irregular/ikotebẽ_5221.json",
+          "sha256": "48acb8a8d69c01efbdf45347d074ba89ac0550b5446b0d1bb9fa43674b6abd05",
+          "bytes": 3521
+        },
+        {
+          "path": "tupi/tupi/irregular/ikotebẽ_5222.json",
+          "sha256": "48acb8a8d69c01efbdf45347d074ba89ac0550b5446b0d1bb9fa43674b6abd05",
+          "bytes": 3521
+        },
+        {
+          "path": "tupi/tupi/irregular/ikotenhẽ_5223.json",
+          "sha256": "862032ec9874076c4d7a204fd9ad07610b902372e1fd5929e54d2c5dc3e6075b",
+          "bytes": 3571
+        },
+        {
+          "path": "tupi/tupi/irregular/ikoé_5209.json",
+          "sha256": "3522d4d24f5fdafb151e075a88458dd747c91f374aafe72d7feb4d3142f9e1b9",
+          "bytes": 3421
+        },
+        {
+          "path": "tupi/tupi/irregular/iké_5198.json",
+          "sha256": "a5b21fc3366d870ffc6789ccb5aedff32bd9b68f308a4fc39541d4d686a4a6f3",
+          "bytes": 3413
+        },
+        {
+          "path": "tupi/tupi/irregular/ikó_5203.json",
+          "sha256": "9bc14fe9df975b7c4370d51c6ed12da62d8be9cbd6a5c010a78752066c017991",
+          "bytes": 3391
+        },
+        {
+          "path": "tupi/tupi/irregular/imbé_5227.json",
+          "sha256": "db3908358de521d31ca6de663d6d59f4faf8abfba80c2f18fa9f1af4ce8a713c",
+          "bytes": 3421
+        },
+        {
+          "path": "tupi/tupi/irregular/imẽ_5230.json",
+          "sha256": "4710927559f94d95f7c0e6e5e1f1ea3765f276e0eef3058866a3f859696501fb",
+          "bytes": 3421
+        },
+        {
+          "path": "tupi/tupi/irregular/in_5232.json",
+          "sha256": "55bf7c82592a91f437ffb9dc2f99730fbdcc472458e9d453d996f37821b9ae3f",
+          "bytes": 3330
+        },
+        {
+          "path": "tupi/tupi/irregular/indé_5251.json",
+          "sha256": "eb3d05433f9c94802f012018bb77a51f1596221227620531498d31f81dd2a1ea",
+          "bytes": 3421
+        },
+        {
+          "path": "tupi/tupi/irregular/inĩote_5270.json",
+          "sha256": "a33459963a9b8b1f1f2be611cfc1418fd5158730eda4bafd949db1be5dff39a3",
+          "bytes": 3462
+        },
+        {
+          "path": "tupi/tupi/irregular/ityk_5454.json",
+          "sha256": "ed8967e3f110f4075a1f0f1766d4c634857bf78811a51df456f913e16c30ebde",
+          "bytes": 11291
+        },
+        {
+          "path": "tupi/tupi/irregular/manõ_6549.json",
+          "sha256": "75eaa0b6a848da626e16a497266b6e168ac7da7c8858872cd96d091d36d749b5",
+          "bytes": 3391
+        },
+        {
+          "path": "tupi/tupi/irregular/poti_9062.json",
+          "sha256": "6bf31e7626fe060774bd7fe30637a8f2ba98a7e34c4075fd40606723510cebb3",
+          "bytes": 1902
+        },
+        {
+          "path": "tupi/tupi/irregular/pynõ_9278.json",
+          "sha256": "d08f3b444d9393ed1cc34d13bece349e3e4c1dca414efd685d8a675bacf3c437",
+          "bytes": 1701
+        },
+        {
+          "path": "tupi/tupi/irregular/só_9644.json",
+          "sha256": "fd2d01865b8ce018dec7a65aeb8a1235c220001b0f10ed259a65571d5a4bf6a7",
+          "bytes": 286
+        },
+        {
+          "path": "tupi/tupi/irregular/ytarõ_11457.json",
+          "sha256": "843ee23bdb05da4394a601a4f81c8a36b32e96026249d3dfacacd9ab8409b724",
+          "bytes": 1511
+        },
+        {
+          "path": "tupi/tupi/irregular/îar_4792.json",
+          "sha256": "ae6e806a601fdca75ed478cd464dfd2674ee29b12f7f294f5de0bccb663fc5a7",
+          "bytes": 9462
+        },
+        {
+          "path": "tupi/tupi/irregular/îub_5467.json",
+          "sha256": "f858db8a76b7b68cd1f7bc47bb0186cfec67a19e528f297f2252b71f758e544d",
+          "bytes": 1652
+        },
+        {
+          "path": "tupi/tupi/irregular/îubé_5472.json",
+          "sha256": "f2cd36376f02605b14a631758619a57d6389b6dbf207543f0524cb596cb5bb28",
+          "bytes": 1886
+        },
+        {
+          "path": "tupi/tupi/irregular/îubĩ_5473.json",
+          "sha256": "612705203fc12a37786bca6ba1168b6a9de88c3dbf6d5a7f4280630b34d9bc6a",
+          "bytes": 1886
+        },
+        {
+          "path": "tupi/tupi/irregular/îubĩote_5474.json",
+          "sha256": "1d522b994a53e89aef37b8f3cba2c421d845b6000efb1aa5f33c9b5beae9adfe",
+          "bytes": 1934
+        },
+        {
+          "path": "tupi/tupi/irregular/îur_5528.json",
+          "sha256": "e3d125db0199042a66312103716a0cb48924fc33d6e1c95ad779e39517c6fc8a",
+          "bytes": 1862
+        },
+        {
+          "path": "tupi/tupi/irregverb.py",
+          "sha256": "24dd6b0ae5d1823363599922ecce726960dbc1b6efe5aa379d0263982412b4cc",
+          "bytes": 185
+        },
+        {
+          "path": "tupi/tupi/noun.py",
+          "sha256": "3590efff98e92f7d0281f571581f3ca9207b194c56de54279175993e951ed486",
+          "bytes": 36104
+        },
+        {
+          "path": "tupi/tupi/orth.py",
+          "sha256": "c5dc683c5c4197d4fb475fa807f5f81f4adbe035040ddbbf4b4ba13f856b9222",
+          "bytes": 3891
+        },
+        {
+          "path": "tupi/tupi/tupi.py",
+          "sha256": "d4c218eb0fea31d0fc89479f5de85e268533b0d1c2d8f23c01f59bc2a8459113",
+          "bytes": 23019
+        },
+        {
+          "path": "tupi/tupi/verb.py",
+          "sha256": "82ffd8462a82c0350cde4947cf4d30adb2fe90ef28c3173671ba0fd1f28a0654",
+          "bytes": 41279
+        }
+      ],
+      "localArchive": {
+        "path": ".local/dependencies/nhe-enga-relevant.tar.gz",
+        "sha256": "82779fb0fe311fa3037e6f1200c64bd5f482530e996dd3008472df146bfbddbd",
+        "bytes": 6504039
+      }
+    }
+  ],
+  "reproduction": "Checkout each recorded revision, apply corresponding checked-in binary patch; optionally overlay gitignored relevant-files archive while retaining clone .git. No upstream files or index were modified."
+}

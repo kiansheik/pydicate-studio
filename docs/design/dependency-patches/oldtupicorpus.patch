@@ -1,0 +1,13 @@
+diff --git a/historic/lexicon.tu.py b/historic/lexicon.tu.py
+index 78ea7bd..55500d3 100644
+--- a/historic/lexicon.tu.py
++++ b/historic/lexicon.tu.py
+@@ -325,7 +325,7 @@ potaba = Noun("potaba", definition="(m) porção, parte")
+ tupapotaba = tupan * potaba
+ ypy = Noun("ypy", definition="início, primeiro, começar, começo")
+ îasuk = Verb("îasuk", definition="batizar-se, lavar-se")
+-moîasuk = mo * îasuk
++moîasuk = mbo * îasuk
+ 
+ __all__ = [
+     name for name in globals() if not name.startswith("_") and name not in {"os", "sys"}

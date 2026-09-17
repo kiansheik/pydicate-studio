@@ -1,4 +1,8 @@
-# Initial operation inventory
+# Operation inventory
+
+The current full-source inventory is in [the Araújo matrix](../coverage/araujo.md), with direct and transitive operators, methods, helpers and dependencies in [machine-readable coverage](../coverage/araujo.json). Its syntax, span, runtime and UI measures are separate. The table below records the original 0067-only baseline and is retained as implementation history; it is not the current capability list.
+
+## Original baseline
 
 This inventory describes Studio coverage, not everything Pydicate can express. Unknown source is retained for inspection and can receive independent reading/translation/note drafts. A syntax match alone does not grant full visual editing; detected contextual redefinitions of the slice's lexical names make it read-only.
 

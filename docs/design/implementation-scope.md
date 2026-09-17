@@ -1,40 +1,25 @@
-# Initial implementation boundaries
+# Implemented scope and remaining boundaries
 
-The supplied [design brief](pydicate-studio-design.md) is the product direction. The repository currently provides a developer-run reading desk and one typed authoring construction. It is a partial implementation of stages 0, 1, and 2; the design's release acceptance gates remain open.
+The initial 0067-only implementation at `0af3937` has been extended in place. Araújo is the active source; Bettendorff is excluded. [Current state](../agent/current-state.md) and [coverage](../coverage/araujo.md) describe the verified version; the supplied product design remains the wider roadmap.
 
-| Area | Available now | Remaining gate |
-|---|---|---|
-| Stage 0: project setup | Node dependency lock, read-only clone discovery, repository content fingerprints, observed compatibility record, focused tests | Clean reproducible engine/corpus pair, managed Python runtime, fresh contributor setup |
-| Stage 1: reading desk | Passage navigation/search, source metadata, session image/PDF consultation, independent readings/translations/notes, saved/current comparison | Durable witness files and page/region bindings, source-aware editorial metadata integration, colleague task acceptance |
-| Stage 2: authoring slice | Fixed `apiti / nde / moro` construction, subject visibility, imperative/indicative mood, outer negation, engine projections, autosave/reopen, undo, contribution export | Shared authoring representation, lexical lookup, lossless source edit/export/reimport, authoritative review integration |
-| Stages 3–5 | Unknown expressions remain inspectable and independently annotatable | Full grammar coverage, embedded providers, isolated grammar repair, contributor installation, assignments and collaboration |
+## Authoring and identity
 
-## Source, reference, draft, and evaluation
+Original bytes, editable raw text, recursive construction cards, lexical references and runtime projections are separate. Raw text is authoritative while incomplete; valid parses and runtime-enriched trees are accepted only for the requesting revision. UTF-16 span edits preserve grouping; whole-file AST formatting is never used. Runtime roles come from the selected engine, not operator characters. Unknown constructs remain intact with diagnostics and a clear Python adapter extension point.
 
-The desktop discovers `oldtupicorpus` and `nhe-enga` below the chosen parent directory. The Python adapter reads top-level historic source lists and additions using the AST and original text, without importing corpus modules. A broken source produces a diagnostic while other documents remain available; a project with no readable passages is rejected without replacing active project state.
+Source-side IDs use a supported `# @note studio:v1` extension. Existing unmarked entries use a persistent sequence registry; unrelated edits and unambiguous insertions preserve IDs. Ambiguous identical insertions retain the old draft as an orphan rather than silently assigning it. New reading drafts reserve their eventual source identity before an analysis exists. Reference records remain the upstream sequential editorial workflow, with legacy provenance distinguished from explicit new approval.
 
-Saved JSONL surfaces are paired with source expressions through the corpus's existing ordinal convention. Their provenance remains legacy/unknown. This positional association does not establish that an externally reordered or changed source still corresponds to its saved reference. Regeneration, baseline repair, and editorial acceptance are not exposed.
+## Source, drafts and evidence
 
-Drafts contain independent diplomatic and normalized readings, translations, notes, and the supported typed analysis. They are stored separately from the canonical corpus. Contribution export records the selected source expression/fingerprint, reference provenance, draft, evaluation, and repository versions with `editorialApproval: null`. Export does not publish, approve, or write back into the corpus.
+Atomic local draft saves accept invalid/empty analysis and editorial fields. Applying source is separate: a concrete diff, source/dependency freshness checks, atomic replacement and recovery bytes. Metadata changes replace only edited adjacent directives. Unsupported multiline scalar source metadata is kept as a draft rather than silently truncated. PDF region storage uses unrotated PDF points and a managed fingerprinted asset; source comments contain the stable pointer. Scholarly locators stay human-editable beside the expression.
 
-Local passage UUIDs are maintained in a Studio-owned sidecar. A unique unchanged expression retains its ID after moving. An expression changed externally receives a new ID; previous draft data is retained and requires reassociation review. Repeated identical expressions receive conservative identities scoped to the source content version. This protects against silently attaching a draft to a different expression, but it does not satisfy the future durable corpus identity migration. IDs are not promised to survive canonical source correction.
+Verification does not approve. Explicit reference approval delegates upstream sequencing/target rules and uses an atomic persistence sink. Git sharing exports a reviewable binary patch, including local source/reference differences; it does not commit or push on the contributor's behalf. Managed PDF assets, local drafts and private AI history are not silently included in the patch.
 
-Each draft has a revision ID. The renderer displays evaluations only when draft revision and engine fingerprint match. Live rendering validates the structured request, imports the known engine API in a fresh Python child, and checks relevant content fingerprints before and after evaluation. Refreshing a project reads current source and engine contents again. File watching, automatic merging, and a complete source conflict-resolution interface are not implemented.
+## Providers and distribution
 
-## Compatibility and fidelity
+Codex App Server and Claude Messages streaming adapters are implemented. Codex generation was authenticated and exercised; Claude authentication works but generation is blocked by account credit. Results bind project, passage, revision and model/context; accepting one is a human action. The current provider context includes textual evidence and PDF coordinates, not page pixels. Grammar repair assistance creates a separate proposed response, without automatic engine mutation.
 
-[compatibility.local.json](compatibility.local.json) records an observed dirty local engine/corpus pair and Python runtime. It verifies the eight combinations of subject visibility, imperative/indicative mood, and negation for the `apiti / nde / moro` slice. Browser mode selects checked-in outputs from that evaluation; it does not implement Tupi realization rules in TypeScript.
+The developer desktop uses installed Node/Python and sibling repositories. Exact dirty dependency contents are recorded in a manifest and patches. An installer, bundled interpreter, portable PDF contribution bundle and automated remote pull-request publishing remain outside this version. Native validation used a vector PDF fixture; rare PDF codec/resource combinations and the user's actual historical scan are not certified by that fixture.
 
-The corpus and engine revisions are accompanied by hashes of relevant tracked and nonignored untracked file contents. The combined realization fingerprint also includes interpreter identity and Studio adapter implementation. These hashes detect changes; they do not distribute the uncommitted dependency contents or turn HEAD-only checkouts into a reproducible setup. The entire corpus was not imported, rendered, regenerated, or approved as part of the compatibility claim.
+## Evidence standard
 
-Original expressions, unknown syntax, and inner comments are retained for inspection, and corpus source bytes are never rewritten. Structural round-trip checks cover only the eight typed construction combinations. This is not a concrete-syntax source editing adapter with full import/export coverage.
-
-Morpheme text/tags come from actual engine annotations. Tree nodes and Portuguese explanations represent the explicitly supported construction. They are not a general trace of arbitrary engine internals or complete lexical semantics.
-
-## Desktop and persistence
-
-Electron's main process owns file access, the directory picker, Python lifecycle, and draft files. The renderer is sandboxed with context isolation and has a narrow validated preload bridge. Desktop drafts use serialized atomic file replacement; malformed saved data is retained and reported instead of overwritten. Browser mode stores separate example drafts in `localStorage`.
-
-Consultation images and PDFs are session attachments. Persistent witness selection, automatic scan downloads, printed/PDF page mapping, and region selection are pending. The initial app has no embedded Codex/Claude provider, credential flow, review service, Git synchronization, background dependency installation, or packaged installer.
-
-See [operation inventory](operation-inventory.md), [desktop details](../../electron/README.md), and [Python details](../../python/README.md) for narrower contracts and commands. Test and session results are recorded in [the agent log](../agent/log.md).
+[Coverage](../coverage/araujo.json) keeps parse/tree/span/evaluation/structural/UI checks distinct. [Critic reviews](../reviews/) contain findings, corrections and limits from three different rounds. Equality to a historical surface never implies editorial approval or structural equivalence.

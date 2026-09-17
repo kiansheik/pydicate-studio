@@ -1,0 +1,222 @@
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #202925;
+  --border: #414c43;
+  --muted: #b3c1b2;
+  --green: #a6d0b0;
+  --green-light: #304535;
+  color: #e2e8dc;
+  background: #18211c;
+}
+[data-theme='dark'] .studio-app,
+[data-theme='dark'] .app-layout,
+[data-theme='dark'] .desk {
+  background: #18211c;
+  color: #e2e8dc;
+}
+[data-theme='dark']
+  :is(.app-header, .workspace-footer, .analysis-pane, .project-dialog, .project-details) {
+  background: #202925;
+  color: #e2e8dc;
+  border-color: #414c43;
+  box-shadow: none;
+}
+[data-theme='dark'] :is(.navigator, .desk-header, .app-status, .source-pane) {
+  background: #19251f;
+  border-color: #414c43;
+  color: #d9e2d1;
+}
+[data-theme='dark']
+  :is(
+    .search-box,
+    .work-modes,
+    .reference-surface,
+    .generated-surface,
+    .selection-note,
+    .teaching-note,
+    .clause-card,
+    .clause-inner,
+    .morpheme,
+    .tree-node,
+    .expression-code,
+    .project-option,
+    .review-item,
+    .constituent-editor
+  ) {
+  background: #26362b;
+  border-color: #485947;
+  color: #dbe7d3;
+}
+[data-theme='dark']
+  :is(
+    h1,
+    h2,
+    h3,
+    .brand,
+    .brand strong,
+    .workspace-title h2,
+    .section-intro h2,
+    .lexeme,
+    .phrase-gloss,
+    .phrase-question,
+    .phrase-question > span,
+    .phrase-footer,
+    .operation-row strong,
+    .operation-row small,
+    .selection-body strong,
+    .selection-body p,
+    .selection-realization > span,
+    .passage-reading,
+    .passage-status,
+    .surface-label,
+    .surface-caption,
+    .agreement-bar,
+    .agreement-bar strong,
+    .agreement-exact,
+    .breadcrumbs strong,
+    .breadcrumbs span,
+    .source-meta strong,
+    .source-meta > span,
+    .pane-heading > span,
+    .quiet-label,
+    .field-hint,
+    .teaching-note strong,
+    .teaching-note p,
+    .save-status,
+    .editor-label,
+    .reading-fields label,
+    .quick-note label,
+    .timeline strong,
+    .timeline p,
+    .timeline small,
+    .review-item > p,
+    .review-item > span,
+    .projection-tabs button,
+    .navigator-bottom strong,
+    .navigator-bottom p,
+    .source-group,
+    .navigator-filter button,
+    .source-attachment small,
+    .source-toolbar,
+    .text-button,
+    .repository strong,
+    .repository small,
+    .repository code,
+    .project-details > p,
+    .project-dialog > p,
+    .dialog-footnote,
+    .project-option p,
+    .selection-label,
+    .selection-realization small
+  ) {
+  color: #c3d4b8 !important;
+}
+[data-theme='dark'] :is(input, textarea, select) {
+  background: #17241d !important;
+  color: #e7ecdf !important;
+  border-color: #53654f !important;
+}
+[data-theme='dark'] :is(input, textarea)::placeholder {
+  color: #a7b69b !important;
+}
+[data-theme='dark'] :is(.button, .phrase-card, .tag) {
+  background: #293b2e;
+  border-color: #53654f;
+  color: #dce8d1;
+}
+[data-theme='dark'] .button.primary {
+  background: #aed1a7;
+  color: #152319;
+  border-color: #aed1a7;
+}
+[data-theme='dark']
+  :is(
+    button:hover:not(:disabled),
+    .work-modes button.active,
+    .navigator-filter button.active,
+    .passage-item.active,
+    .author-node-heading.is-selected,
+    .phrase-card.is-selected,
+    .morpheme.is-selected,
+    .tree-node.is-selected
+  ) {
+  background: #3a523a;
+  color: #eef5e5;
+  border-color: #a2c394;
+}
+[data-theme='dark'] .comparison-grid p {
+  color: #d3e8c4;
+}
+[data-theme='dark'] .generated-surface p {
+  color: #b6e3ab;
+}
+[data-theme='dark']
+  :is(.tag.amber, .clause-card.negated, .scope-label, .generated-surface.different) {
+  background: #3a3424;
+  border-color: #6d6042;
+  color: #f0d39c;
+}
+[data-theme='dark'] .scope-label span {
+  color: #e2c894;
+}
+[data-theme='dark'] .inline-error,
+[data-theme='dark'] .error-banner {
+  background: #4a3028;
+  color: #ffdac2;
+}
+[data-theme='dark'] .notice {
+  background: #29442f;
+  color: #c2e8bc;
+}
+[data-theme='dark'] .projection-tabs button.active {
+  color: #d6ecc8 !important;
+  border-bottom-color: #aed395;
+}
+[data-theme='dark']
+  :is(
+    .projection-tabs,
+    .operation-row,
+    .phrase-footer,
+    .agreement-separator,
+    .quick-note textarea,
+    .timeline > div,
+    .source-group,
+    .navigator-filter,
+    .navigator-bottom,
+    .source-toolbar
+  ) {
+  border-color: #41513b;
+}
+[data-theme='dark'] .icon-button {
+  color: #b7cba9;
+}
+[data-theme='dark'] .source-stage {
+  background: #121b17;
+}
+[data-theme='dark'] .reference-leaf {
+  color: #5b5846;
+  background: #fcf9ef;
+}
+[data-theme='dark'] .reference-leaf * {
+  color: inherit !important;
+}
+[data-theme='dark'] .early-label {
+  background: #33432f;
+  color: #bfcea8;
+}
+[data-theme='dark'] .source-width-control {
+  color: #b8caaa;
+}
+[data-theme='dark'] .work-modes button {
+  color: #b4c7a7;
+}
+[data-theme='dark'] .app-status {
+  color: #b6c4a9;
+}
+[data-theme='dark'] .pdf-evidence {
+  --evidence-bg: #202925;
+  --evidence-ink: #e2e8dc;
+  --evidence-border: #52634b;
+  --evidence-muted: #bccbad;
+}
+/* A historical image or PDF canvas is never inverted or recolored by the theme. */

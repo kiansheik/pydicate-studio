@@ -1,0 +1,431 @@
+{
+  "checkedAt": "2026-09-17T03:04:54Z",
+  "resource": "/Users/kian/code/nhe-enga/pydicate/pydicate/tupi_only.db",
+  "sha256": "69668a352b15a84f83d4c289289817294d7df757274edee48338df239b6e14a7",
+  "databaseUnchanged": true,
+  "queries": [
+    {
+      "query": "apiti",
+      "total": 34,
+      "exactApiMatches": 1,
+      "results": [
+        {
+          "id": "navarro:3158:b320e657933f6c6c",
+          "vid": 3158,
+          "headword": "apiti",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 3158 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:3160:a7e8301e03827258",
+          "vid": 3160,
+          "headword": "apiti'yba",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 3160 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        },
+        {
+          "id": "navarro:3159:874bd5ddd16fc77a",
+          "vid": 3159,
+          "headword": "'apititinga",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 3159 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-partial"
+        },
+        {
+          "id": "navarro:9986:d7ef2a5341ab47e7",
+          "vid": 9986,
+          "headword": "TAPITI",
+          "suggestedCategory": null,
+          "citation": "Navarro · verbete 9986 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-partial"
+        },
+        {
+          "id": "navarro:4560:bf183a273b18f4de",
+          "vid": 4560,
+          "headword": "gûyrapitinga",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 4560 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-partial"
+        }
+      ]
+    },
+    {
+      "query": "matar",
+      "total": 56,
+      "exactApiMatches": 0,
+      "results": [
+        {
+          "id": "navarro:4605:64dc0952bc8839b3",
+          "vid": 4605,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4605 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:4605:f02f14b9ab80d655",
+          "vid": 4605,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4605 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:10661:46ebacb2f911aa89",
+          "vid": 10661,
+          "headword": "'u",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 10661 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:3712:35e2bb6b16685969",
+          "vid": 3712,
+          "headword": "-bor",
+          "suggestedCategory": null,
+          "citation": "Navarro · verbete 3712 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:8500:e1dc78fb3a827150",
+          "vid": 8500,
+          "headword": "-pe",
+          "suggestedCategory": "Postposition",
+          "citation": "Navarro · verbete 8500 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        }
+      ]
+    },
+    {
+      "query": "casa",
+      "total": 202,
+      "exactApiMatches": 0,
+      "results": [
+        {
+          "id": "navarro:3151:8837b68b53990b92",
+          "vid": 3151,
+          "headword": "'apiramõ",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 3151 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:4605:64dc0952bc8839b3",
+          "vid": 4605,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4605 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:4605:f02f14b9ab80d655",
+          "vid": 4605,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4605 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:5193:1d1c85a45c716360",
+          "vid": 5193,
+          "headword": "'ikatu",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5193 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:5193:92c179eaf9dc5602",
+          "vid": 5193,
+          "headword": "'ikatu",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5193 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        }
+      ]
+    },
+    {
+      "query": "îuka",
+      "total": 127,
+      "exactApiMatches": 1,
+      "results": [
+        {
+          "id": "navarro:5489:bf932ef0b0ab71e7",
+          "vid": 5489,
+          "headword": "îuka",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 5489 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:5491:05e5d4bd24b1d077",
+          "vid": 5491,
+          "headword": "îuká",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5491 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:5493:171b187eb085e343",
+          "vid": 5493,
+          "headword": "îuká",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5493 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:5497:7eca68859b99e3e8",
+          "vid": 5497,
+          "headword": "îukatu",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5497 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        },
+        {
+          "id": "navarro:5496:7defd0fc0f71604f",
+          "vid": 5496,
+          "headword": "îukaíb",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5496 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        }
+      ]
+    },
+    {
+      "query": "iuka",
+      "total": 127,
+      "exactApiMatches": 0,
+      "results": [
+        {
+          "id": "navarro:5489:bf932ef0b0ab71e7",
+          "vid": 5489,
+          "headword": "îuka",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 5489 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:5491:05e5d4bd24b1d077",
+          "vid": 5491,
+          "headword": "îuká",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5491 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:5493:171b187eb085e343",
+          "vid": 5493,
+          "headword": "îuká",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5493 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:5497:7eca68859b99e3e8",
+          "vid": 5497,
+          "headword": "îukatu",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5497 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        },
+        {
+          "id": "navarro:5496:7defd0fc0f71604f",
+          "vid": 5496,
+          "headword": "îukaíb",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 5496 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        }
+      ]
+    },
+    {
+      "query": "potar",
+      "total": 113,
+      "exactApiMatches": 1,
+      "results": [
+        {
+          "id": "navarro:9058:a49a08a46d7044bb",
+          "vid": 9058,
+          "headword": "potar",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 9058 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:9059:66eacd26b330fef3",
+          "vid": 9059,
+          "headword": "potarĩ",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 9059 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        },
+        {
+          "id": "navarro:3889:d8a0b7789a6e9913",
+          "vid": 3889,
+          "headword": "ekopotar",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 3889 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-partial"
+        },
+        {
+          "id": "navarro:4232:b33b8354416e2cc4",
+          "vid": 4232,
+          "headword": "esaraîpotara",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 4232 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-partial"
+        },
+        {
+          "id": "navarro:3889:ef360d18bdd4ff87",
+          "vid": 3889,
+          "headword": "ikopotar",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 3889 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-partial"
+        }
+      ]
+    },
+    {
+      "query": "querer",
+      "total": 36,
+      "exactApiMatches": 0,
+      "results": [
+        {
+          "id": "navarro:3406:1c1d4c0b28c56042",
+          "vid": 3406,
+          "headword": "'areté",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 3406 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:4605:64dc0952bc8839b3",
+          "vid": 4605,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4605 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:4605:f02f14b9ab80d655",
+          "vid": 4605,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4605 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:4606:391014fffcc32c5b",
+          "vid": 4606,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4606 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        },
+        {
+          "id": "navarro:4606:52841f00eb14c26a",
+          "vid": 4606,
+          "headword": "'i",
+          "suggestedCategory": "Verb",
+          "citation": "Navarro · verbete 4606 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "definition"
+        }
+      ]
+    },
+    {
+      "query": "tupã",
+      "total": 449,
+      "exactApiMatches": 2,
+      "results": [
+        {
+          "id": "navarro:10521:2b930cd3d096f962",
+          "vid": 10521,
+          "headword": "Tupã",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10521 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:10520:318bd3dc7ccedcfd",
+          "vid": 10520,
+          "headword": "tupã",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10520 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:10523:ae3551e42390c7ec",
+          "vid": 10523,
+          "headword": "tupã",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10523 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:10537:5d225d2e6157f0e3",
+          "vid": 10537,
+          "headword": "TUPÃOKA",
+          "suggestedCategory": null,
+          "citation": "Navarro · verbete 10537 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        },
+        {
+          "id": "navarro:10535:5e6424ef16df4cd0",
+          "vid": 10535,
+          "headword": "Tupana",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10535 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        }
+      ]
+    },
+    {
+      "query": "tupa",
+      "total": 449,
+      "exactApiMatches": 0,
+      "results": [
+        {
+          "id": "navarro:10521:2b930cd3d096f962",
+          "vid": 10521,
+          "headword": "Tupã",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10521 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:10520:318bd3dc7ccedcfd",
+          "vid": 10520,
+          "headword": "tupã",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10520 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:10523:ae3551e42390c7ec",
+          "vid": 10523,
+          "headword": "tupã",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10523 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-exact"
+        },
+        {
+          "id": "navarro:10537:5d225d2e6157f0e3",
+          "vid": 10537,
+          "headword": "TUPÃOKA",
+          "suggestedCategory": null,
+          "citation": "Navarro · verbete 10537 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        },
+        {
+          "id": "navarro:10535:5e6424ef16df4cd0",
+          "vid": 10535,
+          "headword": "Tupana",
+          "suggestedCategory": "Noun",
+          "citation": "Navarro · verbete 10535 · nhe-enga/pydicate/pydicate/tupi_only.db",
+          "match": "headword-prefix"
+        }
+      ]
+    }
+  ]
+}

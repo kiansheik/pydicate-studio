@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-17T02:54:32.821Z",
+  "productionOrigin": "studio://app/index.html",
+  "temporaryDirectory": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-Dl429W",
+  "sourcePolicy": "User corpus copied with dirty content; all writes target disposable copy. Engine symlink used only for reads.",
+  "stages": [
+    {
+      "name": "startup-isolation",
+      "startedAt": "2026-09-17T02:54:32.913Z",
+      "status": "passed",
+      "evidence": {
+        "count": 82,
+        "selectedOrdinal": 67,
+        "repositories": [
+          {
+            "name": "oldtupicorpus",
+            "path": "/private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-Dl429W/projects/oldtupicorpus",
+            "revision": "292a28722a1790abf3f3b93083c29fbd47b4ffd0",
+            "branch": "main",
+            "dirty": true,
+            "fingerprint": "sha256:ef4eebecaac3cd85c09a2a92aec5284e234be6bae8e944a80500faa648c100ed"
+          },
+          {
+            "name": "nhe-enga",
+            "path": "/private/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-native-next-Dl429W/projects/nhe-enga",
+            "revision": "348686045bf0791c847be3cba1b15eaae7312a11",
+            "branch": "main",
+            "dirty": true,
+            "fingerprint": "sha256:93147a2ad2162d4c8f8d54d60a2b3cf532645d6ccf47a2ea033d71c1c4a8bada"
+          }
+        ],
+        "engineFingerprint": "sha256:4acc85c7e054126ab7491863cc1a3ae8a308726e70d7eb679e6f33df6965e3c7",
+        "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'",
+        "sandbox": true,
+        "darkDefault": true
+      },
+      "finishedAt": "2026-09-17T02:54:35.161Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/01-startup-isolation.png"
+    },
+    {
+      "name": "construction-families",
+      "startedAt": "2026-09-17T02:54:35.310Z",
+      "status": "failed",
+      "error": "expect(locator).not.toHaveText(expected) failed\n\nLocator: getByTestId('generated-surface')\nExpected pattern: not /Avaliando|Sem resultado|Não foi possível/\nReceived string: \"Não foi possível avaliar\"\nTimeout: 25000ms\n\nCall log:\n  - Expect \"not toHaveText\" getByTestId('generated-surface') with timeout 25000ms\n  - waiting for getByTestId('generated-surface')\n    4 × locator resolved to <p lang=\"tpw\" data-testid=\"generated-surface\">Avaliando…</p>\n      - unexpected value \"Avaliando…\"\n    50 × locator resolved to <p lang=\"tpw\" data-testid=\"generated-surface\">Não foi possível avaliar</p>\n       - unexpected value \"Não foi possível avaliar\"\n",
+      "finishedAt": "2026-09-17T02:55:00.377Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/02-construction-families.png"
+    },
+    {
+      "name": "invalid-draft-save-restart",
+      "startedAt": "2026-09-17T02:55:00.541Z",
+      "status": "failed",
+      "error": "expect(locator).not.toHaveText(expected) failed\n\nLocator: getByTestId('generated-surface')\nExpected pattern: not /Avaliando|Sem resultado|Não foi possível/\nReceived string: \"Não foi possível avaliar\"\nTimeout: 25000ms\n\nCall log:\n  - Expect \"not toHaveText\" getByTestId('generated-surface') with timeout 25000ms\n  - waiting for getByTestId('generated-surface')\n    4 × locator resolved to <p lang=\"tpw\" data-testid=\"generated-surface\">Avaliando…</p>\n      - unexpected value \"Avaliando…\"\n    50 × locator resolved to <p lang=\"tpw\" data-testid=\"generated-surface\">Não foi possível avaliar</p>\n       - unexpected value \"Não foi possível avaliar\"\n",
+      "finishedAt": "2026-09-17T02:55:27.378Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/03-invalid-draft-save-restart.png"
+    },
+    {
+      "name": "pdf-native-canvas-regions",
+      "startedAt": "2026-09-17T02:55:27.584Z",
+      "status": "passed",
+      "evidence": {
+        "pdfCoordinates": [
+          100,
+          300,
+          260,
+          399.9999915241825
+        ],
+        "nativePickerControlled": true,
+        "productionPdfJsCanvas": true,
+        "rotation": 90,
+        "zoom": 1.5,
+        "restartAndNavigationPreserved": true,
+        "asset": {
+          "id": "37752044f280567c5e07b338879d9d58a40d69cf7957ff1651a66f9e715ae0c3",
+          "name": "witness-original.pdf",
+          "bytes": 609,
+          "fingerprint": "37752044f280567c5e07b338879d9d58a40d69cf7957ff1651a66f9e715ae0c3",
+          "managedState": "ok",
+          "originalState": "ok"
+        }
+      },
+      "finishedAt": "2026-09-17T02:55:29.687Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/04-pdf-native-canvas-regions.png"
+    },
+    {
+      "name": "dictionary-sense-definition-apply",
+      "startedAt": "2026-09-17T02:55:30.078Z",
+      "status": "failed",
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('button', { name: 'Usar esta acepção', exact: true }).first()\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" getByRole('button', { name: 'Usar esta acepção', exact: true }).first() with timeout 20000ms\n  - waiting for getByRole('button', { name: 'Usar esta acepção', exact: true }).first()\n",
+      "finishedAt": "2026-09-17T02:55:50.143Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/05-dictionary-sense-definition-apply.png"
+    },
+    {
+      "name": "reuse-compound-reference",
+      "startedAt": "2026-09-17T02:55:50.312Z",
+      "status": "failed",
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('button', { name: 'Inspecionar / reutilizar', exact: true }).first()\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" getByRole('button', { name: 'Inspecionar / reutilizar', exact: true }).first() with timeout 20000ms\n  - waiting for getByRole('button', { name: 'Inspecionar / reutilizar', exact: true }).first()\n",
+      "finishedAt": "2026-09-17T02:56:10.392Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/06-reuse-compound-reference.png"
+    },
+    {
+      "name": "reviewed-source-writeback",
+      "startedAt": "2026-09-17T02:56:10.560Z",
+      "status": "failed",
+      "error": "expect(locator).not.toHaveText(expected) failed\n\nLocator: getByTestId('generated-surface')\nExpected pattern: not /Avaliando|Sem resultado|Não foi possível/\nReceived string: \"Não foi possível avaliar\"\nTimeout: 25000ms\n\nCall log:\n  - Expect \"not toHaveText\" getByTestId('generated-surface') with timeout 25000ms\n  - waiting for getByTestId('generated-surface')\n    4 × locator resolved to <p lang=\"tpw\" data-testid=\"generated-surface\">Avaliando…</p>\n      - unexpected value \"Avaliando…\"\n    49 × locator resolved to <p lang=\"tpw\" data-testid=\"generated-surface\">Não foi possível avaliar</p>\n       - unexpected value \"Não foi possível avaliar\"\n",
+      "finishedAt": "2026-09-17T02:56:35.606Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/07-reviewed-source-writeback.png"
+    },
+    {
+      "name": "new-passage-ui",
+      "startedAt": "2026-09-17T02:56:35.770Z",
+      "status": "failed",
+      "error": "expect(locator).toBeVisible() failed\n\nLocator: getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true }) with timeout 5000ms\n  - waiting for getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true })\n",
+      "finishedAt": "2026-09-17T02:56:40.845Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/08-new-passage-ui.png"
+    },
+    {
+      "name": "provider-ui-configuration",
+      "startedAt": "2026-09-17T02:56:40.993Z",
+      "status": "failed",
+      "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Assistência IA', exact: true })\u001b[22m\n\u001b[2m    - locator resolved to <button class=\"\">Assistência IA</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div role=\"dialog\" aria-modal=\"true\" class=\"review-overlay\" aria-label=\"Nova passagem\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div role=\"dialog\" aria-modal=\"true\" class=\"review-overlay\" aria-label=\"Nova passagem\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div role=\"dialog\" aria-modal=\"true\" class=\"review-overlay\" aria-label=\"Nova passagem\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+      "finishedAt": "2026-09-17T02:57:10.995Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/09-provider-ui-configuration.png"
+    },
+    {
+      "name": "external-source-conflict",
+      "startedAt": "2026-09-17T02:57:11.193Z",
+      "status": "failed",
+      "error": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.passage-item').filter({ has: locator('.ordinal').filter({ hasText: /^0067$/ }) })\u001b[22m\n\u001b[2m    - locator resolved to <button aria-current=\"page\" class=\"passage-item active\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div role=\"dialog\" aria-modal=\"true\" class=\"review-overlay\" aria-label=\"Nova passagem\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div role=\"dialog\" aria-modal=\"true\" class=\"review-overlay\" aria-label=\"Nova passagem\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div role=\"dialog\" aria-modal=\"true\" class=\"review-overlay\" aria-label=\"Nova passagem\">…</div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+      "finishedAt": "2026-09-17T02:57:41.213Z",
+      "screenshot": "docs/coverage/native-screenshots-first-run/10-external-source-conflict.png"
+    }
+  ],
+  "pageErrors": [],
+  "originalCorpusUnchanged": {
+    "historic/araujo_catecismo_1686.tu.py": true,
+    "historic/lexicon.tu.py": true,
+    "ground_truth/records/historic/araujo_catecismo_1686.jsonl": true
+  },
+  "finishedAt": "2026-09-17T02:57:41.523Z",
+  "passed": false
+}

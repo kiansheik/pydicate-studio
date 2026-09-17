@@ -1,0 +1,52 @@
+{
+  "stages": [
+    {
+      "name": "interrupted-source-replacement",
+      "status": "passed",
+      "evidence": {
+        "originalBytesIntact": true,
+        "recoveryJournalExists": true,
+        "temporaryFilesLeft": 0
+      }
+    },
+    {
+      "name": "recovery-restores-source-bytes",
+      "status": "passed",
+      "evidence": {
+        "byteExactRecovery": true
+      }
+    },
+    {
+      "name": "explicit-duplicate-reordering",
+      "status": "passed",
+      "evidence": {
+        "sameExpressionsMoveWithExplicitIdentity": true,
+        "notesFollowIdentity": true,
+        "restartRetainsIdentity": true
+      }
+    },
+    {
+      "name": "ambiguous-unmarked-duplicate-insertion",
+      "status": "passed",
+      "evidence": {
+        "ambiguousOriginalRetainedForReassociation": "passage:4e0f0376-fe85-48bf-82ff-e859e877e5be",
+        "newIdsDoNotClaimAmbiguousOriginal": true,
+        "diagnostics": [
+          "Referências salvas são bases legadas por posição; não comprovam aprovação humana nem correspondência com alterações externas.",
+          "O editor preserva a sintaxe concreta; capacidades estruturais e realização da gramática são verificadas separadamente.",
+          "Identidades locais preservam alinhamentos inequívocos; alterações e duplicatas ambíguas recebem novos vínculos para preservar rascunhos anteriores.",
+          "araujo_catecismo_1686.tu.py: 3 expressão(ões) sem referência salva; nenhuma referência foi gerada."
+        ]
+      }
+    },
+    {
+      "name": "selected-engine-content-mismatch",
+      "status": "passed",
+      "evidence": {
+        "changedSelectedEngineRejected": "STALE_ENGINE",
+        "originalEngineUntouched": true
+      }
+    }
+  ],
+  "boundary": "No provider egress or historical source writes; engine and corpus copies include current dirty files."
+}

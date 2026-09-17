@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-09-17T02:43:13.924Z",
+  "realAuthenticated": true,
+  "corpusRead": false,
+  "corpusWritten": false,
+  "credentialsLogged": false,
+  "checks": [
+    {
+      "provider": "codex",
+      "model": "gpt-6-astra",
+      "status": "completed",
+      "error": null,
+      "streamedDeltas": 1,
+      "response": "{\"translation\":\"\",\"explanation\":\"Na anotação fornecida, OBJECT indica a função de objeto, e 1ps indica a primeira pessoa do singular. Portanto, o marcador identifica um objeto de primeira pessoa, não um sujeito; isoladamente, não informa quem é o sujeito.\",\"expression\":\"\",\"rationale\":\"\",\"regressions\":[]}",
+      "inputHash": "d5c683073dd7bb2b23f8d39c5be447ccd989091ed6409d7434a12ef414763fa4",
+      "providerResponseId": "01a0ad3f-3001-71c3-b9e4-3fb513e18475/01a0ad3f-307c-7360-a313-47d87ce985b1",
+      "startedAt": "2026-09-17T02:43:14.483Z",
+      "finishedAt": "2026-09-17T02:43:26.410Z",
+      "usage": null,
+      "persisted": true
+    },
+    {
+      "provider": "claude",
+      "model": "claude-haiku-4-5-20251001",
+      "status": "failed",
+      "error": "Claude: HTTP 400. Confira conta, workspace e disponibilidade da API.",
+      "streamedDeltas": 0,
+      "response": "",
+      "inputHash": "d5c683073dd7bb2b23f8d39c5be447ccd989091ed6409d7434a12ef414763fa4",
+      "startedAt": "2026-09-17T02:43:26.419Z",
+      "finishedAt": "2026-09-17T02:43:26.789Z",
+      "persisted": true
+    }
+  ],
+  "authentication": [
+    {
+      "id": "codex",
+      "state": "authenticated",
+      "detail": "Autenticação chatgpt reconhecida pelo Codex local; geração ainda depende do acesso ao modelo."
+    },
+    {
+      "id": "claude",
+      "state": "authenticated",
+      "detail": "Autenticação confirmada pela API de modelos."
+    }
+  ],
+  "diagnosticCheck": {
+    "checkedAt": "2026-09-17T02:46:49.607570+00:00",
+    "provider": "claude",
+    "operation": "POST /v1/messages, minimal Reply only OK prompt",
+    "httpStatus": 400,
+    "message": "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.",
+    "interpretation": "Credentials authenticated successfully for GET /v1/models. Real generation remains externally blocked by account credit balance."
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "startedAt": "2026-09-17T03:22:55.423Z",
+  "temp": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/critic-round3-5n7u0r",
+  "stages": [
+    {
+      "name": "pending-reading-blank-raw-pdf-restart",
+      "evidence": {
+        "pendingId": "pending:7943a5bf-ff22-4f43-968f-71a522351cfc",
+        "permanentId": "passage:7943a5bf-ff22-4f43-968f-71a522351cfc",
+        "raw": "",
+        "rect": "79.9999933476669,359.99998669533386,240.0000133046662,479.99999334766693",
+        "fieldsAndPdfRestored": true,
+        "sourceCount": 82
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-3-screenshots/01-pending-reading-blank-raw-pdf-restart.png"
+    },
+    {
+      "name": "pending-invalid-save-and-reviewed-migration",
+      "evidence": {
+        "permanentId": "passage:7943a5bf-ff22-4f43-968f-71a522351cfc",
+        "newOrdinal": 83,
+        "sourceNotes": "Incerteza sobre uma letra R3",
+        "locators": {
+          "title": "Araújo · Catecismo",
+          "year": "1686",
+          "printedPage": "42",
+          "pdfPage": null,
+          "region": null,
+          "folio": "21v",
+          "textualLine": "3",
+          "section": "Livro I. Dos primeiros elementos da Fé Christãa, Summa dos mysterios, & doutrina Christãa",
+          "subsection": "Sacramentos. Sete Santa Madre Igreja Sacramentos."
+        },
+        "pdfSurvivesMigrationAndRestart": true,
+        "pendingRemovedOnlyAfterApply": true,
+        "ownWriteFalseWarning": false
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-3-screenshots/02-pending-invalid-save-and-reviewed-migration.png"
+    },
+    {
+      "name": "reviewed-preview-rejects-external-source-change",
+      "evidence": {
+        "writeRejected": true,
+        "externalBytesPreserved": true
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-3-screenshots/03-reviewed-preview-rejects-external-source-change.png"
+    },
+    {
+      "name": "external-metadata-conflict-compare-reconcile",
+      "evidence": {
+        "sourceTranslation": "Tradução EXTERNA R3",
+        "draftTranslation": "Tradução humana pendente R3",
+        "metadataShownBeforeRebase": true,
+        "sourceStillExternal": true
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-3-screenshots/04-external-metadata-conflict-compare-reconcile.png"
+    },
+    {
+      "name": "reviewed-source-recovery-restores-exact-bytes",
+      "evidence": {
+        "sourceBytesRestored": true,
+        "reviewedRecovery": true
+      },
+      "status": "passed",
+      "screenshot": "docs/reviews/round-3-screenshots/05-reviewed-source-recovery-restores-exact-bytes.png"
+    }
+  ],
+  "pageErrors": [],
+  "policy": "Production Electron with disposable full dirty corpus copy; selected engine read-only symlink.",
+  "finishedAt": "2026-09-17T03:23:15.691Z"
+}

@@ -90,7 +90,12 @@ class PythonWorker {
         typeof message.error?.message === 'string'
           ? message.error.message.slice(0, 16_384)
           : 'O serviço Python não conseguiu completar a tarefa.';
-      pending.reject(new Error(messageText));
+      const error = new Error(messageText);
+      error.code =
+        typeof message.error?.code === 'string' && /^[A-Z_]{1,64}$/.test(message.error.code)
+          ? message.error.code
+          : 'ENGINE_ERROR';
+      pending.reject(error);
     } else {
       pending.resolve(message.result);
     }
@@ -98,7 +103,37 @@ class PythonWorker {
 
   request(method, params) {
     if (this.failed) return Promise.reject(this.failed);
-    if (!['open_project', 'refresh_project', 'render'].includes(method))
+    if (
+      ![
+        'open_project',
+        'refresh_project',
+        'render',
+        'parse_expression',
+        'evaluate_expression',
+        'predicate_catalog',
+        'predicate_create',
+        'source_preview',
+        'source_new_preview',
+        'source_apply',
+        'source_recover',
+        'source_recovery_list',
+        'lexicon_search',
+        'structure_search',
+        'structure_resolve',
+        'lexicon_inspect',
+        'lexicon_create',
+        'lexicon_update',
+        'dictionary_search',
+        'dictionary_lookup',
+        'dictionary_predicate',
+        'assistant_context',
+        'reference_verify',
+        'reference_approve',
+        'reference_status',
+        'passage_lexicon',
+        'contribution_prepare',
+      ].includes(method)
+    )
       return Promise.reject(new Error('Operação desconhecida.'));
     if (this.pending.size >= 32)
       return Promise.reject(
@@ -128,6 +163,7 @@ class PythonWorker {
 
   fail(error) {
     if (this.failed) return;
+    error.code ||= 'WORKER_UNAVAILABLE';
     this.failed = error;
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
