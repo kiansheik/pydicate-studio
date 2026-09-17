@@ -1,0 +1,356 @@
+{
+  "schemaVersion": 1,
+  "engineFingerprint": "sha256:e9de94d21c96a009aa7001279a1ce7d0da659a9636730aeddd40314245b3496d",
+  "repositories": [
+    {
+      "name": "oldtupicorpus",
+      "path": "../oldtupicorpus",
+      "revision": "292a28722a1790abf3f3b93083c29fbd47b4ffd0",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:ef4eebecaac3cd85c09a2a92aec5284e234be6bae8e944a80500faa648c100ed"
+    },
+    {
+      "name": "nhe-enga",
+      "path": "../nhe-enga",
+      "revision": "348686045bf0791c847be3cba1b15eaae7312a11",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:93147a2ad2162d4c8f8d54d60a2b3cf532645d6ccf47a2ea033d71c1c4a8bada"
+    }
+  ],
+  "snapshots": [
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": false,
+        "mood": "imperative",
+        "negated": false
+      },
+      "expression": "(nde * apiti * moro).imp()",
+      "surface": "endé eporoapiti",
+      "annotated": "endé[SUBJECT:2ps] e[IMPERATIVE_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT]",
+      "morphemes": [
+        {
+          "text": "endé",
+          "tag": "SUBJECT:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "e",
+          "tag": "IMPERATIVE_PREFIX:2ps",
+          "nodeId": "mood",
+          "explanation": "Marca o imperativo dirigido à segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apiti",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        }
+      ]
+    },
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": false,
+        "mood": "imperative",
+        "negated": true
+      },
+      "expression": "-(nde * apiti * moro).imp()",
+      "surface": "endé eporoapiti umẽ",
+      "annotated": "endé[SUBJECT:2ps] e[IMPERATIVE_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT] umẽ[NEGATION_PARTICLE:UME]",
+      "morphemes": [
+        {
+          "text": "endé",
+          "tag": "SUBJECT:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "e",
+          "tag": "IMPERATIVE_PREFIX:2ps",
+          "nodeId": "mood",
+          "explanation": "Marca o imperativo dirigido à segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apiti",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        },
+        {
+          "text": "umẽ",
+          "tag": "NEGATION_PARTICLE:UME",
+          "nodeId": "negation",
+          "explanation": "Marca a negação da oração."
+        }
+      ]
+    },
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": false,
+        "mood": "indicative",
+        "negated": false
+      },
+      "expression": "(nde * apiti * moro)",
+      "surface": "endé ereporoapiti",
+      "annotated": "endé[SUBJECT:2ps] ere[SUBJECT_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT]",
+      "morphemes": [
+        {
+          "text": "endé",
+          "tag": "SUBJECT:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "ere",
+          "tag": "SUBJECT_PREFIX:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apiti",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        }
+      ]
+    },
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": false,
+        "mood": "indicative",
+        "negated": true
+      },
+      "expression": "-(nde * apiti * moro)",
+      "surface": "endé nereporoapiti",
+      "annotated": "endé[SUBJECT:2ps] n[NEGATION_PREFIX]ere[SUBJECT_PREFIX:2ps]poro[OBJECT:gen]apit[ROOT]i[NEGATION_SUFFIX:VOWEL_ENDING]",
+      "morphemes": [
+        {
+          "text": "endé",
+          "tag": "SUBJECT:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "n",
+          "tag": "NEGATION_PREFIX",
+          "nodeId": "negation",
+          "explanation": "Marca a negação da oração."
+        },
+        {
+          "text": "ere",
+          "tag": "SUBJECT_PREFIX:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apit",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        },
+        {
+          "text": "i",
+          "tag": "NEGATION_SUFFIX:VOWEL_ENDING",
+          "nodeId": "negation",
+          "explanation": "Marca a negação da oração."
+        }
+      ]
+    },
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": true,
+        "mood": "imperative",
+        "negated": false
+      },
+      "expression": "(+nde * apiti * moro).imp()",
+      "surface": "eporoapiti",
+      "annotated": "e[IMPERATIVE_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT]",
+      "morphemes": [
+        {
+          "text": "e",
+          "tag": "IMPERATIVE_PREFIX:2ps",
+          "nodeId": "mood",
+          "explanation": "Marca o imperativo dirigido à segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apiti",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        }
+      ]
+    },
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": true,
+        "mood": "imperative",
+        "negated": true
+      },
+      "expression": "-(+nde * apiti * moro).imp()",
+      "surface": "eporoapiti umẽ",
+      "annotated": "e[IMPERATIVE_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT] umẽ[NEGATION_PARTICLE:UME]",
+      "morphemes": [
+        {
+          "text": "e",
+          "tag": "IMPERATIVE_PREFIX:2ps",
+          "nodeId": "mood",
+          "explanation": "Marca o imperativo dirigido à segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apiti",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        },
+        {
+          "text": "umẽ",
+          "tag": "NEGATION_PARTICLE:UME",
+          "nodeId": "negation",
+          "explanation": "Marca a negação da oração."
+        }
+      ]
+    },
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": true,
+        "mood": "indicative",
+        "negated": false
+      },
+      "expression": "(+nde * apiti * moro)",
+      "surface": "ereporoapiti",
+      "annotated": "ere[SUBJECT_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT]",
+      "morphemes": [
+        {
+          "text": "ere",
+          "tag": "SUBJECT_PREFIX:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apiti",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        }
+      ]
+    },
+    {
+      "analysis": {
+        "kind": "imperative",
+        "predicate": "apiti",
+        "subject": "nde",
+        "object": "moro",
+        "hiddenSubject": true,
+        "mood": "indicative",
+        "negated": true
+      },
+      "expression": "-(+nde * apiti * moro)",
+      "surface": "nereporoapiti",
+      "annotated": "n[NEGATION_PREFIX]ere[SUBJECT_PREFIX:2ps]poro[OBJECT:gen]apit[ROOT]i[NEGATION_SUFFIX:VOWEL_ENDING]",
+      "morphemes": [
+        {
+          "text": "n",
+          "tag": "NEGATION_PREFIX",
+          "nodeId": "negation",
+          "explanation": "Marca a negação da oração."
+        },
+        {
+          "text": "ere",
+          "tag": "SUBJECT_PREFIX:2ps",
+          "nodeId": "subject",
+          "explanation": "Marca o participante de segunda pessoa."
+        },
+        {
+          "text": "poro",
+          "tag": "OBJECT:gen",
+          "nodeId": "object",
+          "explanation": "Objeto humano genérico: gente, pessoas."
+        },
+        {
+          "text": "apit",
+          "tag": "ROOT",
+          "nodeId": "predicate",
+          "explanation": "Raiz do predicado apiti."
+        },
+        {
+          "text": "i",
+          "tag": "NEGATION_SUFFIX:VOWEL_ENDING",
+          "nodeId": "negation",
+          "explanation": "Marca a negação da oração."
+        }
+      ]
+    }
+  ]
+}
