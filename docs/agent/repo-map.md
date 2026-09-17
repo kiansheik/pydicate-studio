@@ -25,6 +25,7 @@
 - `NodeEvaluation` in `domain/authoring.ts`, expression projection and runtime-tree preview helpers: revision-checked intermediate forms, full selected results, explicit empty/value/unavailable states, Unicode-safe display wrapping and layout bounds.
 - `src/components/WorkspaceLayout.tsx`, `src/domain/workspace.ts`, `src/workspace.css`, `src/workbench.css`: persistent dock positions/sizes, stable mounted panes, compact primary editor and narrow-screen pane navigation.
 - `src/components/PassageLexicon.tsx`, `src/domain/passage-lexicon.ts`, `src/passage-lexicon.css`: recursive active inventory, general/occurrence interpretation notes and project notebook export.
+- `src/components/SourceReviewContent.tsx`: default human review summaries, revision-matched draft output, compact definitions/field changes and optional exact technical diffs.
 - `src/components/GroundTruthPanel.tsx`, `DraftArchive.tsx`: source-before-reference confirmation and searchable preserved-draft recovery.
 - `src/components/DictionaryTab.tsx`, `dictionary-tab.css`: persistent local-site iframe, explicit refresh and strict selected-entry messaging. `DictionaryEntryCreation.tsx` shares exact-sense/constructor/partial-result handling with the piece palette.
 - `src/components/PieceSearch.tsx`, `PredicatePalette.tsx`, `LexicalInput.tsx`: shared natural search, direct inline canvas insertion, reuse-first ordering, Navarro fallback, retained queries, stale-choice invalidation and secondary manual constructor/code entry. `useStudio.insertPiece` preserves the main tree and provides one-step undo for inserted loose pieces.
@@ -40,6 +41,8 @@
 - `electron/provider-{service,codex,claude,rpc,context}.cjs`: main-process transports, durable validated history, provenance, cancellation and read-only MCP context.
 - `python/adapter.py`, `worker.py`: source imports, actual repository/content fingerprints, stable identity reconciliation and JSONL dispatch.
 - `python/studio_authoring.py`: concrete spans, recursive syntax/capability adapter and authoritative upstream comment parsing.
+- `python/lexical_publication.py`: read-only literal predicate promotion, exact-identity reuse, deterministic headword naming/collisions, and engine evidence preservation; runtime child action feeds reviewed source publication.
+- `python/reviewed_files.py`: staged multi-file writes, durable before/after recovery journal, byte guards and reverse rollback; `authoring_service.py` builds both diffs and supports mixed interruption recovery.
 - `python/authoring_service.py`: explicit source/lexicon edits, preview/stale/recovery protocol, verification, reference acceptance and Git patch preparation.
 - `python/authoring_runtime.py`: fresh selected-engine context, bounded contributor expression interpretation, isolated per-step evaluation snapshots, partial branch realization and engine-frame diagnostics, typed roles, lexical/helper introspection and authoritative approval sink.
 - `python/navarro_search.py`: actual NavarroDB/SQLite headword and Portuguese search, distinct sense identities and provenance.

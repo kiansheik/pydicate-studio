@@ -16,6 +16,7 @@ def _staged(path, content):
     descriptor, temporary = tempfile.mkstemp(prefix='.' + path.name + '.studio-', dir=path.parent)
     try:
         with os.fdopen(descriptor, 'wb') as handle:
+            os.fchmod(handle.fileno(), path.stat().st_mode & 0o777)
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
@@ -48,7 +49,13 @@ def apply_reviewed_files(changes, journal_path, journal, error):
     completed = []
     try:
         for item in changed:
-            staged.append((item, _staged(item['path'], item['after']), _staged(item['path'], item['before'])))
+            replacement = _staged(item['path'], item['after'])
+            try:
+                backup = _staged(item['path'], item['before'])
+            except BaseException:
+                os.unlink(replacement)
+                raise
+            staged.append((item, replacement, backup))
         # Recheck the whole set after staging, before the first replacement.
         for item in changes:
             if item['path'].read_bytes() != item['before']:

@@ -55,7 +55,10 @@ def _candidates(node):
 
 
 def _value(node, namespace):
-    return interpret(node, isolated_namespace(namespace, node), {})
+    # Source execution references lexical objects directly. Passing a cards
+    # collector would invoke the UI-only occurrence copy, whose internal noun
+    # self-links need not match a fresh constructor despite identical grammar.
+    return interpret(node, isolated_namespace(namespace, node))
 
 
 def _evidence(value):
@@ -63,8 +66,20 @@ def _evidence(value):
         raise ValueError('A entrada não resulta em um predicado.')
     structural = fingerprint(shape(value))
     snapshot = evaluation_snapshot(value)
-    return {'structure': structural, 'surface': str(snapshot.eval()),
-            'annotated': str(snapshot.eval(annotated=True))}
+    result = {'structure': structural}
+    stage = 'surface'
+    try:
+        result['surface'] = str(snapshot.eval())
+        stage = 'annotated'
+        result['annotated'] = str(snapshot.eval(annotated=True))
+        result['evaluationStatus'] = 'complete'
+    except Exception as error:
+        # Some lexical types only realize when attached. Their exact state and
+        # matching isolated failure are still stronger evidence than spelling.
+        result.update(evaluationStatus='partial', error={
+            'type': type(error).__module__ + '.' + type(error).__qualname__,
+            'stage': stage, 'message': str(error)})
+    return result
 
 
 def _headword(constructor, value):
@@ -129,7 +144,7 @@ def prepare_lexical_publication(payload, corpus):
     raw = payload['raw']
     syntax = parse_ast(raw)
     candidates = list(_candidates(syntax))
-    result = {'raw': raw, 'declarations': [], 'reused': [], 'replacements': [], 'diagnostics': []}
+    result = {'raw': raw, 'declarations': [], 'reused': [], 'replacements': [], 'diagnostics': [], 'unpromoted': []}
     if not candidates:
         return result
     source_id = payload['sourceId']
@@ -158,10 +173,15 @@ def prepare_lexical_publication(payload, corpus):
             if _evidence(copied) != evidence:
                 raise ValueError('O construtor tem outro significado no léxico compartilhado.')
         except Exception as error:
-            result['diagnostics'].append(f'{constructor.func.id}: construção mantida na passagem ({str(error)[:240]}).')
+            reason = f'{constructor.func.id}: construção mantida na passagem ({str(error)[:240]}).'
+            result['diagnostics'].append(reason)
+            result['unpromoted'].append({'expression': original_expression, 'reason': reason})
             continue
         identity = fingerprint(evidence)
         headword = _headword(constructor, original)
+        definition = getattr(original, 'definition', '')
+        if not isinstance(definition, str):
+            definition = ''
         slug = lexical_slug(headword, constructor.func.id)
         name = planned.get(identity)
         if name is None:
@@ -184,14 +204,16 @@ def prepare_lexical_publication(payload, corpus):
             if name is not None:
                 if name not in reused_names:
                     result['reused'].append({'name': name, 'expression': original_expression,
-                                             'headword': headword, 'lexicalFingerprint': identity})
+                                             'headword': headword, 'definition': definition,
+                                             'lexicalFingerprint': identity})
                     reused_names.add(name)
             else:
                 name = _available_name(slug, identity, occupied)
                 occupied.add(name)
                 published[name] = copied
                 result['declarations'].append({'name': name, 'expression': expression,
-                                                'headword': headword, 'lexicalFingerprint': identity,
+                                                'headword': headword, 'definition': definition,
+                                                'lexicalFingerprint': identity,
                                                 **({'definitionOverride': override} if override is not None else {})})
             planned[identity] = name
         start = position(raw, node.lineno, node.col_offset)
@@ -215,4 +237,6 @@ def prepare_lexical_publication(payload, corpus):
                 raise ValueError('A promoção lexical alterou a avaliação da passagem; nenhuma alteração foi preparada.') from error
             if before != after:
                 raise ValueError('A promoção lexical alterou a estrutura ou a realização da passagem; nenhuma alteração foi preparada.')
+            if before['evaluationStatus'] == 'partial':
+                result['diagnostics'].append('A expressão completa ainda não realiza; sua estrutura e a falha de avaliação foram preservadas.')
     return result

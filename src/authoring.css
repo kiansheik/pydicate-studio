@@ -275,6 +275,90 @@
 .review-overlay button {
   margin: 8px 10px 0 0;
 }
+.source-review-result {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--green-light);
+}
+.source-review-result h3,
+.source-review-words h3,
+.source-review-changes h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.source-review-result p {
+  margin: 0;
+  font: 21px/1.6 var(--serif);
+}
+.source-review-words,
+.source-review-changes {
+  margin: 20px 0;
+}
+.source-review-words > p {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+.source-review-words ul {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+.source-review-words li {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.source-review-words li > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.source-review-words li > div span,
+.source-review-changes dd span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.source-review-words li p,
+.source-review-changes dd p {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+.review-overlay .source-review-full-definition {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.source-review-changes dl {
+  margin: 0;
+}
+.source-review-changes dl > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 3fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.source-review-changes dt {
+  font-weight: 600;
+}
+.source-review-changes dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.source-review-before {
+  color: var(--muted);
+}
+.source-review-technical {
+  border-top: 1px solid var(--border);
+  margin: 18px 0 8px;
+}
+.source-review-technical > summary {
+  color: var(--muted);
+  font-size: 12px;
+}
 .source-review-lexicon,
 .source-review-file {
   margin-top: 20px;

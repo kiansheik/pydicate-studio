@@ -106,7 +106,7 @@ interface Positioned extends TreePosition {
   address: CanvasAddress;
 }
 type Menu = { address: CanvasAddress; x: number; y: number };
-type Palette = { target?: CanvasAddress; x: number; y: number };
+type Palette = { target?: CanvasAddress; x: number; y: number; initialMode?: 'types' };
 const clip = (value: string, size = 34) =>
   value.length > size ? value.slice(0, size - 1) + '…' : value;
 const ROOT_POSITION = { x: 50, y: 80 };
@@ -560,6 +560,43 @@ export function ExpressionCanvas({
     return () => document.removeEventListener('pointerdown', dismissOutside, true);
   }, []);
   useEffect(() => {
+    const focusAddition = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        !(event.metaKey || event.ctrlKey) ||
+        event.altKey ||
+        event.key.toLowerCase() !== 'k'
+      )
+        return;
+      const editor = container.current;
+      const visible = (element: Element) =>
+        element.getClientRects().length > 0 &&
+        !element.closest('[hidden], [aria-hidden="true"], [inert]') &&
+        getComputedStyle(element).visibility !== 'hidden';
+      if (!editor || !visible(editor)) return;
+      // Workspace panes stay mounted when hidden; only the visible tree owns
+      // this shortcut, and an unrelated modal keeps its own keyboard context.
+      if (
+        [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].some(
+          (dialog) => !editor.contains(dialog) && visible(dialog),
+        )
+      )
+        return;
+      event.preventDefault();
+      setMenu(null);
+      setPalette(null);
+      setOperationPanel(null);
+      setCombination(null);
+      setStaged(null);
+      drag.current = null;
+      setDragPreview(null);
+      setNotice('');
+      pieceSearch.current?.focus({ selectAll: true });
+    };
+    document.addEventListener('keydown', focusAddition);
+    return () => document.removeEventListener('keydown', focusAddition);
+  }, []);
+  useEffect(() => {
     const id = props.selectedSourceNodeId;
     if (!id || (selected.startsWith('main:') && selected === 'main:' + id)) return;
     const main = pieces.find((piece) => piece.id === 'main');
@@ -919,65 +956,31 @@ export function ExpressionCanvas({
         </div>
         <button onClick={exportSvg}>SVG</button>
       </div>
-      <div className="canvas-piece-search" ref={pieceSearchElement}>
-        <PieceSearch
-          ref={pieceSearch}
-          label="Adicionar peça"
-          directInsert
-          passageId={props.passageId}
-          sourceId={props.sourceId}
-          engineFingerprint={props.engineFingerprint}
-          revisionId={props.revisionId}
-          contextKey={session}
-          onAdd={(expression) => addPiece(expression)}
-        />
-      </div>
       <div className="runtime-toolbar canvas-toolbar">
-        <button
-          aria-pressed={orientation === 'bottom-up'}
-          onClick={() => changeLayout('bottom-up')}
-        >
-          De baixo para cima
-        </button>
-        <button
-          aria-pressed={orientation === 'horizontal'}
-          onClick={() => changeLayout('horizontal')}
-        >
-          Da esquerda para a direita
-        </button>
-        <button
-          onClick={() => {
-            setPalette({ x: camera.x, y: camera.y });
-          }}
-        >
-          <Plus size={15} /> Adicionar peça
-        </button>
-        <form
-          className="runtime-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const keys = [...matches];
-            const index = keys.indexOf(selected);
-            const next = keys[(index + 1) % keys.length];
-            if (!next) return;
-            setSelected(next);
-            setFocusSelection(next);
-            setCollapsed(
-              (values) => new Set([...values].filter((key) => !next.startsWith(key + '/'))),
-            );
-            setCamera((value) => ({ ...value, zoom: 1 }));
-          }}
-        >
-          <Search size={15} />
-          <input
-            aria-label="Buscar na árvore"
-            placeholder="Encontrar nesta composição…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+        <div className="canvas-piece-search" ref={pieceSearchElement}>
+          <PieceSearch
+            ref={pieceSearch}
+            label="Adicionar peça"
+            directInsert
+            passageId={props.passageId}
+            sourceId={props.sourceId}
+            engineFingerprint={props.engineFingerprint}
+            revisionId={props.revisionId}
+            contextKey={session}
+            onAdd={(expression) => addPiece(expression)}
           />
-          {query && <small>{matches.size}</small>}
-          <button disabled={!matches.size}>Ir</button>
-        </form>
+          <kbd className="canvas-search-shortcut" aria-hidden="true">
+            {/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'}
+          </kbd>
+        </div>
+        <button
+          className="canvas-manual-piece"
+          onClick={() => {
+            setPalette({ x: camera.x, y: camera.y, initialMode: 'types' });
+          }}
+        >
+          Tipos de peça e código
+        </button>
         <div className="runtime-tools">
           <button
             aria-label="Desfazer edição na árvore"
@@ -1029,7 +1032,45 @@ export function ExpressionCanvas({
           </button>
         </div>
       </div>
-      <div className="runtime-options">
+      <div className="runtime-options canvas-view-options">
+        <form
+          className="runtime-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const keys = [...matches];
+            const index = keys.indexOf(selected);
+            const next = keys[(index + 1) % keys.length];
+            if (!next) return;
+            setSelected(next);
+            setFocusSelection(next);
+            setCollapsed(
+              (values) => new Set([...values].filter((key) => !next.startsWith(key + '/'))),
+            );
+            setCamera((value) => ({ ...value, zoom: 1 }));
+          }}
+        >
+          <Search size={15} />
+          <input
+            aria-label="Buscar na árvore"
+            placeholder="Encontrar nesta composição…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {query && <small>{matches.size}</small>}
+          <button disabled={!matches.size}>Ir</button>
+        </form>
+        <button
+          aria-pressed={orientation === 'bottom-up'}
+          onClick={() => changeLayout('bottom-up')}
+        >
+          De baixo para cima
+        </button>
+        <button
+          aria-pressed={orientation === 'horizontal'}
+          onClick={() => changeLayout('horizontal')}
+        >
+          Da esquerda para a direita
+        </button>
         <button onClick={() => setCollapsed(new Set())}>Expandir tudo</button>
         <button
           onClick={() => {
@@ -1054,14 +1095,6 @@ export function ExpressionCanvas({
         </span>
       </div>
       <div className="runtime-viewport canvas-viewport" ref={viewport}>
-        <button
-          className={pieces.length ? 'canvas-add-bubble' : 'canvas-empty-add'}
-          onClick={() => setPalette({ x: camera.x + 100, y: camera.y + 120 })}
-          aria-label={pieces.length ? 'Abrir paleta de peças' : 'Adicionar primeira peça'}
-        >
-          <Plus size={pieces.length ? 22 : 32} />
-          {!pieces.length && <span>Escolher a primeira peça</span>}
-        </button>
         <svg
           ref={svg}
           role="group"
@@ -1574,6 +1607,8 @@ export function ExpressionCanvas({
           >
             <h3>{palette.target ? 'Preencher este encaixe' : 'Adicionar peça'}</h3>
             <PredicatePalette
+              key={palette.initialMode ?? 'reuse'}
+              initialMode={palette.initialMode}
               passageId={props.passageId}
               sourceId={props.sourceId}
               engineFingerprint={props.engineFingerprint}

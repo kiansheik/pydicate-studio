@@ -155,6 +155,67 @@ async function blankCanvasPoint(page: Page) {
 
 test.beforeEach(() => test.skip(!hasCorpus, 'Selected local corpus is not installed'));
 
+test('the main add field replaces redundant buttons and repeated keyboard shortcuts select its query', async ({
+  page,
+}) => {
+  await openCanvas(page, 'tym');
+  const query = page.getByRole('combobox', { name: 'Adicionar peça: buscar em tupi', exact: true });
+  await expect(page.locator('.canvas-toolbar')).toContainText('Tipos de peça e código');
+  await expect(page.locator('.canvas-toolbar').getByRole('combobox')).toHaveCount(1);
+  await expect(page.locator('.canvas-view-options').getByLabel('Buscar na árvore')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Adicionar peça', exact: true })).toHaveCount(0);
+  await expect(page.locator('.canvas-add-bubble, .canvas-empty-add')).toHaveCount(0);
+  await query.fill('palavra anterior');
+  await page.evaluate(() => {
+    const outside = document.createElement('button');
+    outside.textContent = 'Controle fora da árvore';
+    outside.id = 'outside-canvas-control';
+    document.body.append(outside);
+    outside.focus();
+  });
+  for (const shortcut of ['Meta+k', 'Control+k', 'Meta+k']) {
+    await page.keyboard.press(shortcut);
+    await expect(query).toBeFocused();
+    expect(
+      await query.evaluate((input: HTMLInputElement) => [input.selectionStart, input.selectionEnd]),
+    ).toEqual([0, 'palavra anterior'.length]);
+  }
+  await page.keyboard.type('y py');
+  await expect(query).toHaveValue('y py');
+  await page.getByRole('option').filter({ hasText: 'Léxico local' }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.canvasSnapshot.canvas?.fragments))
+    .toMatchObject([{ raw: 'ypy' }]);
+  // A mounted but hidden canvas cannot claim a global shortcut. Nor can a
+  // visible one pull focus out of another feature's modal dialog.
+  for (const condition of ['hidden', 'modal']) {
+    const prevented = await page.evaluate((condition) => {
+      const editor = document.querySelector<HTMLElement>('.expression-canvas')!;
+      const outside = document.querySelector<HTMLButtonElement>('#outside-canvas-control')!;
+      if (condition === 'hidden') editor.hidden = true;
+      else {
+        editor.hidden = false;
+        const modal = document.createElement('div');
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        document.body.append(modal);
+        modal.append(outside);
+      }
+      outside.focus();
+      const event = new KeyboardEvent('keydown', {
+        key: 'k',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      outside.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, condition);
+    expect(prevented).toBe(false);
+    await expect(page.locator('#outside-canvas-control')).toBeFocused();
+  }
+});
+
 test('an open inline query survives a refreshed revision without stored text or automatic insertion', async ({
   page,
 }) => {
@@ -273,7 +334,7 @@ test('a blank canvas drag dismisses the add panel without consuming normal panni
   page,
 }) => {
   await openCanvas(page, 'tym');
-  await page.getByRole('button', { name: 'Adicionar peça', exact: true }).click();
+  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await palette.getByRole('tab', { name: 'Criar peça', exact: true }).click();
   await palette.getByRole('button', { name: 'Nome', exact: true }).click();
@@ -344,8 +405,9 @@ test('add palette searches existing structures before Navarro senses and preserv
     if (request.method !== 'dictionary_lookup') return route.fallback();
     await route.fulfill({ json: run(request.method, request.params) });
   });
-  await page.getByRole('button', { name: 'Adicionar peça', exact: true }).click();
+  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
+  await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   const query = palette.getByRole('combobox', {
     name: 'Palavra ou trecho da peça: buscar em tupi',
   });
@@ -355,7 +417,8 @@ test('add palette searches existing structures before Navarro senses and preserv
   await expect(palette.getByRole('option').first()).toContainText('Léxico local');
   await palette.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await expect(palette).not.toBeVisible();
-  await page.getByRole('button', { name: 'Adicionar peça', exact: true }).click();
+  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await expect(query).toHaveValue('y py');
   await expect(palette.getByRole('option').first()).toContainText('Léxico local');
   await palette.getByRole('option').first().click();
@@ -381,8 +444,9 @@ test('Navarro fallback preserves the selected sense and requires an explicit typ
     if (request.method === 'dictionary_predicate') conversions.push(request.params);
     await route.fulfill({ json: run(request.method, request.params) });
   });
-  await page.getByRole('button', { name: 'Adicionar primeira peça', exact: true }).click();
+  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
+  await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await palette
     .getByRole('combobox', { name: 'Palavra ou trecho da peça: buscar em tupi' })
     .fill('abá');
@@ -424,8 +488,9 @@ test('a classified Navarro sense becomes a fully evaluated lexical piece from th
       return route.fallback();
     await route.fulfill({ json: run(request.method, request.params) });
   });
-  await page.getByRole('button', { name: 'Adicionar primeira peça', exact: true }).click();
+  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
+  await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await palette
     .getByRole('combobox', { name: 'Palavra ou trecho da peça: buscar em tupi' })
     .fill('abá');
@@ -445,7 +510,7 @@ test('a classified Navarro sense becomes a fully evaluated lexical piece from th
   expect(result.evaluation.status).toBe('ok');
 });
 
-test('empty canvas bubble creates a real predicate and persists the vertical or horizontal layout', async ({
+test('secondary piece types create a real predicate in an empty canvas and persist its orientation', async ({
   page,
 }) => {
   const requests = await openCanvas(page, '', {
@@ -453,9 +518,12 @@ test('empty canvas bubble creates a real predicate and persists the vertical or 
     fragments: [],
     positions: {},
   });
-  await page.getByRole('button', { name: 'Adicionar primeira peça', exact: true }).click();
+  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
-  await palette.getByRole('tab', { name: 'Criar peça', exact: true }).click();
+  await expect(palette.getByRole('tab', { name: 'Criar peça', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
   await palette.getByRole('button', { name: 'Nome', exact: true }).click();
   await palette.getByRole('textbox', { name: 'Palavra em tupi', exact: true }).fill('ara');
   await palette
@@ -874,7 +942,7 @@ test('a naturally selected reusable word can be added as a persistent loose piec
   page,
 }) => {
   await openCanvas(page, 'tym');
-  await page.getByRole('button', { name: 'Adicionar peça', exact: true }).click();
+  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await dialog.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await dialog

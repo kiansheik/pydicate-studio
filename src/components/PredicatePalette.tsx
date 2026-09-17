@@ -86,6 +86,7 @@ export function PredicatePalette({
   engineFingerprint,
   revisionId,
   contextKey,
+  initialMode = 'reuse',
   onAdd,
   onCancel,
 }: {
@@ -94,11 +95,12 @@ export function PredicatePalette({
   engineFingerprint?: string;
   revisionId?: string;
   contextKey: string;
+  initialMode?: 'types' | 'reuse' | 'code';
   onAdd: (expression: string) => boolean | void;
   onCancel: () => void;
 }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [mode, setMode] = useState<'types' | 'reuse' | 'code'>('reuse');
+  const [mode, setMode] = useState<'types' | 'reuse' | 'code'>(initialMode);
   const [selected, setSelected] = useState<Constructor | null>(null);
   const [values, setValues] = useState<Values>({});
   const [raw, setRaw] = useState('');

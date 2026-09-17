@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { compareReference, expressionFor } from './domain/model';
 import { SourceRecovery } from './components/SourceRecovery';
+import { SourceReviewContent, sourceReviewTitle } from './components/SourceReviewContent';
 import { AuthoringEditor, LexiconPanel } from './components/AuthoringEditor';
 import { DictionaryTab } from './components/DictionaryTab';
 import { AssistantPanel } from './components/AssistantPanel';
@@ -857,7 +858,7 @@ export default function App() {
                         (studio.renderError
                           ? 'Não foi possível avaliar'
                           : !draft?.raw?.trim()
-                            ? 'Comece pelo botão + na árvore'
+                            ? 'Comece pela busca de peças na árvore'
                             : 'Sem resultado nesta revisão'))}
                 </p>
                 <span className="surface-caption">
@@ -1355,70 +1356,21 @@ export default function App() {
           className="review-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label={
-            publishesLexicon ? 'Revisar passagem e léxico' : 'Revisar alterações na fonte'
-          }
+          aria-label={sourceReviewTitle(preview)}
         >
           <section>
-            <h2>
-              {publishesLexicon ? 'Revisar passagem e léxico' : 'Revisar alterações na fonte'}
-            </h2>
-            <p>
-              {publishesLexicon
-                ? 'Confira a passagem e as novas entradas do léxico juntas. Ao aplicar, os arquivos serão verificados e salvos com cópias de recuperação.'
-                : 'Confira a diferença completa. A aplicação verificará se o arquivo continua nesta versão e conservará uma cópia de recuperação.'}
-            </p>
-            <p role="alert">{reviewError}</p>
-            {preview.name && (
-              <p>
-                Entrada: <strong>{preview.name}</strong> · {preview.scope} · usos afetados:{' '}
-                {JSON.stringify(preview.affectedUses ?? [])}
-              </p>
-            )}
-            {!!preview.lexicalAdditions?.length && (
-              <section
-                className="source-review-lexicon"
-                aria-label="Entradas do léxico nesta revisão"
-              >
-                <h3>Nomes usados na passagem</h3>
-                <p>
-                  Novas entradas ficam disponíveis no léxico compartilhado. A passagem passa a usar
-                  os nomes abaixo.
-                </p>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Nome no léxico</th>
-                      <th>Palavra</th>
-                      <th>Entrada</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.lexicalAdditions.map((entry) => (
-                      <tr key={entry.name}>
-                        <td>
-                          <code title={entry.expression}>{entry.name}</code>
-                        </td>
-                        <td>{entry.headword || '—'}</td>
-                        <td>{entry.reused ? 'Já existente' : 'Nova entrada'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            )}
-            {preview.files?.length ? (
-              <div className="source-review-files" aria-label="Arquivos desta revisão">
-                {preview.files.map((file) => (
-                  <section className="source-review-file" key={file.path} aria-label={file.path}>
-                    <h3>{file.path}</h3>
-                    <pre>{file.diff || 'Nenhuma alteração neste arquivo.'}</pre>
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <pre>{preview.diff || 'Nenhuma alteração na fonte.'}</pre>
-            )}
+            <h2>{sourceReviewTitle(preview)}</h2>
+            {reviewError && <p role="alert">{reviewError}</p>}
+            <SourceReviewContent
+              preview={preview}
+              hasChanges={previewHasChanges}
+              currentPassageId={passage.id}
+              draftRevisionId={draft?.revisionId}
+              draftRaw={draft?.raw ?? passage.sourceExpression}
+              engineFingerprint={project.engineFingerprint}
+              result={result}
+              pending={studio.pending}
+            />
             <div>
               <button className="button" onClick={() => setPreview(null)} disabled={reviewBusy}>
                 Voltar sem aplicar

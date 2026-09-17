@@ -75,9 +75,16 @@ export interface SourcePreview {
     name: string;
     expression: string;
     headword?: string;
+    definition?: string;
     reused?: boolean;
   }[];
   files?: { path: string; sourceFingerprint: string; diff: string }[];
+  reviewSummary?: {
+    kind: 'passage-new' | 'passage-update' | 'lexicon' | 'recovery';
+    passageOrdinal?: number;
+    analysisChanged?: boolean;
+    fields?: { label: string; before?: string | null; after?: string | null }[];
+  };
 }
 export function diagnosticText(value: string | { message: string }) {
   return typeof value === 'string' ? value : value.message;

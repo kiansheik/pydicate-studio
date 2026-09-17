@@ -18,18 +18,35 @@
 .canvas-piece-search {
   position: relative;
   z-index: 20;
-  margin-bottom: 12px;
+  flex: 1 1 340px;
   min-width: 0;
 }
 .canvas-piece-search .rendered-lookup > input {
   min-height: 44px;
-  padding: 10px 14px;
+  padding: 10px 65px 10px 14px;
   border: 1px solid var(--tree-line);
   border-radius: 10px;
   background: var(--tree-card);
   color: var(--tree-ink);
   font: inherit;
   font-size: 14px;
+}
+.canvas-search-shortcut {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  padding: 3px 5px;
+  border: 1px solid var(--tree-line);
+  border-radius: 4px;
+  color: var(--tree-muted);
+  font:
+    10px ui-monospace,
+    monospace;
+  pointer-events: none;
+}
+.canvas-toolbar .canvas-manual-piece {
+  font-size: 11px;
 }
 .canvas-piece-search .rendered-lookup > input:focus {
   outline: 2px solid var(--tree-accent);
@@ -73,8 +90,13 @@
   flex: 1 1 auto;
   font-size: 16px;
 }
-.canvas-toolbar .runtime-search {
-  flex: 1 1 200px;
+.canvas-view-options .runtime-search {
+  flex: 0 1 250px;
+  min-height: 30px;
+  padding: 3px 7px;
+}
+.canvas-view-options .runtime-search input {
+  font-size: 11px;
 }
 .canvas-toolbar > output {
   font:
@@ -235,34 +257,6 @@
   border: 1px solid var(--tree-line);
   border-radius: 12px;
   box-shadow: 0 10px 36px rgb(0 0 0 / 24%);
-}
-.expression-canvas .canvas-empty-add,
-.expression-canvas .canvas-add-bubble {
-  position: absolute;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--tree-accent);
-  border: 1px solid var(--tree-accent);
-  box-shadow: 0 4px 18px rgb(0 0 0 / 12%);
-}
-.expression-canvas .canvas-empty-add {
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  flex-direction: column;
-  gap: 10px;
-  border-radius: 22px;
-  padding: 25px 28px;
-  font-size: 13px;
-}
-.expression-canvas .canvas-add-bubble {
-  right: 18px;
-  bottom: 38px;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
 }
 .canvas-predicate-panel {
   width: min(520px, calc(100% - 56px));
@@ -503,9 +497,11 @@
   .expression-canvas {
     padding: 10px;
   }
-  .canvas-toolbar .runtime-search {
+  .canvas-toolbar .canvas-piece-search {
     flex-basis: 100%;
-    order: 2;
+  }
+  .canvas-view-options .runtime-search {
+    flex-basis: 100%;
   }
   .canvas-viewport.runtime-viewport {
     height: 65vh;

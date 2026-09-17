@@ -58,6 +58,9 @@ test('dictionary insertion is revision-bound and forms one undoable main or loos
       revision,
     ),
   ).toBe(true);
+  await expect
+    .poll(() => page.evaluate(() => window.__nextStudio.draft!.canvas!.fragments))
+    .toHaveLength(1);
   const added = await page.evaluate(() => window.__nextStudio.draft!);
   expect(added.raw).toBe(expression);
   expect(added.canvas!.fragments).toHaveLength(1);
@@ -139,7 +142,7 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
     'true',
   );
   await expect(
-    page.getByRole('button', { name: 'Adicionar primeira peça', exact: true }),
+    page.getByRole('combobox', { name: 'Adicionar peça: buscar em tupi', exact: true }),
   ).toBeVisible();
   await expect(page.locator('[data-canvas-key]')).toHaveCount(0);
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
@@ -221,7 +224,7 @@ test('repeated pending passages inherit cumulative locators, retain normal undo,
   await page.reload();
   await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0004');
   await expect(
-    page.getByRole('button', { name: 'Adicionar primeira peça', exact: true }),
+    page.getByRole('combobox', { name: 'Adicionar peça: buscar em tupi', exact: true }),
   ).toBeVisible();
   expect(await selectedId(page)).toBe(second);
   await contextFields(page);

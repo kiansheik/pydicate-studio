@@ -1,5 +1,11 @@
 # Work log
 
+## 2026-09-17 — Named lexical publication and primary add field
+
+New lexical constructor leaves now become shared named declarations during passage review, with exact-equivalent reuse and readable collision-safe names. The review opens with a nontechnical passage/word/field summary; exact names and both file diffs are behind **Mostrar diff técnico**. Both files are byte-checked, journaled and applied together. Failure tests verify rollback and interrupted-set recovery. The published draft adopts its named source, while definitions/verb senses and source operation structure remain intact.
+
+Promoted add/reuse to the main toolbar, moved composition search secondary, removed redundant add buttons/bubble, and added visible-workspace **⌘K / Ctrl+K** focus/select-all. Constructor/code access remains secondary. Build, 11 planner, 32 service/source and the related browser checks pass. Native production testing confirms the human review/toggle, named publication with unchanged rendered form, keyboard insertion and undo; original source/reference hashes remain unchanged. See [handoff](session-handoffs/2026-09-17-named-publication-and-add-field.md). No provider calls, original corpus application, commit or push.
+
 ## 2026-09-17 — Direct canvas search and automatic freshness recovery
 
 Moved the shared piece search into an always-visible textbox above the tree. Verified selections insert immediately; dropdown suggestions and dictionary choices remain compact overlays. Added click-away dismissal for floating editors, with synchronous cancellation of late insertions and unchanged canvas pan/select gestures.

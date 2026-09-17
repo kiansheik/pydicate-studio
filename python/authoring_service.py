@@ -96,7 +96,7 @@ class AuthoringService:
         result.pop('structure',None)
         return {'revisionId':params.get('revisionId',''),'engineFingerprint':fingerprint,'origin':'engine',**result}
 
-    def _preview(self,path,before,after,**details):
+    def _preview(self,path,before,after,extra_changes=(),**details):
         # A copy with an occurrence gloss has an explicit source-local helper;
         # the resulting file never depends on an invisible Studio builtin.
         decoded = after.decode('utf-8')
@@ -111,10 +111,66 @@ class AuthoringService:
         # Verify resulting source syntax before making a reviewable patch.
         ast.parse(after.decode('utf-8'),filename=str(path))
         preview_id=str(uuid.uuid4())
-        difference=''.join(difflib.unified_diff(before.decode('utf-8').splitlines(keepends=True),after.decode('utf-8').splitlines(keepends=True),fromfile=str(path),tofile=str(path)))
-        result={'previewId':preview_id,'diff':difference,'sourceFingerprint':digest(before),'path':str(path),'kind':'new-passage' if details.get('newPassage') else 'source' if details.get('passageId') else 'lexicon' if details.get('lexicalId') else 'recovery','targetPassageId':details.get('passageId'),**details}
-        self.adapter.previews[preview_id]={'path':path,'before':before,'after':after,**result}
+        changes=[*extra_changes,{'path':Path(path),'before':before,'after':after}]
+        files=[]
+        for item in changes:
+            # Every file shown in the review is validated and applied together.
+            if item['path'].suffix=='.py':ast.parse(item['after'].decode('utf-8'),filename=str(item['path']))
+            difference=''.join(difflib.unified_diff(item['before'].decode('utf-8').splitlines(keepends=True),item['after'].decode('utf-8').splitlines(keepends=True),fromfile=str(item['path']),tofile=str(item['path'])))
+            files.append({'path':str(item['path']),'sourceFingerprint':digest(item['before']),'diff':difference})
+        result={'previewId':preview_id,'diff':''.join(item['diff'] for item in files),'files':files,'sourceFingerprint':digest(before),'path':str(path),'kind':'new-passage' if details.get('newPassage') else 'source' if details.get('passageId') else 'lexicon' if details.get('lexicalId') else 'recovery','targetPassageId':details.get('passageId'),**details}
+        self.adapter.previews[preview_id]={'before':before,'after':after,**result,'path':Path(path),'changes':changes}
         return result
+
+    def prepare_lexical_publication(self,raw,context):
+        from lexical_publication import contains_lexical_candidates
+        if not contains_lexical_candidates(raw):return raw,[],[],[]
+        path=self.corpus/'historic/lexicon.tu.py';before=path.read_bytes()
+        result=self.child({'action':'prepare_lexical_publication',**context,'raw':raw})
+        self.fresh()
+        if result.get('unpromoted'):
+            reasons='; '.join(item['reason'] for item in result['unpromoted'][:3])
+            self.error('Não foi possível registrar todos os novos predicados no léxico. O rascunho foi preservado: '+reasons,'LEXICAL_PUBLICATION')
+        if path.read_bytes()!=before:self.error('O léxico mudou durante a revisão. Gere outra diferença.','STALE_SOURCE')
+        additions=[{**item,'reused':False} for item in result['declarations']]
+        additions.extend({**item,'reused':True} for item in result.get('reused',[]))
+        if not result['declarations']:return result['raw'],[],additions,result.get('diagnostics',[])
+        text=before.decode('utf-8');newline='\r\n' if b'\r\n' in before else '\n'
+        statements=ast.parse(text).body
+        exports=next((node for node in statements if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='__all__' for target in node.targets)),None)
+        lines=text.splitlines(keepends=True)
+        offset=sum(map(len,lines[:exports.lineno-1])) if exports else len(text)
+        declarations=[]
+        for item in result['declarations']:
+            note={'id':'lexical:'+item['lexicalFingerprint'].removeprefix('sha256:'),'name':item['name'],'scope':'shared'}
+            declarations.extend(['# @note studio-lexical:v1 '+json.dumps(note,ensure_ascii=False,separators=(',',':')),item['name']+' = '+item['expression']])
+            if item.get('definitionOverride') is not None:declarations.append(item['name']+'.definition = '+repr(item['definitionOverride']))
+            declarations.append('')
+        block=newline+newline.join(declarations)+newline
+        after=text[:offset]+block+text[offset:]
+        # The corpus normally exports a globals() comprehension. Explicit export
+        # lists also need the reviewed names added, after their assignment.
+        if exports and not isinstance(exports.value,ast.ListComp):
+            end=sum(map(len,lines[:exports.end_lineno]))+len(block)
+            names=[item['name'] for item in result['declarations']]
+            after=after[:end]+'__all__ += [name for name in '+repr(names)+' if name not in __all__]'+newline+after[end:]
+        return result['raw'],[{'path':path,'before':before,'after':after.encode('utf-8')}],additions,result.get('diagnostics',[])
+
+    def review_fields(self,metadata,previous=None):
+        previous=previous or {}
+        labels={'diplomatic':'Transcrição da fonte','normalized':'Leitura em tupi','target':'Leitura em tupi','translation':'Tradução','notes':'Notas','analysis':'Análise','uncertainty':'Incerteza','printedPage':'Página impressa','folio':'Fólio','line':'Linha','section':'Seção','subsection':'Subseção','evidence':'Trecho do PDF'}
+        def readable(key,value):
+            if key=='evidence':return 'Vinculado' if value else 'Sem vínculo'
+            return str(value) if value is not None else ''
+        fields=[]
+        for key,value in metadata.items():
+            if key not in labels or value==previous.get(key):continue
+            before=readable(key,previous.get(key));after=readable(key,value)
+            if before==after:
+                if key=='evidence':after='Vínculo atualizado'
+                else:continue
+            fields.append({'label':labels[key],'before':before,'after':after})
+        return fields
 
     def hierarchy_metadata(self,metadata,current):
         """Preserve upstream cumulative section semantics in a reviewed patch.
@@ -161,7 +217,11 @@ class AuthoringService:
             metadata['section']=requested_metadata['section']
         if 'section' in metadata and requested_metadata.get('subsection'):
             metadata['subsection']=requested_metadata['subsection']
-        if raw==entry['expression'] and not metadata: return self._preview(path,before,before,passageId=passage['id'])
+        review_summary={'kind':'passage-update','passageOrdinal':passage['ordinal'],'analysisChanged':raw!=entry['expression'],'fields':self.review_fields(metadata,existing)}
+        if raw==entry['expression'] and not metadata: return self._preview(path,before,before,passageId=passage['id'],reviewSummary=review_summary)
+        lexical_changes=[];lexical_additions=[];lexical_diagnostics=[]
+        if raw!=entry['expression']:
+            raw,lexical_changes,lexical_additions,lexical_diagnostics=self.prepare_lexical_publication(raw,{'sourceId':passage['sourceId'],'line':passage['sourceLine']})
         newline='\r\n' if b'\r\n' in before else '\n'
         # A single supported upstream note stores the stable identity and the
         # versioned evidence pointer. Existing note and locators stay adjacent.
@@ -223,7 +283,7 @@ class AuthoringService:
                 beginning=sum(map(len,source_lines[:line_index]));changes.append((beginning,beginning+len(source_line),''))
             line_index-=1
         for start,end,replacement in sorted(changes,key=lambda x:x[0],reverse=True): text=text[:start]+replacement+text[end:]
-        return self._preview(path,before,text.encode('utf-8'),passageId=passage['id'])
+        return self._preview(path,before,text.encode('utf-8'),extra_changes=lexical_changes,passageId=passage['id'],raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,reviewSummary=review_summary)
 
     def source_new_preview(self,params):
         self.fresh(); source_id=params.get('sourceId','araujo_catecismo_1686')
@@ -258,46 +318,60 @@ class AuthoringService:
                 if not isinstance(value,str):self.error('Metadados precisam ser texto.')
                 if key!='notes' and ('\n' in value or '\r' in value):self.error(f'{key}: use uma única linha no comentário de origem. O texto multilinha pode continuar salvo como rascunho.')
                 for line in value.splitlines():directives.append('# @'+directive+' '+line+'\n')
-        new='\n'+''.join(directives)+'# @note studio:v1 '+json.dumps(studio)+'\nl += ('+raw+'\n)\n\n' 
-        return self._preview(path,before,(text[:offset]+new+text[offset:]).encode('utf-8'),passageId=passage_id,newPassage=True)
+        raw,lexical_changes,lexical_additions,lexical_diagnostics=self.prepare_lexical_publication(raw,{'sourceId':source_id,'line':anchor.lineno if anchor else 10**9})
+        review_summary={'kind':'passage-new','passageOrdinal':(prior['ordinal'] if prior else 0)+1,'analysisChanged':True,'fields':self.review_fields(metadata)}
+        expression='('+raw+'\n)' if '\n' in raw else raw
+        new='\n'+''.join(directives)+'# @note studio:v1 '+json.dumps(studio)+'\nl += '+expression+'\n\n'
+        return self._preview(path,before,(text[:offset]+new+text[offset:]).encode('utf-8'),extra_changes=lexical_changes,passageId=passage_id,newPassage=True,raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,reviewSummary=review_summary)
 
     def source_apply(self,params):
+        from reviewed_files import apply_reviewed_files
         preview=self.adapter.previews.get(params.get('previewId'))
-        if not preview: self.error('Prévia expirada. Gere e revise uma nova diferença.','PREVIEW_NOT_FOUND')
-        if params.get('sourceFingerprint')!=preview['sourceFingerprint']: self.error('A prévia não corresponde à revisão aprovada.','STALE_SOURCE')
-        path=Path(preview['path'])
-        if path.read_bytes()!=preview['before']: self.error('O arquivo mudou externamente. Nada foi aplicado; mantenha o rascunho e atualize.','STALE_SOURCE')
+        if not preview:self.error('Prévia expirada. Gere e revise uma nova diferença.','PREVIEW_NOT_FOUND')
+        if params.get('sourceFingerprint')!=preview['sourceFingerprint']:self.error('A prévia não corresponde à revisão aprovada.','STALE_SOURCE')
+        changes=preview.get('changes') or [{'path':Path(preview['path']),'before':preview['before'],'after':preview['after']}]
+        for item in changes:
+            if item['path'].read_bytes()!=item['before']:self.error('Um dos arquivos mudou externamente. Nada foi aplicado; mantenha o rascunho e revise novamente.','STALE_SOURCE')
         self.fresh()
-        if preview['before']==preview['after']: return self.adapter.project
-        if not self.adapter.state_dir: self.error('Configure armazenamento local para manter a recuperação.','STATE_ERROR')
-        recovery=self.adapter.state_dir/'recovery'; recovery.mkdir(parents=True,exist_ok=True)
-        recovery_path=recovery/(preview['previewId']+'.json')
-        recovery_path.write_text(json.dumps({'path':str(path),'before':preview['before'].decode('utf-8'),'afterFingerprint':digest(preview['after']),'status':'prepared'},ensure_ascii=False),encoding='utf-8')
-        descriptor,temporary=tempfile.mkstemp(prefix='.'+path.name+'.studio-',dir=path.parent)
-        try:
-            with os.fdopen(descriptor,'wb') as handle: handle.write(preview['after']); handle.flush(); os.fsync(handle.fileno())
-            if path.read_bytes()!=preview['before']: self.error('O arquivo mudou durante a gravação. Nada foi aplicado.','STALE_SOURCE')
-            os.replace(temporary,path)
-            directory=os.open(path.parent,os.O_RDONLY)
-            try: os.fsync(directory)
-            finally: os.close(directory)
-        finally:
-            if os.path.exists(temporary): os.unlink(temporary)
+        if all(item['before']==item['after'] for item in changes):return self.adapter.project
+        if not self.adapter.state_dir:self.error('Configure armazenamento local para manter a recuperação.','STATE_ERROR')
+        records=[{'path':str(item['path']),'before':item['before'].decode('utf-8'),'afterFingerprint':digest(item['after'])} for item in changes]
+        primary=next(item for item in records if item['path']==str(preview['path']))
+        journal={'version':2,**primary,'files':records,'status':'prepared'}
+        apply_reviewed_files(changes,self.adapter.state_dir/'recovery'/(preview['previewId']+'.json'),journal,self.error)
         self.adapter.previews.pop(preview['previewId'],None)
         return self.adapter.refresh_project()
+
+    def recovery_members(self,recovery):
+        members=recovery.get('files') or [recovery]
+        if not isinstance(members,list) or not members:self.error('Recuperação ilegível.')
+        result=[];seen=set()
+        for item in members:
+            if not isinstance(item,dict) or any(not isinstance(item.get(key),str) for key in ('path','before','afterFingerprint')) or not re.fullmatch(r'sha256:[a-f0-9]{64}',item['afterFingerprint']):
+                self.error('Registro de recuperação inválido; os dados foram preservados.','INVALID_RECOVERY')
+            path=Path(item['path']).resolve()
+            if not path.is_relative_to(self.corpus.resolve()):self.error('Recuperação pertence a outro projeto.')
+            if path in seen:self.error('Registro de recuperação contém arquivos repetidos.','INVALID_RECOVERY')
+            seen.add(path)
+            before=item['before'].encode('utf-8');current=path.read_bytes()
+            result.append({'path':path,'before':before,'current':current,'afterFingerprint':item['afterFingerprint'],
+                           'known':current==before or digest(current)==item['afterFingerprint']})
+        return result
 
     def source_recovery_list(self,params):
         self.require_project()
         if not self.adapter.state_dir:return {'items':[],'diagnostics':[]}
         import datetime
+        from adapter import AdapterError
         items=[];diagnostics=[]
         for recovery_path in sorted((self.adapter.state_dir/'recovery').glob('*.json'),key=lambda path:path.stat().st_mtime,reverse=True):
             try:
                 recovery=json.loads(recovery_path.read_text(encoding='utf-8'));path=Path(recovery['path']).resolve()
                 if not path.is_relative_to(self.corpus.resolve()):continue
+                members=self.recovery_members(recovery)
                 current=digest(path.read_bytes()) if path.exists() else None
-                items.append({'id':recovery_path.stem,'path':str(path),'createdAt':recovery.get('at') or datetime.datetime.fromtimestamp(recovery_path.stat().st_mtime,datetime.timezone.utc).isoformat(),'kind':recovery.get('kind','source-apply'),'afterFingerprint':recovery['afterFingerprint'],'currentFingerprint':current,'recoverable':current==recovery['afterFingerprint']})
-            except (OSError,ValueError,KeyError,TypeError) as error:diagnostics.append(f'{recovery_path.name}: recuperação preservada mas ilegível ({error}).')
+                items.append({'id':recovery_path.stem,'path':str(path),'paths':[str(item['path']) for item in members],'createdAt':recovery.get('at') or datetime.datetime.fromtimestamp(recovery_path.stat().st_mtime,datetime.timezone.utc).isoformat(),'kind':recovery.get('kind','source-apply'),'afterFingerprint':recovery['afterFingerprint'],'currentFingerprint':current,'recoverable':all(item['known'] for item in members) and any(item['current']!=item['before'] for item in members)})
+            except (OSError,ValueError,KeyError,TypeError,AdapterError) as error:diagnostics.append(f'{recovery_path.name}: recuperação preservada mas ilegível ({error}).')
         return {'items':items,'diagnostics':diagnostics}
 
     def source_recover(self,params):
@@ -305,11 +379,18 @@ class AuthoringService:
         identifier=params.get('recoveryId','')
         if not re.fullmatch(r'[a-f0-9-]{36}',identifier): self.error('Identificador de recuperação inválido.')
         recovery=json.loads((self.adapter.state_dir/'recovery'/(identifier+'.json')).read_text())
-        path=Path(recovery['path']).resolve()
-        if not path.is_relative_to(self.corpus.resolve()): self.error('Recuperação pertence a outro projeto.')
-        before=path.read_bytes()
-        if digest(before)!=recovery['afterFingerprint']: self.error('O arquivo mudou desde a aplicação; recuperação exige conciliação manual.','STALE_SOURCE')
-        return self._preview(path,before,recovery['before'].encode('utf-8'),recovery=True)
+        members=self.recovery_members(recovery)
+        if not all(item['known'] for item in members):self.error('Um dos arquivos mudou desde a aplicação; recuperação exige conciliação manual.','STALE_SOURCE')
+        changes=[{'path':item['path'],'before':item['current'],'after':item['before']} for item in members]
+        path=Path(recovery['path']).resolve();primary=next(item for item in changes if item['path']==path)
+        review_summary={'kind':'recovery','fields':[{'label':'Léxico' if item['path'].name=='lexicon.tu.py' else 'Referências' if item['path'].suffix=='.jsonl' else 'Passagem','after':'Restaurar a versão anterior'} for item in changes if item['before']!=item['after']]}
+        # Restore the passage before removing shared declarations, so an
+        # interruption never leaves it referring to a name already removed.
+        if len(changes)>1:
+            lexical=next((item for item in changes if item['path'].name=='lexicon.tu.py'),None)
+            if lexical is not None:
+                return self._preview(lexical['path'],lexical['before'],lexical['after'],extra_changes=[item for item in changes if item is not lexical],recovery=True,reviewSummary=review_summary)
+        return self._preview(path,primary['before'],primary['after'],extra_changes=[item for item in changes if item is not primary],recovery=True,reviewSummary=review_summary)
 
     def lexicon_search(self,params):
         context=self.structure_context(params); self.fresh(params)
@@ -455,19 +536,20 @@ class AuthoringService:
         passage=self.passage(params) if params.get('passageId') else next(p for p in self.adapter.project['passages'] if p['sourceId']=='araujo_catecismo_1686')
         path=self.corpus/'historic/lexicon.tu.py' if scope=='shared' else self.source(passage)
         before=path.read_bytes(); text=before.decode('utf-8')
+        review_summary={'kind':'lexicon','fields':[{'label':'Palavra','after':headword},*([{'label':'Significado','after':definition}] if definition else []),{'label':'Disponível em','after':'Léxico compartilhado' if scope=='shared' else 'Nesta fonte'}]}
         identity='lexical:'+str(uuid.uuid5(uuid.NAMESPACE_URL,json.dumps({'project':self.adapter.project['id'],'headword':headword,'definition':definition,'category':category,'provenance':params.get('provenance'),'scope':scope},sort_keys=True,ensure_ascii=False)))
         slug=''.join(char for char in unicodedata.normalize('NFKD',headword) if not unicodedata.combining(char)); slug=re.sub(r'[^A-Za-z0-9_]','_',slug).strip('_').lower() or 'entrada'
         if slug[0].isdigit() or keyword.iskeyword(slug): slug='lex_'+slug
         suffix=hashlib.sha256(identity.encode()).hexdigest()[:8]; name=slug+'_'+suffix
         if re.search(r'(?m)^'+re.escape(name)+r'\s*=',text):
-            if identity in text: return self._preview(path,before,before,name=name,lexicalId=identity,scope=scope,affectedUses=[],reused=True)
+            if identity in text: return self._preview(path,before,before,name=name,lexicalId=identity,scope=scope,affectedUses=[],reused=True,reviewSummary={'kind':'lexicon','fields':[]})
             self.error('Colisão de identificador lexical '+name+'; escolha outra forma sem sobrescrever a entrada existente.','LEXICAL_COLLISION')
         note={'id':identity,'name':name,'scope':scope,'provenance':params.get('provenance')}
         definition_text='\n# @note studio-lexical:v1 '+json.dumps(note,ensure_ascii=False)+'\n'+name+' = '+category+'('+repr(headword)+', definition='+repr(definition)+')\n\n'
         tree=ast.parse(text)
         anchor=next((s for s in tree.body if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id in {'l','__all__',passage['sourceId']} for t in s.targets)),None)
         offset=sum(map(len,text.splitlines(keepends=True)[:anchor.lineno-1])) if anchor else len(text)
-        return self._preview(path,before,(text[:offset]+definition_text+text[offset:]).encode('utf-8'),name=name,lexicalId=identity,scope=scope,affectedUses=[])
+        return self._preview(path,before,(text[:offset]+definition_text+text[offset:]).encode('utf-8'),name=name,lexicalId=identity,scope=scope,affectedUses=[],reviewSummary=review_summary)
 
     def lexicon_update(self,params):
         self.fresh(); name=params.get('name'); definition=params.get('definition'); scope=params.get('scope','occurrence')
@@ -508,7 +590,8 @@ class AuthoringService:
                 after=(text[:start]+repr(definition)+text[end:]).encode('utf-8')
             else:
                 offset=sum(map(len,text.splitlines(keepends=True)[:target.end_lineno]));after=(text[:offset]+name+'.definition = '+repr(definition)+'\n'+text[offset:]).encode('utf-8')
-        return self._preview(path,before,after,name=name,lexicalId=entry['id'],scope=scope,affectedUses=entry['affectedUses'])
+        review_summary={'kind':'lexicon','fields':([*([{'label':'Significado','before':entry.get('definition',''),'after':definition}] if entry.get('definition','')!=definition else []),{'label':'Onde muda','after':'Léxico compartilhado' if scope=='shared' else 'Nesta fonte'}] if before!=after else [])}
+        return self._preview(path,before,after,name=name,lexicalId=entry['id'],scope=scope,affectedUses=entry['affectedUses'],reviewSummary=review_summary)
 
     def dictionary_search(self,params):
         from navarro_search import search_dictionary

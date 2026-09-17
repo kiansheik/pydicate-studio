@@ -39,7 +39,7 @@ export interface ResolvedStructure {
 
 export interface LexicalInputHandle {
   dismiss: () => void;
-  focus: () => void;
+  focus: (options?: { selectAll?: boolean }) => void;
 }
 
 export interface DictionaryLookupEntry {
@@ -171,9 +171,11 @@ export const LexicalInput = forwardRef<
         setRefreshNotice('');
         setDictionaryError('');
       },
-      focus() {
+      focus(options) {
         input.current?.focus();
+        if (options?.selectAll) input.current?.select();
         setOpen(true);
+        setSearchEpoch((epoch) => epoch + 1);
       },
     }),
     [],

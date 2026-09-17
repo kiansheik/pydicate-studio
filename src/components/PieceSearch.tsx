@@ -6,7 +6,7 @@ import { DictionaryEntryCreation, type DictionarySelection } from './DictionaryE
 export interface PieceSearchHandle {
   /** Immediately invalidate pending choices without removing the search textbox. */
   dismiss: () => void;
-  focus: () => void;
+  focus: (options?: { selectAll?: boolean }) => void;
 }
 
 interface Props {
@@ -45,6 +45,7 @@ export const PieceSearch = forwardRef<PieceSearchHandle, Props>(function PieceSe
   const [reuse, setReuse] = useState('');
   const [selection, setSelection] = useState<DictionarySelection | null>(null);
   const [error, setError] = useState('');
+  const [, renewIntent] = useState(0);
   const search = useRef<LexicalInputHandle>(null);
   const epoch = useRef(0);
   const identity = JSON.stringify([passageId, sourceId, engineFingerprint, revisionId, contextKey]);
@@ -80,9 +81,15 @@ export const PieceSearch = forwardRef<PieceSearchHandle, Props>(function PieceSe
   }
   useImperativeHandle(ref, () => ({
     dismiss,
-    focus() {
+    focus(options) {
+      // A shortcut starts a fresh choice, even when the field already has focus.
+      // A previous unresolved choice must not insert while the user replaces it.
+      dismiss();
       activate();
-      search.current?.focus();
+      // React may batch false → true back to the current engaged value. Refresh
+      // the callback binding nevertheless, because dismiss advanced the epoch.
+      renewIntent((version) => version + 1);
+      search.current?.focus(options);
     },
   }));
   useEffect(() => {
