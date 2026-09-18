@@ -68,6 +68,28 @@ Routine verification uses deterministic transports with **no paid generation**. 
 
 PDFs and regions live in application data, with fingerprint/replacement checks and same-witness relocation. Source comments store the stable versioned evidence pointer. A Git patch alone does not contain the managed PDF or private draft/AI state. See [PDF evidence format](docs/design/pdf-evidence.md). Clearing application data removes these local assets; retain independent source PDF backups.
 
+## Experimental: Tupi → Pydicate laboratory
+
+A hidden workspace that proposes a Pydicate analysis for a normalized Tupi
+string. It is absent until you enable it under **Informações do projeto →
+Recursos experimentais**; nothing in it runs until you ask. **Preparar baseline**
+builds a small local index, and **Analisar** then folds the input (spaces, case
+and accents are discarded, apostrophes are not), searches recorded corpus
+expressions and declared grammar families, and accepts only analyses the selected
+engine realizes back to the same form. The result opens in the real tree editor
+and never publishes source or approves a reference.
+
+```sh
+npm run parser-lab -- --parent <pasta> --artifacts <dir> prepare --profile smoke --activate
+npm run parser-lab -- --parent <pasta> --artifacts <dir> analyze "Asó xe rokype"
+npm run test:smoke:parser-lab
+```
+
+It is a bounded laboratory, not a general parser for historical Tupi: it composes
+only the lexemes and constructions its profile declares, and it reports unknown
+rather than guessing. See [the contract](docs/design/parser-lab.md) for the
+declared limits and the measured results.
+
 ## Validation
 
 ```sh
