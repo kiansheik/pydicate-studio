@@ -112,6 +112,18 @@ export function SourceReviewContent({
           </p>
         </section>
       )}
+      {!!preview.definitionRepairs?.length && (
+        <section aria-label="Significados separados nesta revisão" className="source-review-notice">
+          <h3>Significado do conjunto corrigido</h3>
+          {preview.definitionRepairs.map((repair, index) => (
+            <p key={index}>
+              A definição de <strong lang="tpw">{repair.compound}</strong> estava na peça{' '}
+              <strong lang="tpw">{repair.base}</strong>. Esta revisão cria a entrada do conjunto e
+              restaura o significado individual da peça.
+            </p>
+          ))}
+        </section>
+      )}
       {!!additions.length && (
         <section className="source-review-words" aria-label="Palavras desta revisão">
           <h3>Palavras no léxico</h3>
@@ -173,6 +185,27 @@ export function SourceReviewContent({
       )}
       {summary?.analysisChanged && kind === 'passage-update' && (
         <p>A estrutura da passagem também será atualizada.</p>
+      )}
+      {preview.regression && (
+        <section aria-label="Regressão antes de publicar">
+          <h3>Regressão conferida</h3>
+          <p>
+            {preview.regression.checked} passagens avaliadas · {preview.regression.references}{' '}
+            referências coincidem. Nenhuma nova falha nas passagens preservadas.
+          </p>
+          {!!preview.regression.baselineIssues && (
+            <p>
+              {preview.regression.baselineIssues} diferenças ou falhas já existiam antes desta
+              edição.
+            </p>
+          )}
+          {!!preview.regression.pendingReferences && (
+            <p>
+              {preview.regression.pendingReferences} passagens editadas aguardam revisão da
+              referência.
+            </p>
+          )}
+        </section>
       )}
       {!!preview.diagnostics?.length && (
         <p className="source-review-notice">

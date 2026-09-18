@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { defaultWorkspace, moveWorkspacePane, readWorkspace, resizeWorkspace } from './workspace';
 
 describe('workspace layout', () => {
+  it('migrates v1 without changing pane positions, sizes, visibility or maximization', () => {
+    const prior = {
+      ...moveWorkspacePane(defaultWorkspace(), 'source', 'bottom'),
+      version: 1,
+      supportTab: undefined,
+      maximized: 'source',
+    };
+    const migrated = readWorkspace(JSON.stringify(prior));
+    expect(migrated).toEqual({ ...prior, version: 2, supportTab: 'source' });
+    expect(readWorkspace(JSON.stringify({ ...migrated, supportTab: 'ai' })).supportTab).toBe('ai');
+  });
   it('starts with the source on the right and swaps occupied slots without losing hidden state', () => {
     const initial = defaultWorkspace();
     expect(initial.positions).toEqual({ navigator: 'left', editor: 'center', source: 'right' });

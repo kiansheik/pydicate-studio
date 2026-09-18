@@ -1,0 +1,365 @@
+{
+  "schemaVersion": 1,
+  "runs": [
+    {
+      "caseId": "eval:reconstruction:araujo:0002",
+      "status": "not-run",
+      "inputDigest": "sha256:e4cdfaa1069fc44ce45d3c34f4b0ec883977103f5396ee79d7a3e390b7a43a97",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0067",
+      "status": "not-run",
+      "inputDigest": "sha256:e544da2d4a7433d5130c84794ba59d3f72705b0acb199629a5a40de12264c20c",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0081",
+      "status": "not-run",
+      "inputDigest": "sha256:a835e0a65208d11a3de74585bb6f9ab97cbd7a14ad34943051436b523d29e0d9",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0083",
+      "status": "not-run",
+      "inputDigest": "sha256:5c0464cda9cf6ce9e8808207b778a21ca15ede006f81ba4c9e2c7ca8203bd4e9",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0085",
+      "status": "not-run",
+      "inputDigest": "sha256:acbd8153625e56eead2e1091047f6f8dbd9b895f857314773eb0023b1aaa9089",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0086",
+      "status": "not-run",
+      "inputDigest": "sha256:1c5c1c307583f122e8be59698f9c5ca6bc0c0171887fd046534718e566e088f8",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:assisted:araujo:0002",
+      "status": "not-run",
+      "inputDigest": "sha256:62e6bdbf2e041daed375b1d3d07ed08710da3d0881ea3e653ab9adab52b33c85",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:assisted:araujo:0067",
+      "status": "not-run",
+      "inputDigest": "sha256:5f91c06f50ec6acf5e5229bcec9d96d6c75083ded2f7b8463fb753ae204c564e",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:assisted:araujo:0081",
+      "status": "not-run",
+      "inputDigest": "sha256:b7114819c6c215a7eb05b82e58e1bd68d6d16f871c35d7de8470975b79d7b8af",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:assisted:araujo:0083",
+      "status": "not-run",
+      "inputDigest": "sha256:949d2b8864ea99fe4d59cd28979dfefadd41b1e5c720416c9b2293d89f228516",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:assisted:araujo:0085",
+      "status": "not-run",
+      "inputDigest": "sha256:1c2eb692a2beec2c9413af6951e2c2ba4488bddd7150ee9a458dd6171ee36ff6",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    },
+    {
+      "caseId": "eval:assisted:araujo:0086",
+      "status": "not-run",
+      "inputDigest": "sha256:0707b1344b83557a5f86c886f0018bdc44e52a76af9f05a83a08e895776478d2",
+      "provider": null,
+      "model": null,
+      "attemptIds": [],
+      "evidenceQuality": [],
+      "structuralSupport": [],
+      "morphemeCoverage": {
+        "supported": [],
+        "unresolved": []
+      },
+      "surfaceComparisons": {
+        "exact": null,
+        "spacingCase": null,
+        "accentFolded": null
+      },
+      "residualMismatches": [],
+      "humanCorrections": [],
+      "toolFailures": [],
+      "resourceUse": {
+        "providerRequests": 0,
+        "inputTokens": null,
+        "outputTokens": null,
+        "toolCalls": 0,
+        "elapsedMs": null
+      },
+      "editorialApproval": null
+    }
+  ]
+}

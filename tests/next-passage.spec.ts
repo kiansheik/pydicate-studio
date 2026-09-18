@@ -146,9 +146,9 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
   ).toBeVisible();
   await expect(page.locator('[data-canvas-key]')).toHaveCount(0);
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
-  await expect(page.getByRole('textbox', { name: 'Leitura normalizada', exact: true })).toHaveValue(
-    '',
-  );
+  await expect(
+    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
+  ).toHaveValue('');
   await contextFields(page);
   for (const [label, value] of [
     ['Página impressa', '26–27'],
@@ -173,7 +173,9 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
   const requests = await page.evaluate(() => window.__nextControl.requests);
   expect(
     requests.filter((request) =>
-      /^(source_.*preview|source_apply|reference_approve|ai_)/.test(request.method),
+      /^(source_.*preview|source_apply|reference_approve|ai_request|analysis_submit)/.test(
+        request.method,
+      ),
     ),
   ).toEqual([]);
   expect(
@@ -196,24 +198,25 @@ test('repeated pending passages inherit cumulative locators, retain normal undo,
   await page.getByLabel('Página impressa da passagem', { exact: true }).fill('28');
   await page.getByLabel('Seção da passagem', { exact: true }).fill('Novo capítulo');
   await page.getByLabel('Subseção da passagem', { exact: true }).fill('Perguntas');
+  await page.getByText('Orientações para a análise e leitura revisada', { exact: true }).click();
   await page
-    .getByRole('textbox', { name: 'Leitura normalizada', exact: true })
+    .getByLabel('Leitura normalizada revisada · @target', { exact: false })
     .fill('Leitura só desta linha');
   await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Leitura normalizada', exact: true })).toHaveValue(
-    '',
-  );
+  await expect(
+    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
+  ).toHaveValue('');
   await page.getByRole('button', { name: 'Refazer edição na árvore', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Leitura normalizada', exact: true })).toHaveValue(
-    'Leitura só desta linha',
-  );
+  await expect(
+    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
+  ).toHaveValue('Leitura só desta linha');
   await page.locator('.add-next-passage').click();
   await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0004');
   const second = await selectedId(page);
   expect(second).not.toBe(first);
-  await expect(page.getByRole('textbox', { name: 'Leitura normalizada', exact: true })).toHaveValue(
-    '',
-  );
+  await expect(
+    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
+  ).toHaveValue('');
   await contextFields(page);
   await expect(page.getByLabel('Página impressa da passagem', { exact: true })).toHaveValue('28');
   await expect(page.getByLabel('Seção da passagem', { exact: true })).toHaveValue('Novo capítulo');

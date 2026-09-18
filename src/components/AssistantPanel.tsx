@@ -16,6 +16,8 @@ import type { Passage } from '../domain/types';
 import '../assistant.css';
 
 interface AssistantProps {
+  configurationOnly?: boolean;
+  onConfigured?: () => void;
   projectId: string;
   passage: Passage;
   draft: {
@@ -375,6 +377,26 @@ export function AssistantPanel(props: AssistantProps) {
           ? 'Consultando o provedor…'
           : connection?.detail || 'Conexão ainda não verificada.'}
       </p>
+      {props.configurationOnly && (
+        <button
+          className="button"
+          disabled={checking}
+          onClick={() => {
+            setChecking(true);
+            setError('');
+            void window.studio
+              ?.invoke?.('ai_configure', { provider, model, reasoningEffort })
+              .then(() => {
+                props.onConfigured?.();
+                return refresh();
+              })
+              .catch((failure) => setError(String(failure)))
+              .finally(() => setChecking(false));
+          }}
+        >
+          Salvar configuração
+        </button>
+      )}
       <details>
         <summary>Configuração e dados enviados</summary>
         <p>
@@ -383,80 +405,91 @@ export function AssistantPanel(props: AssistantProps) {
           interface. Para uma chave com vários workspaces, configure também{' '}
           <code>ANTHROPIC_WORKSPACE_ID</code>.
         </p>
-        <p>
-          A solicitação envia a passagem inteira e, quando escolhido explicitamente, o constituinte
-          selecionado, os vizinhos, os dados lexicais disponíveis, as anotações, os localizadores do
-          PDF e as versões. A imagem do fac-símile não é enviada. O histórico de IA fica salvo no
-          Studio e a aceitação é sempre humana.
-        </p>
-      </details>
-      <label>
-        Tarefa
-        <select
-          aria-label="Tarefa de IA"
-          value={action}
-          onChange={(event) => {
-            setAction(event.target.value as AIAction);
-            setScope('passage');
-          }}
-        >
-          {Object.entries(actions).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Escopo da solicitação
-        <select
-          aria-label="Escopo da solicitação"
-          value={requestScope}
-          onChange={(event) => setScope(event.target.value as AIScope)}
-        >
-          <option value="passage">Passagem inteira</option>
-          <option value="constituent" disabled={!selection}>
-            Somente o constituinte selecionado
-          </option>
-        </select>
-      </label>
-      <details className="assistant-target" open>
-        <summary>
-          {requestScope === 'passage'
-            ? `Passagem ${passage.ordinal} inteira`
-            : 'Constituinte selecionado'}{' '}
-          · texto que será analisado
-        </summary>
-        {requestScope === 'passage' &&
-          displayedEvaluation?.expression === raw &&
-          displayedEvaluation.surface && <p>{displayedEvaluation.surface}</p>}
-        <pre aria-label="Expressão enviada para análise">
-          {requestScope === 'passage' ? raw : selection?.code}
-        </pre>
-        {requestScope === 'constituent' && (
+        {props.configurationOnly ? (
           <p>
-            A passagem completa acompanha a seleção como contexto. Uma tradução parcial não
-            substitui a tradução da passagem.
+            A nova conversa usa a entrada salva em Fonte. Imagens só acompanham a solicitação quando
+            você seleciona o envio dos recortes.
+          </p>
+        ) : (
+          <p>
+            A solicitação envia a passagem inteira e, quando escolhido explicitamente, o
+            constituinte selecionado, os vizinhos, os dados lexicais disponíveis, as anotações, os
+            localizadores do PDF e as versões. A imagem do fac-símile não é enviada. O histórico de
+            IA fica salvo no Studio e a aceitação é sempre humana.
           </p>
         )}
       </details>
-      <label>
-        Descrição, dúvida ou contraste linguístico
-        <textarea
-          aria-label="Descrição para a IA"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          rows={3}
-          placeholder="Explique a leitura pretendida ou selecione um constituinte para consultar."
-        />
-      </label>
-      <button
-        className="assistant-primary"
-        onClick={() => void start()}
-        disabled={starting || active.length > 0 || checking}
-      >
-        {starting ? 'Preparando contexto…' : 'Solicitar assistência'}
-      </button>
+      {!props.configurationOnly && (
+        <>
+          <label>
+            Tarefa
+            <select
+              aria-label="Tarefa de IA"
+              value={action}
+              onChange={(event) => {
+                setAction(event.target.value as AIAction);
+                setScope('passage');
+              }}
+            >
+              {Object.entries(actions).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Escopo da solicitação
+            <select
+              aria-label="Escopo da solicitação"
+              value={requestScope}
+              onChange={(event) => setScope(event.target.value as AIScope)}
+            >
+              <option value="passage">Passagem inteira</option>
+              <option value="constituent" disabled={!selection}>
+                Somente o constituinte selecionado
+              </option>
+            </select>
+          </label>
+          <details className="assistant-target" open>
+            <summary>
+              {requestScope === 'passage'
+                ? `Passagem ${passage.ordinal} inteira`
+                : 'Constituinte selecionado'}{' '}
+              · texto que será analisado
+            </summary>
+            {requestScope === 'passage' &&
+              displayedEvaluation?.expression === raw &&
+              displayedEvaluation.surface && <p>{displayedEvaluation.surface}</p>}
+            <pre aria-label="Expressão enviada para análise">
+              {requestScope === 'passage' ? raw : selection?.code}
+            </pre>
+            {requestScope === 'constituent' && (
+              <p>
+                A passagem completa acompanha a seleção como contexto. Uma tradução parcial não
+                substitui a tradução da passagem.
+              </p>
+            )}
+          </details>
+          <label>
+            Descrição, dúvida ou contraste linguístico
+            <textarea
+              aria-label="Descrição para a IA"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={3}
+              placeholder="Explique a leitura pretendida ou selecione um constituinte para consultar."
+            />
+          </label>
+          <button
+            className="assistant-primary"
+            onClick={() => void start()}
+            disabled={starting || active.length > 0 || checking}
+          >
+            {starting ? 'Preparando contexto…' : 'Solicitar assistência'}
+          </button>
+        </>
+      )}
       {error && (
         <p className="assistant-error" role="alert">
           {error}

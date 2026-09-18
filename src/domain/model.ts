@@ -12,6 +12,7 @@ type DraftChanges = Partial<
     | 'raw'
     | 'locators'
     | 'canvas'
+    | 'aiInput'
   >
 >;
 export type ReferenceComparison = {
@@ -92,6 +93,7 @@ export function updateDraft(draft: Draft, changes: DraftChanges): Draft {
         : draft.raw;
   const next = {
     ...draft,
+    ...(changes.aiInput !== undefined ? { aiInput: { ...changes.aiInput } } : {}),
     locators: changes.locators ?? draft.locators,
     raw,
     ...(changes.canvas !== undefined
@@ -214,6 +216,32 @@ function isDraft(value: unknown, passageId: string): value is Draft {
     Number.isFinite(Date.parse(value.updatedAt)) &&
     (value.raw === undefined || (typeof value.raw === 'string' && value.raw.length <= 100000)) &&
     (value.canvas === undefined || isCanvasState(value.canvas)) &&
+    (value.aiInput === undefined ||
+      (isObject(value.aiInput) &&
+        hasOnlyKeys(value.aiInput, ['tentativeReading', 'meaning', 'constraints']) &&
+        ['tentativeReading', 'meaning', 'constraints'].every(
+          (key) =>
+            typeof (value.aiInput as Record<string, unknown>)[key] === 'string' &&
+            String((value.aiInput as Record<string, unknown>)[key]).length <= 100000,
+        ))) &&
+    (value.aiAcceptances === undefined ||
+      (Array.isArray(value.aiAcceptances) &&
+        value.aiAcceptances.length <= 1000 &&
+        value.aiAcceptances.every(
+          (receipt) =>
+            isObject(receipt) &&
+            [
+              'operationId',
+              'jobId',
+              'candidateId',
+              'candidateRevision',
+              'baseRevisionId',
+              'revisionId',
+              'at',
+            ].every(
+              (key) => typeof receipt[key] === 'string' && String(receipt[key]).length <= 256,
+            ),
+        ))) &&
     (value.pending === undefined ||
       (passageId.startsWith('pending:') &&
         isObject(value.pending) &&
@@ -252,6 +280,8 @@ function isDraft(value: unknown, passageId: string): value is Draft {
       'workflow',
       'canvas',
       'pending',
+      'aiInput',
+      'aiAcceptances',
     ])
   );
 }
@@ -265,7 +295,9 @@ export function validateDraftEnvelope(
     typeof value.projectId === 'string' &&
     value.projectId.length > 0 &&
     (expectedProjectId === undefined || value.projectId === expectedProjectId) &&
-    hasOnlyKeys(value, ['version', 'projectId', 'drafts']) &&
+    hasOnlyKeys(value, ['version', 'projectId', 'drafts', 'storageRevision']) &&
+    (value.storageRevision === undefined ||
+      (Number.isSafeInteger(value.storageRevision) && Number(value.storageRevision) >= 0)) &&
     Object.entries(value.drafts).every(
       ([id, draft]) =>
         !['__proto__', 'prototype', 'constructor'].includes(id) && isDraft(draft, id),

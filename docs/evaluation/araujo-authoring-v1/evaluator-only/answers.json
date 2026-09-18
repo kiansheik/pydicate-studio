@@ -1,0 +1,903 @@
+{
+  "warning": "WITHHELD ANSWER KEY: evaluator only; never register as agent context or MCP evidence.",
+  "cases": [
+    {
+      "caseId": "eval:reconstruction:araujo:0002",
+      "ordinal": 2,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "provisional:a4e26d13b8e0037216f6803473a0745226cab0f947d3209efb631a92612c7f00",
+      "identityKind": "deterministic-provisional-source-identity; resolve ordinal and fingerprint in another profile",
+      "expression": "(((tuba + tayra + espirito_santo) * era) * pupé)",
+      "surface": "tuba ta'yra Espírito Santo rera pupé",
+      "annotated": "t[PLURIFORM_PREFIX:T:ABSOLUTE]ub[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN] t[PLURIFORM_PREFIX:T:ABSOLUTE]a'yr[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN] Espírito Santo[PROPER_NOUN][CONJUNCTION:AND][NOUN:POSSESSOR] r[PLURIFORM_PREFIX:R]er[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING] pupé[POSTPOSITION]",
+      "structureFingerprint": "sha256:1ba99da0fe23eae7e3b4b86a44e8efdb90c4543995c8f61376cb41f15b108b3d",
+      "comparisonKeys": {
+        "exact": "tuba ta'yra Espírito Santo rera pupé",
+        "spacingCase": "tubata'yraespíritosantorerapupé",
+        "accentFolded": "tubata'yraespiritosantorerapupe"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "tuba ta'yra Espírito Santo rera pupé",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "provisional:a4e26d13b8e0037216f6803473a0745226cab0f947d3209efb631a92612c7f00"
+        ],
+        "excludeConstructionIds": [
+          "sha256:1faad07fe25a37c053e559b47e646cba463202e24954ce9898b615a0ec8cf148",
+          "sha256:5b360633ad4180b5da944419a497df5c8a3a9d785b9bb431fed39384473d4844",
+          "sha256:6206f834c44f963c9f32cf35ef0e36d178b848f593f3aadba44e689381304fb7",
+          "sha256:6510a490f63511d0bd8204b588f16325c9d922f17777277e29fabcabafb3e213",
+          "sha256:6c9fd8ed367bda40aa25f1c2a1f0e01557fc1eaa630b2745a67191010d755b67",
+          "sha256:77936ba266c2c967c589c75119b572056027495e7d5feffa8f5291bd0494ba08",
+          "sha256:ad678f17e5c67c03f511515aecc2cc82a0d778e5730d5ff225115e81e14b3b41",
+          "sha256:c9d3e40c00271c7281c41b7136b228ff13619ca3392c416cf5796a50eafa96cd",
+          "sha256:fe58ab4e57a44dd92caaeb0196fca9c41943d4e9a2e752d8586de17cd2f0d627"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 2,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "era": {
+          "expression": "Noun(\"er\", definition=\"(t); name\")",
+          "sourceId": "lexicon",
+          "line": 31
+        },
+        "espirito_santo": {
+          "expression": "ProperNoun(\"Espírito Santo\")",
+          "sourceId": "lexicon",
+          "line": 97
+        },
+        "tayra": {
+          "expression": "Noun(\"a'yra\", \"filho\")",
+          "sourceId": "lexicon",
+          "line": 96
+        },
+        "tuba": {
+          "expression": "Noun(\"uba\", \"pai\")",
+          "sourceId": "lexicon",
+          "line": 95
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0067",
+      "ordinal": 67,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "provisional:311caca56d5278b1dbbc4ee23910322b463ee17b8fbc3dfab948099b6313582e",
+      "identityKind": "deterministic-provisional-source-identity; resolve ordinal and fingerprint in another profile",
+      "expression": "-(+nde * apiti * moro).imp()",
+      "surface": "eporoapiti umẽ",
+      "annotated": "e[IMPERATIVE_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT] umẽ[NEGATION_PARTICLE:UME]",
+      "structureFingerprint": "sha256:32dfdca4aead4931dbc2ed364d23c9d2b04c83417fd4a2b731b793df870aec09",
+      "comparisonKeys": {
+        "exact": "eporoapiti umẽ",
+        "spacingCase": "eporoapitiumẽ",
+        "accentFolded": "eporoapitiume"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "eporoapiti umẽ",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "provisional:311caca56d5278b1dbbc4ee23910322b463ee17b8fbc3dfab948099b6313582e"
+        ],
+        "excludeConstructionIds": [
+          "sha256:0ddba981af719d9e145b20aa8a1f69b8a381be7679b07712e6f9eccbb3a9f410",
+          "sha256:4e8d1ed10c7793640f2494ec36f53366506f8ec431c807e870e29d99035b5bef",
+          "sha256:83bd7721bb04f07c34d9ad77faea16499c8b3bc76ea074e1c7f85512d8eab948",
+          "sha256:bc0df1c769311f706be3a416351c2bfc0913a4a3486a328cae2676a054be3b8c",
+          "sha256:be20a621505f9e95f22281a9dd271200fd27d681077cb058377c286e871e912e",
+          "sha256:d994a4d3c2931e8b2db8237e79a6a72726f904b99b590493c02e81d0dc4597d5",
+          "sha256:decdcfafaa652640d39d95cfda299a81adaef6e4f3c5cbb07eee74763ec8bbee",
+          "sha256:e87021b58d01c503e27d2826caa12ef1150f5a2dbdbb2518d068722a4a45d2dd",
+          "sha256:fa3bb6321431a842adfeb0131a7865cc7c78bb5e592acc1fa0845f36f78732c7"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 67,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "apiti": {
+          "expression": "Verb(\"apiti\", definition=\"murder\")",
+          "sourceId": "lexicon",
+          "line": 295
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0081",
+      "ordinal": 81,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "provisional:eae4b5dc4a37e7e16900cb75681a25ccfd5942bd23a7c1f7e39ba76bcdb6158e",
+      "identityKind": "deterministic-provisional-source-identity; resolve ordinal and fingerprint in another profile",
+      "expression": "(pupé * ((pûera * (og * (emi * tym))) / ypy)) + (tupan * (potaba / meeng).var(1)).base_nominal() + no",
+      "surface": "oemitymbûerypy pupé Tupã potame'enga no",
+      "annotated": "o[PRONOUN:MAIN_CLAUSE_SUBJECT:3p]emi[PATIENT_PREFIX]tym[ROOT]bûer[PRETERITE_SUFFIX]ypy[ROOT][CLASSIFIER:PAST] pupé[POSTPOSITION] Tupã[PROPER_NOUN][OBJECT:DIRECT:INCORPORATED_NOUN_POSSESSOR] p[PLURIFORM_PREFIX:P]ota[INCORPORATED_OBJECT][OBJECT:INCORPORATED:POSSESSED]me'eng[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN:INCORPORATED_VERB_NOMINAL] no[ADVERB]",
+      "structureFingerprint": "sha256:cb1edadb4e29fbf1370943695aea9701f58bc965da3dae0fff24981161c7bfeb",
+      "comparisonKeys": {
+        "exact": "oemitymbûerypy pupé Tupã potame'enga no",
+        "spacingCase": "oemitymbûerypypupétupãpotame'engano",
+        "accentFolded": "oemitymbuerypypupetupapotame'engano"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "oemitymbûerypy pupé Tupã potame'enga no",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "provisional:eae4b5dc4a37e7e16900cb75681a25ccfd5942bd23a7c1f7e39ba76bcdb6158e"
+        ],
+        "excludeConstructionIds": [
+          "sha256:180f9715d876cd6f7bdd0d14cf142adb1ae40e8c1f5e0b355a56368760ff60e8",
+          "sha256:18ab17d1e032226de0391b5fe94a9379afd1b5d383a2f388cbc2b01fa71328ff",
+          "sha256:30acaef6c7c7300549c5ed7dccc266fe9268983104179a881440cbbdc1ba69cc",
+          "sha256:35800f7e5ec4ad2c5fb2a721667cd27aa0931eca1c3ac42da61f41a17fdc0cb5",
+          "sha256:63a27a83d476dd0bc861a2663fef1a4dbffac923d35f007fa44eb70101dc80f0",
+          "sha256:6e2661aa045debce46604280a0b5d168bb6cf2ee8d6676374659405aee4e1e03",
+          "sha256:73b506ebb3654002337edcf2fe943ac9a62a5651dfcc26721b41b265bd1e6c02",
+          "sha256:90c567dab4866d3ee8e1c9544b27e576e14477af792d2c28aae4c78cc1988bf3",
+          "sha256:a87e618d15fd38ad916962b2f6cdbdb8e1567afdc258423449608b6212a8f7c1",
+          "sha256:a92848b2f52dd536b27a5b508416e2dd97f7ab5b6690d3d979fb518fffd8647c",
+          "sha256:aa8a373a476250fd612808b06ce6131ed9eee5a19bfee0d236ed752d8675e08b",
+          "sha256:b698aaea1a15c203591b978e214de95bdbdd07fed954ac37a4e1e67d0135dc10",
+          "sha256:d07fc3e06f57d3c074d4076d6d9e4320890265a93adb581d189f103d3077f1e4",
+          "sha256:d1f8a4da958cf8d1dc58412898180fe80193935dbc2bdedf5ba1eda39239de6f",
+          "sha256:d730c63996271d2045ca47b58df53d600783b5c579e730f636ad4858ff710935",
+          "sha256:db9014c1c3ff40fc3f48077c44a23178cdcd39fa8968036c946e66a30aba93fb",
+          "sha256:e0f3294c9224501fe13e98fb723a1671ef0dfe79f72cbeb261d8e400afd21165",
+          "sha256:e92d9b64daff01dd82f325846f2f005c44f69f143ef873c246b3a8c4e31c052c",
+          "sha256:ee79b7feed889cc959db783afda903fc46ccb81d7d005e53bc36f980861622b3",
+          "sha256:fb1165ae85254030093ea26908dbc5e3aaf4085d647729cef7ef0b017ae270ec",
+          "sha256:fe58ab4e57a44dd92caaeb0196fca9c41943d4e9a2e752d8586de17cd2f0d627"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 81,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "meeng": {
+          "expression": "Verb(\"me'eng\")",
+          "sourceId": "lexicon",
+          "line": 111
+        },
+        "no": {
+          "expression": "Adverb(\"no\", definition=\"também\")",
+          "sourceId": "lexicon",
+          "line": 313
+        },
+        "potaba": {
+          "expression": "Noun(\"potaba\", definition=\"(m) porção, parte\")",
+          "sourceId": "lexicon",
+          "line": 324
+        },
+        "tupan": {
+          "expression": "ProperNoun(\"Tupã\")",
+          "sourceId": "lexicon",
+          "line": 89
+        },
+        "tym": {
+          "expression": "Verb(\"tym\")",
+          "sourceId": "lexicon",
+          "line": 205
+        },
+        "ypy": {
+          "expression": "Noun(\"ypy\", definition=\"início, primeiro, começar, começo\")",
+          "sourceId": "lexicon",
+          "line": 326
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0083",
+      "ordinal": 83,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "passage:c0add967-b045-440c-8e1f-a42acd1e3b66",
+      "identityKind": "explicit-source-note",
+      "expression": "((((pe) * ((asé) * (syba_2f344911))) + (((abareguasu) * (nong)) * ((nhandy) / (karaiba)))).base_nominal())",
+      "surface": "asé sybápe abaregûasu nhandykaraíbanonga",
+      "annotated": "asé[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][PRONOUN:UNIVERSAL_WE][NOUN:POSSESSOR] sybá[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][ROOT]pe[POSTPOSITION:LOCATIVE] abaregûasu nhandykaraíbanong[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN]",
+      "structureFingerprint": "sha256:6396b5f124ed3ee8e2a14dc2ade47461528ff3ae50a6c8c3f6eb9d332faeba87",
+      "comparisonKeys": {
+        "exact": "asé sybápe abaregûasu nhandykaraíbanonga",
+        "spacingCase": "asésybápeabaregûasunhandykaraíbanonga",
+        "accentFolded": "asesybapeabareguasunhandykaraibanonga"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "asé sybápe abaregûasu nhandykaraíbanonga",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "passage:c0add967-b045-440c-8e1f-a42acd1e3b66"
+        ],
+        "excludeConstructionIds": [
+          "sha256:05206032761e656aeb6b73b92b6dd976fab2961a9c3327fc3d0fc5f5d72a558e",
+          "sha256:0dc0e6d666d86b66abb17f6b801742daa567867bd730967af73dec447a12a1fb",
+          "sha256:1702af66a1748411d227323495eee199769f9233d598e58bac60eb37b9d8fde6",
+          "sha256:1d4f65f5897ccb179ded95e412df4ba4a7d485a23b29aea36f6bd611eca4e3ce",
+          "sha256:663d04d6bf2cfc25269e2eac1a76d743d1bab7c87cf7c4659b76627072a55cc6",
+          "sha256:6a4e693a5c40b5837d94bf7ea80d4e0738509e73ed49def379ea1d2722ffa3a7",
+          "sha256:714c4b3436b38f14261e7a050c62edf872f6c4313c85feafa6c979ee635230dc",
+          "sha256:7a7ccc67d452abd451831847d4cf5bcc00405b0a8fe4749a5cd3a34f88fa1456",
+          "sha256:7c599345b7c821449a6ffcf952800ce0a2f38b22d342e104a187c97305c426e5",
+          "sha256:a957639bb8c9bbc33798adead87ee7385b5df49ba2f1b9adbecd2f5121b0a61f",
+          "sha256:aeee046f08f1c97a42a348d9e58eb56c3b40c0d1f350badb7c2b25412e4a4d67",
+          "sha256:b1218c98fa1c28c7c585b714d10e601c0534fc88158b849628eabc99d66bbc8b",
+          "sha256:b6d60ee6a287347b9ac59c03e2622d1776154cb601acb92d7bf351add6bb52ba",
+          "sha256:e473d6d515a28a567c5c5695fc04dd9b68a75c0e7435ba2cb189359cbacc0d22"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 83,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "abareguasu": {
+          "expression": "Noun(value='abaregûasu', definition='(etim. - padre grande) (s.) - bispo, autoridade eclesiástica, provincial, abade, prelado: Asé sybápe abaregûasu nhandy-karaíba nonga. - Pôr o bispo em nossa testa o óleo santo. (Ar., Cat., 17v); Abaregûasu ogûatá. - O bispo passeia. (Fig., Arte, 6)')",
+          "sourceId": "lexicon",
+          "line": 336
+        },
+        "karaiba": {
+          "expression": "Noun(\"karaíba\")",
+          "sourceId": "lexicon",
+          "line": 251
+        },
+        "nhandy": {
+          "expression": "Noun(value='nhandy', definition='(s.) - azeite; óleo: pirá-nhandy - óleo de peixe (VLB, I, 49); ...Asé sybápe abaregûasu nhandy-karaíba nonga. - Pôr o bispo em nossa testa o óleo sagrado. (Ar., Cat., 17v)')",
+          "sourceId": "lexicon",
+          "line": 342
+        },
+        "nong": {
+          "expression": "Verb(value='nong', verb_class='(-îo- ou -nho-) (v.tr.)', definition=\"(-îo- ou -nho-) (v.tr.) - 1) pôr, colocar: Enhonong nde itaingapema nde ku'aî. - Põe tua espada na tua cintura. (Fig., Arte, 125); Nde morerekoar xe ri, nde pó gûyrype xe nonga. - Sê tu guardião de mim, sob tuas mãos colocando-me. (Valente, Cantigas, in Ar., Cat., 1618); Aó-tinga onong asé resé. - Roupa branca põe na gente. (Ar., Cat., 81v); 2) fazer ser, fazer estar: ...Aîonong ka'umondá... - Faço-os ser ladrões de cauim. (Anch., Teatro, 134); 3) deter: T'orosóne, Anhangusu; oré reîtyk, oré nonga. - Vamos, Anhanguçu; derrotou-nos, detendo-nos. (Anch., Teatro, 172) ● nongaba - lugar, tempo, modo, causa, etc. de pôr, de colocar, ato de pôr, de colocar: ...I pysyrõû tekoangaîpabypy Adão îandé nongaba suí. - Livrou-a do pecado primeiro em que Adão nos pôs. (Ar., Cat., 9); nongara - o que põe, o que coloca, etc.: Mba'easybora o mara'ara kakareme t'osenõîukar abaré, îandykaraíba nongara... - Ao se aproximar o doente de sua agonia, que mande chamar o padre, o que põe o óleo bento. (Ar., Cat., 137v); i nongymbyra - o que é (ou deve ser) posto, colocado, etc.: ...Kaûĩ i pupé i nongymbyra... - O vinho que é colocado dentro dele. (Bettendorff, Compêndio, 85)\", vid=7780)",
+          "sourceId": "lexicon",
+          "line": 339
+        },
+        "syba_2f344911": {
+          "expression": "Noun('sybá', definition='(s.) - testa (Castilho, Nomes, 37): Marãnamope asé o sybápe îoasaba moíni? - Por que a gente põe a cruz na testa? (Ar., Cat., 21)')",
+          "sourceId": "lexicon",
+          "line": 332
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0085",
+      "ordinal": 85,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "passage:709719cf-73d8-4be2-b1fd-82c188cee4d6",
+      "identityKind": "explicit-source-note",
+      "expression": "(((((((((mombeu)) * ((nhe)))).var(1)))))).base_nominal()",
+      "surface": "nhemombe'u",
+      "annotated": "nhemombe'u[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][NOUN]",
+      "structureFingerprint": "sha256:7b8138a040e81d2fc8c11afe9e9c0cb7770580476e0756d4eedfc0fdd6a6fb07",
+      "comparisonKeys": {
+        "exact": "nhemombe'u",
+        "spacingCase": "nhemombe'u",
+        "accentFolded": "nhemombe'u"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "nhemombe'u",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "passage:709719cf-73d8-4be2-b1fd-82c188cee4d6"
+        ],
+        "excludeConstructionIds": [
+          "sha256:4c718c3bf047a24b7e4c95866497584c4e3cc81deed169fd43a991a809465bc4",
+          "sha256:5e37b4db54423fcf13587e271a74c1374d90ecc043f46661e27bb36faa3382df",
+          "sha256:df6e63414863b302d1215a857d355426347e96f2a0be762bd14785db3ca93b90"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 85,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "mombeu": {
+          "expression": "Verb(\"mombe'u\")",
+          "sourceId": "lexicon",
+          "line": 150
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:reconstruction:araujo:0086",
+      "ordinal": 86,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "passage:87d8b70b-b94e-4614-8e20-98aa92db1888",
+      "identityKind": "explicit-source-note",
+      "expression": "((ianonde) * ((asé) * (eo))) + (((((((nhandy) / (karaiba)) * (îar)).var(1)).base_nominal())))",
+      "surface": "asé re'õ îanondé nhandykaraíbarara",
+      "annotated": "asé[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][PRONOUN:UNIVERSAL_WE][NOUN:POSSESSOR] r[PLURIFORM_PREFIX:R]e'õ[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING] îanondé[POSTPOSITION] nhandykaraíbarar[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN]",
+      "structureFingerprint": "sha256:ce801afe79f8510817c097384c4bd483e50e8b74a6afbf5ed3771d90240c27db",
+      "comparisonKeys": {
+        "exact": "asé re'õ îanondé nhandykaraíbarara",
+        "spacingCase": "asére'õîanondénhandykaraíbarara",
+        "accentFolded": "asere'oianondenhandykaraibarara"
+      },
+      "sourceStatus": "approved",
+      "savedReference": null,
+      "referenceProvenance": "none",
+      "leakageControls": {
+        "excludePassageIds": [
+          "passage:87d8b70b-b94e-4614-8e20-98aa92db1888"
+        ],
+        "excludeConstructionIds": [
+          "sha256:1e5c20b7f47bd0406c4caa3e4da959fb6d04cccd80e1024e753a80ad6539e7ca",
+          "sha256:3c246089f6a458a376af4b6afe9835a05660b70a66f9d67bd1c4d92b50258599",
+          "sha256:663d04d6bf2cfc25269e2eac1a76d743d1bab7c87cf7c4659b76627072a55cc6",
+          "sha256:714c4b3436b38f14261e7a050c62edf872f6c4313c85feafa6c979ee635230dc",
+          "sha256:71ea2fb977303d2611a69790cfe2b3b019ceccc3d66fbbbdcbc3a2da627b5a66",
+          "sha256:764e7d3607e68cb88b290d13f802d883b247c9ce0413debb4b871aa919a54bfc",
+          "sha256:77c406e30ea2b3469920cddb565156ec7c67e3ee3be1c17528587eef8a4bf262",
+          "sha256:95e03de88909b62d1add3f3607aabdc0b0e81d6fa8a4fddc8150e5279ddc1a44",
+          "sha256:aeee046f08f1c97a42a348d9e58eb56c3b40c0d1f350badb7c2b25412e4a4d67",
+          "sha256:bbc9a3d7b5befef532365348c27d5ff6a3b605de0f95aa6ecc087d42673ffa1e",
+          "sha256:bdfed5f96f233aeb361822a2de66cf9b940114685816e906f542c90de95ecfaf",
+          "sha256:e473d6d515a28a567c5c5695fc04dd9b68a75c0e7435ba2cb189359cbacc0d22",
+          "sha256:f244bfb4e01473ee460d16a7abd2745586357971abb9caf20e620fa016527dfb"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 86,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "eo": {
+          "expression": "Noun(value=\"e'õ\", definition=\"(t) (s.) - 1) morte (em geral): ...Te'õ rupîara nhẽ... - Adversária da morte (Anch., Poemas, 88); Te'õ rerobyka é, xe angaîpá-tubixagûera amosẽne... - Aproximando-me da morte, meus grandes pecados antigos farei sair. (Anch., Teatro, 38); N'ereîkuabipe ko'yr te'õ nde resé sekó? - Não sabes que agora a morte está contigo? (D'Abbeville, Histoire, 350); 2) morte natural: Te'õ suí amanõ. - Morro de morte natural. (VLB, II, 42); 3) desfalecimento, entorpecimento; [adj.: e'õ (r, s)] - moribundo; desfalecido, entorpecido; (xe) morrer; desfalecer, entorpecer-se: ...Abá 'anga re'õû nhẽ Tupana nhe'enga abŷápe. - As almas dos homens morrem ao transgredirem a palavra de Deus. (Anch., Teatro, 144); Se'õ. - Ele morre. (Anch., Arte, 40); îybá-e'õ-e'õ - braços entorpecidos, quebrantados (com algum sobressalto, grande tristeza, etc.); pó-e'õ - mãos entorpecidas (VLB, II, 93) ● e'õsara (t) - o que morre, o mortal (VLB, II, 42); e'õaba (ou e'õsaba) (t) [no futuro egûama (t)] - tempo, lugar, modo, causa, instrumento, etc. da morte, do morrer; morte (Fig., Arte, 59): ...Abá re'õagûera resé og orybamo... - Alegrando-se com a morte de alguém. (Ar., Cat., 70v); O'u nhẽpe a'e 'ybá, tegûama...? - Comeu aquele fruto, causa de morte? (Ar., Cat., 40v); Nde ma'enduá-katu... nde resé se'õagûera resé. - Lembra-te bem de que morreu por tua causa. (Ar., Cat., 249); e'õ-memûã (ou e'õ-aíba ou e'õ-korine) (t) - morte súbita ou em desastre (VLB, II, 42)\")",
+          "sourceId": "lexicon",
+          "line": 349
+        },
+        "ianonde": {
+          "expression": "Postposition(value='îanondé', definition=\"1) (posp.) - antes de (expressando tempo anterior a algo que se realizará depois, necessariamente): Xe îebyr-y îanondé. - Antes de minha volta. (Fig., Arte, 158); ...Oporaseî pysaré, oîemopaîeangaípa, tatápe o só îanondé. - Dançaram a noite toda, fazendo feitiçarias, antes de irem para o inferno. (Anch., Teatro, 14); Abá rokype erekûá, tá, nhemim-y îanondé? - Na casa de quem passaste, tomando-as [isto é, as coisas roubadas], antes de te esconderes? (Anch., Teatro, 44); Marã e'ipe asé o ké îanondé...? - Como diz a gente antes de dormir? (Ar., Cat., 24v); Xe angaturam ybakype xe só îanondé. - Eu fui bom antes de ir para o céu. (Anch., Arte, 45); 2) (adv.) antes (comparação): ...Ybakype i pyri o só îanondé Anhanga ratápe o só suí. - Antes sua ida para junto dele no céu que sua ida para o inferno. (Ar., Cat., 110)\")",
+          "sourceId": "lexicon",
+          "line": 346
+        },
+        "karaiba": {
+          "expression": "Noun(\"karaíba\")",
+          "sourceId": "lexicon",
+          "line": 251
+        },
+        "nhandy": {
+          "expression": "Noun(value='nhandy', definition='(s.) - azeite; óleo: pirá-nhandy - óleo de peixe (VLB, I, 49); ...Asé sybápe abaregûasu nhandy-karaíba nonga. - Pôr o bispo em nossa testa o óleo sagrado. (Ar., Cat., 17v)')",
+          "sourceId": "lexicon",
+          "line": 342
+        },
+        "îar": {
+          "expression": "Verb(\"îar\")",
+          "sourceId": "lexicon",
+          "line": 236
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:assisted:araujo:0002",
+      "ordinal": 2,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "provisional:a4e26d13b8e0037216f6803473a0745226cab0f947d3209efb631a92612c7f00",
+      "identityKind": "deterministic-provisional-source-identity; resolve ordinal and fingerprint in another profile",
+      "expression": "(((tuba + tayra + espirito_santo) * era) * pupé)",
+      "surface": "tuba ta'yra Espírito Santo rera pupé",
+      "annotated": "t[PLURIFORM_PREFIX:T:ABSOLUTE]ub[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN] t[PLURIFORM_PREFIX:T:ABSOLUTE]a'yr[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN] Espírito Santo[PROPER_NOUN][CONJUNCTION:AND][NOUN:POSSESSOR] r[PLURIFORM_PREFIX:R]er[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING] pupé[POSTPOSITION]",
+      "structureFingerprint": "sha256:1ba99da0fe23eae7e3b4b86a44e8efdb90c4543995c8f61376cb41f15b108b3d",
+      "comparisonKeys": {
+        "exact": "tuba ta'yra Espírito Santo rera pupé",
+        "spacingCase": "tubata'yraespíritosantorerapupé",
+        "accentFolded": "tubata'yraespiritosantorerapupe"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "tuba ta'yra Espírito Santo rera pupé",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "provisional:a4e26d13b8e0037216f6803473a0745226cab0f947d3209efb631a92612c7f00"
+        ],
+        "excludeConstructionIds": [
+          "sha256:1faad07fe25a37c053e559b47e646cba463202e24954ce9898b615a0ec8cf148",
+          "sha256:5b360633ad4180b5da944419a497df5c8a3a9d785b9bb431fed39384473d4844",
+          "sha256:6206f834c44f963c9f32cf35ef0e36d178b848f593f3aadba44e689381304fb7",
+          "sha256:6510a490f63511d0bd8204b588f16325c9d922f17777277e29fabcabafb3e213",
+          "sha256:6c9fd8ed367bda40aa25f1c2a1f0e01557fc1eaa630b2745a67191010d755b67",
+          "sha256:77936ba266c2c967c589c75119b572056027495e7d5feffa8f5291bd0494ba08",
+          "sha256:ad678f17e5c67c03f511515aecc2cc82a0d778e5730d5ff225115e81e14b3b41",
+          "sha256:c9d3e40c00271c7281c41b7136b228ff13619ca3392c416cf5796a50eafa96cd",
+          "sha256:fe58ab4e57a44dd92caaeb0196fca9c41943d4e9a2e752d8586de17cd2f0d627"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 2,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "era": {
+          "expression": "Noun(\"er\", definition=\"(t); name\")",
+          "sourceId": "lexicon",
+          "line": 31
+        },
+        "espirito_santo": {
+          "expression": "ProperNoun(\"Espírito Santo\")",
+          "sourceId": "lexicon",
+          "line": 97
+        },
+        "tayra": {
+          "expression": "Noun(\"a'yra\", \"filho\")",
+          "sourceId": "lexicon",
+          "line": 96
+        },
+        "tuba": {
+          "expression": "Noun(\"uba\", \"pai\")",
+          "sourceId": "lexicon",
+          "line": 95
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:assisted:araujo:0067",
+      "ordinal": 67,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "provisional:311caca56d5278b1dbbc4ee23910322b463ee17b8fbc3dfab948099b6313582e",
+      "identityKind": "deterministic-provisional-source-identity; resolve ordinal and fingerprint in another profile",
+      "expression": "-(+nde * apiti * moro).imp()",
+      "surface": "eporoapiti umẽ",
+      "annotated": "e[IMPERATIVE_PREFIX:2ps]poro[OBJECT:gen]apiti[ROOT] umẽ[NEGATION_PARTICLE:UME]",
+      "structureFingerprint": "sha256:32dfdca4aead4931dbc2ed364d23c9d2b04c83417fd4a2b731b793df870aec09",
+      "comparisonKeys": {
+        "exact": "eporoapiti umẽ",
+        "spacingCase": "eporoapitiumẽ",
+        "accentFolded": "eporoapitiume"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "eporoapiti umẽ",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "provisional:311caca56d5278b1dbbc4ee23910322b463ee17b8fbc3dfab948099b6313582e"
+        ],
+        "excludeConstructionIds": [
+          "sha256:0ddba981af719d9e145b20aa8a1f69b8a381be7679b07712e6f9eccbb3a9f410",
+          "sha256:4e8d1ed10c7793640f2494ec36f53366506f8ec431c807e870e29d99035b5bef",
+          "sha256:83bd7721bb04f07c34d9ad77faea16499c8b3bc76ea074e1c7f85512d8eab948",
+          "sha256:bc0df1c769311f706be3a416351c2bfc0913a4a3486a328cae2676a054be3b8c",
+          "sha256:be20a621505f9e95f22281a9dd271200fd27d681077cb058377c286e871e912e",
+          "sha256:d994a4d3c2931e8b2db8237e79a6a72726f904b99b590493c02e81d0dc4597d5",
+          "sha256:decdcfafaa652640d39d95cfda299a81adaef6e4f3c5cbb07eee74763ec8bbee",
+          "sha256:e87021b58d01c503e27d2826caa12ef1150f5a2dbdbb2518d068722a4a45d2dd",
+          "sha256:fa3bb6321431a842adfeb0131a7865cc7c78bb5e592acc1fa0845f36f78732c7"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 67,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "apiti": {
+          "expression": "Verb(\"apiti\", definition=\"murder\")",
+          "sourceId": "lexicon",
+          "line": 295
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:assisted:araujo:0081",
+      "ordinal": 81,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "provisional:eae4b5dc4a37e7e16900cb75681a25ccfd5942bd23a7c1f7e39ba76bcdb6158e",
+      "identityKind": "deterministic-provisional-source-identity; resolve ordinal and fingerprint in another profile",
+      "expression": "(pupé * ((pûera * (og * (emi * tym))) / ypy)) + (tupan * (potaba / meeng).var(1)).base_nominal() + no",
+      "surface": "oemitymbûerypy pupé Tupã potame'enga no",
+      "annotated": "o[PRONOUN:MAIN_CLAUSE_SUBJECT:3p]emi[PATIENT_PREFIX]tym[ROOT]bûer[PRETERITE_SUFFIX]ypy[ROOT][CLASSIFIER:PAST] pupé[POSTPOSITION] Tupã[PROPER_NOUN][OBJECT:DIRECT:INCORPORATED_NOUN_POSSESSOR] p[PLURIFORM_PREFIX:P]ota[INCORPORATED_OBJECT][OBJECT:INCORPORATED:POSSESSED]me'eng[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN:INCORPORATED_VERB_NOMINAL] no[ADVERB]",
+      "structureFingerprint": "sha256:cb1edadb4e29fbf1370943695aea9701f58bc965da3dae0fff24981161c7bfeb",
+      "comparisonKeys": {
+        "exact": "oemitymbûerypy pupé Tupã potame'enga no",
+        "spacingCase": "oemitymbûerypypupétupãpotame'engano",
+        "accentFolded": "oemitymbuerypypupetupapotame'engano"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "oemitymbûerypy pupé Tupã potame'enga no",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "provisional:eae4b5dc4a37e7e16900cb75681a25ccfd5942bd23a7c1f7e39ba76bcdb6158e"
+        ],
+        "excludeConstructionIds": [
+          "sha256:180f9715d876cd6f7bdd0d14cf142adb1ae40e8c1f5e0b355a56368760ff60e8",
+          "sha256:18ab17d1e032226de0391b5fe94a9379afd1b5d383a2f388cbc2b01fa71328ff",
+          "sha256:30acaef6c7c7300549c5ed7dccc266fe9268983104179a881440cbbdc1ba69cc",
+          "sha256:35800f7e5ec4ad2c5fb2a721667cd27aa0931eca1c3ac42da61f41a17fdc0cb5",
+          "sha256:63a27a83d476dd0bc861a2663fef1a4dbffac923d35f007fa44eb70101dc80f0",
+          "sha256:6e2661aa045debce46604280a0b5d168bb6cf2ee8d6676374659405aee4e1e03",
+          "sha256:73b506ebb3654002337edcf2fe943ac9a62a5651dfcc26721b41b265bd1e6c02",
+          "sha256:90c567dab4866d3ee8e1c9544b27e576e14477af792d2c28aae4c78cc1988bf3",
+          "sha256:a87e618d15fd38ad916962b2f6cdbdb8e1567afdc258423449608b6212a8f7c1",
+          "sha256:a92848b2f52dd536b27a5b508416e2dd97f7ab5b6690d3d979fb518fffd8647c",
+          "sha256:aa8a373a476250fd612808b06ce6131ed9eee5a19bfee0d236ed752d8675e08b",
+          "sha256:b698aaea1a15c203591b978e214de95bdbdd07fed954ac37a4e1e67d0135dc10",
+          "sha256:d07fc3e06f57d3c074d4076d6d9e4320890265a93adb581d189f103d3077f1e4",
+          "sha256:d1f8a4da958cf8d1dc58412898180fe80193935dbc2bdedf5ba1eda39239de6f",
+          "sha256:d730c63996271d2045ca47b58df53d600783b5c579e730f636ad4858ff710935",
+          "sha256:db9014c1c3ff40fc3f48077c44a23178cdcd39fa8968036c946e66a30aba93fb",
+          "sha256:e0f3294c9224501fe13e98fb723a1671ef0dfe79f72cbeb261d8e400afd21165",
+          "sha256:e92d9b64daff01dd82f325846f2f005c44f69f143ef873c246b3a8c4e31c052c",
+          "sha256:ee79b7feed889cc959db783afda903fc46ccb81d7d005e53bc36f980861622b3",
+          "sha256:fb1165ae85254030093ea26908dbc5e3aaf4085d647729cef7ef0b017ae270ec",
+          "sha256:fe58ab4e57a44dd92caaeb0196fca9c41943d4e9a2e752d8586de17cd2f0d627"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 81,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "meeng": {
+          "expression": "Verb(\"me'eng\")",
+          "sourceId": "lexicon",
+          "line": 111
+        },
+        "no": {
+          "expression": "Adverb(\"no\", definition=\"também\")",
+          "sourceId": "lexicon",
+          "line": 313
+        },
+        "potaba": {
+          "expression": "Noun(\"potaba\", definition=\"(m) porção, parte\")",
+          "sourceId": "lexicon",
+          "line": 324
+        },
+        "tupan": {
+          "expression": "ProperNoun(\"Tupã\")",
+          "sourceId": "lexicon",
+          "line": 89
+        },
+        "tym": {
+          "expression": "Verb(\"tym\")",
+          "sourceId": "lexicon",
+          "line": 205
+        },
+        "ypy": {
+          "expression": "Noun(\"ypy\", definition=\"início, primeiro, começar, começo\")",
+          "sourceId": "lexicon",
+          "line": 326
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:assisted:araujo:0083",
+      "ordinal": 83,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "passage:c0add967-b045-440c-8e1f-a42acd1e3b66",
+      "identityKind": "explicit-source-note",
+      "expression": "((((pe) * ((asé) * (syba_2f344911))) + (((abareguasu) * (nong)) * ((nhandy) / (karaiba)))).base_nominal())",
+      "surface": "asé sybápe abaregûasu nhandykaraíbanonga",
+      "annotated": "asé[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][PRONOUN:UNIVERSAL_WE][NOUN:POSSESSOR] sybá[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][ROOT]pe[POSTPOSITION:LOCATIVE] abaregûasu nhandykaraíbanong[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN]",
+      "structureFingerprint": "sha256:6396b5f124ed3ee8e2a14dc2ade47461528ff3ae50a6c8c3f6eb9d332faeba87",
+      "comparisonKeys": {
+        "exact": "asé sybápe abaregûasu nhandykaraíbanonga",
+        "spacingCase": "asésybápeabaregûasunhandykaraíbanonga",
+        "accentFolded": "asesybapeabareguasunhandykaraibanonga"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "asé sybápe abaregûasu nhandykaraíbanonga",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "passage:c0add967-b045-440c-8e1f-a42acd1e3b66"
+        ],
+        "excludeConstructionIds": [
+          "sha256:05206032761e656aeb6b73b92b6dd976fab2961a9c3327fc3d0fc5f5d72a558e",
+          "sha256:0dc0e6d666d86b66abb17f6b801742daa567867bd730967af73dec447a12a1fb",
+          "sha256:1702af66a1748411d227323495eee199769f9233d598e58bac60eb37b9d8fde6",
+          "sha256:1d4f65f5897ccb179ded95e412df4ba4a7d485a23b29aea36f6bd611eca4e3ce",
+          "sha256:663d04d6bf2cfc25269e2eac1a76d743d1bab7c87cf7c4659b76627072a55cc6",
+          "sha256:6a4e693a5c40b5837d94bf7ea80d4e0738509e73ed49def379ea1d2722ffa3a7",
+          "sha256:714c4b3436b38f14261e7a050c62edf872f6c4313c85feafa6c979ee635230dc",
+          "sha256:7a7ccc67d452abd451831847d4cf5bcc00405b0a8fe4749a5cd3a34f88fa1456",
+          "sha256:7c599345b7c821449a6ffcf952800ce0a2f38b22d342e104a187c97305c426e5",
+          "sha256:a957639bb8c9bbc33798adead87ee7385b5df49ba2f1b9adbecd2f5121b0a61f",
+          "sha256:aeee046f08f1c97a42a348d9e58eb56c3b40c0d1f350badb7c2b25412e4a4d67",
+          "sha256:b1218c98fa1c28c7c585b714d10e601c0534fc88158b849628eabc99d66bbc8b",
+          "sha256:b6d60ee6a287347b9ac59c03e2622d1776154cb601acb92d7bf351add6bb52ba",
+          "sha256:e473d6d515a28a567c5c5695fc04dd9b68a75c0e7435ba2cb189359cbacc0d22"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 83,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "abareguasu": {
+          "expression": "Noun(value='abaregûasu', definition='(etim. - padre grande) (s.) - bispo, autoridade eclesiástica, provincial, abade, prelado: Asé sybápe abaregûasu nhandy-karaíba nonga. - Pôr o bispo em nossa testa o óleo santo. (Ar., Cat., 17v); Abaregûasu ogûatá. - O bispo passeia. (Fig., Arte, 6)')",
+          "sourceId": "lexicon",
+          "line": 336
+        },
+        "karaiba": {
+          "expression": "Noun(\"karaíba\")",
+          "sourceId": "lexicon",
+          "line": 251
+        },
+        "nhandy": {
+          "expression": "Noun(value='nhandy', definition='(s.) - azeite; óleo: pirá-nhandy - óleo de peixe (VLB, I, 49); ...Asé sybápe abaregûasu nhandy-karaíba nonga. - Pôr o bispo em nossa testa o óleo sagrado. (Ar., Cat., 17v)')",
+          "sourceId": "lexicon",
+          "line": 342
+        },
+        "nong": {
+          "expression": "Verb(value='nong', verb_class='(-îo- ou -nho-) (v.tr.)', definition=\"(-îo- ou -nho-) (v.tr.) - 1) pôr, colocar: Enhonong nde itaingapema nde ku'aî. - Põe tua espada na tua cintura. (Fig., Arte, 125); Nde morerekoar xe ri, nde pó gûyrype xe nonga. - Sê tu guardião de mim, sob tuas mãos colocando-me. (Valente, Cantigas, in Ar., Cat., 1618); Aó-tinga onong asé resé. - Roupa branca põe na gente. (Ar., Cat., 81v); 2) fazer ser, fazer estar: ...Aîonong ka'umondá... - Faço-os ser ladrões de cauim. (Anch., Teatro, 134); 3) deter: T'orosóne, Anhangusu; oré reîtyk, oré nonga. - Vamos, Anhanguçu; derrotou-nos, detendo-nos. (Anch., Teatro, 172) ● nongaba - lugar, tempo, modo, causa, etc. de pôr, de colocar, ato de pôr, de colocar: ...I pysyrõû tekoangaîpabypy Adão îandé nongaba suí. - Livrou-a do pecado primeiro em que Adão nos pôs. (Ar., Cat., 9); nongara - o que põe, o que coloca, etc.: Mba'easybora o mara'ara kakareme t'osenõîukar abaré, îandykaraíba nongara... - Ao se aproximar o doente de sua agonia, que mande chamar o padre, o que põe o óleo bento. (Ar., Cat., 137v); i nongymbyra - o que é (ou deve ser) posto, colocado, etc.: ...Kaûĩ i pupé i nongymbyra... - O vinho que é colocado dentro dele. (Bettendorff, Compêndio, 85)\", vid=7780)",
+          "sourceId": "lexicon",
+          "line": 339
+        },
+        "syba_2f344911": {
+          "expression": "Noun('sybá', definition='(s.) - testa (Castilho, Nomes, 37): Marãnamope asé o sybápe îoasaba moíni? - Por que a gente põe a cruz na testa? (Ar., Cat., 21)')",
+          "sourceId": "lexicon",
+          "line": 332
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:assisted:araujo:0085",
+      "ordinal": 85,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "passage:709719cf-73d8-4be2-b1fd-82c188cee4d6",
+      "identityKind": "explicit-source-note",
+      "expression": "(((((((((mombeu)) * ((nhe)))).var(1)))))).base_nominal()",
+      "surface": "nhemombe'u",
+      "annotated": "nhemombe'u[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][NOUN]",
+      "structureFingerprint": "sha256:7b8138a040e81d2fc8c11afe9e9c0cb7770580476e0756d4eedfc0fdd6a6fb07",
+      "comparisonKeys": {
+        "exact": "nhemombe'u",
+        "spacingCase": "nhemombe'u",
+        "accentFolded": "nhemombe'u"
+      },
+      "sourceStatus": "approved",
+      "savedReference": "nhemombe'u",
+      "referenceProvenance": "legacy",
+      "leakageControls": {
+        "excludePassageIds": [
+          "passage:709719cf-73d8-4be2-b1fd-82c188cee4d6"
+        ],
+        "excludeConstructionIds": [
+          "sha256:4c718c3bf047a24b7e4c95866497584c4e3cc81deed169fd43a991a809465bc4",
+          "sha256:5e37b4db54423fcf13587e271a74c1374d90ecc043f46661e27bb36faa3382df",
+          "sha256:df6e63414863b302d1215a857d355426347e96f2a0be762bd14785db3ca93b90"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 85,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "mombeu": {
+          "expression": "Verb(\"mombe'u\")",
+          "sourceId": "lexicon",
+          "line": 150
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    },
+    {
+      "caseId": "eval:assisted:araujo:0086",
+      "ordinal": 86,
+      "warning": "Evaluator-only baseline, never agent input. Current source is a comparison answer, not a certificate of linguistic correctness.",
+      "passageId": "passage:87d8b70b-b94e-4614-8e20-98aa92db1888",
+      "identityKind": "explicit-source-note",
+      "expression": "((ianonde) * ((asé) * (eo))) + (((((((nhandy) / (karaiba)) * (îar)).var(1)).base_nominal())))",
+      "surface": "asé re'õ îanondé nhandykaraíbarara",
+      "annotated": "asé[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING][PRONOUN:UNIVERSAL_WE][NOUN:POSSESSOR] r[PLURIFORM_PREFIX:R]e'õ[ROOT][SUBSTANTIVE_SUFFIX:VOWEL_ENDING] îanondé[POSTPOSITION] nhandykaraíbarar[ROOT]a[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][NOUN]",
+      "structureFingerprint": "sha256:ce801afe79f8510817c097384c4bd483e50e8b74a6afbf5ed3771d90240c27db",
+      "comparisonKeys": {
+        "exact": "asé re'õ îanondé nhandykaraíbarara",
+        "spacingCase": "asére'õîanondénhandykaraíbarara",
+        "accentFolded": "asere'oianondenhandykaraibarara"
+      },
+      "sourceStatus": "approved",
+      "savedReference": null,
+      "referenceProvenance": "none",
+      "leakageControls": {
+        "excludePassageIds": [
+          "passage:87d8b70b-b94e-4614-8e20-98aa92db1888"
+        ],
+        "excludeConstructionIds": [
+          "sha256:1e5c20b7f47bd0406c4caa3e4da959fb6d04cccd80e1024e753a80ad6539e7ca",
+          "sha256:3c246089f6a458a376af4b6afe9835a05660b70a66f9d67bd1c4d92b50258599",
+          "sha256:663d04d6bf2cfc25269e2eac1a76d743d1bab7c87cf7c4659b76627072a55cc6",
+          "sha256:714c4b3436b38f14261e7a050c62edf872f6c4313c85feafa6c979ee635230dc",
+          "sha256:71ea2fb977303d2611a69790cfe2b3b019ceccc3d66fbbbdcbc3a2da627b5a66",
+          "sha256:764e7d3607e68cb88b290d13f802d883b247c9ce0413debb4b871aa919a54bfc",
+          "sha256:77c406e30ea2b3469920cddb565156ec7c67e3ee3be1c17528587eef8a4bf262",
+          "sha256:95e03de88909b62d1add3f3607aabdc0b0e81d6fa8a4fddc8150e5279ddc1a44",
+          "sha256:aeee046f08f1c97a42a348d9e58eb56c3b40c0d1f350badb7c2b25412e4a4d67",
+          "sha256:bbc9a3d7b5befef532365348c27d5ff6a3b605de0f95aa6ecc087d42673ffa1e",
+          "sha256:bdfed5f96f233aeb361822a2de66cf9b940114685816e906f542c90de95ecfaf",
+          "sha256:e473d6d515a28a567c5c5695fc04dd9b68a75c0e7435ba2cb189359cbacc0d22",
+          "sha256:f244bfb4e01473ee460d16a7abd2745586357971abb9caf20e620fa016527dfb"
+        ],
+        "excludeLexicalNames": [],
+        "duplicateAnswers": [
+          {
+            "ordinal": 86,
+            "reasons": [
+              "target",
+              "same-source-ast",
+              "same-engine-structure",
+              "same-surface-spacing-case"
+            ]
+          }
+        ]
+      },
+      "lexicalDefinitions": {
+        "eo": {
+          "expression": "Noun(value=\"e'õ\", definition=\"(t) (s.) - 1) morte (em geral): ...Te'õ rupîara nhẽ... - Adversária da morte (Anch., Poemas, 88); Te'õ rerobyka é, xe angaîpá-tubixagûera amosẽne... - Aproximando-me da morte, meus grandes pecados antigos farei sair. (Anch., Teatro, 38); N'ereîkuabipe ko'yr te'õ nde resé sekó? - Não sabes que agora a morte está contigo? (D'Abbeville, Histoire, 350); 2) morte natural: Te'õ suí amanõ. - Morro de morte natural. (VLB, II, 42); 3) desfalecimento, entorpecimento; [adj.: e'õ (r, s)] - moribundo; desfalecido, entorpecido; (xe) morrer; desfalecer, entorpecer-se: ...Abá 'anga re'õû nhẽ Tupana nhe'enga abŷápe. - As almas dos homens morrem ao transgredirem a palavra de Deus. (Anch., Teatro, 144); Se'õ. - Ele morre. (Anch., Arte, 40); îybá-e'õ-e'õ - braços entorpecidos, quebrantados (com algum sobressalto, grande tristeza, etc.); pó-e'õ - mãos entorpecidas (VLB, II, 93) ● e'õsara (t) - o que morre, o mortal (VLB, II, 42); e'õaba (ou e'õsaba) (t) [no futuro egûama (t)] - tempo, lugar, modo, causa, instrumento, etc. da morte, do morrer; morte (Fig., Arte, 59): ...Abá re'õagûera resé og orybamo... - Alegrando-se com a morte de alguém. (Ar., Cat., 70v); O'u nhẽpe a'e 'ybá, tegûama...? - Comeu aquele fruto, causa de morte? (Ar., Cat., 40v); Nde ma'enduá-katu... nde resé se'õagûera resé. - Lembra-te bem de que morreu por tua causa. (Ar., Cat., 249); e'õ-memûã (ou e'õ-aíba ou e'õ-korine) (t) - morte súbita ou em desastre (VLB, II, 42)\")",
+          "sourceId": "lexicon",
+          "line": 349
+        },
+        "ianonde": {
+          "expression": "Postposition(value='îanondé', definition=\"1) (posp.) - antes de (expressando tempo anterior a algo que se realizará depois, necessariamente): Xe îebyr-y îanondé. - Antes de minha volta. (Fig., Arte, 158); ...Oporaseî pysaré, oîemopaîeangaípa, tatápe o só îanondé. - Dançaram a noite toda, fazendo feitiçarias, antes de irem para o inferno. (Anch., Teatro, 14); Abá rokype erekûá, tá, nhemim-y îanondé? - Na casa de quem passaste, tomando-as [isto é, as coisas roubadas], antes de te esconderes? (Anch., Teatro, 44); Marã e'ipe asé o ké îanondé...? - Como diz a gente antes de dormir? (Ar., Cat., 24v); Xe angaturam ybakype xe só îanondé. - Eu fui bom antes de ir para o céu. (Anch., Arte, 45); 2) (adv.) antes (comparação): ...Ybakype i pyri o só îanondé Anhanga ratápe o só suí. - Antes sua ida para junto dele no céu que sua ida para o inferno. (Ar., Cat., 110)\")",
+          "sourceId": "lexicon",
+          "line": 346
+        },
+        "karaiba": {
+          "expression": "Noun(\"karaíba\")",
+          "sourceId": "lexicon",
+          "line": 251
+        },
+        "nhandy": {
+          "expression": "Noun(value='nhandy', definition='(s.) - azeite; óleo: pirá-nhandy - óleo de peixe (VLB, I, 49); ...Asé sybápe abaregûasu nhandy-karaíba nonga. - Pôr o bispo em nossa testa o óleo sagrado. (Ar., Cat., 17v)')",
+          "sourceId": "lexicon",
+          "line": 342
+        },
+        "îar": {
+          "expression": "Verb(\"îar\")",
+          "sourceId": "lexicon",
+          "line": 236
+        }
+      },
+      "execution": {
+        "status": "not-run",
+        "providerRequests": 0,
+        "linguisticUsefulness": "unmeasured"
+      }
+    }
+  ]
+}

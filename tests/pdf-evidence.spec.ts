@@ -71,6 +71,39 @@ async function guideFixture(page: Page, directory: string) {
   return { fixture, assetId: attached.asset!.id, revision: attached.revision };
 }
 
+test('analysis preparation awaits the exact saved region and hidden tabs keep unsaved PDF edits', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-analysis-'));
+  try {
+    const { fixture } = await guideFixture(page, directory);
+    await page.goto('/tests/pdf-harness.html?guide');
+    await ready(page);
+    await draw(page, [0.25, 0.3], [0.5, 0.45]);
+    const rect = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+    await page.getByLabel('Zoom do PDF').selectOption('1.5');
+    await page.getByRole('button', { name: 'Alternar apoio Fonte / IA' }).click();
+    await expect(page.getByTestId('pdf-canvas')).toBeHidden();
+    await page.getByRole('button', { name: 'Alternar apoio Fonte / IA' }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', rect!);
+    await expect(page.getByLabel('Zoom do PDF')).toHaveValue('1.5');
+    await page.getByRole('button', { name: 'Preparar evidência para análise' }).click();
+    await expect(page.locator('#prepared-evidence')).toContainText('regionIds');
+    const prepared = JSON.parse(await page.locator('#prepared-evidence').innerText());
+    const saved = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(prepared.revision).toBe(saved.revision);
+    expect(prepared.regionIds).toEqual(saved.passage!.regions.map((region) => region.id));
+    expect(saved.passage!.regions[0].rect).toEqual(rect!.split(',').map(Number));
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await page.getByRole('button', { name: 'Preparar evidência para análise' }).click();
+    await expect(page.locator('#prepared-evidence')).toContainText('"regionIds":[]');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('actual PDF canvas and same physical region survive zoom, resize, rotation, save, service restart and passage return', async ({
   page,
 }) => {

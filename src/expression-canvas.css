@@ -203,6 +203,36 @@
   stroke-width: 5px;
   pointer-events: none;
 }
+.canvas-inline-call .runtime-operation-label {
+  font-size: 14px !important;
+  pointer-events: auto;
+}
+.canvas-inline-argument {
+  cursor: text;
+  pointer-events: auto;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+}
+.canvas-inline-argument:hover,
+.canvas-inline-argument:focus-visible {
+  fill: var(--tree-accent);
+  text-decoration-style: solid;
+  outline: none;
+}
+.expression-canvas .canvas-inline-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 38px;
+  padding: 4px 9px;
+  border: 2px solid var(--tree-accent);
+  border-radius: 8px;
+  outline: none;
+  color: var(--tree-ink);
+  background: var(--tree-card);
+  font:
+    14px ui-monospace,
+    monospace;
+}
 .canvas-menu {
   position: absolute;
   z-index: 12;

@@ -4,11 +4,14 @@ const path = require('node:path');
 const { createEvidenceService } = require('./evidence-service.cjs');
 const { createProviderService } = require('./provider-service.cjs');
 const { createLexicalNotesService } = require('./lexical-notes-service.cjs');
+const { createAnalysisService } = require('./analysis-service.cjs');
 const METHODS = new Set([
+  'learning_library',
   'parse_expression',
   'evaluate_expression',
   'predicate_catalog',
   'predicate_create',
+  'composition_define',
   'source_preview',
   'source_new_preview',
   'source_apply',
@@ -22,9 +25,11 @@ const METHODS = new Set([
   'lexicon_update',
   'dictionary_search',
   'dictionary_lookup',
+  'dictionary_entry_get',
   'dictionary_predicate',
   'assistant_context',
   'reference_verify',
+  'grammar_regression',
   'reference_approve',
   'reference_status',
   'passage_lexicon',
@@ -133,6 +138,21 @@ function createNextService(options) {
       };
     },
   });
+  const analysis = options.draftStore
+    ? createAnalysisService({
+        stateDirectory: path.join(stateDirectory, 'analysis'),
+        draftStore: options.draftStore,
+        evidence,
+        getConfig: () => provider.getConfig(),
+        getProject,
+        reloadProject: options.reloadProject,
+        emit,
+        request: (method, params) => {
+          if (!getWorker()) throw new Error('Abra o projeto local.');
+          return getWorker().request(method, params);
+        },
+      })
+    : null;
   async function invoke(method, params = {}) {
     if (
       typeof method !== 'string' ||
@@ -148,6 +168,7 @@ function createNextService(options) {
       try {
         const project = await openPath(parent);
         await save({ parentPath: parent });
+        await analysis?.start();
         return { project, selectedPassageId: settings.selectedPassageId };
       } catch (e) {
         return { project: null, error: `Não foi possível restaurar oldtupicorpus: ${e.message}` };
@@ -199,6 +220,10 @@ function createNextService(options) {
         throw new Error('Abra o projeto correto para consultar as notas lexicais.');
       return lexicalNotes.invoke(method, params);
     }
+    if (method.startsWith('analysis_')) {
+      if (!analysis) throw new Error('O serviço de análise não está disponível.');
+      return analysis.invoke(method, params);
+    }
     if (method.startsWith('ai_')) return provider.handle(method, params);
     if (!METHODS.has(method)) throw new Error('Operação indisponível.');
     if (!getWorker() || !getProject()) throw new Error('Abra o projeto local.');
@@ -212,6 +237,16 @@ function createNextService(options) {
       return options.duringProjectWrite(execute);
     return execute();
   }
-  return { invoke, saveSession: save, close: () => provider.close() };
+  return {
+    invoke,
+    analysis,
+    saveSession: save,
+    hasWork: () => analysis?.hasWork() ?? false,
+    close: async () => {
+      await analysis?.close();
+      await provider.close();
+      await writes;
+    },
+  };
 }
 module.exports = { createNextService };

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { flattenNodes, type AuthorNode, type ParsedExpression } from './authoring';
 import { expressionGraph } from './expression-tree';
+import { editInlineArgument } from './inline-arguments';
 import { editableRuntimeScopes, replaceRuntimeScope, searchRuntimeTree } from './runtime-tree';
 
 /** Exercise the real concrete Python parser without importing the corpus or
@@ -68,19 +69,16 @@ describe('Pydicate source operation tree', () => {
     const raw = 'helper(tym.imp(), prefix=emi, enabled=True, amount=-2)';
     const graph = expressionGraph(parse(raw), raw)!;
     expect(graph.nodes.map((node) => node.label)).toEqual([
-      'helper()',
+      'helper(…, prefix=…, enabled=…, amount=-2)',
       '.imp()',
       'tym',
       'emi',
       'True',
-      '-',
-      '2',
     ]);
     expect(graph.edges.filter((edge) => edge.source === 'root').map((edge) => edge.label)).toEqual([
       'argumento 1',
       'prefix =',
       'enabled =',
-      'amount =',
     ]);
     expect(graph.edges.find((edge) => edge.source === 'root/arg0')).toMatchObject({
       target: 'root/arg0/receiver',
@@ -167,7 +165,9 @@ describe('Pydicate source operation tree', () => {
     expect(graph.nodes.map((node) => node.evaluation)).toEqual([
       undefined,
       { status: 'value', value: 'False' },
-      { status: 'value', value: '0' },
+    ]);
+    expect(graph.nodes[0].expression?.inlineCall?.arguments).toMatchObject([
+      { slot: 'kw:amount', display: '0', kind: 'number' },
     ]);
   });
 
@@ -207,11 +207,10 @@ describe('Pydicate source operation tree', () => {
     const source = parse(raw);
     const graph = expressionGraph(source, raw)!;
     expect(graph).not.toBeNull();
-    const literal = graph.nodes.find((node) => node.label === '"🌿"')!;
-    const [scope] = editableRuntimeScopes(literal, source, raw);
-    expect(scope.end - scope.start).toBe(4);
-    expect(replaceRuntimeScope(raw, scope, '"x"')).toBe(
-      '# leading (\n((helper(("x"), tym))) # trailing )\n',
+    const literal = graph.nodes[0].expression!.inlineCall!.arguments[0];
+    expect(literal.end - literal.start).toBe(4);
+    expect(editInlineArgument(raw, source, literal.slot, 'x')).toBe(
+      '# leading (\n((helper("x", tym))) # trailing )\n',
     );
     expect(expressionGraph(source, raw + '+ emi')).toBeNull();
     expect(expressionGraph(source, ' ' + raw)).toBeNull();

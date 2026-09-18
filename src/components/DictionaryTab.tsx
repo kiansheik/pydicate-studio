@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke } from '../domain/authoring';
 import { DictionaryEntryCreation, type DictionarySelection } from './DictionaryEntryCreation';
 import '../dictionary-tab.css';
+import type { AnalysisEvidence } from '../domain/analysis';
 
 interface DictionaryStatus {
   available: boolean;
@@ -17,6 +18,7 @@ interface Props {
   engineFingerprint?: string;
   disabled?: boolean;
   active: boolean;
+  reference?: AnalysisEvidence | null;
   onInsert: (expression: string, expectedRevision: string) => boolean;
 }
 const dictionaryOrigin = 'studio://dictionary';
@@ -87,6 +89,18 @@ export function DictionaryTab(props: Props) {
     setSelection(null);
   }, [contextKey, props.active]);
   useEffect(() => {
+    const reference = props.reference;
+    if (!props.active || !reference || !status?.datasetFingerprint) return;
+    if (
+      Number.isSafeInteger(reference.entryIndex) &&
+      reference.datasetFingerprint === status.datasetFingerprint
+    )
+      setSelection({
+        entryIndex: Number(reference.entryIndex),
+        datasetFingerprint: status.datasetFingerprint,
+      });
+  }, [props.reference, props.active, status?.datasetFingerprint]);
+  useEffect(() => {
     if (!visited) return;
     let current = true;
     setStatus(null);
@@ -143,6 +157,24 @@ export function DictionaryTab(props: Props) {
           Atualizar dicionário
         </button>
       </header>
+      {props.reference && (
+        <aside className="dictionary-evidence-reference" aria-label="Verbete citado pela IA">
+          <strong>
+            {props.reference.headword ||
+              props.reference.title ||
+              props.reference.label ||
+              'Evidência do dicionário'}
+          </strong>
+          <p>{String(props.reference.definition ?? props.reference.text ?? '')}</p>
+          <small>
+            {props.reference.entryId !== undefined
+              ? `Identidade da entrada: ${props.reference.entryId}. `
+              : ''}
+            Registro preservado com a proposta. A inserção usa a identidade e a versão verificadas
+            do dicionário.
+          </small>
+        </aside>
+      )}
       {selection && (
         <DictionaryEntryCreation
           selection={selection}

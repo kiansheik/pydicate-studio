@@ -89,10 +89,11 @@ def _site_descriptor(row,offset,fingerprint):
 
 def dictionary_lookup(engine_path,params):
     from rendered_structures import normalize
-    query=params.get('query','');limit=params.get('limit',20)
+    query=params.get('query','');limit=params.get('limit',20);offset=params.get('offset',0)
     if not isinstance(query,str) or not 1<=len(query.strip())<=200:
         raise ValueError('Digite uma palavra tupi ou uma definição em português (até 200 caracteres).')
     if type(limit) is not int or not 1<=limit<=40:raise ValueError('Limite inválido (1 a 40).')
+    if type(offset) is not int or not 0<=offset<=100000:raise ValueError('Página inválida.')
     fingerprint,(_,index)=_site_data(engine_path)
     key=normalize(query);relaxed=normalize(query,True);ranked=[]
     labels=['exact','prefix','contains','definition','relaxed']
@@ -101,8 +102,9 @@ def dictionary_lookup(engine_path,params):
                3 if key in definition else 4 if relaxed in word_relaxed or relaxed in definition_relaxed else None)
         if score is not None:ranked.append((score,word,entry['entryIndex'],entry))
     ranked.sort(key=lambda row:row[:3])
-    return {'query':query,'results':[{**entry,'match':labels[score]} for score,_,_,entry in ranked[:limit]],
-            'total':len(ranked),'datasetFingerprint':fingerprint}
+    return {'query':query,'results':[{**entry,'match':labels[score]} for score,_,_,entry in ranked[offset:offset+limit]],
+            'total':len(ranked),'datasetFingerprint':fingerprint,'offset':offset,
+            'nextOffset':offset+limit if offset+limit<len(ranked) else None}
 
 
 def dictionary_entry(engine_path,params):

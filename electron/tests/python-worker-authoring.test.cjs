@@ -46,6 +46,7 @@ test('generic authoring operations cross the Python worker boundary and unknown 
       'dictionary_search',
       'assistant_context',
       'reference_verify',
+      'grammar_regression',
       'reference_approve',
       'contribution_prepare',
     ];

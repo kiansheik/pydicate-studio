@@ -517,19 +517,23 @@ try {
     project = await readProject();
     const recordsPath = path.join(corpus, 'ground_truth/records/historic', `${sourceName}.jsonl`);
     const beforeRecords = (await fs.readFile(recordsPath, 'utf8')).trimEnd().split('\n');
-    await page.getByRole('button', { name: 'Revisar', exact: true }).click();
-    const confirmation = page.getByRole('checkbox', {
-      name: 'Revisei a forma completa acima e quero registrá-la como ground truth.',
+    await page
+      .locator('.workspace-footer')
+      .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
+      .click();
+    const groundTruth = page.getByRole('dialog', { name: 'Commit to Ground Truth', exact: true });
+    const confirm = groundTruth.getByRole('button', {
+      name: 'Confirmar e salvar ground truth',
       exact: true,
     });
-    await expect(confirmation).toBeEnabled({ timeout: 20_000 });
-    await confirmation.check();
-    await page
+    await expect(confirm).toBeEnabled({ timeout: 20_000 });
+    await groundTruth
       .getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true })
       .click();
     await expect(
       page.getByText('Ground truth salva. As outras passagens foram preservadas.', { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
+    await groundTruth.getByRole('button', { name: 'Fechar ground truth', exact: true }).click();
     const afterRecords = (await fs.readFile(recordsPath, 'utf8')).trimEnd().split('\n');
     assert.equal(afterRecords.length, beforeRecords.length);
     for (let index = 0; index < beforeRecords.length; index++) {

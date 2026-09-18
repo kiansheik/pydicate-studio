@@ -1,5 +1,6 @@
 import { flattenNodes, type AuthorNode } from './authoring';
 import { expressionGraph } from './expression-tree';
+import { editInlineArgument } from './inline-arguments';
 
 export interface CanvasPoint {
   x: number;
@@ -49,6 +50,7 @@ export type CanvasAction =
   | { type: 'add'; raw: string; fragmentId?: string; position?: CanvasPoint }
   | { type: 'position'; address: CanvasAddress; position: CanvasPoint }
   | { type: 'replace'; source: CanvasAddress; raw: string }
+  | { type: 'argument'; source: CanvasAddress; slot: string | null; text: string }
   | { type: 'make-main'; source: CanvasAddress; position?: CanvasPoint };
 
 export const CANVAS_LIMITS = Object.freeze({
@@ -266,7 +268,14 @@ export function editCanvas(document: CanvasDocument, action: CanvasAction): Canv
       action.source,
       action.type === 'remove' || action.type === 'replace',
     );
-    if (action.type === 'replace') {
+    if (action.type === 'argument') {
+      const next = editInlineArgument(source.raw, source.node, action.slot, action.text);
+      remember(
+        { ...source, root: true, start: 0, end: source.raw.length, code: source.raw },
+        next,
+        true,
+      );
+    } else if (action.type === 'replace') {
       if (action.raw !== source.code && action.raw !== source.node.code) {
         if (!action.raw.trim()) remove(source);
         else

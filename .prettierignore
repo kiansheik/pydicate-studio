@@ -2,5 +2,6 @@ node_modules/
 dist/
 package-lock.json
 src/domain/*.json
+src/generated/*.json
 src/domain/fixtures-attribution.md
 electron/README.md

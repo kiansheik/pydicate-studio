@@ -1,7 +1,6 @@
 """Plan shared lexical declarations without changing either source file.
 
-Spelling is a naming aid, never lexical identity. Only literal constructor leaves
-(and their literal occurrence-definition wrappers) can move into the lexicon.
+Spelling is a naming aid, never lexical identity. Literal leaves and explicitly defined compositions can move into the lexicon.
 Every replacement retains its selected-engine predicate state and realization.
 """
 from __future__ import annotations
@@ -24,7 +23,7 @@ def _constructor(node):
 
 
 def contains_lexical_candidates(raw):
-    return any(_constructor(node) for node in ast.walk(parse_ast(raw)))
+    return any(_constructor(node) or _defined(node) for node in ast.walk(parse_ast(raw)))
 
 
 def _literal_constructor(node):
@@ -140,18 +139,188 @@ def _available_name(slug, identity, occupied):
     return slug + '_' + digest + '_' + str(suffix)
 
 
+
+def _defined(node):
+    return (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == 'studio_define' and len(node.args) == 2 and not node.keywords
+            and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str))
+
+
+def _grammar(value):
+    def clean(item):
+        if isinstance(item, dict): return {k: clean(v) for k, v in item.items() if k not in {'definition','functional_definition','raw_definition'}}
+        if isinstance(item, list): return [clean(v) for v in item]
+        return item
+    evidence = _evidence(value)
+    return {**evidence, 'structure': fingerprint(clean(shape(value)))}
+
+
+def define_composition(payload, corpus):
+    """Explicit human action: attach meaning to this whole copied structure.
+
+    Optional base restoration requires identical grammar and unambiguous shared
+    meaning. It never rewrites a shared entry or infers equivalence from spelling.
+    """
+    raw = payload['raw']; syntax = parse_ast(raw)
+    if _defined(syntax):
+        raw = ast.get_source_segment(raw, syntax.args[0]); syntax = parse_ast(raw)
+    definition = payload['definition']
+    if not isinstance(definition, str) or not definition.strip(): raise ValueError('Informe o significado da composição.')
+    namespace = namespace_for(corpus, corpus/'historic'/f"{payload['sourceId']}.tu.py", payload.get('line', 10**9))
+    from historic.lexicon import load_lexicon
+    shared = load_lexicon(); restored = []; replacements = []
+    if payload.get('reuseBaseDefinitions', False):
+        for node, constructor, override in _candidates(syntax):
+            original = _value(node, namespace)
+            matches = []
+            for name, value in shared.items():
+                if name.startswith('_') or not name.isidentifier() or name not in namespace or type(value) is not type(original): continue
+                if getattr(value, 'verbete', None) != getattr(original, 'verbete', None): continue
+                if _grammar(value) == _grammar(original) and _evidence(value) == _evidence(namespace[name]): matches.append(name)
+            if not matches:
+                from navarro_search import dictionary_lookup, dictionary_entry
+                from authoring_runtime import dictionary_predicate
+                headword = _headword(constructor, original)
+                entries = dictionary_lookup(corpus.parent/'nhe-enga', {'query':headword,'limit':40})
+                choices = []
+                for entry in entries['results']:
+                    if entry['headword'] != headword or entry.get('suggestedConstructor') != type(original).__name__: continue
+                    descriptor, record = dictionary_entry(corpus.parent/'nhe-enga',entry)
+                    candidate = dictionary_predicate({'entry':descriptor,'entryRecord':record,'constructor':type(original).__name__}, namespace)
+                    if candidate.get('status') == 'ready' and _grammar(_value(parse_ast(candidate['expression']),namespace)) == _grammar(original):
+                        choices.append((candidate['expression'],descriptor))
+                if len(choices)>1: raise ValueError('Há mais de uma acepção no dicionário. Escolha a peça pela busca antes de definir o conjunto.')
+                if not choices: continue
+                replacement, entry = choices[0]
+                replacements.append((position(raw,node.lineno,node.col_offset),position(raw,node.end_lineno,node.end_col_offset),replacement))
+                restored.append({'name':headword,'before':getattr(original,'definition',''),'after':entry['definition'],'dictionary':entry})
+                continue
+            exact = [name for name in matches if _evidence(shared[name]) == _evidence(original)]
+            if exact: matches = exact
+            if len({getattr(shared[name], 'definition', '') for name in matches}) > 1:
+                raise ValueError('Há mais de uma acepção para esta peça. Selecione a entrada no léxico antes de definir o conjunto.')
+            name = min(matches, key=lambda name: (len(name), name))
+            replacements.append((position(raw,node.lineno,node.col_offset),position(raw,node.end_lineno,node.end_col_offset),name))
+            restored.append({'name':name,'before':getattr(original,'definition',''),'after':getattr(shared[name],'definition','')})
+    for start,end,name in sorted(replacements,reverse=True): raw = raw[:start]+name+raw[end:]
+    return {'raw':f'studio_define(({raw}), {definition!r})', 'restored':restored}
+
+
+def _repair_misplaced_compound_definition(payload, corpus, namespace):
+    """Repair only an evidenced old compound gloss attached to a literal base.
+
+    The whole expression must realize an exact dictionary headword; the leaf's
+    gloss must be that entry's complete definition (optionally followed by the
+    old explicit compound note). This is a reviewable semantic correction, not
+    lexical equivalence inferred from a similar spelling or an inherited gloss.
+    """
+    raw = payload['raw']; syntax = parse_ast(raw)
+    if _defined(syntax) or _candidate(syntax): return raw, []
+    candidates = list(_candidates(syntax))
+    if not candidates: return raw, []
+    try:
+        original = _value(syntax, namespace); evidence = _evidence(original)
+    except Exception: return raw, []
+    if evidence['evaluationStatus'] != 'complete' or not evidence.get('surface'): return raw, []
+    from navarro_search import dictionary_lookup
+    # Short-circuit unknown data without changing ordinary custom definitions.
+    try: entries = dictionary_lookup(corpus.parent/'nhe-enga', {'query':evidence['surface'],'limit':40})['results']
+    except ValueError: return raw, []
+    normalized = lambda text: ' '.join(unicodedata.normalize('NFC', text).split())
+    replacements = []; repairs = []; definitions = set()
+    for node, constructor, override in candidates:
+        if override is not None: continue  # Explicitly scoped meanings are not legacy corruption.
+        leaf = _value(node, namespace)
+        definition = getattr(leaf, 'definition', '')
+        if not isinstance(definition, str): continue
+        headword = _headword(constructor, leaf)
+        if headword == evidence['surface']: continue
+        matches = [entry for entry in entries if entry['headword'] == evidence['surface'] and
+                   (normalized(definition) == normalized(entry['definition']) or
+                    normalized(definition).startswith(normalized(entry['definition']) + '; definição do composto '))]
+        if not matches: continue
+        if len({entry['definition'] for entry in matches}) != 1:
+            raise ValueError('O significado parece pertencer ao conjunto, mas há mais de uma acepção. Defina o significado do conjunto na árvore antes de publicar.')
+        # Restore just the affected literal, never unrelated draft definitions.
+        leaf_raw = ast.get_source_segment(raw, node)
+        restored = define_composition({**payload, 'raw':leaf_raw, 'definition':definition,
+                                       'reuseBaseDefinitions':True}, corpus)
+        if len(restored['restored']) != 1 or restored['restored'][0]['after'] == definition:
+            raise ValueError('O significado do conjunto está em uma peça, mas seu sentido individual não pôde ser restaurado. Escolha essa peça no léxico antes de publicar.')
+        restored_ast = parse_ast(restored['raw'])
+        replacement = ast.get_source_segment(restored['raw'], restored_ast.args[0])
+        replacements.append((position(raw,node.lineno,node.col_offset),position(raw,node.end_lineno,node.end_col_offset),replacement))
+        definitions.add(definition)
+        repairs.append({'base':headword,'compound':evidence['surface'],'before':definition,
+                        'baseDefinition':restored['restored'][0]['after'],
+                        'compoundDefinition':definition,
+                        'dictionary':matches[0], 'baseEvidence':restored['restored'][0]})
+    if not repairs: return raw, []
+    if len(definitions) != 1:
+        raise ValueError('As peças contêm definições diferentes do conjunto. Escolha o significado do conjunto na árvore antes de publicar.')
+    for start,end,replacement in sorted(replacements,reverse=True): raw=raw[:start]+replacement+raw[end:]
+    if _grammar(original) != _grammar(_value(parse_ast(raw), namespace)):
+        raise ValueError('A correção do significado alteraria a gramática ou a realização. O rascunho foi preservado.')
+    raw=f'studio_define(({raw}), {next(iter(definitions))!r})'
+    # The explicit copy changes engine-internal noun self-links. Prove the base
+    # correction above before copying; then require identical realized evidence.
+    copied = _evidence(_value(parse_ast(raw), namespace))
+    if any(copied.get(key) != evidence.get(key) for key in ('evaluationStatus','surface','annotated')):
+        raise ValueError('A definição do conjunto alteraria sua realização. O rascunho foi preservado.')
+    return raw, repairs
+
+
+def _promote_composites(result, namespace, shared, published, occupied):
+    # Innermost first: a larger composition may reference a smaller new entry.
+    while True:
+        raw = result['raw']
+        wrappers = [node for node in ast.walk(parse_ast(raw)) if _defined(node)]
+        if not wrappers: return
+        node = wrappers[-1]
+        expression = ast.get_source_segment(raw, node.args[0])
+        definition = node.args[1].value
+        original = _value(node, published); evidence = _evidence(original)
+        if evidence['evaluationStatus'] != 'complete': raise ValueError('Avalie a composição completa antes de registrá-la no léxico.')
+        try: copied = studio_define(_value(node.args[0], shared), definition)
+        except Exception as error: raise ValueError('A composição usa uma peça local indisponível no léxico compartilhado. Registre essa peça primeiro.') from error
+        if _evidence(copied) != evidence: raise ValueError('A composição tem outro significado no léxico compartilhado.')
+        identity = fingerprint(evidence); headword = evidence['surface']; slug = lexical_slug(headword, 'composicao')
+        matches = [name for name,value in shared.items() if name.isidentifier() and not name.startswith('_')
+                   and name in published and type(value) is type(original)
+                   and getattr(value,'definition',None)==definition
+                   and _evidence(value)==evidence and _evidence(published[name])==evidence]
+        if matches:
+            name = min(matches,key=lambda name:(name!=slug,len(name),name))
+            if not any(item['name']==name for item in result['reused']):
+                result['reused'].append({'name':name,'headword':headword,'definition':definition,'lexicalFingerprint':identity,'kind':'composition'})
+        else:
+            name = _available_name(slug,identity,occupied); occupied.add(name)
+            result['declarations'].append({'name':name,'expression':f'({expression}).copy()',
+                'definitionOverride':definition,'definition':definition,'headword':headword,
+                'lexicalFingerprint':identity,'kind':'composition'})
+            published[name] = copied; shared[name] = copied
+        start=position(raw,node.lineno,node.col_offset); end=position(raw,node.end_lineno,node.end_col_offset)
+        result['raw']=raw[:start]+name+raw[end:]
+        result['replacements'].append({'start':start,'end':end,'name':name})
+
+
 def prepare_lexical_publication(payload, corpus):
     raw = payload['raw']
     syntax = parse_ast(raw)
     candidates = list(_candidates(syntax))
     result = {'raw': raw, 'declarations': [], 'reused': [], 'replacements': [], 'diagnostics': [], 'unpromoted': []}
-    if not candidates:
+    if not candidates and not contains_lexical_candidates(raw):
         return result
     source_id = payload['sourceId']
     path = corpus / 'historic' / f'{source_id}.tu.py'
     if not isinstance(source_id, str) or path.parent != corpus / 'historic' or not path.is_file():
         raise ValueError('Fonte lexical inválida.')
     namespace = namespace_for(corpus, path, payload.get('line', 10**9))
+    raw, repairs = _repair_misplaced_compound_definition(payload, corpus, namespace)
+    if repairs:
+        syntax = parse_ast(raw); candidates = list(_candidates(syntax)); result['raw'] = raw
+        result['definitionRepairs'] = repairs
+        result['diagnostics'].append('O significado do conjunto foi separado do significado de suas peças nesta revisão.')
     from historic.lexicon import load_lexicon
     shared = load_lexicon()
     shared['studio_define'] = studio_define
@@ -211,6 +380,7 @@ def prepare_lexical_publication(payload, corpus):
                 name = _available_name(slug, identity, occupied)
                 occupied.add(name)
                 published[name] = copied
+                shared[name] = copied
                 result['declarations'].append({'name': name, 'expression': expression,
                                                 'headword': headword, 'definition': definition,
                                                 'lexicalFingerprint': identity,
@@ -222,6 +392,8 @@ def prepare_lexical_publication(payload, corpus):
     for replacement in sorted(result['replacements'], key=lambda item: item['start'], reverse=True):
         raw = raw[:replacement['start']] + replacement['name'] + raw[replacement['end']:]
     result['raw'] = raw
+    _promote_composites(result, namespace, shared, published, occupied)
+    raw = result['raw']
     if result['replacements']:
         # Component proofs remain useful for an already-failed whole analysis.
         # Where the full expression succeeds, its canonical state, plain form

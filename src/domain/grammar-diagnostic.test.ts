@@ -72,4 +72,33 @@ it('exports successful and failing steps with exact context and distinguishes em
   expect(prompt).toContain('Não trate uma conexão vazia');
   expect(prompt).toContain('Não altere transcrições');
   expect(prompt).toContain('Não faça chamadas a provedores de IA');
+  const repair = grammarDiagnostic(
+    project,
+    project.passages[0],
+    {
+      raw: root.code,
+      root,
+      revisionId: 'revision-1',
+    },
+    {
+      mode: 'engine',
+      intendedSurface: 'membyrĩ',
+      explanation: 'O diminutivo perde a oclusiva após consoante.',
+    },
+  );
+  expect(repair.evidence.intendedSurface).toBe('membyrĩ');
+  expect(repair.prompt).toContain('reload_engine');
+  expect(repair.prompt).toContain('verify_ground_truth e line_status em todas as fontes');
+  expect(repair.prompt).toContain('aguarde a aprovação dele');
+  expect(repair.prompt).toContain('O diminutivo perde a oclusiva');
+  const tree = grammarDiagnostic(
+    project,
+    project.passages[0],
+    {
+      raw: root.code,
+      root,
+    },
+    { mode: 'tree' },
+  );
+  expect(tree.prompt).toContain('Proponha quais elementos ou operações acrescentar');
 });

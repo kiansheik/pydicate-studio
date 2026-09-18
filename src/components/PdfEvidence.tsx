@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import {
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type PointerEvent,
+  type Ref,
+} from 'react';
 import {
   getDocument,
   GlobalWorkerOptions,
@@ -23,6 +30,7 @@ import '../evidence.css';
 GlobalWorkerOptions.workerSrc = workerUrl;
 
 interface Props {
+  preparationRef?: Ref<EvidencePreparation>;
   projectId: string;
   sourceId: string;
   passageId: string;
@@ -35,6 +43,15 @@ interface Props {
   lineLocator?: string | null;
   /** A proposed source-comment pointer; applying it remains a separate review action. */
   onEvidence?: (pointer: EvidencePointer) => void;
+}
+export interface PreparedEvidence {
+  revision: number;
+  assetId?: string;
+  regionIds: string[];
+}
+export interface EvidencePreparation {
+  prepare(): Promise<PreparedEvidence>;
+  focusRegion(regionId: string): void;
 }
 interface Gesture {
   id: string;
@@ -61,6 +78,7 @@ export function PdfEvidence({
   folio,
   lineLocator,
   onEvidence,
+  preparationRef,
 }: Props) {
   const key = JSON.stringify([projectId, sourceId, passageId]);
   const cacheKey = `pydicate-studio:evidence-draft:v1:${key}`;
@@ -88,8 +106,71 @@ export function PdfEvidence({
   const regions = working?.regions || [];
   const assetId = status?.asset?.id;
   const available = Boolean(window.studio?.invoke);
+  const preparing = useRef(false);
+  const invalidCache = useRef(false);
+
+  useImperativeHandle(preparationRef, () => ({
+    async prepare() {
+      if (!window.studio?.invoke || loadedKey.current !== key || !status)
+        throw new Error('Aguarde o carregamento da evidência antes de analisar.');
+      if (busy || preparing.current || gesture.current)
+        throw new Error('Conclua a edição ou salvamento da região antes de analisar.');
+      if (invalidCache.current)
+        throw new Error(
+          'As regiões locais precisam ser recuperadas antes de analisar. Exporte ou restaure o rascunho de regiões.',
+        );
+      if (!status.asset) return { revision: status.revision, regionIds: [] };
+      if (dirty && status.asset.managedState !== 'ok')
+        throw new Error('O PDF vinculado está indisponível. Restaure o arquivo antes de analisar.');
+      if (!working) throw new Error('A evidência ainda não está pronta.');
+      const requestKey = key;
+      preparing.current = true;
+      setBusy(true);
+      try {
+        const next = dirty
+          ? ((await window.studio.invoke('evidence_save', {
+              ...params,
+              expectedRevision: working.revision,
+              assetId: working.assetId,
+              regions: working.regions,
+              view: working.view,
+              ...(working.guide ? { guide: working.guide } : {}),
+            })) as EvidenceStatus)
+          : status;
+        if (activeKey.current !== requestKey)
+          throw new Error('A passagem mudou durante o salvamento. Volte a ela para analisar.');
+        if (dirty) {
+          localStorage.removeItem(cacheKey);
+          acceptStatus(next, false);
+        }
+        const ownRegions =
+          next.passage?.regions.filter((region) => region.assetId === next.asset?.id) ?? [];
+        if (next.asset && ownRegions.length)
+          onEvidence?.({ version: 1, assetId: next.asset.id, passageId });
+        return {
+          revision: next.revision,
+          assetId: next.asset?.id,
+          regionIds: ownRegions.map((region) => region.id),
+        };
+      } catch (failure) {
+        if (activeKey.current === requestKey) setError(message(failure));
+        throw failure;
+      } finally {
+        preparing.current = false;
+        if (activeKey.current === requestKey) setBusy(false);
+      }
+    },
+    focusRegion(regionId) {
+      const region = working?.regions.find((item) => item.id === regionId);
+      if (region) {
+        setSelection(region.id);
+        changeView({ pageIndex: region.pageIndex });
+      }
+    },
+  }));
 
   function acceptStatus(next: EvidenceStatus, restoreDraft: boolean) {
+    invalidCache.current = false;
     loadedKey.current = key;
     setStatus(next);
     const boundRegions =
@@ -167,11 +248,13 @@ export function PdfEvidence({
           'assetId' in cached &&
           cached.assetId === nextWorking.assetId
         ) {
+          invalidCache.current = true;
           setError(
             'O rascunho local de regiões é inválido e foi preservado. Exporte ou restaure uma cópia válida.',
           );
         }
       } catch {
+        invalidCache.current = true;
         setError(
           'O rascunho local de regiões não pôde ser lido; a evidência salva foi preservada.',
         );

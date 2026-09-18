@@ -744,9 +744,18 @@ def main():
         with redirect_stdout(sys.stderr):
             parent=Path(payload['parent']); corpus=configure(parent)
             path=corpus/'historic'/f"{payload.get('sourceId','araujo_catecismo_1686')}.tu.py"
-            if payload.get('action') in {'structure_index', 'structure_resolve'}:
+            if payload.get('action') == 'learning_library':
+                from learning_library import build
+                result = build(corpus)
+            elif payload.get('action') in {'structure_index', 'structure_resolve'}:
                 from rendered_structures import build, resolve
                 result = build(payload, corpus) if payload['action'] == 'structure_index' else resolve(payload, corpus)
+            elif payload.get('action') == 'publication_snapshot':
+                from publication_regression import snapshot
+                result = snapshot(corpus)
+            elif payload.get('action') == 'composition_define':
+                from lexical_publication import define_composition
+                result = define_composition(payload, corpus)
             elif payload.get('action') == 'prepare_lexical_publication':
                 from lexical_publication import prepare_lexical_publication
                 result = prepare_lexical_publication(payload, corpus)

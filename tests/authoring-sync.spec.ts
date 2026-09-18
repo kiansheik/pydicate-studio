@@ -576,29 +576,28 @@ test('simulated contracts: redo history cannot cross projects that share a sourc
   expect(redoAvailable).toBe(false);
 });
 
-test('simulated contracts: source previews cannot apply after the reviewed draft changes', async ({
+test('simulated contracts: source previews are discarded when the reviewed draft changes', async ({
   page,
 }) => {
   await ready(page);
   await hold(page, 'source_preview');
   await page.evaluate(() => {
-    void window.__nextStudio.sourcePreview().then((value) => {
-      window.__nextControl.preview = value;
-    });
+    void window.__nextStudio
+      .sourcePreview()
+      .then((value) => {
+        window.__nextControl.preview = value;
+      })
+      .catch((error) => {
+        window.__nextControl.responses.previewError = String(error);
+      });
   });
   await pending(page, 'source_preview');
   await page.getByLabel('Pydicate simulado').fill('later_human_edit');
   await release(page, 'source_preview');
-  await expect.poll(() => page.evaluate(() => Boolean(window.__nextControl.preview))).toBe(true);
-  const message = await page.evaluate(async () => {
-    try {
-      await window.__nextStudio.applySource(window.__nextControl.preview!);
-      return 'UNEXPECTED_APPLY';
-    } catch (error) {
-      return String(error);
-    }
-  });
-  expect(message).toContain('rascunho mudou');
+  await expect
+    .poll(() => page.evaluate(() => window.__nextControl.responses.previewError))
+    .toContain('rascunho mudou');
+  expect(await page.evaluate(() => window.__nextControl.preview)).toBeUndefined();
   expect(
     await page.evaluate(() =>
       window.__nextControl.requests.some((item) => item.method === 'source_apply'),

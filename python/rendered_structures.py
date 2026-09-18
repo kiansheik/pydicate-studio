@@ -15,7 +15,7 @@ from pathlib import Path
 
 from studio_authoring import expression_tree, parse_ast, source_entries
 
-VERSION = 1
+VERSION = 2
 
 
 def valid_index(value):
@@ -160,6 +160,8 @@ def build(payload, corpus):
             identifier = fingerprint({'syntax': syntax_key, 'structure': structure, 'surface': surface})
             if identifier in rows:
                 old = rows[identifier]
+                origin = {'source': source, 'context': context}
+                if origin not in old['_origins']: old['_origins'].append(origin)
                 if source not in old['sources']:
                     old['sources'].append(source)
                     old['occurrenceCount'] = len(old['sources'])
@@ -169,7 +171,7 @@ def build(payload, corpus):
                 return
             rows[identifier] = {'id': identifier, 'surface': surface, 'expression': raw,
                 'kind': kind, 'source': source, 'sources': [source], 'occurrenceCount': 1,
-                '_context': context, '_structure': structure}
+                '_context': context, '_structure': structure, '_origins': [{'source': source, 'context': context}]}
             if name:
                 rows[identifier]['name'] = name
             if definition:

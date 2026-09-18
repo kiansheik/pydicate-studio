@@ -60,12 +60,29 @@ class AuthoringService:
         return response['result']
 
     def invoke(self,method,params):
-        allowed={'parse_expression','evaluate_expression','predicate_catalog','predicate_create','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_predicate','structure_search','structure_resolve'}
+        if method == 'learning_library':
+            from learning_library import documentation_fingerprint
+            fingerprint = self.fresh(params)
+            docs_fingerprint = documentation_fingerprint()
+            if params.get('projectId') != self.adapter.project['id']:
+                self.error('O projeto mudou. Reabra o guia.', 'STALE_PROJECT')
+            cached = getattr(self.adapter, 'learning_library_cache', None)
+            if cached and cached['engineFingerprint'] == fingerprint and cached['documentationFingerprint'] == docs_fingerprint:
+                return cached
+            result = self.child({'action': 'learning_library'}, timeout=180)
+            self.fresh(params)
+            result.update(engineFingerprint=fingerprint, documentationFingerprint=docs_fingerprint)
+            self.adapter.learning_library_cache = result
+            return result
+        allowed={'composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve'}
         if method not in allowed: self.error('Operação indisponível.','UNKNOWN_METHOD')
         if not isinstance(params,dict): self.error('Parâmetros inválidos.')
         return getattr(self,method)(params)
 
     def parse_expression(self,params):
+        # Scoped clients bind edits to the actual selected dependency snapshot,
+        # including when a watcher has not refreshed the cached project yet.
+        if params.get('engineFingerprint'):self.fresh(params)
         raw=params.get('raw')
         if not isinstance(raw,str) or len(raw)>100000: self.error('Expressão ausente ou muito grande.')
         return expression_tree(raw,params.get('revisionId',''))
@@ -78,6 +95,18 @@ class AuthoringService:
         self.fresh(params)
         result.pop('structure',None)
         return {'revisionId':params.get('revisionId',''),'engineFingerprint':fingerprint,'expression':raw,'origin':'engine',**result}
+
+    def grammar_regression(self,params):
+        """Read-only, fresh-process realization of every historic source line."""
+        fingerprint=self.fresh(params)
+        sources=self.child({'action':'publication_snapshot'},timeout=180)
+        self.fresh(params)
+        return {'engineFingerprint':fingerprint,'sources':{
+            source:({'error':item['error']} if 'error' in item else {'rows':[
+                {'ordinal':row['ordinal'],'codeFingerprint':digest(row['code'].encode('utf-8')),
+                 'reference':row.get('reference'),'surface':row.get('surface'),
+                 'annotated':row.get('annotated'),'error':row.get('error')}
+                for row in item['rows']]}) for source,item in sources.items()}}
 
     def predicate_catalog(self,params):
         context=self.structure_context(params); fingerprint=self.fresh(params)
@@ -95,6 +124,13 @@ class AuthoringService:
         self.fresh(params)
         result.pop('structure',None)
         return {'revisionId':params.get('revisionId',''),'engineFingerprint':fingerprint,'origin':'engine',**result}
+
+    def composition_define(self,params):
+        context=self.structure_context(params); fingerprint=self.fresh(params)
+        if not isinstance(params.get('raw'),str) or not isinstance(params.get('definition'),str):self.error('Composição e significado são necessários.')
+        result=self.child({'action':'composition_define',**context,'raw':params['raw'],'definition':params['definition'],'reuseBaseDefinitions':params.get('reuseBaseDefinitions') is True})
+        self.fresh(params)
+        return {**result,'engineFingerprint':fingerprint,'revisionId':params.get('revisionId','')}
 
     def _preview(self,path,before,after,extra_changes=(),**details):
         # A copy with an occurrence gloss has an explicit source-local helper;
@@ -118,13 +154,17 @@ class AuthoringService:
             if item['path'].suffix=='.py':ast.parse(item['after'].decode('utf-8'),filename=str(item['path']))
             difference=''.join(difflib.unified_diff(item['before'].decode('utf-8').splitlines(keepends=True),item['after'].decode('utf-8').splitlines(keepends=True),fromfile=str(item['path']),tofile=str(item['path'])))
             files.append({'path':str(item['path']),'sourceFingerprint':digest(item['before']),'diff':difference})
+        if any(item['before']!=item['after'] for item in changes):
+            from publication_regression import check_publication
+            details['regression']=check_publication(self,changes,recovery=bool(details.get('recovery')))
+            details['regressionFingerprint']=self.fresh()
         result={'previewId':preview_id,'diff':''.join(item['diff'] for item in files),'files':files,'sourceFingerprint':digest(before),'path':str(path),'kind':'new-passage' if details.get('newPassage') else 'source' if details.get('passageId') else 'lexicon' if details.get('lexicalId') else 'recovery','targetPassageId':details.get('passageId'),**details}
         self.adapter.previews[preview_id]={'before':before,'after':after,**result,'path':Path(path),'changes':changes}
         return result
 
     def prepare_lexical_publication(self,raw,context):
         from lexical_publication import contains_lexical_candidates
-        if not contains_lexical_candidates(raw):return raw,[],[],[]
+        if not contains_lexical_candidates(raw):return raw,[],[],[],[]
         path=self.corpus/'historic/lexicon.tu.py';before=path.read_bytes()
         result=self.child({'action':'prepare_lexical_publication',**context,'raw':raw})
         self.fresh()
@@ -134,7 +174,7 @@ class AuthoringService:
         if path.read_bytes()!=before:self.error('O léxico mudou durante a revisão. Gere outra diferença.','STALE_SOURCE')
         additions=[{**item,'reused':False} for item in result['declarations']]
         additions.extend({**item,'reused':True} for item in result.get('reused',[]))
-        if not result['declarations']:return result['raw'],[],additions,result.get('diagnostics',[])
+        if not result['declarations']:return result['raw'],[],additions,result.get('diagnostics',[]),result.get('definitionRepairs',[])
         text=before.decode('utf-8');newline='\r\n' if b'\r\n' in before else '\n'
         statements=ast.parse(text).body
         exports=next((node for node in statements if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='__all__' for target in node.targets)),None)
@@ -154,7 +194,7 @@ class AuthoringService:
             end=sum(map(len,lines[:exports.end_lineno]))+len(block)
             names=[item['name'] for item in result['declarations']]
             after=after[:end]+'__all__ += [name for name in '+repr(names)+' if name not in __all__]'+newline+after[end:]
-        return result['raw'],[{'path':path,'before':before,'after':after.encode('utf-8')}],additions,result.get('diagnostics',[])
+        return result['raw'],[{'path':path,'before':before,'after':after.encode('utf-8')}],additions,result.get('diagnostics',[]),result.get('definitionRepairs',[])
 
     def review_fields(self,metadata,previous=None):
         previous=previous or {}
@@ -219,9 +259,9 @@ class AuthoringService:
             metadata['subsection']=requested_metadata['subsection']
         review_summary={'kind':'passage-update','passageOrdinal':passage['ordinal'],'analysisChanged':raw!=entry['expression'],'fields':self.review_fields(metadata,existing)}
         if raw==entry['expression'] and not metadata: return self._preview(path,before,before,passageId=passage['id'],reviewSummary=review_summary)
-        lexical_changes=[];lexical_additions=[];lexical_diagnostics=[]
+        lexical_changes=[];lexical_additions=[];lexical_diagnostics=[];definition_repairs=[]
         if raw!=entry['expression']:
-            raw,lexical_changes,lexical_additions,lexical_diagnostics=self.prepare_lexical_publication(raw,{'sourceId':passage['sourceId'],'line':passage['sourceLine']})
+            raw,lexical_changes,lexical_additions,lexical_diagnostics,definition_repairs=self.prepare_lexical_publication(raw,{'sourceId':passage['sourceId'],'line':passage['sourceLine']})
         newline='\r\n' if b'\r\n' in before else '\n'
         # A single supported upstream note stores the stable identity and the
         # versioned evidence pointer. Existing note and locators stay adjacent.
@@ -283,12 +323,13 @@ class AuthoringService:
                 beginning=sum(map(len,source_lines[:line_index]));changes.append((beginning,beginning+len(source_line),''))
             line_index-=1
         for start,end,replacement in sorted(changes,key=lambda x:x[0],reverse=True): text=text[:start]+replacement+text[end:]
-        return self._preview(path,before,text.encode('utf-8'),extra_changes=lexical_changes,passageId=passage['id'],raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,reviewSummary=review_summary)
+        return self._preview(path,before,text.encode('utf-8'),extra_changes=lexical_changes,passageId=passage['id'],raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,definitionRepairs=definition_repairs,reviewSummary=review_summary)
 
     def source_new_preview(self,params):
         self.fresh(); source_id=params.get('sourceId','araujo_catecismo_1686')
         if source_id!='araujo_catecismo_1686': self.error('Este marco cria passagens em Araújo.')
         raw=params.get('raw','')
+        if isinstance(raw,str) and not raw.strip(): self.error('O rascunho ainda não tem uma árvore. Use a proposta de IA no rascunho ou adicione uma peça antes de revisar.', 'EMPTY_EXPRESSION')
         if not isinstance(raw,str) or not expression_tree(raw)['capabilities']['parse']: self.error('A nova expressão precisa ter sintaxe válida; texto incompleto pode ser salvo como rascunho.')
         if contains_slots(raw): self.error('Conecte todos os lugares vazios antes de aplicar à fonte. A construção incompleta pode continuar no rascunho.', 'UNRESOLVED_SLOTS')
         path=self.corpus/'historic'/f'{source_id}.tu.py'; before=path.read_bytes(); text=before.decode('utf-8')
@@ -318,11 +359,11 @@ class AuthoringService:
                 if not isinstance(value,str):self.error('Metadados precisam ser texto.')
                 if key!='notes' and ('\n' in value or '\r' in value):self.error(f'{key}: use uma única linha no comentário de origem. O texto multilinha pode continuar salvo como rascunho.')
                 for line in value.splitlines():directives.append('# @'+directive+' '+line+'\n')
-        raw,lexical_changes,lexical_additions,lexical_diagnostics=self.prepare_lexical_publication(raw,{'sourceId':source_id,'line':anchor.lineno if anchor else 10**9})
+        raw,lexical_changes,lexical_additions,lexical_diagnostics,definition_repairs=self.prepare_lexical_publication(raw,{'sourceId':source_id,'line':anchor.lineno if anchor else 10**9})
         review_summary={'kind':'passage-new','passageOrdinal':(prior['ordinal'] if prior else 0)+1,'analysisChanged':True,'fields':self.review_fields(metadata)}
         expression='('+raw+'\n)' if '\n' in raw else raw
         new='\n'+''.join(directives)+'# @note studio:v1 '+json.dumps(studio)+'\nl += '+expression+'\n\n'
-        return self._preview(path,before,(text[:offset]+new+text[offset:]).encode('utf-8'),extra_changes=lexical_changes,passageId=passage_id,newPassage=True,raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,reviewSummary=review_summary)
+        return self._preview(path,before,(text[:offset]+new+text[offset:]).encode('utf-8'),extra_changes=lexical_changes,passageId=passage_id,newPassage=True,raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,definitionRepairs=definition_repairs,reviewSummary=review_summary)
 
     def source_apply(self,params):
         from reviewed_files import apply_reviewed_files
@@ -332,7 +373,9 @@ class AuthoringService:
         changes=preview.get('changes') or [{'path':Path(preview['path']),'before':preview['before'],'after':preview['after']}]
         for item in changes:
             if item['path'].read_bytes()!=item['before']:self.error('Um dos arquivos mudou externamente. Nada foi aplicado; mantenha o rascunho e revise novamente.','STALE_SOURCE')
-        self.fresh()
+        current_fingerprint=self.fresh()
+        if preview.get('regressionFingerprint') != current_fingerprint and any(item['before']!=item['after'] for item in changes):
+            self.error('O projeto mudou depois da regressão. Gere outra revisão antes de publicar.','STALE_SOURCE')
         if all(item['before']==item['after'] for item in changes):return self.adapter.project
         if not self.adapter.state_dir:self.error('Configure armazenamento local para manter a recuperação.','STATE_ERROR')
         records=[{'path':str(item['path']),'before':item['before'].decode('utf-8'),'afterFingerprint':digest(item['after'])} for item in changes]
@@ -494,11 +537,45 @@ class AuthoringService:
                 else:
                     existing = entries[entry['id']]
                     existing['sources'].extend(source for source in entry['sources'] if source not in existing['sources'])
+                    existing.setdefault('_origins', []).extend(origin for origin in entry.get('_origins', []) if origin not in existing.get('_origins', []))
                     existing['occurrenceCount'] = len(existing['sources'])
             cache.update({'draftKey': draft_key, 'entries': entries,
                           'diagnostics': cache['base']['diagnostics'] + changed['diagnostics'],
                           'fingerprint': fingerprint([base_key, draft_key])})
         return cache
+
+    def structure_permitted(self,entry,params):
+        # The scoped service supplies these immutable manifest restrictions; they
+        # are not a renderer's selection and apply equally to lookup and resolve.
+        exclusions={}
+        for key in ('excludePassageIds','excludeConstructionIds','excludeLexicalNames','allowedSourceIds'):
+            value=params.get(key)
+            if value is not None and (not isinstance(value,list) or len(value)>5000 or any(not isinstance(item,str) or len(item)>500 for item in value)):
+                self.error('Manifesto de referências inválido.')
+            exclusions[key]=set(value) if value is not None else None
+        if entry['id'] in (exclusions['excludeConstructionIds'] or set()):return False
+        sources=[entry.get('source',{}),*entry.get('sources',[])]
+        # Conservative: even a merged entry also seen elsewhere is withheld
+        # if any occurrence came from the answer. No subexpression leakage.
+        if any(source.get('passageId') in (exclusions['excludePassageIds'] or set()) for source in sources):return False
+        if any(source.get('name') in (exclusions['excludeLexicalNames'] or set()) for source in sources):return False
+        if exclusions['allowedSourceIds'] is not None and not any(source.get('sourceId') in exclusions['allowedSourceIds'] for source in sources):return False
+        if exclusions['excludeLexicalNames']:
+            try:
+                if any(isinstance(node,ast.Name) and node.id in exclusions['excludeLexicalNames'] for node in ast.walk(parse_ast(entry['expression']))):return False
+            except (SyntaxError,ValueError):return False
+        return True
+
+    def structure_scoped(self,entry,params):
+        if not self.structure_permitted(entry,params):return None
+        allowed=params.get('allowedSourceIds')
+        if allowed is None:return entry
+        sources=[source for source in entry.get('sources',[entry.get('source',{})]) if source.get('sourceId') in allowed]
+        origins=[origin for origin in entry.get('_origins',[]) if origin['source'].get('sourceId') in allowed and origin['context'].get('sourceId') in allowed]
+        # New indexes preserve the exact execution context for every merged origin.
+        if not origins:return None
+        origin=next((item for item in origins if item['source']==entry.get('source')),origins[0])
+        return {**entry,'source':origin['source'],'sources':sources,'occurrenceCount':len(sources),'_context':origin['context'],'_origins':origins}
 
     def structure_search(self, params):
         from rendered_structures import search
@@ -507,7 +584,14 @@ class AuthoringService:
         if not isinstance(query, str) or len(query) > 2000:
             self.error('Texto de busca inválido.')
         cache = self.structure_index(params)
-        result = search(cache['entries'].values(), query, max(1, min(100, int(params.get('limit', 40)))))
+        limit=params.get('limit',40);offset=params.get('offset',0)
+        if type(limit) is not int or not 1<=limit<=100 or type(offset) is not int or not 0<=offset<=100000:
+            self.error('Página de estruturas inválida.')
+        allowed=[scoped for entry in cache['entries'].values() if (scoped:=self.structure_scoped(entry,params)) is not None]
+        result = search(allowed, query, offset+limit)
+        result['results']=result['results'][offset:offset+limit]
+        result['offset']=offset
+        result['nextOffset']=offset+limit if offset+limit<result['total'] else None
         return {**result, 'indexFingerprint': cache['fingerprint'], 'diagnostics': cache['diagnostics']}
 
     def structure_resolve(self, params):
@@ -518,6 +602,9 @@ class AuthoringService:
         candidate = cache['entries'].get(params.get('candidateId'))
         if candidate is None:
             self.error('Estrutura não encontrada. Pesquise novamente.', 'STRUCTURE_NOT_FOUND')
+        candidate=self.structure_scoped(candidate,params)
+        if candidate is None:
+            self.error('Esta estrutura está excluída do material permitido.', 'REFERENCE_WITHHELD')
         result = self.child({'action': 'structure_resolve', 'candidate': candidate, **context})
         self.fresh(params)
         return result
@@ -583,9 +670,15 @@ class AuthoringService:
         else:
             target=next((s for s in tree.body if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in s.targets)),None)
             if target is None:self.error('A entrada é definida pelo motor; crie uma substituição nesta fonte.','LEXICAL_SCOPE')
+            existing_override=next((statement for statement in reversed(tree.body)
+                if isinstance(statement,ast.Assign) and statement.lineno>target.lineno and
+                any(isinstance(t,ast.Attribute) and isinstance(t.value,ast.Name) and t.value.id==name and t.attr=='definition' for t in statement.targets)),None)
             value=target.value;keyword_node=next((k.value for k in value.keywords if k.arg=='definition'),None) if isinstance(value,ast.Call) else None
             from studio_authoring import position
-            if keyword_node:
+            if existing_override:
+                start=position(text,existing_override.value.lineno,existing_override.value.col_offset);end=position(text,existing_override.value.end_lineno,existing_override.value.end_col_offset)
+                after=(text[:start]+repr(definition)+text[end:]).encode('utf-8')
+            elif keyword_node:
                 start=position(text,keyword_node.lineno,keyword_node.col_offset);end=position(text,keyword_node.end_lineno,keyword_node.end_col_offset)
                 after=(text[:start]+repr(definition)+text[end:]).encode('utf-8')
             else:
@@ -604,6 +697,14 @@ class AuthoringService:
         except ValueError as error:self.error(str(error),'DICTIONARY_SELECTION')
         self.fresh(params)
         return {**result,'engineFingerprint':fingerprint}
+
+    def dictionary_entry_get(self,params):
+        from navarro_search import dictionary_entry
+        self.structure_context(params);fingerprint=self.fresh(params)
+        try:entry,_=dictionary_entry(self.adapter.parent/'nhe-enga',params)
+        except ValueError as error:self.error(str(error),'DICTIONARY_SELECTION')
+        self.fresh(params)
+        return {'entry':entry,'engineFingerprint':fingerprint}
 
     def dictionary_predicate(self,params):
         from navarro_search import dictionary_entry

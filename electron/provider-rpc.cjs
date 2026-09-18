@@ -20,7 +20,11 @@ class JsonLineRpc {
     // Never relay process stderr: CLI diagnostics may include local configuration or credentials.
     this.child.stderr.resume();
     this.child.on('error', (error) =>
-      this.fail(new Error(`Não foi possível iniciar ${command}: ${error.code || 'erro'}.`)),
+      this.fail(
+        Object.assign(new Error(`Não foi possível iniciar ${command}: ${error.code || 'erro'}.`), {
+          code: 'PROVIDER_UNAVAILABLE',
+        }),
+      ),
     );
     this.child.on('exit', (code) =>
       this.fail(new Error(`A conexão local terminou (${code ?? 'interrompida'}).`)),
@@ -41,9 +45,17 @@ class JsonLineRpc {
       this.buffer = this.buffer.slice(index + 1);
       let message;
       try {
+        if (!line.trim()) continue;
         message = JSON.parse(line);
       } catch {
-        continue;
+        this.fail(new Error('A conexão local enviou JSON inválido.'));
+        this.close();
+        return;
+      }
+      if (!message || typeof message !== 'object' || Array.isArray(message)) {
+        this.fail(new Error('A conexão local enviou uma mensagem inválida.'));
+        this.close();
+        return;
       }
       if (message.id != null && !message.method) {
         const item = this.pending.get(message.id);
@@ -104,6 +116,7 @@ class JsonLineRpc {
   }
 
   fail(error) {
+    if (this.closed) return;
     this.closed = true;
     for (const item of this.pending.values()) {
       clearTimeout(item.timer);

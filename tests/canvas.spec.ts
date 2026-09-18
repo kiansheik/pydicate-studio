@@ -29,6 +29,9 @@ else:
  elif payload['method']=='dictionary_predicate':
   descriptor,row=dictionary_entry(Path(payload['parent'])/'nhe-enga',payload)
   result={**dictionary_predicate({**payload,'entry':descriptor,'entryRecord':row},namespace),'engineFingerprint':'canvas-fixture-engine','revisionId':payload.get('revisionId','fixture')}
+ elif payload['method']=='composition_define':
+  from lexical_publication import define_composition
+  result=define_composition({**payload,'sourceId':'araujo_catecismo_1686'},corpus)
  elif payload['method']=='predicate_catalog': result=predicate_catalog(namespace)
  elif payload['method']=='predicate_create': result=predicate_create(payload,namespace)
  else:
@@ -532,12 +535,21 @@ test('secondary piece types create a real predicate in an empty canvas and persi
   await palette.getByRole('button', { name: 'Criar e adicionar peça', exact: true }).click();
   await expect(palette).not.toBeVisible();
   await ready(page);
-  const raw = (await page.locator('#canvas-raw').textContent())!;
-  expect(raw).toContain('Noun(');
+  expect(await page.locator('#canvas-raw').textContent()).toContain('Noun(');
   expect(requests.find((request) => request.method === 'predicate_create')?.params).toMatchObject({
     constructor: 'Noun',
     values: { value: 'ara', definition: 'dia' },
   });
+  // Constructor scalars now live inside Noun(...). A method's real receiver
+  // supplies the parent/child relationship for the orientation check.
+  await expect(card(page, 'main:root/kw:value')).toHaveCount(0);
+  await menu(page, 'main:root', 'Escolher variante…');
+  await page
+    .getByRole('dialog', { name: 'Adicionar operação', exact: true })
+    .getByRole('button', { name: 'Criar operação', exact: true })
+    .click();
+  await ready(page);
+  const raw = (await page.locator('#canvas-raw').textContent())!;
   const parsed = run('parse_expression', { raw }).root;
   await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
   await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
@@ -617,6 +629,117 @@ test('context operations chain a selected variant and imperative without writing
   expect(root.children[0].node.method).toBe('var');
   expect(root.children[0].node.children[1].node.code).toBe('2');
   expect(root.children[0].node.children[0].node.code).toBe('pysyro');
+});
+
+test('inline scalar arguments preserve number and text values with one source edit and undo', async ({
+  page,
+}) => {
+  const original = 'pysyro.var(1)  # escolha do colaborador';
+  await openCanvas(page, original);
+  const argument = () =>
+    page.getByRole('button', { name: 'Editar argumento 1 de .var', exact: true });
+  const input = page.getByRole('textbox', { name: 'Valor do argumento', exact: true });
+  await expect(argument()).toHaveText('1');
+  await expect(card(page, 'main:root/arg0')).toHaveCount(0);
+  await expect(card(page, 'main:root/receiver')).toBeVisible();
+  await argument().click();
+  await expect(input).toHaveValue('1');
+  await input.fill('1,5');
+  await input.press('Enter');
+  await expect(page.locator('#canvas-ready')).toHaveText('ready');
+  const decimal = await page.locator('#canvas-raw').textContent();
+  expect(run('parse_expression', { raw: decimal }).root.children[1].node.value).toBe(1.5);
+  expect(decimal).toContain('# escolha do colaborador');
+  await expect(card(page, 'main:root/arg0')).toHaveCount(0);
+  // Do not click a toolbar control first: Enter must retain canvas focus so
+  // contributors can immediately undo using the keyboard.
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(original);
+  await expect(page.getByRole('button', { name: 'Desfazer edição na árvore' })).toBeDisabled();
+
+  const text = 'i "îepé" \\ ypy';
+  await argument().click();
+  await input.fill(text);
+  await page.locator('h2').first().click();
+  await ready(page);
+  const quoted = await page.locator('#canvas-raw').textContent();
+  expect(run('parse_expression', { raw: quoted }).root.children[1].node.value).toBe(text);
+  expect(quoted).toContain('# escolha do colaborador');
+  await argument().click();
+  await expect(input).toHaveValue(text);
+  await input.fill('');
+  await input.press('Enter');
+  await ready(page);
+  const empty = await page.locator('#canvas-raw').textContent();
+  expect(run('parse_expression', { raw: empty }).root.children[1].node.value).toBe('');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(quoted!);
+});
+
+test('inline scalar insertion keeps empty-call cancellation and real predicate arguments distinct', async ({
+  page,
+}) => {
+  const original = 'pysyro.var()';
+  await openCanvas(page, original);
+  const add = page.getByRole('button', { name: 'Adicionar argumento de .var', exact: true });
+  const input = page.getByRole('textbox', { name: 'Valor do argumento', exact: true });
+  await add.dblclick();
+  await expect(input).toHaveValue('');
+  await input.fill('2');
+  await input.press('Escape');
+  await expect(input).toHaveCount(0);
+  await expect(page.locator('#canvas-raw')).toHaveText(original);
+  await add.dblclick();
+  await page.locator('h2').first().click();
+  await expect(input).toHaveCount(0);
+  await expect(page.locator('#canvas-raw')).toHaveText(original);
+  await expect(page.getByRole('button', { name: 'Desfazer edição na árvore' })).toBeDisabled();
+  await add.dblclick();
+  await input.fill('2');
+  await page.locator('h2').first().click();
+  await ready(page);
+  expect(
+    run('parse_expression', { raw: await page.locator('#canvas-raw').textContent() }).root
+      .children[1].node.value,
+  ).toBe(2);
+  await expect(card(page, 'main:root/arg0')).toHaveCount(0);
+
+  await page.evaluate(() => window.canvasReplaceRaw('pysyro.var(ypy)'));
+  await ready(page);
+  await expect(card(page, 'main:root/arg0')).toContainText('ypy');
+  await expect(
+    page.getByRole('button', { name: 'Editar argumento 1 de .var', exact: true }),
+  ).toHaveCount(0);
+  await page.evaluate(() => window.canvasReplaceRaw('pysyro.base_nominal(True)'));
+  await ready(page);
+  await expect(card(page, 'main:root/arg0')).toContainText('True');
+});
+
+test('inline scalar input is discarded when its source revision or passage changes', async ({
+  page,
+}) => {
+  await openCanvas(page, 'pysyro.var(1)');
+  const argument = page.getByRole('button', { name: 'Editar argumento 1 de .var', exact: true });
+  const input = page.getByRole('textbox', { name: 'Valor do argumento', exact: true });
+  await argument.click();
+  await input.fill('99');
+  await page.evaluate(() => window.canvasReplaceRaw('pysyro.var(2)'));
+  await ready(page);
+  await expect(input).toHaveCount(0);
+  await expect(page.locator('#canvas-raw')).toHaveText('pysyro.var(2)');
+  await argument.click();
+  await input.fill('88');
+  await page.evaluate(() => window.canvasSetPassageId('another-passage'));
+  await ready(page);
+  await expect(input).toHaveCount(0);
+  await expect(page.locator('#canvas-passage')).toHaveText('another-passage');
+  await expect(page.locator('#canvas-raw')).toHaveText('pysyro.var(2)');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('pysyro.var(1)');
+  await expect(page.getByRole('button', { name: 'Desfazer edição na árvore' })).toBeDisabled();
 });
 
 test('context-menu detach persists its orphan and reconnects into the exact hole with atomic undo', async ({
@@ -959,4 +1082,26 @@ test('a naturally selected reusable word can be added as a persistent loose piec
     card(page, `${fragment.id}:root`).locator('[data-evaluation-state="ok"]'),
   ).toHaveCount(1);
   await expect(page.locator('#canvas-raw')).toHaveText('tym');
+});
+
+test('whole-composition definition keeps base meanings and undo through the real engine', async ({
+  page,
+}) => {
+  const original =
+    "(nhe * (mo * Noun(value='abaré', definition='sacramento da ordem'))).var(1).base_nominal()";
+  await openCanvas(page, original);
+  await menu(page, 'main:root', 'Definir significado do conjunto…');
+  const dialog = page.getByRole('dialog', { name: 'Definir composição', exact: true });
+  await dialog.getByLabel('Definição do conjunto').fill('sacramento da ordem');
+  await dialog.getByRole('button', { name: 'Usar definição no rascunho', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await ready(page);
+  const raw = (await page.locator('#canvas-raw').textContent())!;
+  expect(raw).toContain('studio_define');
+  expect(raw).toContain('padre');
+  const result = run('fixture', { raw }).evaluatedRoot;
+  expect(result.definition).toBe('sacramento da ordem');
+  expect(result.evaluation.surface).toBe('nhemoabaré');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await expect(page.locator('#canvas-raw')).toHaveText(original);
 });

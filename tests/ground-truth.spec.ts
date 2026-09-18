@@ -1,32 +1,74 @@
 import { expect, test } from '@playwright/test';
 
+test('workspace opens ground truth directly and cancelling never approves or applies source', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace');
+  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
+  const open = page
+    .locator('.workspace-footer')
+    .getByRole('button', { name: 'Commit to Ground Truth', exact: true });
+  const dialog = page.getByRole('dialog', { name: 'Commit to Ground Truth', exact: true });
+  const save = dialog.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true });
+  await page.evaluate(() => window.__nextControl.holds.push({ method: 'reference_status' }));
+  await open.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+  await expect(save).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Montar a análise', exact: true })).toHaveClass(
+    'active',
+  );
+  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.evaluate(() => window.__nextControl.release('reference_status'));
+  await open.click();
+  await expect(dialog).toBeVisible();
+  await expect(save).toBeEnabled();
+  await expect(dialog).toContainText('SIMULADO:alpha');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', { name: 'Revisar', exact: true }).click();
+  await page
+    .locator('.review-view')
+    .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
+    .click();
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await expect(save).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Fechar ground truth', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(
+    await page.evaluate(() =>
+      window.__nextControl.requests.filter(({ method }) =>
+        ['reference_approve', 'source_apply', 'source_preview', 'source_new_preview'].includes(
+          method,
+        ),
+      ),
+    ),
+  ).toEqual([]);
+});
+
 // Real GroundTruthPanel + useStudio; only the backend is simulated. No corpus or provider writes.
-test('ground truth requires current reviewed source and explicit confirmation; failure and concurrency preserve drafts', async ({
+test('one explicit save requires current reviewed source; failure and concurrency preserve drafts', async ({
   page,
 }) => {
   await page.goto('/tests/next-hook-harness.html?groundTruth=1');
   await expect(page.getByTestId('surface')).toHaveText('SIMULADO:alpha');
-  const confirmation = page.getByRole('checkbox', {
-    name: 'Revisei a forma completa acima e quero registrá-la como ground truth.',
-    exact: true,
-  });
   const save = page.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true });
   const success = page.getByText('Ground truth salva. As outras passagens foram preservadas.', {
     exact: true,
   });
-  await expect(confirmation).toBeEnabled();
-  await expect(save).toBeDisabled();
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
+  await expect(save).toBeEnabled();
   await page.getByLabel('Pydicate simulado').fill('changed_raw');
-  await expect(confirmation).toBeDisabled();
+  await expect(save).toBeDisabled();
   await page.getByLabel('Pydicate simulado').fill('alpha');
   await expect(page.getByTestId('surface')).toHaveText('SIMULADO:alpha');
-  await confirmation.check();
+  await expect(save).toBeEnabled();
   await page.getByLabel('Nota simulada').fill('Unapplied human field');
-  await expect(confirmation).toBeDisabled();
-  await expect(confirmation).not.toBeChecked();
-  await page.getByLabel('Nota simulada').fill('');
-  await expect(confirmation).toBeEnabled();
   await expect(save).toBeDisabled();
+  await page.getByLabel('Nota simulada').fill('');
+  await expect(save).toBeEnabled();
   expect(
     await page.evaluate(() =>
       window.__nextControl.requests.filter((request) => request.method === 'reference_approve'),
@@ -35,7 +77,6 @@ test('ground truth requires current reviewed source and explicit confirmation; f
 
   const before = await page.evaluate(() => structuredClone(window.__nextStudio.envelope.drafts));
   await page.evaluate(() => window.__nextControl.holds.push({ method: 'reference_approve' }));
-  await confirmation.check();
   await save.click();
   await expect
     .poll(() =>
@@ -68,9 +109,7 @@ test('ground truth requires current reviewed source and explicit confirmation; f
   expect(await page.evaluate(() => window.__nextStudio.envelope.drafts)).toEqual(before);
 
   await page.evaluate(() => window.__nextControl.holds.push({ method: 'reference_approve' }));
-  await expect(confirmation).toBeEnabled();
-  await expect(save).toBeDisabled();
-  await confirmation.check();
+  await expect(save).toBeEnabled();
   await save.click();
   await expect
     .poll(() =>

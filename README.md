@@ -2,7 +2,7 @@
 
 A Portuguese desktop reading and authoring desk for Old Tupi. Consult a historical PDF, contribute a reading, edit a nested Pydicate construction visually or directly, compare actual engine output, and keep unfinished work across restarts.
 
-Version 0.2 opens the local `oldtupicorpus` project and Araújo by default. It continues the original Electron/React application; the bundled browser example remains available separately. The current source has 82 expressions. The [coverage matrix](docs/coverage/araujo.md) distinguishes concrete syntax, structure, editing probes, engine comparisons and UI verification.
+Version 0.2 opens the local `oldtupicorpus` project and Araújo by default. It continues the original Electron/React application; the bundled browser example remains available separately. The current audit finds 86 expressions. The [coverage matrix](docs/coverage/araujo.md) distinguishes concrete syntax, structure, editing probes, engine comparisons and UI verification.
 
 ## Start
 
@@ -25,9 +25,13 @@ workspace/
 
 Set `PYDICATE_PROJECT_PARENT` to another parent directory and `PYDICATE_PYTHON` to a prepared interpreter if needed. **Abrir projeto** also selects a parent directory. The chosen project and passage are remembered. To run the production bundle, use `npm run build` followed by `npm start`.
 
-This milestone depends on actual uncommitted corpus/engine modifications. A HEAD alone is insufficient: [dependency instructions](docs/design/dependencies.md), the [file manifest](docs/design/next-baseline.json), and [binary patches](docs/design/dependency-patches/) record the tested state. Studio reports missing dependencies and fingerprint changes; it does not silently update neighboring repositories. `npm run doctor` checks this baseline without changing those repositories.
+This milestone depends on actual uncommitted corpus/engine modifications. A HEAD alone is insufficient. The original baseline is historical; the current audit records newer daily edits. The  [dependency instructions](docs/design/dependencies.md), the [file manifest](docs/design/next-baseline.json), and [binary patches](docs/design/dependency-patches/) record the tested state. Studio reports missing dependencies and fingerprint changes; it does not silently update neighboring repositories. `npm run doctor` checks this baseline without changing those repositories.
 
 ## Daily workflow
+
+**Aprender** opens five guided lessons (about ten minutes) in Brazilian Portuguese, using preserved corpus examples and the same tree editor in an isolated practice workspace. Progress, hints, stage models, undo and optional questions to the configured AI provider are available. The searchable **Referência** links concepts to UI actions, code, current implementation signatures and examples from both historic sources. Browser-only mode shows compiled examples; live editing and checking require the desktop project. No tutorial attempt publishes corpus or reference changes.
+
+The build regenerates this material from source comments/docstrings and local `.tu.py`/ground-truth records. Run `npm run docs:build`, `npm run docs:check`, and `npm run test:learning`; set `PYDICATE_PROJECT_PARENT` for non-sibling repositories. See [maintaining the learning reference](docs/design/learning.md).
 
 1. Choose an Araújo passage. **Vincular PDF à fonte** makes a managed persistent copy of its witness. Draw, move, resize or remove regions; save the evidence and return to the same physical page later. Printed page, folio and textual lines remain separate from PDF page numbers.
 2. Contribute transcription, interpretation and uncertainty independently. **Adicionar próxima passagem** opens an empty tree in the ordinary passage list, carrying the last edited page/folio/section/subsection and showing the previous PDF box as a guide. Pending readings remain local until their source diff is reviewed.
@@ -36,9 +40,9 @@ This milestone depends on actual uncommitted corpus/engine modifications. A HEAD
    Each connection displays its intermediate evaluated form, with **Resultado final** at the root and the full selected result in the inspector. Chevrons collapse/expand branches. Portuguese operation names and explanations accompany the exact Pydicate syntax; unavailable isolated steps and genuinely empty forms are identified explicitly.
 
 4. **Léxico** lists the current passage's variables and recursively expands composites/helpers to their base predicates. Keep separate general lexical notes and meanings/grammar for each occurrence; the project notebook searches and exports those interpretations with history. **Localizar na estrutura** returns to the matching tree scope. The expandable project catalog retains reviewed definition editing. **Dicionário** embeds the actual local dictionary website, including conjugations and citation scans; clicking a headword or **+ Árvore** creates a piece from that exact sense. **Adicionar peça** starts with one search: existing structures first, then Navarro entries, with manual creation/code as secondary choices. See the [dictionary workflow](docs/design/dictionary.md).
-5. **Assistência IA** translates the **full passage** by default, with the exact scope visible before sending. Selecting a tree node does not silently request a partial translation. Explicit constituent translation remains available separately. Requests, original output and provenance are retained; accepting a full candidate requires human action. Old ambiguous partial results receive a warning.
+5. **Fonte / IA** share the right support pane while the builder stays visible. Enter the diplomatic text and optional **Grafia provável em Navarro**, then **Salvar e analisar**. The saved input feeds a durable tool-driven job: local dictionary research, shared builder edits, evaluation and isolated proposals. Inspect a proposal, **Questionar / refinar**, then explicitly **Usar no rascunho**, with undo. Batch submission, per-passage conversations and background progress persist. See the [contributor guide](docs/contributor-guide.md).
 6. **Concluir passagem** moves completed work into **Concluídas**. The **Etapa do meu trabalho** selector also allows analysis/review/reopening; this local workflow persists independently of reference approval.
-7. **Salvar como ground truth** opens review. First review/apply any draft changes with **Revisar edição da fonte**. Then inspect the complete form, check its confirmation box and choose **Confirmar e salvar ground truth**. This updates the selected corpus reference through the authoritative engine and marks local work complete. Missing references must be added in source order. Git sharing remains a separate reviewable patch.
+7. **Commit to Ground Truth**, beside Verificar and Salvar rascunho, opens review directly. First review/apply any draft changes with **Revisar edição da fonte**. Then inspect the complete form and choose **Confirmar e salvar ground truth**. This updates the selected corpus reference through the authoritative engine and marks local work complete. Missing references must be added in source order. Git sharing remains a separate reviewable patch.
 
 The source defaults to the right of the tree. Drag a pane title or use its position selector to move **Passagens**, **Editor** or **Fonte**; resize their borders, collapse or maximize them. The layout persists, and hidden/moved editors keep their working state. **Comparar referência** opens the saved surface beside the current result. Retained old drafts are in one searchable archive instead of a long list of empty association buttons.
 
@@ -52,9 +56,15 @@ External changes preserve drafts and show both source and editorial versions bef
 
 ## Providers and evidence
 
-Codex uses its local authenticated App Server. Studio explicitly selects reasoning effort (medium by default), shows persistent request phases and permits cancellation without automatic retries. Earlier provider checks and the user's saved responses are historical evidence; the current full-passage fix uses local engine context, read-only request replay and simulated generation tests only. See [scope diagnosis](docs/design/ai-scope.md). Claude's last authenticated API check reached model discovery, while generation was rejected for insufficient account credit. Configure `ANTHROPIC_API_KEY` in the launching environment; credentials stay outside renderer state and project files. See [provider transports and validation](docs/design/providers.md).
+**Corrigir gramática / árvore** prefills the current output for editing and submits the desired form plus linguistic notes into a new Codex conversation in IA. Explicit grammar repairs use the selected local `nhe-enga` folder through checked grammar-only tools, automatically reload and compare the same expression and corpus, and preserve source/reference approval as separate decisions. Conversations remain selectable and can run concurrently; repairs sharing a grammar folder run in sequence. See the [contributor guide](docs/contributor-guide.md#corrigir-uma-forma-gerada).
 
-AI currently receives textual context and PDF asset/region provenance, not raster page pixels. Grammar work remains a proposed separate change with rationale/regressions; it cannot apply an engine repair or approve corpus targets. The independent critic's additional corpus-context AI request was blocked by automatic approval review, separately from the earlier authenticated provider checks.
+Codex uses its CLI-authenticated App Server with only the scoped Studio MCP tools enabled. Claude uses iterative Messages API tool rounds with `ANTHROPIC_API_KEY` and optional `ANTHROPIC_WORKSPACE_ID` in the launching environment. Credentials stay in the main process. New conversations and candidates remain separate from readable legacy AI histories. See [provider integration](docs/design/ai-agent-providers.md) and [external MCP setup](docs/design/mcp-agent-guide.md).
+
+The default input is text and saved evidence metadata. Selecting images supplies actual managed PDF crop pixels with preserved page geometry and hashes. Models cannot open arbitrary files, browse, alter shared lexicons, publish source or approve references through the tool service. Closing a window preserves work while the local owner runs; interrupted attempts require explicit retry and may consume provider usage again.
+
+Routine verification uses deterministic transports with **no paid generation**. Installed Codex 0.153.4 initialization/scoped thread setup and Claude model-discovery authentication were rechecked without inference. The historical Claude billing failure has not been disproved by model discovery; a budgeted live linguistic experiment remains separate.
+
+`npm run test:codex-tools` checks the installed Codex code-mode/MCP transport against a local fake model endpoint: disabled-host reproduction, complete-tool preflight and guide/create/evaluate/propose calls, with zero paid requests. It requires the installed CLI and its cached `gpt-5.6-terra` metadata; it is separate from portable unit tests.
 
 PDFs and regions live in application data, with fingerprint/replacement checks and same-witness relocation. Source comments store the stable versioned evidence pointer. A Git patch alone does not contain the managed PDF or private draft/AI state. See [PDF evidence format](docs/design/pdf-evidence.md). Clearing application data removes these local assets; retain independent source PDF backups.
 
@@ -66,6 +76,8 @@ npm run test:e2e
 npm run test:smoke
 npm run test:session
 npm run audit:araujo
+node scripts/smoke-analysis.mjs
+npm run eval:authoring:build
 ```
 
 `check` formats-checks, builds, and runs domain, Electron service and Python tests. The real-corpus Python tests use disposable copies of installed siblings; absent siblings are reported as skips. Browser tests include explicit simulated race/failure contracts and actual PDF.js rendering. `test:smoke` launches production Electron with temporary user data and a disposable corpus; it never applies its edits to the historical source. Authenticated provider probes are separate and are not part of routine tests.

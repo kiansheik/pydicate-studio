@@ -2,7 +2,8 @@ export type WorkspacePane = 'navigator' | 'editor' | 'source';
 export type DockPosition = 'left' | 'center' | 'right' | 'bottom';
 export type ResizePosition = Exclude<DockPosition, 'center'>;
 export interface WorkspaceState {
-  version: 1;
+  version: 2;
+  supportTab: 'source' | 'ai';
   positions: Record<WorkspacePane, DockPosition>;
   hidden: Record<WorkspacePane, boolean>;
   maximized: WorkspacePane | null;
@@ -17,7 +18,8 @@ export const resizeBounds: Record<ResizePosition, [number, number]> = {
 };
 export function defaultWorkspace(): WorkspaceState {
   return {
-    version: 1,
+    version: 2,
+    supportTab: 'source',
     positions: { navigator: 'left', editor: 'center', source: 'right' },
     hidden: { navigator: false, editor: false, source: false },
     maximized: null,
@@ -29,7 +31,7 @@ export function readWorkspace(text: string | null): WorkspaceState {
     const state = JSON.parse(text || 'null') as WorkspaceState | null;
     if (
       !state ||
-      state.version !== 1 ||
+      ![1, 2].includes(state.version) ||
       !state.positions ||
       !state.hidden ||
       !state.sizes ||
@@ -48,7 +50,8 @@ export function readWorkspace(text: string | null): WorkspaceState {
     )
       return defaultWorkspace();
     return {
-      version: 1,
+      version: 2,
+      supportTab: state.supportTab === 'ai' ? 'ai' : 'source',
       positions: { ...state.positions },
       hidden: { ...state.hidden },
       maximized: state.maximized && !state.hidden[state.maximized] ? state.maximized : null,

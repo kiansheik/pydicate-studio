@@ -312,7 +312,8 @@ test('search highlights each repeated reference without matching its ancestors a
 }) => {
   const raw = `Noun("🦜î") + (oré * oré)`;
   await openTree(page, parse(raw));
-  await ready(page, 6);
+  await ready(page, 5);
+  await expect(svg(page).locator('[data-source-node="root/left/arg0"]')).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Buscar na árvore' }).fill('oré');
   await expect(svg(page).locator('[data-source-node].is-match')).toHaveCount(2);
   await expect(svg(page).locator('[data-source-node="root"].is-match')).toHaveCount(0);
@@ -321,7 +322,7 @@ test('search highlights each repeated reference without matching its ancestors a
   await page.getByText('Substituir por expressão ou valor', { exact: true }).click();
   await page.getByRole('textbox', { name: 'Expressão da parte na árvore' }).fill('tym');
   await page.getByRole('button', { name: 'Aplicar substituição', exact: true }).click();
-  await ready(page, 6);
+  await ready(page, 5);
   await expect(page.locator('#operation-raw')).toHaveText(`Noun("🦜î") + ((tym) * oré)`);
   await expect(svg(page).locator('[data-source-node].is-match')).toHaveCount(1);
 });

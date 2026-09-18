@@ -26,6 +26,7 @@ export interface AuthorNode {
   start: number;
   end: number;
   operator?: string;
+  value?: string | number | boolean | null;
   method?: string;
   lexicalReference?: string;
   category?: string;
@@ -56,6 +57,21 @@ export interface ParsedExpression {
   capabilities?: unknown;
 }
 export interface SourcePreview {
+  definitionRepairs?: {
+    base: string;
+    compound: string;
+    before: string;
+    baseDefinition: string;
+    compoundDefinition: string;
+  }[];
+  regression?: {
+    ok: boolean;
+    checked: number;
+    changed: number;
+    references: number;
+    baselineIssues: number;
+    pendingReferences: number;
+  };
   previewId: string;
   diff: string;
   sourceFingerprint: string;

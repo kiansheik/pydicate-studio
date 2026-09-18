@@ -578,6 +578,10 @@ function createProviderService({
   }
 
   return {
+    async getConfig() {
+      await initialize();
+      return clone(config);
+    },
     async handle(method, params = {}) {
       await initialize();
       if (method === 'ai_status') {

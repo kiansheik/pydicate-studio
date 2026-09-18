@@ -1,4 +1,5 @@
 import { flattenNodes, replaceNode, type AuthorNode, type NodeEvaluation } from './authoring';
+import type { InlineCallArguments } from './inline-arguments';
 export type RuntimePrimitive = string | number | boolean | null;
 export interface RuntimeSourceOccurrence {
   sourceNodeId: string;
@@ -36,6 +37,7 @@ export interface RuntimeNode {
     operator?: string;
     method?: string;
     isRoot?: boolean;
+    inlineCall?: InlineCallArguments;
   };
 }
 export interface RuntimeEdge {
@@ -138,7 +140,10 @@ export function isOperationJunction(node: RuntimeNode): boolean {
 function operationLabelWidth(node: RuntimeNode): number {
   if (!isOperationJunction(node)) return NODE_WIDTH;
   return node.expression?.kind === 'method' || node.expression?.kind === 'call'
-    ? Math.min(190, Math.max(56, [...node.label].length * 8 + 24))
+    ? Math.min(
+        node.expression.inlineCall ? 360 : 190,
+        Math.max(56, [...node.label].length * 8 + 24),
+      )
     : 56;
 }
 

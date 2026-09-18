@@ -11,3 +11,23 @@ The ordinary review opens with the current draft result (only for the matching p
 Application stages all replacements and original-byte backups, durably journals every member, writes shared declarations before their dependent passage, and rolls completed writes back if a later write fails. Filesystem renames are individually atomic; the set is not a filesystem transaction. A process interruption can leave a known before/after mixture, recoverable from the journal without overwriting unrelated edits. Recovery restores the passage before removing lexical declarations. One externally changed member blocks recovery of the whole set. Earlier single-file source/reference recovery records remain supported; malformed records produce diagnostics without hiding valid records.
 
 The saved draft adopts the published named expression. The existing source-review approval remains the only application confirmation; ground-truth approval stays separate. Routine tests use disposable corpus copies and make no AI provider calls.
+
+
+## Defined compositions
+
+A contributor can right-click any constituent and choose **Definir significado do conjunto…**. The draft records `studio_define(expression, definition)` on that exact source span. It does not overwrite a child's definition. The optional base restoration checkbox reuses a shared entry only with identical grammar/realization and consistent destination binding; differing senses must be unambiguous. If no shared entry exists, an exact Navarro headword/type and identical grammar can restore its complete definition. Multiple senses require choosing the piece first. These are explicit draft edits, undoable, with cancellation/revision guards.
+
+Publication promotes primitive dependencies first, then innermost defined compositions. Each compound must evaluate completely and have the same identity in the shared namespace. Names derive from actual surfaces with existing collision rules. The declaration copies the complete expression before setting `name.definition`, preserving component meanings. Subsequent shared definition edits replace the effective existing assignment. Compositions that rely on unavailable source-local pieces are rejected for explicit resolution.
+
+## Automatic regression
+
+Every changed preview (passage update, new line, lexicon update or explicit recovery) runs fresh engine snapshots of all historic collections before and after the complete proposed file set, with the latter evaluated in a temporary corpus. The selected engine remains read-only. Tests compare unedited expressions' plain and annotated output and saved references, and reject new evaluation failures. Existing failures are reported as baseline issues; intentional changed-row reference mismatches remain pending human reference review. Explicit recovery can remove its newly added trailing rows; ordinary publication cannot silently remove rows.
+
+Preview carries checked-row/reference/baseline counts. The full project fingerprint is checked after evaluation and again on application, together with exact reviewed file bytes. A stale check cannot authorize a write. Evaluation or check failure prevents original-file writes. This is the corpus regression, not an AI call or the application development test suite. Live draft evaluation continues separately on edits. No ground-truth records are regenerated or approved automatically.
+
+
+## Retained misplaced compound meanings
+
+Ordinary new-passage/source review also handles the evidenced legacy failure without requiring the contributor to re-enter a tree definition. When the whole expression realizes an exact Navarro headword, and a literal base carries that entry's complete definition (optionally followed by the old explicit `; definição do composto ...` note), the planner restores only that base's unambiguous meaning and defines the whole composition. The correction retains the original compound definition and evidence in `definitionRepairs`, surfaced in the ordinary review before technical details. It never edits a draft or source on preview.
+
+This path does not infer arbitrary compounds from spelling: custom definitions, explicitly scoped `studio_define` meanings, and nonmatching whole surfaces are unchanged. It proves the nonsemantic grammar and realization unchanged after base restoration, then checks realization/annotation equality after the explicit definition copy. The regular full-state lexical extraction proof and staged publication regression still apply. A stale prepared dialog does not regenerate its diff; generate a fresh review.

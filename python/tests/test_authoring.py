@@ -3,6 +3,7 @@ import ast
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -120,11 +121,12 @@ class CorpusCopyTests(unittest.TestCase):
         refreshed=self.adapter.refresh_project();self.assertEqual(refreshed['passages'][2]['id'],original['id']);self.assertEqual(refreshed['passages'][10]['id'],second['id'])
 
     def test_new_line_and_new_lexical_provenance_review_loop(self):
+        original_count=len(self.project['passages'])
         lexical=self.adapter.invoke('lexicon_create',{'passageId':self.passage()['id'],'headword':'tábá','definition':'uma aldeia, sentido revisado','category':'Noun','scope':'source','provenance':{'dictionary':'Navarro','vid':123}})
         self.assertIn('Navarro',lexical['diff']);self.project=self.adapter.invoke('source_apply',lexical)
         inspected=self.adapter.invoke('lexicon_inspect',{'name':lexical['name'],'passageId':self.project['passages'][66]['id']});self.assertEqual(inspected['runtimeType'],'Noun')
         new=self.adapter.invoke('source_new_preview',{'raw':lexical['name'],'sourceId':'araujo_catecismo_1686'});self.project=self.adapter.invoke('source_apply',new)
-        self.assertEqual(len(self.project['passages']),83);self.assertEqual(self.project['passages'][-1]['id'],new['passageId'])
+        self.assertEqual(len(self.project['passages']),original_count+1);self.assertEqual(self.project['passages'][-1]['id'],new['passageId'])
 
     def test_gloss_edit_preserves_lexical_identity_and_class(self):
         passage=self.passage()
@@ -158,13 +160,19 @@ class CorpusCopyTests(unittest.TestCase):
         finally:records.write_bytes(before)
 
     def test_reference_approval_requires_explicit_surface_and_sequential_authority(self):
-        passage=self.passage(82)
-        with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint']})
-        self.assertEqual(error.exception.code,'REVIEW_REQUIRED')
-        rendered=self.adapter.invoke('evaluate_expression',{'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'approval','engineFingerprint':self.project['engineFingerprint']})
-        records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';before=records.read_bytes()
-        with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
-        self.assertIn('approved in order',str(error.exception));self.assertEqual(records.read_bytes(),before)
+        records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
+        # Construct an actual gap in this disposable copy; the user's saved
+        # reference count can grow between runs.
+        ordinal=len(self.project['passages']);before=b''.join(original.splitlines(keepends=True)[:ordinal-2])
+        try:
+            records.write_bytes(before);self.project=self.adapter.refresh_project();passage=self.passage(ordinal)
+            self.assertLess(len(before.splitlines())+1,ordinal)
+            with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint']})
+            self.assertEqual(error.exception.code,'REVIEW_REQUIRED')
+            rendered=self.adapter.invoke('evaluate_expression',{'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'approval','engineFingerprint':self.project['engineFingerprint']})
+            with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
+            self.assertIn('approved in order',str(error.exception));self.assertEqual(records.read_bytes(),before)
+        finally:records.write_bytes(original)
 
     def test_helpers_expose_parameters_and_actual_body_structure(self):
         for name in ('n','v','cop','credo','saguera','pyreramo'):
@@ -237,16 +245,32 @@ class CorpusCopyTests(unittest.TestCase):
 
     def test_all_araujo_scope_edit_previews_preserve_unrelated_source_bytes(self):
         scratch=self.parent/'preview-araujo.tu.py';original_entries=source_entries(self.path)
+        def unchanged_prefix(text,entry):
+            lines=text.splitlines(keepends=True)[:min(entry['statementLine'],entry['openingLine'])-1]
+            # Editing notes may replace the old identity note and human notes
+            # in the immediately adjacent directive block. Every other byte,
+            # including other directives and earlier notes, must survive.
+            index=len(lines)-1;found=False
+            while index>=0:
+                line=lines[index]
+                if not line.strip():
+                    if not found:break
+                elif not re.match(r'^\s*#\s*@[a-z][a-z0-9_-]*\b',line,re.IGNORECASE):break
+                else:
+                    found=True
+                    if re.match(r'^\s*#\s*@note\s+(?!studio-lexical:v1\b)',line,re.IGNORECASE):lines[index]=''
+                index-=1
+            return ''.join(lines)
         for passage,entry in zip(self.project['passages'],original_entries):
             with self.subTest(ordinal=passage['ordinal']):
                 tree=expression_tree(passage['sourceExpression'])['root']
                 candidate=replace_node(passage['sourceExpression'],tree,'-('+tree['code']+')')
                 preview=self.adapter.invoke('source_preview',{'passageId':passage['id'],'raw':candidate,'metadata':{'notes':'revisão da passagem '+str(passage['ordinal'])}})
                 after=self.adapter.previews[preview['previewId']]['after'];after_text=after.decode('utf-8');before_text=self.original.decode('utf-8')
-                anchor=sum(map(len,before_text.splitlines(keepends=True)[:min(entry['statementLine'],entry['openingLine'])-1]))
-                self.assertTrue(after_text.startswith(before_text[:anchor]));self.assertTrue(after_text.endswith(before_text[entry['end']:]))
+                self.assertTrue(after_text.endswith(before_text[entry['end']:]))
                 scratch.write_bytes(after);reimported=source_entries(scratch)
                 self.assertEqual(len(reimported),len(original_entries))
+                self.assertEqual(unchanged_prefix(after_text,reimported[passage['ordinal']-1]),unchanged_prefix(before_text,entry))
                 self.assertEqual(ast.dump(parse_ast(reimported[passage['ordinal']-1]['expression'])),ast.dump(parse_ast(candidate)))
                 annotations=authoritative_metadata(self.corpus,scratch)
                 self.assertIn('revisão da passagem '+str(passage['ordinal']),annotations[passage['ordinal']]['notes'])

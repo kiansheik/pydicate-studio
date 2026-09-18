@@ -1,5 +1,6 @@
 import type { AuthorNode } from './authoring';
 import type { RuntimeGraph, RuntimeNode, RuntimePrimitive } from './runtime-tree';
+import { inlineCallArguments } from './inline-arguments';
 
 const kindNames: Record<string, string> = {
   binary: 'Operação',
@@ -77,6 +78,7 @@ function validSource(root: AuthorNode, raw: string) {
 }
 
 /** One visible identity for every source step, including repeated references.
+ * Scalar call arguments live inline on their operation instead of child cards.
  * The source and UTF-16 spans remain the authoring authority. Runtime evidence
  * is optional and is attached only when the entire evaluated AST still matches.
  * A stale source tree yields null rather than a misleading editable projection. */
@@ -98,6 +100,7 @@ export function expressionGraph(
     diagnostics: [],
   };
   const visit = (source: AuthorNode, evaluated?: AuthorNode) => {
+    const inlineCall = inlineCallArguments(source);
     const attributes: Record<string, RuntimePrimitive> = { code: source.code };
     if (evaluated) {
       for (const key of ['runtimeType', 'category', 'verbete', 'tag', 'dispatch'] as const) {
@@ -108,7 +111,7 @@ export function expressionGraph(
     }
     const node: RuntimeNode = {
       id: source.id,
-      label: sourceLabel(source),
+      label: inlineCall?.label ?? sourceLabel(source),
       runtimeType: kindNames[source.kind] ?? 'Trecho preservado',
       category: source.kind,
       definition: evaluated?.definition ?? '',
@@ -139,6 +142,7 @@ export function expressionGraph(
         operator: source.operator,
         method: source.method,
         isRoot: source.id === root.id,
+        ...(inlineCall ? { inlineCall } : {}),
       },
     };
     graph.nodes.push(node);
@@ -147,6 +151,7 @@ export function expressionGraph(
         `Trecho preservado sem decomposição: ${source.code}. Esta construção precisa de um adaptador.`,
       );
     source.children.forEach((child, index) => {
+      if (inlineCall?.arguments.some((argument) => argument.sourceNodeId === child.node.id)) return;
       graph.edges.push({
         id: `${source.id}:${child.slot}:${index}`,
         source: source.id,

@@ -78,6 +78,15 @@
 .workspace-shell .surface-caption {
   font-size: 10px;
 }
+.workspace-shell .surface-repair-action {
+  margin-top: 9px;
+}
+.workspace-shell .surface-repair-action .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+}
 .workspace-shell .agreement-bar {
   margin: 6px 0;
   padding: 2px 0;
@@ -134,6 +143,10 @@
 }
 .workspace-shell .workspace-footer {
   padding: 8px 14px;
+  flex-wrap: wrap;
+}
+.workspace-shell .workspace-footer > div {
+  flex-wrap: wrap;
 }
 .workspace-shell .quick-note {
   margin: 8px 14px;
@@ -197,16 +210,42 @@
   font-family: var(--serif);
   font-size: 19px;
 }
-.ground-truth-confirm {
+.ground-truth-actions {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   margin: 16px 0;
-  font-size: 12px;
 }
 .ground-truth-panel code {
   overflow-wrap: anywhere;
   font-size: 11px;
+}
+.ground-truth-dialog {
+  width: min(720px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 0;
+  color: inherit;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.ground-truth-dialog::backdrop {
+  background: #0008;
+}
+.ground-truth-dialog .ground-truth-panel {
+  border: 0;
+  margin: 0;
+  padding: 24px;
+}
+.ground-truth-dialog .ground-truth-panel header {
+  padding-right: 32px;
+}
+.ground-truth-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
 }
 .draft-archive {
   width: min(920px, 94vw);

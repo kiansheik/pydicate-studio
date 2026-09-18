@@ -124,6 +124,56 @@ class LexicalPublicationTests(unittest.TestCase):
         for technical in (str(self.source), str(self.lexicon), 'Noun(', 'Verb(', 'studio:v1'):
             self.assertNotIn(technical, serialized)
 
+    def test_compound_definition_restores_base_and_publishes_whole_structure(self):
+        raw="(nhe * (mo * Noun(value='abaré', definition='sacramento da ordem'))).var(1).base_nominal()"
+        defined=self.adapter.invoke('composition_define',{'sourceId':SOURCE,'raw':raw,
+            'definition':'sacramento da ordem','reuseBaseDefinitions':True})
+        self.assertTrue(defined['restored'])
+        self.assertIn('padre',defined['restored'][0]['after'])
+        preview=self.preview(defined['raw'])
+        self.assertTrue(preview['regression']['ok'])
+        self.assertGreater(preview['regression']['checked'],100)
+        self.assertEqual(preview['raw'],'nhemoabare')
+        entries={item['name']:item for item in preview['lexicalAdditions']}
+        self.assertIn('padre',entries['abare']['definition'])
+        self.assertEqual(entries['nhemoabare']['definition'],'sacramento da ordem')
+        self.assertIn('mo * abare',entries['nhemoabare']['expression'])
+        self.assertIn("nhemoabare.definition = 'sacramento da ordem'",preview['diff'])
+        passage=self.apply(preview)
+        base=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':'abare'})
+        changed=self.adapter.invoke('lexicon_update',{'passageId':passage['id'],'name':'nhemoabare',
+            'definition':'ordenação sacerdotal','scope':'shared'})
+        self.apply(changed)
+        self.assertEqual(self.lexicon.read_text().count('nhemoabare.definition ='),1)
+        again=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':'abare'})
+        self.assertEqual(base['definition'],again['definition'])
+        compound=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':'nhemoabare'})
+        self.assertEqual(compound['definition'],'ordenação sacerdotal')
+        # A second composition restores the existing base name and never writes it again.
+        defined=self.adapter.invoke('composition_define',{'sourceId':SOURCE,'raw':raw,
+            'definition':'outra glosa do conjunto','reuseBaseDefinitions':True})
+        self.assertNotIn('Noun(',defined['raw'])
+        second=self.preview(defined['raw'])
+        self.assertTrue(all(item['name']!='abare' for item in second['lexicalAdditions'] if not item['reused']))
+
+    def test_regression_blocks_new_failed_line_and_shared_change_before_writing(self):
+        before_source=self.source.read_bytes(); before_lexicon=self.lexicon.read_bytes()
+        with self.assertRaises(AdapterError) as failed:
+            self.preview('unknown_studio_regression_name')
+        self.assertEqual(failed.exception.code,'REGRESSION_FAILED')
+        self.assertEqual(self.source.read_bytes(),before_source)
+        self.assertEqual(self.lexicon.read_bytes(),before_lexicon)
+        from authoring_service import AuthoringService
+        service=AuthoringService(self.adapter)
+        # This shared name appears in existing expressions; changing its surface
+        # must invalidate those expressions even though the source is untouched.
+        text=before_lexicon.decode(); offset=text.index('__all__ =')
+        modified=(text[:offset]+"tupan = Noun('studio_regression_broken')\n"+text[offset:]).encode()
+        with self.assertRaises(AdapterError) as failed:
+            service._preview(self.lexicon,before_lexicon,modified,lexicalId='fixture')
+        self.assertEqual(failed.exception.code,'REGRESSION_FAILED')
+        self.assertEqual(self.lexicon.read_bytes(),before_lexicon)
+
     def test_new_preview_is_read_only_and_publishes_exact_dictionary_sense_to_shared_lexicon(self):
         context = {'passageId': self.project['passages'][0]['id']}
         found = self.adapter.invoke('dictionary_lookup', {**context, 'query': 'pysyrõ'})

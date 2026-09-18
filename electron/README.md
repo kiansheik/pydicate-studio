@@ -6,6 +6,11 @@ Production assets use `studio://app`. CSP permits packaged scripts, local assets
 
 ## Services
 
+- `analysis-service.cjs`, `analysis-store.cjs`: one authoritative owner, immutable saved inputs, serialized durable jobs/attempts/checkpoints, isolated candidate histories, conversations and atomic acceptance receipts. Renderer envelopes use optimistic `storageRevision`; stale saves fail instead of erasing later writes.
+- `scratch-service.cjs`, `shared-authoring.cjs`: the same TypeScript source transforms as the canvas, using the real bounded Python evaluator. `studio-mcp-gateway.cjs` and `studio-mcp-stdio.cjs` expose only job-scoped operations over a private authenticated Unix socket. External CLI startup contacts the same single-instance Electron owner; no independent draft writer is opened.
+- `agent-runner.cjs`: iterative Claude tool messages and scoped Codex app-server execution with durable observable checkpoints, cancellation and finite budgets. `analysis-input.cjs` is the shared reconstruction projection at both model and tool boundaries. See the [provider contract](../docs/design/ai-agent-providers.md) and [MCP guide](../docs/design/mcp-agent-guide.md).
+- `evidence-images.cjs`: bounded real crops from managed saved regions, intrinsic/view rotation and page boxes, durable image checksums and explicit text-only behavior. Images are selected per job and never loaded from caller-supplied paths.
+
 - `python-worker.cjs`: bounded JSONL requests with IDs, UTF-8 framing, size limits, failure propagation and a 60-second timeout. A fresh worker is created on project open. `PYDICATE_PYTHON` selects the executable; no shell command string is evaluated. The trusted selected engine remains normal Python, not an untrusted-repository sandbox.
 - `next-service.cjs`: project/session restoration, explicit corpus operations, durable evidence and provider integration. Provider context derives actual active repository paths in main; it does not trust renderer-supplied paths.
 - `draft-store.cjs`: schema-versioned atomic, serialized draft persistence under Electron userData. Invalid existing files remain intact. Pending reading-only passages use the same store and reserve eventual passage IDs. Drafts contain no approval field.

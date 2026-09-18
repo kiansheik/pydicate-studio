@@ -3,10 +3,16 @@ import { useState } from 'react';
 import { useStudio, type Studio } from '../src/useStudio';
 import { createExampleProject } from '../src/domain/example';
 import type { DraftEnvelope, StudioProject } from '../src/domain/types';
+import type { EvidenceStatus } from '../src/domain/evidence';
 import { invoke, type AuthorNode, type SourcePreview } from '../src/domain/authoring';
 import { GroundTruthPanel } from '../src/components/GroundTruthPanel';
 import { NewPassageDialog } from '../src/components/NewPassageDialog';
 import { LexiconPanel } from '../src/components/AuthoringEditor';
+import {
+  emptyAnalysis,
+  type AnalysisListing,
+  type AnalysisConversation,
+} from '../src/domain/analysis';
 
 // Explicitly simulated bridge: deterministic races, never linguistic evaluation evidence.
 interface Request {
@@ -33,6 +39,8 @@ interface NextControl {
   preview?: SourcePreview;
   responses: Record<string, unknown>;
   trees: Record<string, AuthorNode | null>;
+  evidence: Record<string, EvidenceStatus>;
+  setAnalysis: (value: AnalysisListing) => void;
 }
 declare global {
   interface Window {
@@ -71,6 +79,11 @@ function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
 }
 const listeners = new Set<(event: unknown) => void>();
 const project = makeProject();
+let analysisFixture: AnalysisListing =
+  JSON.parse(localStorage.getItem('simulated-analysis') || 'null') ?? emptyAnalysis();
+function saveAnalysisFixture() {
+  localStorage.setItem('simulated-analysis', JSON.stringify(analysisFixture));
+}
 const control: NextControl = {
   project,
   openedProject: project,
@@ -81,6 +94,12 @@ const control: NextControl = {
   saved: {},
   responses: {},
   trees: {},
+  evidence: {},
+  setAnalysis(value) {
+    analysisFixture = structuredClone(value);
+    saveAnalysisFixture();
+    control.emit({ type: 'analysis', projectId: project.id });
+  },
   makeProject,
   release(method, raw) {
     const index = control.pending.findIndex(
@@ -101,9 +120,280 @@ const control: NextControl = {
 window.__nextControl = control;
 window.__nextInvoke = invoke;
 let sequence = 0;
+const aiConfig = {
+  provider: 'codex',
+  models: { codex: 'fixture-model', claude: 'fixture-model' },
+  reasoningEffort: 'medium',
+};
 function answer(method: string, params: Record<string, unknown>): unknown {
   if (Object.hasOwn(control.responses, method)) return structuredClone(control.responses[method]);
   if (method === 'refresh_project') return structuredClone(control.project);
+  if (method === 'draft_save') return undefined;
+  if (method === 'analysis_list')
+    return {
+      ...structuredClone(analysisFixture),
+      jobs: analysisFixture.jobs.map((job) => ({
+        ...job,
+        input: { ...job.input, evidence: undefined },
+      })),
+      conversations: analysisFixture.conversations
+        .filter((conversation) => !conversation.archived)
+        .map((conversation) => ({
+          ...conversation,
+          turns: [],
+        })),
+      candidates: [],
+    };
+  if (method === 'ai_status')
+    return {
+      config: structuredClone(aiConfig),
+      providers: [],
+    };
+  if (method === 'ai_history') return [];
+  if (method === 'ai_configure') {
+    aiConfig.provider = String(params.provider);
+    aiConfig.models[params.provider as 'codex' | 'claude'] = String(params.model);
+    aiConfig.reasoningEffort = String(params.reasoningEffort);
+    return structuredClone(aiConfig);
+  }
+  if (method === 'analysis_new_conversation') {
+    const previous = analysisFixture.conversations.find(
+      (item) => item.passageId === params.passageId && !item.archived,
+    );
+    if (previous) previous.archived = true;
+    const next = {
+      id: crypto.randomUUID(),
+      projectId: String(params.projectId),
+      passageId: String(params.passageId),
+      revision: 0,
+      composer: '',
+      turns: [],
+    };
+    analysisFixture.conversations.push(next);
+    saveAnalysisFixture();
+    return structuredClone(next);
+  }
+  if (method === 'analysis_composer') {
+    let conversation = analysisFixture.conversations.find(
+      (item) =>
+        item.passageId === params.passageId &&
+        (params.conversationId ? item.id === params.conversationId : !item.archived),
+    );
+    if (!conversation) {
+      conversation = {
+        id: `conversation:${params.passageId}`,
+        projectId: String(params.projectId),
+        passageId: String(params.passageId),
+        revision: 0,
+        composer: '',
+        turns: [],
+      };
+      analysisFixture.conversations.push(conversation);
+    }
+    if (params.text !== undefined) conversation.composer = String(params.text);
+    if (params.selectedCandidateId !== undefined)
+      conversation.selectedCandidateId = String(params.selectedCandidateId);
+    if (params.scrollTop !== undefined) conversation.scrollTop = Number(params.scrollTop);
+    conversation.revision++;
+    saveAnalysisFixture();
+    return structuredClone(conversation);
+  }
+  if (method === 'analysis_select_conversation') {
+    const selected = analysisFixture.conversations.find(
+      (item) => item.id === params.conversationId && item.passageId === params.passageId,
+    );
+    if (!selected) throw new Error('SIMULATED missing conversation');
+    for (const thread of analysisFixture.conversations)
+      if (thread.passageId === params.passageId) thread.archived = thread.id !== selected.id;
+    saveAnalysisFixture();
+    return structuredClone(selected);
+  }
+  if (method === 'analysis_get') {
+    const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
+    return {
+      job,
+      candidates: analysisFixture.candidates.filter((item) => item.jobId === job.id),
+      conversation: analysisFixture.conversations.find((item) => item.id === job.conversationId),
+    };
+  }
+  if (method === 'analysis_accept') {
+    const envelope = structuredClone(control.saved[String(params.projectId)]);
+    const candidate = analysisFixture.candidates.find((item) => item.id === params.candidateId)!;
+    const previous = envelope.drafts[candidate.passageId];
+    if (
+      previous.revisionId !== params.expectedDraftRevision ||
+      candidate.revisionId !== params.candidateRevision
+    )
+      throw new Error('SIMULATED stale acceptance');
+    const revisionId = crypto.randomUUID();
+    const decision = {
+      operationId: String(params.operationId),
+      jobId: candidate.jobId,
+      candidateId: candidate.id,
+      candidateRevision: candidate.revisionId,
+      baseRevisionId: previous.revisionId,
+      revisionId,
+      at: new Date().toISOString(),
+    };
+    const draft = {
+      ...previous,
+      raw: candidate.raw,
+      canvas: candidate.canvas,
+      revisionId,
+      updatedAt: decision.at,
+      aiAcceptances: [...(previous.aiAcceptances ?? []), decision],
+    };
+    envelope.drafts[candidate.passageId] = draft;
+    control.saved[envelope.projectId] = structuredClone(envelope);
+    localStorage.setItem(`simulated-next:${envelope.projectId}`, JSON.stringify(envelope));
+    return { envelope, draft, decision };
+  }
+  if (method === 'analysis_submit') {
+    const operations = JSON.parse(localStorage.getItem('simulated-analysis-operations') || '{}');
+    const prior = operations[String(params.operationId)];
+    if (prior) {
+      if (prior.signature !== JSON.stringify(params))
+        throw new Error('SIMULATED: operation conflict');
+      return structuredClone(analysisFixture.jobs.find((job) => job.id === prior.jobId));
+    }
+    const saved = control.saved[String(params.projectId)]?.drafts[String(params.passageId)];
+    if (!saved || saved.revisionId !== params.revisionId)
+      throw new Error('SIMULATED: unsaved draft revision');
+    if (params.newConversation) answer('analysis_new_conversation', params);
+    const jobId = `job:${analysisFixture.jobs.length + 1}`;
+    const candidateId = `candidate:${jobId}`;
+    const revisionId = `candidate-revision:${jobId}`;
+    const raw = 'beta';
+    const tree: AuthorNode = {
+      id: 'root',
+      kind: 'reference',
+      label: raw,
+      code: raw,
+      start: 0,
+      end: raw.length,
+      definition: 'SIMULATED dictionary sense',
+      children: [],
+    };
+    const job = {
+      id: jobId,
+      projectId: String(params.projectId),
+      passageId: String(params.passageId),
+      conversationId:
+        analysisFixture.conversations.find(
+          (item) => item.passageId === params.passageId && !item.archived,
+        )?.id ?? `conversation:${params.passageId}`,
+      status: 'ready-for-review' as const,
+      candidateIds: [candidateId],
+      questions: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      input: {
+        description: String(
+          params.description ||
+            (params.grammarRepair as { explanation?: string })?.explanation ||
+            '',
+        ),
+        baseRevisionId: saved.revisionId,
+        engineFingerprint: project.engineFingerprint,
+        diplomatic: saved.diplomatic,
+        tentativeReading: saved.aiInput?.tentativeReading ?? '',
+        meaning: saved.aiInput?.meaning ?? '',
+        reviewedTarget: saved.normalized,
+        task: params.task as 'analyze',
+        scope: params.scope as 'passage',
+        evidence: { revision: Number(params.evidenceRevision), regions: [] },
+      },
+    };
+    if (params.task === 'grammar-repair') {
+      const repair = params.grammarRepair as { intendedSurface: string } | undefined;
+      job.input.tentativeReading = repair?.intendedSurface ?? saved.aiInput?.tentativeReading ?? '';
+      job.candidateIds = [];
+      Object.assign(job, {
+        summary: 'Correção simulada pronta para revisão.',
+        grammarVerification: {
+          surface: job.input.tentativeReading,
+          intendedSurface: job.input.tentativeReading,
+          matches: true,
+          comparison: {
+            checked: 3,
+            changed: [],
+            baselineIssues: 1,
+            newReferenceIssues: 0,
+            sourceChanges: [],
+          },
+        },
+      });
+    }
+    analysisFixture.jobs.unshift(job);
+    analysisFixture.candidates.push({
+      id: candidateId,
+      jobId,
+      projectId: job.projectId,
+      passageId: job.passageId,
+      revisionId,
+      raw,
+      tree,
+      evaluation: {
+        revisionId,
+        expression: raw,
+        engineFingerprint: project.engineFingerprint,
+        surface: 'SIMULADO:beta',
+        annotated: 'SIMULADO:beta',
+        morphemes: [],
+        origin: 'engine',
+        tree,
+      },
+      comparison: { exact: false },
+      evidence: [],
+      rationale: 'SIMULATED proposal for interaction testing.',
+      translation: {
+        text: 'Pessoa: tradução sugerida pela fixture.',
+        language: 'pt',
+        status: 'tentative',
+        revisionId,
+        expression: raw,
+        engineFingerprint: project.engineFingerprint,
+        evaluatedSurface: 'SIMULADO:beta',
+        uncertainties: ['Hipótese para revisão humana.'],
+      },
+      uncertainties: ['Fixture evidence only'],
+      failures: [],
+      status: 'proposed',
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+    });
+    const conversation = answer('analysis_composer', {
+      projectId: params.projectId,
+      passageId: params.passageId,
+    }) as AnalysisConversation;
+    conversation.turns.push({
+      id: `turn:${jobId}`,
+      role: 'user',
+      text: String(params.description || 'Analisar passagem'),
+      jobId,
+      inputRevisionId: saved.revisionId,
+      at: job.createdAt,
+    });
+    analysisFixture.conversations = analysisFixture.conversations.map((item) =>
+      item.id === conversation.id ? conversation : item,
+    );
+    saveAnalysisFixture();
+    operations[String(params.operationId)] = { jobId, signature: JSON.stringify(params) };
+    localStorage.setItem('simulated-analysis-operations', JSON.stringify(operations));
+    return structuredClone(job);
+  }
+  if (method === 'analysis_submit_batch') {
+    const jobs = (params.items as Record<string, unknown>[]).map((item) =>
+      answer('analysis_submit', item),
+    );
+    return { jobs, errors: [] };
+  }
+  if (method === 'analysis_cancel' || method === 'analysis_retry') {
+    const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
+    job.status = method === 'analysis_cancel' ? 'cancelled' : 'queued';
+    saveAnalysisFixture();
+    return structuredClone(job);
+  }
   if (method === 'session_restore')
     return {
       project: control.project,
@@ -115,16 +405,18 @@ function answer(method: string, params: Record<string, unknown>): unknown {
     return null;
   }
   if (method === 'evidence_status')
-    return {
-      version: 1,
-      revision: 0,
-      projectId: params.projectId,
-      sourceId: params.sourceId,
-      asset: null,
-      passage: null,
-      retainedAssetCount: 0,
-      guideCandidates: [],
-    };
+    return (
+      control.evidence[String(params.passageId)] ?? {
+        version: 1,
+        revision: 0,
+        projectId: params.projectId,
+        sourceId: params.sourceId,
+        asset: null,
+        passage: null,
+        retainedAssetCount: 0,
+        guideCandidates: [],
+      }
+    );
   if (method === 'parse_expression')
     return {
       raw: params.raw,
@@ -201,12 +493,12 @@ async function bridgeRequest(method: string, params: Record<string, unknown> = {
     return new Promise((resolve, reject) =>
       control.pending.push({
         ...request,
-        resolve: () => resolve(answer(method, params)),
+        resolve: () => resolve(structuredClone(answer(method, params))),
         reject: (message) => reject(new Error(message)),
       }),
     );
   }
-  return answer(method, params);
+  return structuredClone(answer(method, params));
 }
 window.studio = {
   invoke: bridgeRequest,
@@ -227,6 +519,8 @@ window.studio = {
     return data ? (JSON.parse(data) as DraftEnvelope) : null;
   },
   async saveDrafts(envelope) {
+    if (new URLSearchParams(location.search).has('analysis'))
+      await bridgeRequest('draft_save', { envelope });
     control.saved[envelope.projectId] = structuredClone(envelope);
     localStorage.setItem(`simulated-next:${envelope.projectId}`, JSON.stringify(envelope));
   },

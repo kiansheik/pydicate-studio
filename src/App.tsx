@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -28,23 +28,32 @@ import { SourceRecovery } from './components/SourceRecovery';
 import { SourceReviewContent, sourceReviewTitle } from './components/SourceReviewContent';
 import { AuthoringEditor, LexiconPanel } from './components/AuthoringEditor';
 import { DictionaryTab } from './components/DictionaryTab';
-import { AssistantPanel } from './components/AssistantPanel';
+import {
+  AnalysisSupport,
+  CandidateProjection,
+  useAnalysisWorkspace,
+} from './components/AnalysisSupport';
+import { analysisLabels, type AnalysisEvidence } from './domain/analysis';
 import { PydicateTree } from './components/RuntimeTree';
 import { UsagePanel } from './components/UsagePanel';
 import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
 import { PassageLexicon } from './components/PassageLexicon';
-import { GroundTruthPanel } from './components/GroundTruthPanel';
+import { GroundTruthDialog } from './components/GroundTruthPanel';
 import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
 import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
 import { DraftArchive } from './components/DraftArchive';
 import { track } from './domain/usage';
 import './workbench.css';
 import { flattenNodes, invoke, type SourcePreview } from './domain/authoring';
-import { SourcePane } from './components/SourcePane';
 import { PhraseEditor, SelectionNote, nodeLabels } from './components/PhraseEditor';
 import { useStudio } from './useStudio';
 import type { Studio } from './useStudio';
 
+const LearningWorkspace = lazy(() =>
+  import('./components/LearningWorkspace').then((module) => ({
+    default: module.LearningWorkspace,
+  })),
+);
 const tabs = ['Construção', 'Morfemas', 'Árvore', 'Tradução', 'Histórico', 'Código'] as const;
 type Tab = (typeof tabs)[number];
 const statusLabels = {
@@ -94,6 +103,7 @@ function Projections({
   select,
   inspectLexeme,
   prepareDiagnostic,
+  askAI,
 }: {
   studio: Studio;
   tab: Tab;
@@ -101,6 +111,7 @@ function Projections({
   select: (id: string) => void;
   inspectLexeme: () => void;
   prepareDiagnostic: (report: CanvasDiagnostic) => void;
+  askAI: (id: string) => void;
 }) {
   const { draft, passage, result } = studio;
   if (studio.project.mode === 'local' && tab === 'Árvore')
@@ -126,6 +137,7 @@ function Projections({
         canUndo={studio.canUndo}
         canRedo={studio.canRedo}
         onInspectLexeme={inspectLexeme}
+        onAskAI={askAI}
       />
     );
   if (studio.project.mode === 'local' && ['Construção', 'Código'].includes(tab))
@@ -445,15 +457,19 @@ export default function App() {
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState<Tab>(window.studio ? 'Árvore' : 'Construção');
   const [selected, setSelected] = useState('object');
-  const [mode, setMode] = useState<
-    'analysis' | 'reading' | 'review' | 'lexicon' | 'dictionary' | 'assistant'
-  >('analysis');
+  const [mode, setMode] = useState<'analysis' | 'reading' | 'review' | 'lexicon' | 'dictionary'>(
+    'analysis',
+  );
   const [projectDialog, setProjectDialog] = useState(false);
   const [details, setDetails] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
+  const [learningView, setLearningView] = useState<'lessons' | 'reference' | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [groundTruthOpen, setGroundTruthOpen] = useState(false);
   const layout = useWorkspaceLayout();
+  const analysis = useAnalysisWorkspace(studio);
+  const [dictionaryEvidence, setDictionaryEvidence] = useState<AnalysisEvidence | null>(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('studio-theme') || 'dark');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
   const publishesLexicon = preview?.lexicalAdditions?.some((entry) => !entry.reused) ?? false;
@@ -485,6 +501,7 @@ export default function App() {
     setReviewError('');
     setSelected('root');
     setGrammarReport(null);
+    setGroundTruthOpen(false);
   }, [project.id, passage.id]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -562,7 +579,7 @@ export default function App() {
       studio.setError(String(e));
     }
   }
-  function reviewSource() {
+  async function reviewSource(useProposal = false) {
     if (!draft || reviewBusy) return;
     setReviewBusy(true);
     const metadata: Record<string, unknown> = {};
@@ -578,11 +595,31 @@ export default function App() {
     for (const [key, value] of Object.entries(draft.locators ?? {}))
       if (value !== locators[key]) metadata[key] = value;
     if (evidencePointer) metadata.evidence = evidencePointer;
-    void studio
-      .sourcePreview(false, metadata)
-      .then(setPreview)
-      .catch((e) => studio.setError(e.message))
-      .finally(() => setReviewBusy(false));
+    try {
+      let revision = draft.revisionId;
+      if (useProposal && analysis.preview) {
+        const candidate = analysis.preview;
+        const accepted = await studio.acceptCandidate({
+          jobId: candidate.jobId,
+          candidateId: candidate.id,
+          candidateRevision: candidate.revisionId,
+          expectedDraftRevision: revision,
+        });
+        revision = accepted.draft.revisionId;
+        await analysis.selectCandidate(null);
+        setTab('Árvore');
+      }
+      setPreview(
+        await studio.sourcePreview(false, metadata, {
+          passageId: passage.id,
+          draftRevisionId: revision,
+        }),
+      );
+    } catch (e) {
+      studio.setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReviewBusy(false);
+    }
   }
   const navigationPane = (
     <aside className="navigator" aria-label="Passagens">
@@ -653,6 +690,16 @@ export default function App() {
                       className={`status-dot ${studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status}`}
                     />
                     {statusLabels[studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status]}
+                    {analysis.listing.jobs.find((job) => job.passageId === p.id) && (
+                      <span className="analysis-nav-badge">
+                        IA ·{' '}
+                        {
+                          analysisLabels[
+                            analysis.listing.jobs.find((job) => job.passageId === p.id)!.status
+                          ]
+                        }
+                      </span>
+                    )}
                   </span>
                 </button>
               ))}
@@ -765,8 +812,10 @@ export default function App() {
                 Dicionário
               </button>
               <button
-                className={mode === 'assistant' ? 'active' : ''}
-                onClick={() => changeMode('assistant')}
+                className={
+                  layout.state.supportTab === 'ai' && !layout.state.hidden.source ? 'active' : ''
+                }
+                onClick={() => layout.support('ai')}
               >
                 Assistência IA
               </button>
@@ -795,30 +844,22 @@ export default function App() {
                     <Check size={14} /> Concluir passagem
                   </button>
                 )}
-                {project.mode === 'local' &&
-                  (passage.id.startsWith('pending:') ? (
-                    <button
-                      className="button small ground-truth-shortcut"
-                      disabled={!draft?.raw?.trim() || !studio.ready || reviewBusy}
-                      onClick={reviewSource}
-                    >
-                      <Check size={14} /> Revisar nova passagem
-                    </button>
-                  ) : (
-                    <button
-                      className="button small ground-truth-shortcut"
-                      onClick={() => {
-                        changeMode('review');
-                        requestAnimationFrame(() =>
-                          document
-                            .querySelector('.ground-truth-panel')
-                            ?.scrollIntoView({ block: 'start' }),
-                        );
-                      }}
-                    >
-                      <ClipboardCheck size={14} /> Salvar como ground truth
-                    </button>
-                  ))}
+                {project.mode === 'local' && passage.id.startsWith('pending:') && (
+                  <button
+                    className="button small ground-truth-shortcut"
+                    disabled={
+                      !(analysis.preview?.raw ?? draft?.raw)?.trim() || !studio.ready || reviewBusy
+                    }
+                    onClick={() => void reviewSource(!!analysis.preview)}
+                  >
+                    <Check size={14} />{' '}
+                    {reviewBusy
+                      ? 'Conferindo regressão…'
+                      : analysis.preview
+                        ? 'Usar e revisar proposta'
+                        : 'Revisar nova passagem'}
+                  </button>
+                )}
               </div>
             </div>
             <div
@@ -870,6 +911,34 @@ export default function App() {
                         ? 'Sua próxima leitura começa aqui'
                         : 'Aguardando análise válida e avaliação'}
                 </span>
+                {project.mode === 'local' && (
+                  <div className="surface-repair-action">
+                    <button
+                      className="button small"
+                      disabled={
+                        !studio.ready || studio.pending || !(result?.tree ?? studio.parsed?.root)
+                      }
+                      onClick={() => {
+                        const root = result?.tree ?? studio.parsed?.root;
+                        if (!root) return;
+                        setGrammarReport({
+                          raw: draft?.raw ?? passage.sourceExpression,
+                          root:
+                            !root.evaluation &&
+                            result?.surface &&
+                            result.evaluationStatus !== 'partial'
+                              ? { ...root, evaluation: { status: 'ok', surface: result.surface } }
+                              : root,
+                          selectedNodeId: root.id,
+                          revisionId: draft?.revisionId,
+                          failures: result?.failures,
+                        });
+                      }}
+                    >
+                      <RefreshCw size={13} /> Corrigir gramática / árvore
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="agreement-bar">
@@ -1029,14 +1098,46 @@ export default function App() {
                 ))}
               </div>
               <div className="tab-content" role="tabpanel" aria-label={tab}>
-                <Projections
-                  studio={studio}
-                  tab={tab}
-                  selected={selected}
-                  select={setSelected}
-                  inspectLexeme={() => changeMode('lexicon')}
-                  prepareDiagnostic={setGrammarReport}
-                />
+                {analysis.preview ? (
+                  <CandidateProjection
+                    key={analysis.preview.revisionId}
+                    candidate={analysis.preview}
+                    sourceId={passage.sourceId}
+                    engineFingerprint={project.engineFingerprint}
+                    onReview={() => void reviewSource(true)}
+                    reviewBusy={reviewBusy || studio.busy}
+                    onEdit={async (change) => {
+                      const candidate = analysis.preview!;
+                      const accepted = await studio.acceptCandidate({
+                        jobId: candidate.jobId,
+                        candidateId: candidate.id,
+                        candidateRevision: candidate.revisionId,
+                        expectedDraftRevision: draft!.revisionId,
+                      });
+                      if (change && accepted.draft.passageId === passage.id)
+                        studio.edit(change, accepted.draft.revisionId);
+                      await analysis.selectCandidate(null);
+                      setTab('Árvore');
+                    }}
+                    onClose={() => void analysis.selectCandidate(null)}
+                    onSelect={analysis.focusCandidateNode}
+                    selectedNodeId={analysis.feedbackNode?.nodeId}
+                  />
+                ) : (
+                  <Projections
+                    studio={studio}
+                    tab={tab}
+                    selected={selected}
+                    select={setSelected}
+                    inspectLexeme={() => changeMode('lexicon')}
+                    prepareDiagnostic={setGrammarReport}
+                    askAI={(id) => {
+                      setSelected(id);
+                      layout.support('ai');
+                      window.dispatchEvent(new Event('studio:explain-selection'));
+                    }}
+                  />
+                )}
               </div>
               {draft?.analysis && <SelectionNote studio={studio} selected={selected} />}
             </>
@@ -1048,6 +1149,7 @@ export default function App() {
             revisionId={draft?.revisionId ?? ''}
             engineFingerprint={project.engineFingerprint}
             active={mode === 'dictionary'}
+            reference={dictionaryEvidence}
             disabled={project.mode !== 'local' || !studio.ready || studio.busy || studio.conflict}
             onInsert={(expression, expectedRevision) => {
               if (!studio.insertPiece(expression, expectedRevision)) return false;
@@ -1080,22 +1182,6 @@ export default function App() {
                 <LexiconPanel studio={studio} onPreview={setPreview} selected={selected} />
               </details>
             </div>
-          )}
-          {mode === 'assistant' && draft && (
-            <AssistantPanel
-              projectId={project.id}
-              passage={passage}
-              draft={draft}
-              raw={draft.raw ?? passage.sourceExpression}
-              selectedNode={
-                flattenNodes(studio.parsed?.root ?? null).find((n) => n.id === selected) ??
-                studio.parsed?.root
-              }
-              evaluation={result}
-              engineFingerprint={project.engineFingerprint}
-              onAcceptTranslation={(text) => studio.edit({ translation: text })}
-              onAcceptExpression={(text) => studio.edit({ raw: text })}
-            />
           )}
           {mode === 'reading' && (
             <div className="reading-contribution">
@@ -1138,7 +1224,13 @@ export default function App() {
           {mode === 'review' && (
             <div className="review-view">
               {project.mode === 'local' && (
-                <GroundTruthPanel studio={studio} onReviewSource={reviewSource} />
+                <button
+                  className="button"
+                  disabled={!draft || !studio.ready}
+                  onClick={() => setGroundTruthOpen(true)}
+                >
+                  <ClipboardCheck size={15} /> Commit to Ground Truth
+                </button>
               )}
               <div className="section-intro">
                 <div>
@@ -1172,6 +1264,17 @@ export default function App() {
               </div>
               {project.mode === 'local' && (
                 <div className="source-actions">
+                  <button
+                    className="button"
+                    disabled={!draft || !studio.ready || reviewBusy}
+                    onClick={() => void reviewSource(!!analysis.preview)}
+                  >
+                    {reviewBusy
+                      ? 'Conferindo regressão…'
+                      : analysis.preview
+                        ? 'Usar e revisar proposta'
+                        : 'Revisar edição da fonte'}
+                  </button>
                   <button
                     className="button"
                     disabled={studio.busy}
@@ -1253,6 +1356,15 @@ export default function App() {
                 <Check size={15} />
                 Salvar rascunho
               </button>
+              {project.mode === 'local' && (
+                <button
+                  className="button"
+                  disabled={!draft || !studio.ready}
+                  onClick={() => setGroundTruthOpen(true)}
+                >
+                  <ClipboardCheck size={15} /> Commit to Ground Truth
+                </button>
+              )}
             </div>
           </footer>
           {(notice || studio.verification) && (
@@ -1265,9 +1377,32 @@ export default function App() {
     </div>
   );
   const sourcePane = (
-    <SourcePane
+    <AnalysisSupport
       studio={studio}
+      layout={layout}
+      analysis={analysis}
+      selectedNode={flattenNodes(studio.parsed?.root ?? null).find((node) => node.id === selected)}
       onEvidence={(value) => setEvidencePointer(value as unknown as Record<string, unknown>)}
+      onPreview={() => {
+        setMode('analysis');
+        setTab('Árvore');
+      }}
+      onDictionary={(value) => {
+        setDictionaryEvidence(value);
+        setMode('dictionary');
+      }}
+      onFocusNode={(id, candidate) => {
+        if (candidate)
+          void analysis
+            .openInEditor(candidate)
+            .then(() => setSelected(id))
+            .catch((error) =>
+              studio.setError(error instanceof Error ? error.message : String(error)),
+            );
+        else setSelected(id);
+        setMode('analysis');
+        setTab('Árvore');
+      }}
     />
   );
   return (
@@ -1294,6 +1429,12 @@ export default function App() {
           <ChevronDown size={13} />
         </button>
         <div className="header-end">
+          <button className="button small" onClick={() => setLearningView('lessons')}>
+            <BookOpen size={15} /> Aprender
+          </button>
+          <button className="button small" onClick={() => setLearningView('reference')}>
+            Referência
+          </button>
           <button className="button small" onClick={() => setUsageOpen(true)}>
             Atividade
           </button>
@@ -1324,6 +1465,15 @@ export default function App() {
           </button>
         </div>
       </header>
+      {learningView && (
+        <Suspense fallback={<p role="status">Abrindo o guia…</p>}>
+          <LearningWorkspace
+            project={project}
+            initialView={learningView}
+            onClose={() => setLearningView(null)}
+          />
+        </Suspense>
+      )}
       {studio.error && (
         <div role="alert" className="error-banner">
           <span>{studio.error}</span>
@@ -1351,6 +1501,17 @@ export default function App() {
       </footer>
       {usageOpen && <UsagePanel onClose={() => setUsageOpen(false)} />}
       {archiveOpen && <DraftArchive studio={studio} onClose={() => setArchiveOpen(false)} />}
+      {groundTruthOpen && (
+        <GroundTruthDialog
+          studio={studio}
+          reviewProposal={!!analysis.preview}
+          onClose={() => setGroundTruthOpen(false)}
+          onReviewSource={() => {
+            setGroundTruthOpen(false);
+            void reviewSource(!!analysis.preview);
+          }}
+        />
+      )}
       {preview && (
         <div
           className="review-overlay"
@@ -1444,10 +1605,38 @@ export default function App() {
       {projectDialog && <ProjectDialog studio={studio} close={() => setProjectDialog(false)} />}
       {grammarReport && (
         <GrammarDiagnosticDialog
+          key={`${project.id}:${passage.id}:${grammarReport.revisionId}:${grammarReport.fragmentId ?? 'main'}`}
           project={project}
           passage={passage}
           report={grammarReport}
           onClose={() => setGrammarReport(null)}
+          onRefresh={studio.refresh}
+          onSubmit={async (request) => {
+            await studio.persist();
+            await invoke('analysis_submit', {
+              projectId: project.id,
+              passageId: passage.id,
+              revisionId: grammarReport.revisionId,
+              operationId: request.operationId,
+              task: request.mode === 'engine' ? 'grammar-repair' : 'analyze',
+              scope: 'passage',
+              newConversation: true,
+              ...(request.mode === 'engine'
+                ? {
+                    grammarRepair: {
+                      ...request,
+                      raw: grammarReport.raw,
+                      revisionId: grammarReport.revisionId,
+                      fragmentId: grammarReport.fragmentId,
+                    },
+                  }
+                : {
+                    description: `Forma pretendida: ${request.intendedSurface}\n\n${request.explanation}\n\nInvestigue como completar ou ajustar a árvore atual para essa análise.`,
+                  }),
+            });
+            await analysis.openSubmittedConversation();
+            layout.support('ai');
+          }}
         />
       )}
       {details && (

@@ -1,5 +1,74 @@
 # Work log
 
+## 2026-09-18 - Guided practice and generated Portuguese reference
+
+Mapped all current historical `.tu.py` sources and the shared lexicon, used the local read-only authoring MCP to verify both sources (89 Araújo, 40 Bettendorff records) and inspect/render the five selected examples with annotations. Added isolated guided practice using the existing tree editor, 24 source-comment guides, automatically indexed API/helper implementations and searchable corpus structures. `npm run build` regenerates the reference; changed lesson analyses or approvals require review. Questions carry only the lesson attempt into the existing explanation provider. No grammar, corpus, ground-truth or existing private drafts were edited.
+
+Build, docs freshness, 134 domain, six worker, five Python and four real-engine browser tests passed, with 1440px/390px screenshot inspection and protected-file hashes. Initial browser probes accidentally reached an already-running different server; a dedicated non-reused test port fixed the test environment. Initial completion selectors matched the canvas zoom output too; the lesson status now has its own accessible name. Fixed clipped practice viewports. A sandboxed Vite cache write failed through the shared node_modules symlink; the approved build succeeded.
+
+The user's follow-up about automatic variants/nominalization was investigated through read-only render probes. Default nominalization and variant 1 both render but differ (`oîo mombe'u` vs `nhemombe'u`), so no silent grammar fallback was introduced. See [handoff](session-handoffs/2026-09-18-guided-learning.md) and [maintaining docs](../design/learning.md).
+
+## 2026-09-18 - Integrated grammar correction conversations
+
+The correction dialog now starts from the current output and sends the edited form/notes directly to a new Codex conversation. Repair input is captured from the saved draft and selected grammar, with an automatic corpus baseline. Dedicated MCP grammar tools inspect existing files, apply unique hash-guarded replacements with before-image journals, refresh the engine and compare the unchanged expression and every corpus source. Ordinary jobs retain their scratch-only tools. Three conversations may run concurrently; one thread and one grammar directory each have only one active writer. Thread selection, follow-ups and delayed composer saves preserve their original context.
+
+Verification: build/typecheck, eight domain tests, 47 desktop/MCP checks across focused runs, and 16 browser scenarios pass. Screenshots checked at 1440px and 720px. The real local engine/MCP probe found 89 passages and preserved source/reference hashes. No live AI generation or original grammar/corpus edits. General shell/write access was rejected by automatic approval review; the implemented alternative retains the Codex sandbox and exposes only grammar-specific checked tools. See [handoff](session-handoffs/2026-09-18-integrated-grammar-corrections.md).
+
+## 2026-09-17 — Immediate tree adoption and local stale-proposal recovery
+
+The preceding mendara proof bypassed `analysis_accept`; that service still rejected an old model fingerprint after Studio/runtime changes. Inspection now opens an undoable normal draft directly. Acceptance locally reevaluates exact source, preserves original evidence, and records current complete/partial/failed realization. Current disk revision/source identity checks remain; one same-command refresh handles a watcher lag without paid replay. Fixed saved-preview restoration marking itself complete before candidate details arrived.
+
+Full copied-real-profile proof now includes the failing acceptance boundary: old mendara proposal accepted under current engine, repeat command idempotent, source preview names mendara, corpus regression128/127 passes,13 original files unchanged. Build,27 service/persistence,5 domain and22 browser checks pass across focused runs. No provider calls. See [handoff](session-handoffs/2026-09-17-inspect-local-recheck.md).
+
+## 2026-09-17 — Review the visible noun proposal and edit translations
+
+Resolved the empty-draft/visible-candidate mismatch behind the mendara syntax error. Explicit use-and-review actions now reach the exact accepted revision through every source-review entry point, with delayed-preview guards and an empty-tree diagnostic. Added an always editable human translation field plus same-run, revision-bound tentative proposal translations and explicit copy/replace actions.
+
+The actual saved single noun produces `l += mendara` with a shared lexical entry; staged regression checked 128 expressions/127 references and preserved all 12 protected files. Build, Python (1), desktop/services (43), domain (5) and related browser scenarios (15) passed across focused runs. Initial browser failures were outdated selectors and a stale-preview test expecting the earlier rejection stage; updated to the current contracts. No real profile/corpus writes or paid requests. See [handoff](session-handoffs/2026-09-17-noun-review-translations.md).
+
+## 2026-09-17 — Ordinary review repairs retained compound gloss
+
+Fixed the gap in the previous compound workflow: the exact old draft now repairs during source_new_preview without composition_define. Whole-surface/exact dictionary sense evidence bounds the correction; custom meanings and mismatching analyses stay untouched. UI explains base/compound separation. Native proof used the actual retained draft with a temporary worker profile and found 127 evaluated rows, 126 matching references, and unchanged originals. Five new Python controls, three existing publication checks, the browser review scenario and build pass. See [handoff](session-handoffs/2026-09-17-legacy-composite-review.md).
+
+## 2026-09-17 — Composite definitions and publication regression
+
+Added node-scoped composite definitions, optional grammar-checked restoration of base meanings, named composite promotion and correct subsequent shared definition updates. Added staged corpus regression to every changed publication preview plus apply-time fingerprint guard and visible results. Native bridge produced `nhemoabare`, 127 evaluated rows and 126 matching saved references without changing originals. Fourteen lexical/publication scenarios pass across suite and corrected recovery rerun, plus browser definition/undo, 24 provider/scratch checks, 5 worker checks and build. See [handoff](session-handoffs/2026-09-17-composite-lexicon-regression.md).
+
+## 2026-09-17 — Proposal tree editing and nominal output
+
+Replaced proposal-only legacy tree with the full canvas, made bottom-up the default, retained preview-only layout gestures and routed structural edits through explicit acceptance plus revision-guarded draft edits. Added incomplete-surface notices and provider guidance for supported inflection/nominalization. Actual saved expression verified locally with and without `.var(1).base_nominal()`. Build, 13 workspace browser scenarios, one real-engine canvas scenario and 16 runner tests pass across the full run and focused rerun. No live inference or real draft writes. See [handoff](session-handoffs/2026-09-17-proposal-tree-editing.md).
+
+## 2026-09-17 — Fresh AI conversations and readable history
+
+Added Nova conversa with durable thread archival, empty provider chat context and original-thread routing for late results. Histórico separates old exchanges from the latest response. Repeated tool events are summarized, response fragments are joined, and raw logs are optional. Verified 14 service and 12 browser regressions plus build without live generation. Browser checks used an isolated server because the existing desktop dev server served stale UI. See [handoff](session-handoffs/2026-09-17-ai-chat-history.md).
+
+## 2026-09-17 — Allow deliberate AI resubmission after a result
+
+The user's repeated submit clicks created no new jobs: the renderer permanently reused the localStorage request ID for unchanged input, returning the old result. Submission identity now includes the latest matching terminal result, while active duplicate sends retain the same key. Applied to single and batch submission. The browser fixture now implements command deduplication, which previous tests omitted. Build and focused regression pass without paid inference; saved user data remains untouched. See [handoff](session-handoffs/2026-09-17-analysis-resubmission.md).
+## 2026-09-17 — Codex code-mode host and complete MCP discovery
+
+Diagnosed the user's saved zero-tool attempt without rerunning paid generation. Corrected disabled code-mode host for the actual code-mode-only model and first-page-only MCP discovery hiding evaluation/proposal tools. Added actual thread inventory preflight before `turn/start`; failed setup creates a blocked job rather than a linguistic question. A new installed-CLI regression uses a loopback fake model to reproduce the exact failure, reject incomplete tools without generation, and execute four real code-mode/MCP calls successfully. Build/typecheck and78 focused checks pass; no saved requests, corpus or user drafts were changed. See [handoff](session-handoffs/2026-09-17-codex-tool-transport.md).
+
+## 2026-09-17 — Persistent AI authoring, shared MCP and source evidence
+
+Implemented the attached milestone: Fonte/IA support pane, distinct tentative reading, awaited draft/evidence capture, durable conversations and bounded queue attempts, shared TypeScript authoring tools, authenticated external MCP, iterative Codex/Claude adapters, actual selected PDF crop pixels, independent proposed candidates and atomic explicit acceptance with undo. Human source/lexicon publication and ground-truth approval remain separate. The external CLI contacts the same main-process owner rather than editing application files.
+
+Three independent critic rounds drove scope/reconstruction/evidence integrity, contributor workflow and retry/concurrency fixes. Publishing a pending passage now retains its history; old cancellation commands cannot cancel newer attempts; MCP clients have distinct request identities with explicit durable retries; accepted receipts survive later source/human changes without reapplying candidates. Native publication runs only in disposable corpus copies.
+
+Build/typecheck, 129 domain, 167 desktop, 152 Python and 17 relevant browser checks pass, including actual process-kill recovery. The current real Araújo audit passes all 86 examples; six reconstruction and six assisted evaluation cases are checked in as unrun. Native Electron, external CLI/MCP, dictionary, evaluator, actual PDF pixels, acceptance/undo/restart and reviewed source publication pass with original hashes unchanged. Routine tests made zero paid requests. Codex scoped initialization and Claude model discovery succeed without inference; live linguistic usefulness and the earlier Claude billing limit remain unverified. Doctor reports drift against the preserved historical dependency baseline. Full commands, exact dirty dependency revisions, findings and limits: [handoff](session-handoffs/2026-09-17-ai-authoring-workflow.md).
+
+## 2026-09-17 — Inline scalar call arguments
+
+Folded number/string argument cards into call labels and added inline editing in the canvas. Click a value or double-click empty parentheses; blur/Enter saves and Escape cancels. Decimal commas normalize and text is quoted as data. Real predicate arguments remain branches, and exact source spans, comments, unchanged literal types, stale-gesture rejection and atomic undo are preserved for both main and loose pieces.
+
+Build/typecheck, 43 domain checks and 52 related browser scenarios pass across the combined run and focused reruns. Two older tests were adapted to folded scalar arguments; a visual check found Enter focus loss, fixed and covered by immediate keyboard undo. Normal/narrow layouts were inspected. No provider calls or neighboring writes. See [handoff](session-handoffs/2026-09-17-inline-call-arguments.md).
+
+## 2026-09-17 — Ground truth beside draft actions
+
+Added **Commit to Ground Truth** beside verification and draft save. It opens the shared native reference dialog directly; the Review entry uses the same dialog. Removed the extra checkbox while retaining one explicit final save and existing source/reference validation. Cancellation does not preview/apply source or approve references; in-flight operations remain protected. Updated the affected smoke entry without rerunning the broad historical workflow.
+
+Two focused browser regressions pass, covering the real App entry/cancellation and hook/component failure, dirty-source and concurrency behavior against a simulated backend. The final combined production build passes. Temporary screenshots show the footer and reference dialog. No AI calls or actual corpus writes. See [handoff](session-handoffs/2026-09-17-ground-truth-shortcut.md).
+
 ## 2026-09-17 — Named lexical publication and primary add field
 
 New lexical constructor leaves now become shared named declarations during passage review, with exact-equivalent reuse and readable collision-safe names. The review opens with a nontechnical passage/word/field summary; exact names and both file diffs are behind **Mostrar diff técnico**. Both files are byte-checked, journaled and applied together. Failure tests verify rollback and interrupted-set recovery. The published draft adopts its named source, while definitions/verb senses and source operation structure remain intact.
@@ -78,3 +147,9 @@ The native production suite uses disposable corpus copies and temporary applicat
 
 Diagnosed actual saved drafts and failed AI request, preserving originals. Fixed 69 old-format current drafts; native copied-profile checks rendered all 82 passages and preserved text/revisions across restart. Added local completion workflow, evaluated-object interactive SVG, precise cancellable Codex progress with explicit reasoning effort, and durable local activity/error reports. Independent review found and fixed undo/status, retry/result, refresh/adoption and telemetry races. Routine tests contain no live AI generation. See [handoff](session-handoffs/2026-09-17-daily-use-repairs.md).
 2026-09-17: Added size suffix construction for Navarro augmentative/diminutive senses; exact dictionary selection creates `SizeSuffix` pieces, with focused engine and Studio tests. See [handoff](session-handoffs/2026-09-17-size-suffixes.md).
+## 2026-09-17 — Grammar repair loop in Studio
+
+Lifted the VS Code Tupy correction prompt into the tree inspector with intended surface, linguistic explanation, engine/tree scope and explicit grammar-navigation/MCP reload instructions. Added read-only full-corpus baseline and post-refresh comparison across all historic sources, including annotation and approved-reference changes. Real snapshot covered 89 Araújo and 40 Bettendorff lines. Focused domain/worker tests and build pass. See [handoff](session-handoffs/2026-09-17-grammar-repair-loop.md).
+## 2026-09-18 — Grammar repair action beneath the main result
+
+Moved discovery of the grammar repair loop to the main rendered result card, retaining the tree inspector entry. The action uses the current passage, draft expression, evaluated tree and failures. Build and formatting checks pass. See [handoff](session-handoffs/2026-09-18-main-result-repair-action.md).

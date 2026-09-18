@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Check, ClipboardCheck } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, ClipboardCheck, X } from 'lucide-react';
 import type { Studio } from '../useStudio';
 import { invoke } from '../domain/authoring';
 interface ReferenceStatus {
@@ -12,20 +12,22 @@ interface ReferenceStatus {
 export function GroundTruthPanel({
   studio,
   onReviewSource,
+  onClose,
+  reviewProposal = false,
 }: {
   studio: Studio;
   onReviewSource: () => void;
+  onClose?: () => void;
+  reviewProposal?: boolean;
 }) {
   const { passage, draft, result } = studio;
   const isNewPassage = passage.id.startsWith('pending:');
   const [status, setStatus] = useState<ReferenceStatus>();
-  const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setStatus(undefined);
-    setConfirmed(false);
     setError('');
     if (isNewPassage) return;
     void invoke<ReferenceStatus>('reference_status', { passageId: passage.id })
@@ -41,29 +43,27 @@ export function GroundTruthPanel({
   }, [passage.id, studio.project.engineFingerprint]);
   useEffect(() => {
     setSaved(false);
-  }, [passage.id]);
-  useEffect(() => {
-    setConfirmed(false);
-  }, [draft?.revisionId, result?.surface]);
+  }, [passage.id, draft?.revisionId]);
   const changed =
-    !!draft &&
-    (draft.raw !== passage.sourceExpression ||
-      (['diplomatic', 'normalized', 'translation', 'notes'] as const).some(
-        (field) => draft[field] !== passage[field],
-      ) ||
-      Object.entries(draft.locators ?? {}).some(
-        ([key, value]) =>
-          value !==
-          (
-            {
-              printedPage: passage.witness.printedPage ?? '',
-              folio: passage.witness.folio ?? '',
-              line: String(passage.witness.textualLine ?? ''),
-              section: passage.witness.section ?? '',
-              subsection: passage.witness.subsection ?? '',
-            } as Record<string, string>
-          )[key],
-      ));
+    reviewProposal ||
+    (!!draft &&
+      (draft.raw !== passage.sourceExpression ||
+        (['diplomatic', 'normalized', 'translation', 'notes'] as const).some(
+          (field) => draft[field] !== passage[field],
+        ) ||
+        Object.entries(draft.locators ?? {}).some(
+          ([key, value]) =>
+            value !==
+            (
+              {
+                printedPage: passage.witness.printedPage ?? '',
+                folio: passage.witness.folio ?? '',
+                line: String(passage.witness.textualLine ?? ''),
+                section: passage.witness.section ?? '',
+                subsection: passage.witness.subsection ?? '',
+              } as Record<string, string>
+            )[key],
+        )));
   const declared = status?.record?.normalized_target;
   const targetConflict =
     !!declared && !!result && result.evaluationStatus !== 'partial' && declared !== result.surface;
@@ -89,15 +89,19 @@ export function GroundTruthPanel({
         <li>
           <strong>Salvar a edição na fonte</strong>
           <p>
-            {isNewPassage
-              ? 'Esta nova passagem está no seu rascunho. Revise a inclusão no corpus quando a construção estiver pronta.'
-              : changed
-                ? 'Seu rascunho tem alterações que ainda não estão no arquivo do corpus.'
-                : 'O rascunho acompanha a expressão e os campos da fonte atual.'}
+            {reviewProposal
+              ? 'Use a proposta exibida no rascunho e revise sua inclusão na fonte.'
+              : isNewPassage
+                ? 'Esta nova passagem está no seu rascunho. Revise a inclusão no corpus quando a construção estiver pronta.'
+                : changed
+                  ? 'Seu rascunho tem alterações que ainda não estão no arquivo do corpus.'
+                  : 'O rascunho acompanha a expressão e os campos da fonte atual.'}
           </p>
-          <button className="button" disabled={!studio.ready} onClick={onReviewSource}>
-            Revisar edição da fonte
-          </button>
+          {(isNewPassage || changed) && (
+            <button className="button" disabled={!studio.ready} onClick={onReviewSource}>
+              {reviewProposal ? 'Usar e revisar proposta' : 'Revisar edição da fonte'}
+            </button>
+          )}
         </li>
         <li>
           <strong>Revisar e confirmar a referência</strong>
@@ -135,32 +139,29 @@ export function GroundTruthPanel({
             </p>
           )}
           {studio.conflict && <p role="alert">Concilie a fonte e o rascunho antes de aprovar.</p>}
-          <label className="ground-truth-confirm">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              disabled={blocked || !studio.ready}
-              onChange={(event) => setConfirmed(event.target.checked)}
-            />{' '}
-            Revisei a forma completa acima e quero registrá-la como ground truth.
-          </label>
-          <button
-            className="button primary"
-            disabled={blocked || !confirmed || !studio.ready}
-            onClick={async () => {
-              setError('');
-              setSaved(false);
-              try {
-                await studio.approveGroundTruth(result!.surface);
-                setSaved(true);
-                setConfirmed(false);
-              } catch (reason) {
-                setError(String(reason));
-              }
-            }}
-          >
-            <Check size={15} /> Confirmar e salvar ground truth
-          </button>
+          <div className="ground-truth-actions">
+            {onClose && (
+              <button className="button" disabled={studio.busy} onClick={onClose}>
+                {saved ? 'Fechar' : 'Cancelar'}
+              </button>
+            )}
+            <button
+              className="button primary"
+              disabled={blocked || saved || !studio.ready}
+              onClick={async () => {
+                setError('');
+                setSaved(false);
+                try {
+                  await studio.approveGroundTruth(result!.surface);
+                  setSaved(true);
+                } catch (reason) {
+                  setError(String(reason));
+                }
+              }}
+            >
+              <Check size={15} /> Confirmar e salvar ground truth
+            </button>
+          </div>
         </li>
       </ol>
       {error && (
@@ -180,5 +181,49 @@ export function GroundTruthPanel({
         </details>
       )}
     </section>
+  );
+}
+
+export function GroundTruthDialog({
+  studio,
+  onReviewSource,
+  reviewProposal,
+  onClose,
+}: {
+  studio: Studio;
+  onReviewSource: () => void;
+  reviewProposal?: boolean;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      className="ground-truth-dialog"
+      aria-label="Commit to Ground Truth"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!studio.busy) onClose();
+      }}
+    >
+      <button
+        className="icon-button ground-truth-close"
+        aria-label="Fechar ground truth"
+        disabled={studio.busy}
+        onClick={onClose}
+        autoFocus
+      >
+        <X size={19} />
+      </button>
+      <GroundTruthPanel
+        studio={studio}
+        onReviewSource={onReviewSource}
+        onClose={onClose}
+        reviewProposal={reviewProposal}
+      />
+    </dialog>
   );
 }

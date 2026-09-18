@@ -46,6 +46,52 @@ const sample = (): CanvasState => ({
 });
 
 describe('source-bound draft canvas edits', () => {
+  it('edits inline arguments as one exact revision-bound transaction without extra grouping', () => {
+    const raw = '# 🌿\n((tym.var(((1)))) / ypy) # keep\n';
+    const doc = document(raw, sample());
+    const address = bindCanvasAddress(doc, source('root/left'));
+    expect(editCanvas(doc, { type: 'argument', source: address, slot: 'arg0', text: '1' })).toEqual(
+      { raw, canvas: sample() },
+    );
+    const result = editCanvas(doc, {
+      type: 'argument',
+      source: address,
+      slot: 'arg0',
+      text: '2,5',
+    });
+    expect(result.raw).toBe(raw.replace('(((1)))', '(((2.5)))'));
+    expect(result.canvas.fragments).toEqual(sample().fragments);
+    expect(result.canvas.positions).toEqual({ 'saved:root': sample().positions['saved:root'] });
+    expect(doc.raw).toBe(raw);
+    expect(doc.canvas).toEqual(sample());
+    const next = document(result.raw, result.canvas);
+    expect(() =>
+      editCanvas(next, { type: 'argument', source: address, slot: 'arg0', text: '3' }),
+    ).toThrow(/mudou/);
+    const undone = editCanvas(next, {
+      type: 'argument',
+      source: source('root/left'),
+      slot: 'arg0',
+      text: '1',
+    });
+    expect(undone.raw).toBe(raw);
+  });
+
+  it('edits a loose piece call without changing the main tree or other fragment positions', () => {
+    const canvas = sample();
+    canvas.fragments[0].raw = 'tym.var( # preserved\n)';
+    const doc = document('og', canvas);
+    const result = editCanvas(doc, {
+      type: 'argument',
+      source: source('root', 'saved'),
+      slot: null,
+      text: 'îe',
+    });
+    expect(result.raw).toBe('og');
+    expect(result.canvas.fragments[0].raw).toBe('tym.var("îe" # preserved\n)');
+    expect(result.canvas.positions).toEqual({ 'main:root': canvas.positions['main:root'] });
+    expect(doc.canvas).toEqual(canvas);
+  });
   it('combines independent roots with an explicit operation while retaining layout, comments and unrelated pieces', () => {
     const original = 'emi * tym # explicação 🦜\n';
     const canvas: CanvasState = {

@@ -121,7 +121,12 @@ function canvasPoint(value) {
 }
 
 function envelope(value) {
-  object(value, 'rascunhos', ['version', 'projectId', 'drafts']);
+  object(value, 'rascunhos', ['version', 'projectId', 'drafts', 'storageRevision']);
+  if (
+    value.storageRevision !== undefined &&
+    (!Number.isSafeInteger(value.storageRevision) || value.storageRevision < 0)
+  )
+    fail('revisão de armazenamento');
   if (value.version !== 1) fail('versão dos rascunhos');
   id(value.projectId, 'projeto');
   object(value.drafts, 'rascunhos');
@@ -144,7 +149,65 @@ function envelope(value) {
       'workflow',
       'canvas',
       'pending',
+      'aiInput',
+      'aiAcceptances',
     ]);
+    if (draft.aiInput !== undefined) {
+      object(draft.aiInput, 'orientação de análise', [
+        'tentativeReading',
+        'meaning',
+        'constraints',
+      ]);
+      for (const key of ['tentativeReading', 'meaning', 'constraints'])
+        string(draft.aiInput[key], 'orientação de análise');
+    }
+    if (draft.aiAcceptances !== undefined) {
+      if (!Array.isArray(draft.aiAcceptances) || draft.aiAcceptances.length > 1000)
+        fail('histórico de aceitação');
+      for (const receipt of draft.aiAcceptances) {
+        const keys = [
+          'operationId',
+          'jobId',
+          'candidateId',
+          'candidateRevision',
+          'baseRevisionId',
+          'revisionId',
+          'at',
+        ];
+        object(receipt, 'aceitação', [...keys, 'revalidation']);
+        keys.forEach((key) => string(receipt[key], key, 256, true));
+        if (!Number.isFinite(Date.parse(receipt.at))) fail('data de aceitação');
+        if (receipt.revalidation !== undefined) {
+          const check = receipt.revalidation;
+          object(check, 'verificação local da proposta', [
+            'engineFingerprint',
+            'expressionFingerprint',
+            'sourceFingerprint',
+            'at',
+            'status',
+            'surface',
+            'annotated',
+            'changedSinceProposal',
+            'error',
+          ]);
+          for (const key of ['engineFingerprint', 'expressionFingerprint', 'at'])
+            string(check[key], key, 256, true);
+          if (!Number.isFinite(Date.parse(check.at))) fail('data da verificação local');
+          if (check.sourceFingerprint !== undefined)
+            string(check.sourceFingerprint, 'fonte', 256, true);
+          oneOf(check.status, ['complete', 'partial', 'failed'], 'resultado da verificação local');
+          for (const key of ['surface', 'annotated'])
+            if (check[key] !== undefined) string(check[key], key);
+          if (check.changedSinceProposal !== undefined)
+            boolean(check.changedSinceProposal, 'mudança na realização');
+          if (check.error !== undefined) {
+            object(check.error, 'erro da verificação local', ['code', 'message']);
+            string(check.error.code, 'código do erro', 256, true);
+            string(check.error.message, 'mensagem do erro', 4000);
+          }
+        }
+      }
+    }
     if (draft.raw !== undefined) string(draft.raw, 'código');
     if (draft.canvas !== undefined) canvas(draft.canvas);
     if (draft.pending !== undefined) {

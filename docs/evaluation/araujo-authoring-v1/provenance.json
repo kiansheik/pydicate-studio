@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "projectId": "local-1df18854eb99f34911541145",
+  "engineFingerprint": "sha256:e2949abcea23c1bc523dcaede7ad2b0849882a3e7fe4c58ca13da0ce30b29afd",
+  "auditCount": 86,
+  "auditGeneratedAt": "2026-09-17T18:54:40Z",
+  "coverageSha256": "6809dfa1bbd0ed13b8d1e3c4ad92b67aa05ce30b353ceb3274019df7f2fa9682",
+  "corpusHashes": {
+    "source": "df8a4770bb3bae68eb92912822e278b56b117a0a6d9a7ef7cc52d4d289cf4cf8",
+    "sharedLexicon": "b8003c9419fc29c1fdd60c8084c94e526af40359e75ab5c8aa6535b9aa9a9ca1",
+    "savedReferences": "b2dac1d704d199e99ec0c4f0c75639a46f6367f30e72b788fe12de1ad0618dd3",
+    "navarroWebsiteDataset": "1625811b904caf1de3465724b817ff7592d78f9838f5e7aeba5bbb65833ea70d"
+  },
+  "repositories": [
+    {
+      "name": "oldtupicorpus",
+      "revision": "292a28722a1790abf3f3b93083c29fbd47b4ffd0",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:df973319740073f4b81ef934d2e0716e2d0461d46379ae12103e4c49666a5a60"
+    },
+    {
+      "name": "nhe-enga",
+      "revision": "348686045bf0791c847be3cba1b15eaae7312a11",
+      "branch": "main",
+      "dirty": true,
+      "fingerprint": "sha256:45b24493e532feb45b64af9db3118016e1b6220d0a19046ff7dca346a144f639"
+    }
+  ],
+  "dictionary": {
+    "dataset": "navarro-website",
+    "fingerprint": "sha256:1625811b904caf1de3465724b817ff7592d78f9838f5e7aeba5bbb65833ea70d",
+    "identity": "compressed website row index + exact dataset hash; not SQLite vid"
+  },
+  "index": {
+    "entries": 1122,
+    "algorithm": "rendered_structures.build VERSION2, Araújo+lexicon-only candidate collection",
+    "fingerprint": "sha256:859da29901a32c30f986098fd432522a6b8437034029f38026e9642c91b47e72",
+    "diagnostics": [
+      "Rascunho · 77: list index out of range",
+      "Rascunho · 85: list index out of range"
+    ]
+  },
+  "providerExecution": "not-run; zero generation requests",
+  "selectedOrdinals": [
+    2,
+    67,
+    81,
+    83,
+    85,
+    86
+  ],
+  "readOnlyVerification": {
+    "before": {
+      "source": "df8a4770bb3bae68eb92912822e278b56b117a0a6d9a7ef7cc52d4d289cf4cf8",
+      "sharedLexicon": "b8003c9419fc29c1fdd60c8084c94e526af40359e75ab5c8aa6535b9aa9a9ca1",
+      "savedReferences": "b2dac1d704d199e99ec0c4f0c75639a46f6367f30e72b788fe12de1ad0618dd3",
+      "navarroWebsiteDataset": "1625811b904caf1de3465724b817ff7592d78f9838f5e7aeba5bbb65833ea70d"
+    },
+    "after": {
+      "source": "df8a4770bb3bae68eb92912822e278b56b117a0a6d9a7ef7cc52d4d289cf4cf8",
+      "sharedLexicon": "b8003c9419fc29c1fdd60c8084c94e526af40359e75ab5c8aa6535b9aa9a9ca1",
+      "savedReferences": "b2dac1d704d199e99ec0c4f0c75639a46f6367f30e72b788fe12de1ad0618dd3",
+      "navarroWebsiteDataset": "1625811b904caf1de3465724b817ff7592d78f9838f5e7aeba5bbb65833ea70d"
+    },
+    "unchanged": true
+  }
+}

@@ -2,6 +2,11 @@
 
 ## Contributor application
 
+- `src/components/LearningWorkspace.tsx`, `LessonQuestion.tsx`, `src/domain/learning.ts`, `src/learning.css`: lazy-loaded Aprender workspace, isolated real editor practice, persistent progress and strict completion, searchable guides/API/corpus examples, scoped optional explanation questions. The main workspace remains mounted and unchanged.
+- `python/learning_library.py`, `scripts/build-learning.py`, `src/generated/learning.json`: source-comment curriculum/docs, read-only corpus/reference matching, method/helper AST inventory and deterministic build artifact. `learning_library` is allowlisted through the desktop worker; cache binds selected engine and Studio documentation fingerprints. See `docs/design/learning.md` and `tests/learning.spec.ts`.
+
+- `src/components/AnalysisSupport.tsx`, `src/domain/analysis.ts`, `src/analysis-support.css`: persistent Fonte/IA support pane, saved input preparation, lazy conversation/job detail, immediate inspected-proposal adoption into the working editor, legacy preview/feedback and batch queue. Workspace schema v2 migrates v1 pane arrangements in place.
+
 - `src/App.tsx`: passage navigation, reading/analysis/review/lexicon/AI modes, theme, pane resizing, explicit source/Git/reference review, metadata conflict comparison and pending-reading navigation.
 - `src/useStudio.ts`: draft envelopes, selected pending shells with predecessor/order metadata, per-project undo/redo, revision-bound parsing/evaluation, source preview/apply, explicit reconciliation and session restoration.
 - `src/components/AuthoringEditor.tsx`: recursive typed construction cards, scope edits, editable raw text, lexical selection, helper parameters/templates and explicit lexical edit scopes.
@@ -17,21 +22,28 @@
 - `src/components/ExpressionCanvas.tsx`, `src/expression-canvas.css`: primary source forest, context menus, pointer/keyboard connection actions, loose-piece evaluation, compact inspector and fullscreen editing. `RuntimeTree.tsx` routes draft-aware views here and retains the legacy read-only/example viewers.
 - `src/domain/canvas.ts`: validated forest schema, bound source addresses, atomic detach/duplicate/remove/connect/combine/swap/make-main transactions and exact source edits. `tests/canvas.spec.ts` exercises the real draft-aware component; canvas/model and desktop validation/store tests cover persistence.
 - `src/components/PredicatePalette.tsx`, `src/domain/canvas-layout.ts`: actual engine constructor cards/forms and persistent bottom-up/horizontal geometry. `python/tests/test_pending_authoring.py` covers pending append contexts, constructor argument validation and hierarchy round-trips. `tests/next-passage.spec.ts` covers the actual App shell and revision-bound publication order.
-- `src/domain/grammar-diagnostic.ts`, `src/components/GrammarDiagnosticDialog.tsx`: local-engine diagnosis and copy/export handoff, including successful steps and actual failure frames; no automatic provider invocation.
+- `src/domain/grammar-diagnostic.ts`, `src/domain/grammar-regression.ts`, `src/components/GrammarDiagnosticDialog.tsx`: prefilled intended form/notes, explicit submission to an independent AI conversation, and optional diagnostic export/manual comparison.
+- `electron/grammar-repair.cjs`: selected-directory grammar tools, revision-bound capture, exact hash-guarded edits with before-image journals, engine refresh and shared corpus comparison. Ordinary analysis jobs never receive these tools.
 - `src/components/RuntimeTree.tsx`: main `PydicateTree` source projection with predicate cards and selectable operation connections; shared SVG camera/search/collapse/fullscreen/export also retains the older `RuntimeTree` evaluated-object viewer.
 - `src/domain/expression-tree.ts`, `tree-operations.ts`, `src/components/TreeScopeEditor.tsx`, `src/tree-scope-editor.css`: exact AST-to-graph spans, stale evidence rejection, ordered operation composition/modification, comment preservation, literals and verified copied lexical expansion.
+- `src/domain/inline-arguments.ts`, `src/components/InlineCallLabel.tsx`: scalar call arguments projected in operation labels, exact span edits, decimal-comma/string input, blur/Enter save and Escape cancellation. The canvas argument transaction retains source guards and undo; real predicate arguments remain branches.
 - `src/domain/runtime-tree.ts`, `src/runtime-tree.css`: shared graph geometry with compact operation junctions, focused wheel zoom, exact source mapping and occurrence-aware source search; evaluated-object projection still separates internal morphology copies.
 - `src/domain/operation-terms.ts`, `docs/design/operation-terms.md`: shared Portuguese operation names/explanations, with evidence-gated overload labels and stable underlying DSL keys.
 - `NodeEvaluation` in `domain/authoring.ts`, expression projection and runtime-tree preview helpers: revision-checked intermediate forms, full selected results, explicit empty/value/unavailable states, Unicode-safe display wrapping and layout bounds.
 - `src/components/WorkspaceLayout.tsx`, `src/domain/workspace.ts`, `src/workspace.css`, `src/workbench.css`: persistent dock positions/sizes, stable mounted panes, compact primary editor and narrow-screen pane navigation.
 - `src/components/PassageLexicon.tsx`, `src/domain/passage-lexicon.ts`, `src/passage-lexicon.css`: recursive active inventory, general/occurrence interpretation notes and project notebook export.
 - `src/components/SourceReviewContent.tsx`: default human review summaries, revision-matched draft output, compact definitions/field changes and optional exact technical diffs.
-- `src/components/GroundTruthPanel.tsx`, `DraftArchive.tsx`: source-before-reference confirmation and searchable preserved-draft recovery.
+- `src/components/GroundTruthPanel.tsx`, `DraftArchive.tsx`: source-before-reference confirmation and searchable preserved-draft recovery. App/useStudio route visible proposals through explicit acceptance then a fresh revision-bound source review; `tests/proposal-publication.spec.ts` covers all entry points.
 - `src/components/DictionaryTab.tsx`, `dictionary-tab.css`: persistent local-site iframe, explicit refresh and strict selected-entry messaging. `DictionaryEntryCreation.tsx` shares exact-sense/constructor/partial-result handling with the piece palette.
 - `src/components/PieceSearch.tsx`, `PredicatePalette.tsx`, `LexicalInput.tsx`: shared natural search, direct inline canvas insertion, reuse-first ordering, Navarro fallback, retained queries, stale-choice invalidation and secondary manual constructor/code entry. `useStudio.insertPiece` preserves the main tree and provides one-step undo for inserted loose pieces.
 - `src/components/UsagePanel.tsx`, `src/domain/usage.ts`: local activity report/export and categorical renderer event/edit-batch recording.
 
 ## Desktop and Python
+
+- `electron/analysis-service.cjs`, `analysis-store.cjs`, `analysis-input.cjs`: immutable input snapshots, one-owner queue with up to three conversations (one repair writer per engine), attempts/checkpoints, isolated candidate revisions, scoped research projections, durable commands and acceptance receipts with current local revalidation. `draft-store.cjs` adds whole-envelope CAS and atomic project guards; `useStudio.ts` queues saves and retries explicit adoption once after a local context refresh using the same command ID.
+- `electron/scratch-service.cjs`, `shared-authoring.cjs`, `authoring/shared-entry.ts`: shared TypeScript builder transactions with actual Python parsing/evaluation, dictionary identities, evidence binding and candidate proposals.
+- `electron/studio-mcp-gateway.cjs`, `studio-mcp-stdio.cjs`, `analysis-external.cjs`, `scripts/studio-external-analysis.mjs`: private authenticated per-attempt Unix transport, MCP discovery/tools/resources, owner-only external session startup and zero-provider external execution.
+- `electron/agent-runner.cjs`: bounded iterative Claude/Codex orchestration, observable durable checkpoints, tools, cancellation, image content and reconstruction answer withholding. `evidence-images.cjs` renders actual managed saved-region pixels with PDF.js and pinned native canvas.
 
 - `electron/main.cjs`, `preload.cjs`, `next-service.cjs`: isolated application origin, sender validation, explicit IPC methods, active project, session and service integration; bounded write-only clipboard action for explicit diagnostic copying.
 - `electron/service-errors.cjs` plus `preload.cjs`: bounded error-only transport retaining service codes across IPC/contextBridge without changing successful values.
@@ -41,7 +53,8 @@
 - `electron/provider-{service,codex,claude,rpc,context}.cjs`: main-process transports, durable validated history, provenance, cancellation and read-only MCP context.
 - `python/adapter.py`, `worker.py`: source imports, actual repository/content fingerprints, stable identity reconciliation and JSONL dispatch.
 - `python/studio_authoring.py`: concrete spans, recursive syntax/capability adapter and authoritative upstream comment parsing.
-- `python/lexical_publication.py`: read-only literal predicate promotion, exact-identity reuse, deterministic headword naming/collisions, and engine evidence preservation; runtime child action feeds reviewed source publication.
+- `python/publication_regression.py`: fresh before/after corpus snapshots, staged-copy publication checks, preserved output/reference comparison and explicit recovery handling.
+- `python/lexical_publication.py`: explicit composition definition/base restoration, named composite extraction and read-only literal predicate promotion, exact-identity reuse, deterministic headword naming/collisions, and engine evidence preservation; runtime child action feeds reviewed source publication.
 - `python/reviewed_files.py`: staged multi-file writes, durable before/after recovery journal, byte guards and reverse rollback; `authoring_service.py` builds both diffs and supports mixed interruption recovery.
 - `python/authoring_service.py`: explicit source/lexicon edits, preview/stale/recovery protocol, verification, reference acceptance and Git patch preparation.
 - `python/authoring_runtime.py`: fresh selected-engine context, bounded contributor expression interpretation, isolated per-step evaluation snapshots, partial branch realization and engine-frame diagnostics, typed roles, lexical/helper introspection and authoritative approval sink.
@@ -53,6 +66,9 @@
 - `electron/application-permissions.cjs`: fullscreen permission restricted to the current application main frame; all other permissions remain denied.
 
 ## Verification and documentation
+
+- `scripts/smoke-analysis.mjs`: actual Electron owner/worker/PDF/dictionary/publication-preview workflow with deterministic provider boundary and disposable data. `docs/contributor-guide.md`, `docs/design/mcp-agent-guide.md`, `docs/design/ai-agent-providers.md`: contributor setup and provider/service boundaries.
+- `scripts/build-authoring-eval.py`, `docs/evaluation/`: separate real-data reconstruction and assisted sets, withheld evaluator-only answers, dependency identities and multidimensional review rubric. No live inference is implied by fixture results.
 
 - `python/audit_araujo.py`: complete source/engine comparison matrix; imports matching independent UI evidence only when source hash and expression match.
 - `scripts/check-project.py`, `docs/design/dependencies.md`, `next-baseline.json`, `dependency-patches/`: reproducible dirty dependency baseline and read-only startup check.

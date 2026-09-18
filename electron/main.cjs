@@ -12,7 +12,8 @@ const {
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { createHash } = require('node:crypto');
+const os = require('node:os');
+const { createHash, randomUUID } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { DraftStore } = require('./draft-store.cjs');
 const { PythonWorker } = require('./python-worker.cjs');
@@ -38,6 +39,56 @@ const knownProjects = new Set(['example:araujo-0067']);
 let window;
 let worker;
 let activeProject;
+const externalRequests = [];
+async function externalAnalysis(argv) {
+  const option = (name) => {
+    const index = argv.indexOf(name);
+    return index < 0 ? undefined : argv[index + 1];
+  };
+  const passageId = option('--studio-external-analysis');
+  if (!passageId) return false;
+  if (!nextService) {
+    externalRequests.push(argv);
+    return true;
+  }
+  const responsePath = option('--studio-external-response');
+  // CLI responses can only enter the requesting user's private temporary directory.
+  if (!responsePath || path.basename(responsePath) !== 'response.json')
+    throw new Error('Destino da sessão MCP inválido.');
+  const directory = fs.realpathSync(path.dirname(responsePath));
+  const temporaryRoot = fs.realpathSync(os.tmpdir());
+  const stat = fs.lstatSync(directory);
+  if (
+    path.dirname(directory) !== temporaryRoot ||
+    !path.basename(directory).startsWith('studio-external-request-') ||
+    !stat.isDirectory() ||
+    stat.mode & 0o077 ||
+    (process.getuid && stat.uid !== process.getuid())
+  )
+    throw new Error('Diretório privado da sessão MCP inválido.');
+  let response;
+  try {
+    validate.id(passageId, 'passagem');
+    if (!activeProject) {
+      const restored = await nextService.invoke('session_restore');
+      if (!restored.project)
+        throw new Error(restored.error ?? 'Abra e salve um projeto no Studio primeiro.');
+    }
+    response = await nextService.invoke('analysis_external_start', {
+      projectId: activeProject.id,
+      passageId,
+      operationId: randomUUID(),
+      task: option('--studio-external-task') ?? 'analyze',
+      description: option('--studio-external-description') ?? '',
+    });
+  } catch (error) {
+    response = { error: { code: error.code ?? 'EXTERNAL_START', message: error.message } };
+  }
+  const temporary = path.join(directory, randomUUID() + '.tmp');
+  fs.writeFileSync(temporary, JSON.stringify(response), { mode: 0o600, flag: 'wx' });
+  fs.renameSync(temporary, path.join(directory, 'response.json'));
+  return true;
+}
 const dictionarySite = createDictionarySite({
   getProject: () => activeProject,
   parentOrigin: development ? new URL(DEV_URL).origin : 'studio://app',
@@ -84,6 +135,29 @@ function buildIdentity() {
 let watchers = [];
 let sourceWrites = 0;
 function emit(event) {
+  if (event.type === 'analysis' && event.jobId) {
+    const key = 'analysis:' + event.jobId;
+    const state = `${event.status}:${event.phase}`;
+    if (aiPhases.get(key) !== state) {
+      aiPhases.set(key, state);
+      record({
+        event: 'ai.analysis.phase',
+        projectId: event.projectId,
+        passageId: event.passageId,
+        requestId: event.jobId,
+        outcome:
+          event.status === 'failed' || event.status === 'blocked'
+            ? 'failed'
+            : event.status === 'cancelled'
+              ? 'cancelled'
+              : event.status === 'ready-for-review'
+                ? 'succeeded'
+                : 'started',
+        details: { phase: event.phase, status: event.status },
+      });
+      if (aiPhases.size > 200) aiPhases.delete(aiPhases.keys().next().value);
+    }
+  }
   if (event.type === 'ai' && event.phase && aiPhases.get(event.requestId) !== event.phase) {
     aiPhases.set(event.requestId, event.phase);
     record({
@@ -165,8 +239,18 @@ async function openPath(parentPath, expectedProjectId) {
     const project = validate.project(await candidate.request('open_project', { parentPath }));
     if (expectedProjectId && project.id !== expectedProjectId)
       throw new Error('A identidade do projeto mudou. Reabra o projeto.');
-    worker?.close();
-    worker = candidate;
+    // macOS can report delayed/coalesced notifications for unchanged files.
+    // Keep in-flight evaluations when the fresh snapshot is byte-identical.
+    if (
+      worker &&
+      activeProject?.id === project.id &&
+      activeProject.engineFingerprint === project.engineFingerprint
+    )
+      candidate.close();
+    else {
+      worker?.close();
+      worker = candidate;
+    }
     activeProject = project;
     projectParent = parentPath;
     knownProjects.add(project.id);
@@ -349,10 +433,11 @@ function installBridge() {
     validate.envelope(envelope);
     authorizeProject(envelope.projectId);
     try {
-      await drafts.save(envelope);
+      const saved = await drafts.saveChecked(envelope);
       draftSaveCount += 1;
       clearTimeout(draftSaveTimer);
       draftSaveTimer = setTimeout(flushDraftSaves, 1500);
+      return saved;
     } catch (error) {
       record({
         event: 'draft.save',
@@ -429,7 +514,11 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   // One writer owns each userData directory, including its draft and identity stores.
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes('--studio-external-analysis')) {
+      void externalAnalysis(argv).catch((error) => console.error(error.message));
+      return;
+    }
     if (!window) {
       if (app.isReady()) createWindow().catch(showStartupError);
       return;
@@ -449,12 +538,21 @@ if (!app.requestSingleInstanceLock()) {
       record({ event: 'application.ready', outcome: 'succeeded' });
       drafts = new DraftStore(path.join(app.getPath('userData'), 'drafts'));
       nextService = createNextService({
+        draftStore: drafts,
         duringProjectWrite,
         stateDirectory: app.getPath('userData'),
         emit,
         getProject: () => activeProject,
         getWorker: () => worker,
         openPath,
+        reloadProject: (projectId) =>
+          changeProject(async () => {
+            if (!activeProject || activeProject.id !== projectId)
+              throw new Error('Abra o projeto desta correção.');
+            const project = await openPath(projectParent, projectId);
+            emit({ type: 'source-change', projectId });
+            return project;
+          }),
         defaultParent:
           process.env.PYDICATE_PROJECT_PARENT || path.resolve(applicationDirectory, '..'),
         adoptProject: (project) => {
@@ -476,7 +574,10 @@ if (!app.requestSingleInstanceLock()) {
       });
       serveApplication();
       installBridge();
-      await createWindow();
+      if (process.argv.includes('--studio-external-analysis')) await externalAnalysis(process.argv);
+      else await createWindow();
+      for (const argv of externalRequests.splice(0))
+        void externalAnalysis(argv).catch((error) => console.error(error.message));
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow().catch(showStartupError);
       });
@@ -493,20 +594,27 @@ function showStartupError(error) {
 }
 
 let closingUsage = false;
+let quitReady = false;
 app.on('before-quit', (event) => {
+  if (quitReady) return;
+  event.preventDefault();
+  if (closingUsage) return;
+  closingUsage = true;
   flushDraftSaves();
-  worker?.close();
-  nextService?.close();
   watchers.forEach((w) => w.close());
-  if (usage && !closingUsage) {
-    event.preventDefault();
-    closingUsage = true;
-    usage
-      .close()
-      .catch(() => {})
-      .finally(() => app.quit());
-  }
+  Promise.resolve()
+    .then(async () => {
+      await nextService?.close();
+      await Promise.allSettled([...(drafts?.writes.values() ?? [])]);
+      worker?.close();
+      await usage?.close();
+    })
+    .catch((error) => console.error('Falha ao encerrar o Studio:', error.message))
+    .finally(() => {
+      quitReady = true;
+      app.quit();
+    });
 });
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin' && !nextService?.hasWork()) app.quit();
 });

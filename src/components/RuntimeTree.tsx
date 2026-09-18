@@ -62,6 +62,7 @@ interface TreeEditingProps {
   canUndo?: boolean;
   canRedo?: boolean;
   onInspectLexeme?: (name: string) => void;
+  onAskAI?: (sourceNodeId: string) => void;
 }
 
 function compact(text: string, length = 31) {

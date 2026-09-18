@@ -62,6 +62,7 @@ import { PredicatePalette } from './PredicatePalette';
 import { PieceSearch, type PieceSearchHandle } from './PieceSearch';
 import { canvasEdgePath, layoutCanvasTree } from '../domain/canvas-layout';
 import { TreeScopeEditor } from './TreeScopeEditor';
+import { InlineCallLabel } from './InlineCallLabel';
 import '../expression-canvas.css';
 
 export interface ExpressionCanvasProps {
@@ -81,6 +82,7 @@ export interface ExpressionCanvasProps {
   canUndo?: boolean;
   canRedo?: boolean;
   onInspectLexeme?: (name: string) => void;
+  onAskAI?: (sourceNodeId: string) => void;
   onPrepareDiagnostic?: (report: CanvasDiagnostic) => void;
   failures?: EvaluationFailure[];
   status?: string;
@@ -144,8 +146,7 @@ export function ExpressionCanvas({
   ...props
 }: ExpressionCanvasProps) {
   const saved = canvas ?? emptyCanvas();
-  const orientation =
-    saved.layout ?? (props.passageId?.startsWith('pending:') ? 'bottom-up' : 'horizontal');
+  const orientation = saved.layout ?? 'bottom-up';
   const evaluationContext = `${props.passageId}:${props.sourceId}:${props.engineFingerprint}`;
   const [fragmentResults, setFragmentResults] = useState<Record<string, FragmentResult>>({});
   const cache = useRef(new Map<string, FragmentResult>());
@@ -297,6 +298,15 @@ export function ExpressionCanvas({
   const [combineOrder, setCombineOrder] = useState<'source-first' | 'target-first'>('target-first');
   const [operationArgument, setOperationArgument] = useState('1');
   const [operationPanel, setOperationPanel] = useState<CanvasAddress | null>(null);
+  const [definitionPanel, setDefinitionPanel] = useState<CanvasAddress | null>(null);
+  const [compositionDefinition, setCompositionDefinition] = useState('');
+  const [reuseBaseDefinitions, setReuseBaseDefinitions] = useState(true);
+  const [defining, setDefining] = useState(false);
+  const definitionRequest = useRef(0);
+  function closeDefinition() {
+    definitionRequest.current++;
+    setDefinitionPanel(null);
+  }
   const [operation, setOperation] = useState('*');
   const [operationSide, setOperationSide] = useState<'left' | 'right'>('right');
   const [advanced, setAdvanced] = useState(false);
@@ -537,6 +547,7 @@ export function ExpressionCanvas({
   useEffect(() => {
     setMenu(null);
     setOperationPanel(null);
+    closeDefinition();
     setPalette(null);
     setCombination(null);
     setStaged(null);
@@ -554,6 +565,7 @@ export function ExpressionCanvas({
       setMenu(null);
       setPalette(null);
       setOperationPanel(null);
+      closeDefinition();
       setCombination(null);
     };
     document.addEventListener('pointerdown', dismissOutside, true);
@@ -577,7 +589,7 @@ export function ExpressionCanvas({
       // Workspace panes stay mounted when hidden; only the visible tree owns
       // this shortcut, and an unrelated modal keeps its own keyboard context.
       if (
-        [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].some(
+        [...document.querySelectorAll('[role="dialog"][aria-modal="true"], dialog[open]')].some(
           (dialog) => !editor.contains(dialog) && visible(dialog),
         )
       )
@@ -586,6 +598,7 @@ export function ExpressionCanvas({
       setMenu(null);
       setPalette(null);
       setOperationPanel(null);
+      closeDefinition();
       setCombination(null);
       setStaged(null);
       drag.current = null;
@@ -639,14 +652,20 @@ export function ExpressionCanvas({
       throw new Error('Aguarde a árvore atual para editar esta parte.');
     }
   }
-  function commit(action: CanvasAction) {
+  function commit(action: CanvasAction, focusCanvas = true) {
     try {
       const next = editCanvas(live.current, action);
+      if (
+        action.type === 'argument' &&
+        next.raw === live.current.raw &&
+        JSON.stringify(next.canvas) === JSON.stringify(live.current.canvas ?? emptyCanvas())
+      )
+        return true;
       props.onChangeCanvas(next);
       setNotice('');
       setMenu(null);
       setStaged(null);
-      requestAnimationFrame(() => svg.current?.focus({ preventScroll: true }));
+      if (focusCanvas) requestAnimationFrame(() => svg.current?.focus({ preventScroll: true }));
       track('editor.operation', { action: 'canvas.' + action.type });
       return true;
     } catch (reason) {
@@ -721,6 +740,39 @@ export function ExpressionCanvas({
       setStaged(null);
     } else commit({ type: 'connect', source, target });
   }
+  async function defineComposition() {
+    if (!definitionPanel || defining) return;
+    const address = definitionPanel;
+    const request = ++definitionRequest.current;
+    const ticket = liveSession.current;
+    const scope = getScope(address).node;
+    if (!scope) return;
+    setDefining(true);
+    try {
+      const result = await invoke<{ raw: string }>('composition_define', {
+        passageId: props.passageId,
+        sourceId: props.sourceId,
+        revisionId: props.revisionId,
+        engineFingerprint: props.engineFingerprint,
+        raw: scope.code,
+        definition: compositionDefinition,
+        reuseBaseDefinitions,
+      });
+      if (ticket !== liveSession.current || request !== definitionRequest.current) return;
+      if (commit({ type: 'replace', source: address, raw: result.raw })) {
+        closeDefinition();
+        setNotice(
+          'Composição definida no rascunho. A revisão mostrará sua nova entrada no léxico.',
+        );
+      }
+    } catch (error) {
+      if (ticket === liveSession.current && request === definitionRequest.current)
+        setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDefining(false);
+    }
+  }
+
   function changeLayout(layout: 'horizontal' | 'bottom-up') {
     if (orientation === layout) return;
     props.onChangeCanvas({ raw, canvas: { ...saved, layout, positions: {} } });
@@ -762,6 +814,7 @@ export function ExpressionCanvas({
       })
     )
       setOperationPanel(null);
+    closeDefinition();
   }
   function world(clientX: number, clientY: number): CanvasPoint {
     const bounds = svg.current!.getBoundingClientRect();
@@ -909,6 +962,7 @@ export function ExpressionCanvas({
             setMenu(null);
             setPalette(null);
             setOperationPanel(null);
+            closeDefinition();
             setCombination(null);
             setStaged(null);
             drag.current = null;
@@ -1268,10 +1322,8 @@ export function ExpressionCanvas({
                     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                       event.preventDefault();
                       const parentId = node.id.slice(0, node.id.lastIndexOf('/'));
-                      const parent = flattenNodes(point.piece.root).find(
-                        (item) => item.id === parentId,
-                      );
-                      const siblings = parent?.children.map((child) => child.node.id) ?? ['root'];
+                      const siblings = layout.positions.get(`${point.piece.id}:${parentId}`)
+                        ?.children ?? ['root'];
                       const index = siblings.indexOf(node.id);
                       focusNode(
                         point.piece,
@@ -1308,14 +1360,39 @@ export function ExpressionCanvas({
                         height={40}
                         rx={20}
                       />
-                      <text
-                        className="runtime-operation-label"
-                        x={nodeWidth / 2}
-                        y={56}
-                        textAnchor="middle"
-                      >
-                        {clip(node.label, 20)}
-                      </text>
+                      {node.expression?.inlineCall ? (
+                        <InlineCallLabel
+                          key={`${point.key}:${session}`}
+                          call={node.expression.inlineCall}
+                          width={nodeWidth}
+                          onBegin={() => {
+                            select(point);
+                            setNotice('');
+                          }}
+                          onReturnToCanvas={() => svg.current?.focus({ preventScroll: true })}
+                          onCommit={(slot, text) => {
+                            if (session !== liveSession.current) return false;
+                            return commit(
+                              {
+                                type: 'argument',
+                                source: { ...point.address, expectedRaw: point.piece.raw },
+                                slot,
+                                text,
+                              },
+                              false,
+                            );
+                          }}
+                        />
+                      ) : (
+                        <text
+                          className="runtime-operation-label"
+                          x={nodeWidth / 2}
+                          y={56}
+                          textAnchor="middle"
+                        >
+                          {clip(node.label, 20)}
+                        </text>
+                      )}
                       {preview && (
                         <g
                           className={`runtime-step-result${point.piece.id === 'main' && node.id === 'root' ? ' is-final' : ''}`}
@@ -1484,6 +1561,18 @@ export function ExpressionCanvas({
               }
             }}
           >
+            {props.onAskAI && (
+              <button
+                role="menuitem"
+                disabled={!!menu.address.fragmentId || !menuPosition?.piece.root}
+                onClick={() => {
+                  props.onAskAI?.(menu.address.nodeId);
+                  setMenu(null);
+                }}
+              >
+                Perguntar à IA sobre este constituinte
+              </button>
+            )}
             <button
               role="menuitem"
               disabled={!menuPosition?.piece.root}
@@ -1523,6 +1612,22 @@ export function ExpressionCanvas({
               }}
             >
               Imperativo
+            </button>
+            <button
+              role="menuitem"
+              disabled={!menuPosition?.piece.root}
+              onClick={() => {
+                setDefinitionPanel(menu.address);
+                setCompositionDefinition(
+                  getScope(menu.address).node?.definition ??
+                    (menu.address.nodeId === 'root' ? evaluatedRoot?.definition : '') ??
+                    '',
+                );
+                setReuseBaseDefinitions(true);
+                setMenu(null);
+              }}
+            >
+              Definir significado do conjunto…
             </button>
             <button
               role="menuitem"
@@ -1624,6 +1729,35 @@ export function ExpressionCanvas({
               }}
             />
             <small>Peças soltas ficam salvas junto desta passagem.</small>
+          </div>
+        )}
+        {definitionPanel && (
+          <div role="dialog" aria-label="Definir composição" className="canvas-floating-panel">
+            <h3>Significado desta composição</h3>
+            <label>
+              Definição do conjunto
+              <textarea
+                autoFocus
+                value={compositionDefinition}
+                onChange={(event) => setCompositionDefinition(event.target.value)}
+              />
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={reuseBaseDefinitions}
+                onChange={(event) => setReuseBaseDefinitions(event.target.checked)}
+              />
+              Reutilizar definições das peças no léxico ou dicionário
+            </label>
+            <p>A revisão criará uma entrada para o conjunto, com o nome baseado na forma gerada.</p>
+            <button
+              disabled={defining || !compositionDefinition.trim()}
+              onClick={() => void defineComposition()}
+            >
+              {defining ? 'Conferindo peças…' : 'Usar definição no rascunho'}
+            </button>
+            <button onClick={closeDefinition}>Cancelar</button>
           </div>
         )}
         {operationPanel && (
@@ -1808,7 +1942,7 @@ export function ExpressionCanvas({
                 }}
               >
                 <Copy size={15} />
-                Copiar diagnóstico
+                Corrigir gramática / árvore
               </button>
             )}
           </div>

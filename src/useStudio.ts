@@ -52,6 +52,8 @@ export function useStudio() {
   const [verification, setVerification] = useState('');
   const history = useRef<Record<string, Draft[]>>({});
   const saves = useRef(Promise.resolve());
+  const storageRevisions = useRef<Record<string, number>>({});
+  const acceptanceOperations = useRef(new Map<string, string>());
   const operation = useRef(false);
   const lastSaveError = useRef('');
   const automaticRefresh = useRef<Promise<StudioProject> | null>(null);
@@ -127,7 +129,13 @@ export function useStudio() {
         if (cancelled) return;
         const drafts = { ...saved?.drafts };
         for (const item of project.passages) drafts[item.id] = restoreDraft(drafts[item.id], item);
-        replaceEnvelope({ version: 1, projectId: project.id, drafts });
+        storageRevisions.current[project.id] = saved?.storageRevision ?? 0;
+        replaceEnvelope({
+          version: 1,
+          projectId: project.id,
+          drafts,
+          storageRevision: saved?.storageRevision ?? 0,
+        });
         const requested = restoredSelection.current;
         if (requested && latest.current.project.passages.some((item) => item.id === requested)) {
           latest.current.selectedId = requested;
@@ -153,10 +161,16 @@ export function useStudio() {
     const current = latest.current;
     if (!current.ready || current.envelope.projectId !== current.project.id) return;
     const snapshot = current.envelope;
-    const save = () =>
-      window.studio
-        ? window.studio.saveDrafts(snapshot)
-        : Promise.resolve().then(() => writeBrowserDrafts(snapshot));
+    const save = async () => {
+      // Capture content when the edit is queued, but use only our last acknowledged
+      // disk revision. A later external command must conflict, never be overwritten.
+      const revision =
+        storageRevisions.current[snapshot.projectId] ?? snapshot.storageRevision ?? 0;
+      if (window.studio) {
+        const saved = await window.studio.saveDrafts({ ...snapshot, storageRevision: revision });
+        if (saved) storageRevisions.current[snapshot.projectId] = saved.storageRevision;
+      } else writeBrowserDrafts(snapshot);
+    };
     const task = saves.current.catch(() => {}).then(save);
     saves.current = task;
     await task;
@@ -339,13 +353,14 @@ export function useStudio() {
     );
   }, [refreshRequested, busy, ready]);
 
-  function edit(changes: Parameters<typeof updateDraft>[1]) {
+  function edit(changes: Parameters<typeof updateDraft>[1], expectedRevision?: string) {
     const current = latest.current;
     const selected =
       current.project.passages.find((p) => p.id === current.selectedId) ??
       current.project.passages[0];
     const previous = current.envelope.drafts[selected.id];
     if ((operation.current && !automaticRefresh.current) || !current.ready || !previous) return;
+    if (expectedRevision && previous.revisionId !== expectedRevision) return;
     trackEdit(Object.keys(changes));
     redoHistory.current[selected.id] = [];
     history.current[selected.id] = [...(history.current[selected.id] ?? []), previous].slice(-60);
@@ -413,7 +428,10 @@ export function useStudio() {
       ...current.envelope,
       drafts: {
         ...current.envelope.drafts,
-        [selected.id]: updateDraft({ ...previous, workflow: active.workflow }, {}),
+        [selected.id]: updateDraft(
+          { ...previous, workflow: active.workflow, aiAcceptances: active.aiAcceptances },
+          {},
+        ),
       },
     });
     setVerification('');
@@ -438,18 +456,44 @@ export function useStudio() {
       ...current.envelope,
       drafts: {
         ...current.envelope.drafts,
-        [current.selectedId]: updateDraft({ ...previous, workflow: active.workflow }, {}),
+        [current.selectedId]: updateDraft(
+          { ...previous, workflow: active.workflow, aiAcceptances: active.aiAcceptances },
+          {},
+        ),
       },
     });
   }
 
-  async function sourcePreview(isNew = false, metadata: Record<string, unknown> = {}) {
-    const revision = draft?.revisionId;
-    const pendingId = passage.id.startsWith('pending:') ? passage.id : undefined;
+  async function sourcePreview(
+    isNew = false,
+    metadata: Record<string, unknown> = {},
+    expected?: { passageId: string; draftRevisionId: string },
+  ) {
+    // Acceptance updates this snapshot before React renders again. Reviewing the
+    // closure's draft here would submit the old (possibly empty) expression.
+    const current = latest.current;
+    const selected = current.project.passages.find((item) => item.id === current.selectedId);
+    const active = selected && current.envelope.drafts[selected.id];
+    if (!current.ready || !selected || !active)
+      throw new Error('Aguarde o carregamento do rascunho antes de revisar.');
+    const revision = active.revisionId;
+    const assertCurrent = () => {
+      const next = latest.current;
+      if (
+        next.project.id !== current.project.id ||
+        next.project.engineFingerprint !== current.project.engineFingerprint ||
+        next.selectedId !== selected.id ||
+        next.envelope.drafts[selected.id]?.revisionId !== revision ||
+        (expected && (expected.passageId !== selected.id || expected.draftRevisionId !== revision))
+      )
+        throw new Error('A passagem ou o rascunho mudou. Abra a revisão novamente.');
+    };
+    assertCurrent();
+    const pendingId = selected.id.startsWith('pending:') ? selected.id : undefined;
     const newPassage = isNew || !!pendingId;
     if (pendingId) {
-      const firstPending = project.passages.find(
-        (item) => item.sourceId === passage.sourceId && item.id.startsWith('pending:'),
+      const firstPending = current.project.passages.find(
+        (item) => item.sourceId === selected.sourceId && item.id.startsWith('pending:'),
       );
       if (firstPending && firstPending.id !== pendingId)
         throw new Error(
@@ -457,26 +501,27 @@ export function useStudio() {
         );
     }
     await persist();
+    assertCurrent();
     const preview = await invoke<SourcePreview>(
       newPassage ? 'source_new_preview' : 'source_preview',
       {
-        passageId: passage.id,
-        sourceId: passage.sourceId,
+        passageId: selected.id,
+        sourceId: selected.sourceId,
         ...(pendingId ? { newPassageId: pendingId.replace(/^pending:/, 'passage:') } : {}),
-        raw: draft?.raw ?? passage.sourceExpression,
-        metadata:
-          newPassage && draft
-            ? {
-                ...draft.locators,
-                diplomatic: draft.diplomatic,
-                normalized: draft.normalized,
-                translation: draft.translation,
-                notes: draft.notes,
-                ...metadata,
-              }
-            : metadata,
+        raw: active.raw,
+        metadata: newPassage
+          ? {
+              ...active.locators,
+              diplomatic: active.diplomatic,
+              normalized: active.normalized,
+              translation: active.translation,
+              notes: active.notes,
+              ...metadata,
+            }
+          : metadata,
       },
     );
+    assertCurrent();
     return {
       ...preview,
       draftRevisionId: revision,
@@ -666,7 +711,7 @@ export function useStudio() {
     if (sameProject && latest.current.ready) {
       const drafts = { ...latest.current.envelope.drafts };
       for (const item of next.passages) drafts[item.id] = restoreDraft(drafts[item.id], item);
-      replaceEnvelope({ version: 1, projectId: next.id, drafts });
+      replaceEnvelope({ ...latest.current.envelope, version: 1, projectId: next.id, drafts });
     } else {
       latest.current.ready = false;
       setReady(false);
@@ -857,6 +902,100 @@ export function useStudio() {
     });
   }
 
+  async function acceptCandidate(params: {
+    jobId: string;
+    candidateId: string;
+    candidateRevision: string;
+    expectedDraftRevision: string;
+    operationId?: string;
+  }) {
+    if (automaticRefresh.current) await automaticRefresh.current;
+    if (operation.current) throw new Error('Aguarde a operação atual.');
+    const current = latest.current;
+    const previous = current.envelope.drafts[current.selectedId];
+    if (!current.ready || !previous || previous.revisionId !== params.expectedDraftRevision)
+      throw new Error('O rascunho mudou. Compare a proposta com a revisão atual.');
+    operation.current = true;
+    setBusy(true);
+    try {
+      const acceptanceKey = [
+        current.project.id,
+        params.jobId,
+        params.candidateId,
+        params.candidateRevision,
+        params.expectedDraftRevision,
+      ].join('|');
+      let operationId = acceptanceOperations.current.get(acceptanceKey);
+      if (!operationId) {
+        await persist();
+        operationId = params.operationId ?? crypto.randomUUID();
+        acceptanceOperations.current.set(acceptanceKey, operationId);
+      }
+      const accept = () =>
+        invoke<{
+          envelope: DraftEnvelope;
+          draft: Draft;
+          decision: NonNullable<Draft['aiAcceptances']>[number];
+        }>('analysis_accept', {
+          ...params,
+          projectId: current.project.id,
+          operationId,
+        });
+      let accepted;
+      try {
+        accepted = await accept();
+      } catch (reason) {
+        const code = reason && typeof reason === 'object' && 'code' in reason ? reason.code : '';
+        if (!window.studio || !['STALE_ENGINE', 'STALE_SOURCE'].includes(String(code)))
+          throw reason;
+        // Only reuse the explicitly chosen source. A local snapshot refresh does
+        // not resubmit the AI job, and the same command ID preserves crash replay.
+        const refreshed = await window.studio.refreshProject();
+        if (
+          refreshed.id !== current.project.id ||
+          latest.current.project.id !== current.project.id ||
+          latest.current.selectedId !== previous.passageId
+        )
+          throw new Error('O projeto ou a passagem mudou. Abra a proposta novamente.');
+        changeProject(refreshed);
+        if (
+          latest.current.envelope.drafts[previous.passageId]?.revisionId !==
+          params.expectedDraftRevision
+        )
+          throw new Error('O rascunho mudou durante a atualização. Abra a proposta novamente.');
+        await persist();
+        accepted = await accept();
+      }
+      if (latest.current.project.id !== current.project.id)
+        throw new Error(
+          'A proposta foi salva no projeto anterior. Abra-o para revisar o resultado.',
+        );
+      storageRevisions.current[current.project.id] = accepted.envelope.storageRevision ?? 0;
+      history.current[previous.passageId] = [
+        ...(history.current[previous.passageId] ?? []),
+        previous,
+      ].slice(-60);
+      redoHistory.current[previous.passageId] = [];
+      replaceEnvelope(accepted.envelope);
+      acceptanceOperations.current.delete(acceptanceKey);
+      const check = accepted.decision?.revalidation;
+      setVerification(
+        check?.status === 'failed' || check?.status === 'partial'
+          ? 'Proposta aberta no editor. A avaliação atual tem falhas; corrija a árvore antes de publicar.'
+          : check?.changedSinceProposal
+            ? 'Proposta aberta no editor. O resultado mudou com a gramática atual; confira a forma antes de publicar.'
+            : '',
+      );
+      setError('');
+      setSaveState('Proposta aceita no rascunho');
+      track('editor.operation', { action: 'ai.accept' });
+      return accepted;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
+  }
+
   const currentResult =
     editable && draft && isCurrentRender(result, draft, project.engineFingerprint) ? result : null;
   const passageIds = new Set(project.passages.map((item) => item.id));
@@ -906,6 +1045,7 @@ export function useStudio() {
     openProject,
     openExample,
     persist,
+    acceptCandidate,
     envelope,
     orphanDrafts,
   };

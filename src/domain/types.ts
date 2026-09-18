@@ -58,6 +58,29 @@ export interface StudioProject {
   diagnostics: string[];
 }
 export interface Draft {
+  /** Tentative analysis guidance is never a reviewed @target. */
+  aiInput?: { tentativeReading: string; meaning: string; constraints: string };
+  /** Immutable human acceptance receipts; undo changes content, not this history. */
+  aiAcceptances?: {
+    operationId: string;
+    jobId: string;
+    candidateId: string;
+    revalidation?: {
+      engineFingerprint: string;
+      expressionFingerprint: string;
+      sourceFingerprint?: string;
+      at: string;
+      status: 'complete' | 'partial' | 'failed';
+      surface?: string;
+      annotated?: string;
+      changedSinceProposal?: boolean;
+      error?: { code: string; message: string };
+    };
+    candidateRevision: string;
+    baseRevisionId: string;
+    revisionId: string;
+    at: string;
+  }[];
   /** A new passage uses the ordinary editor before a reviewed source append. */
   pending?: { sourceId: string; previousPassageId?: string; ordinal: number };
   /** Detached expressions and layout remain local draft material. */
@@ -108,6 +131,7 @@ export interface RenderRequest {
 }
 export interface DraftEnvelope {
   version: 1;
+  storageRevision?: number;
   projectId: string;
   drafts: Record<string, Draft>;
 }
@@ -120,7 +144,7 @@ export interface StudioBridge {
   refreshProject(): Promise<StudioProject>;
   render(request: RenderRequest): Promise<RenderResult>;
   loadDrafts(projectId: string): Promise<DraftEnvelope | null>;
-  saveDrafts(envelope: DraftEnvelope): Promise<void>;
+  saveDrafts(envelope: DraftEnvelope): Promise<void | { storageRevision: number }>;
 }
 declare global {
   interface Window {

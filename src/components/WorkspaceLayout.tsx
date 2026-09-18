@@ -23,7 +23,8 @@ import {
 import '../workspace.css';
 import { track } from '../domain/usage';
 
-const storageKey = 'pydicate-studio:workspace:v1';
+const storageKey = 'pydicate-studio:workspace:v2';
+const legacyStorageKey = 'pydicate-studio:workspace:v1';
 const titles: Record<WorkspacePane, string> = {
   navigator: 'Passagens',
   editor: 'Editor',
@@ -38,7 +39,9 @@ const positionTitles: Record<DockPosition, string> = {
 export function useWorkspaceLayout() {
   const [state, setState] = useState(() => {
     try {
-      return readWorkspace(localStorage.getItem(storageKey));
+      return readWorkspace(
+        localStorage.getItem(storageKey) ?? localStorage.getItem(legacyStorageKey),
+      );
     } catch {
       return defaultWorkspace();
     }
@@ -55,6 +58,18 @@ export function useWorkspaceLayout() {
   return {
     state,
     error,
+    support(tab: 'source' | 'ai') {
+      setState((current) => ({
+        ...current,
+        supportTab: tab,
+        hidden: { ...current.hidden, source: false },
+        maximized: window.matchMedia('(max-width: 760px)').matches
+          ? 'source'
+          : current.maximized && current.maximized !== 'source'
+            ? null
+            : current.maximized,
+      }));
+    },
     toggle(pane: WorkspacePane) {
       track('editor.operation', { action: 'workspace.toggle', field: pane });
       setState((current) => ({
