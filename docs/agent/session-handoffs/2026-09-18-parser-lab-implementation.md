@@ -79,10 +79,34 @@ Screenshot: `docs/coverage/native-screenshots/parser-lab-first-result.png`.
 
 ## Checks run
 
-`npm run format:check`, `tsc -b`, `npm run build`, `vitest run` (147),
-`npm run test:desktop` (197), `python -m unittest` over `python/tests`,
-`playwright test tests/parser-lab.spec.ts tests/parser-lab-shell.spec.ts`,
-`node scripts/smoke-parser-lab.mjs /Users/kian/code`.
+`npm run format:check`, `tsc -b`, `npm run build`, `vitest run` (147 passed),
+`npm run test:desktop` (197 passed),
+`playwright test tests/parser-lab.spec.ts tests/parser-lab-shell.spec.ts`
+(11 passed), `node scripts/smoke-parser-lab.mjs /Users/kian/code` (11/11 stages),
+and `python -m unittest discover -s python/tests` (215 tests).
+
+### Pre-existing Python failures, not regressions
+
+The repository-wide Python suite ends `FAILED (failures=4, errors=7)` on this
+branch. Every one of them is already failing on clean `main` with the selected
+(newer) dependency revisions. Verified by running the same modules in a separate
+`main` worktree: `test_step_evaluation` fails there on its own
+(`FAILED (failures=1)`), and the other five modules give
+`Ran 69 tests … FAILED (failures=3, errors=7)` with the identical test names.
+
+| Module | Outcome on this branch | Outcome on clean `main` |
+| --- | --- | --- |
+| `test_authoring` | 1 error, 1 failure | same |
+| `test_legacy_composite_review` | 5 errors | same |
+| `test_partial_evaluation` | 1 error | same |
+| `test_lexical_publication` | 1 failure | same |
+| `test_runtime_tree` | 1 failure | same |
+| `test_step_evaluation` | 1 failure | same |
+
+`python/README.md` is the only pre-existing Python file this branch modifies;
+everything else under `python/` is a new file, so these cannot be caused by the
+laboratory. `python/tests/test_parser_lab.py` passes 46/46. No historical source
+or approval was rewritten to make anything green.
 
 ## Remaining questions
 
