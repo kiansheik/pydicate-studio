@@ -1,5 +1,11 @@
 # Work log
 
+## 2026-09-18 - Tupi parser lab research branch
+
+Audited current Studio at `8d21298c41ac5e5a66877b64ed96e02f00d31e56` and reused its documented dependency patches in disposable snapshots. Added a complete agent implementation assignment for a hidden Tupi → Pydicate lab, plus an executable offline probe and result artifact. The plan covers normalization and ambiguity, shared tree/code editing, bounded inverse search, original-expression synthetic targets, durable artifact jobs, an actual small ranker training path, optional neural/MCP proposals and leakage-controlled evaluation.
+
+The probe recovered source expressions for 60/60 sampled combinations using 145 fragments and zero indexed full sentences, rendered `asó xe rokype`, and exercised a real source-span edit producing `asó nde rokype`. It also reproduced the existing decompiler's missing relational prefix and two real dictionary normalization collisions. These checks do not establish historical accuracy, model quality or native UI behavior. No product feature, sibling repository, corpus reference or provider state was changed. See [plan](../design/tupi-parser-lab-implementation.md) and [handoff](session-handoffs/2026-09-18-parser-lab-plan.md).
+
 ## 2026-09-18 - Guided practice and generated Portuguese reference
 
 Mapped all current historical `.tu.py` sources and the shared lexicon, used the local read-only authoring MCP to verify both sources (89 Araújo, 40 Bettendorff records) and inspect/render the five selected examples with annotations. Added isolated guided practice using the existing tree editor, 24 source-comment guides, automatically indexed API/helper implementations and searchable corpus structures. `npm run build` regenerates the reference; changed lesson analyses or approvals require review. Questions carry only the lesson attempt into the existing explanation provider. No grammar, corpus, ground-truth or existing private drafts were edited.

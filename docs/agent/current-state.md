@@ -1,5 +1,13 @@
 # Current state
 
+## Tupi parser lab research and implementation plan
+
+Branch `codex/tupi-parser-lab` contains a [complete implementation assignment](../design/tupi-parser-lab-implementation.md) for a hidden experimental normalized-Tupi → Pydicate workspace. No product tab or training service is implemented by this research commit. The plan reuses the current isolated learning workspace, shared source/tree editor, bounded interpreter, structure retrieval, durable job ownership and existing MCP/provider loop.
+
+A [bounded offline probe](../evaluation/parser-lab-probe.json) generated 145 fragments and recovered the original expressions for 60/60 sampled combinations in one declared grammar family, with no full sentences indexed. `asoxerokype` produced `(+ixé * só) + (pe * (ixé * oka))`, complete engine morphology and an editable ten-node source tree. The actual source-span edit primitive changed the possessor to `nde` and rendered `asó nde rokype`. This is synthetic composition evidence, not historical accuracy or native UI verification. Dictionary accent collisions were recorded; the existing gold-annotation decompiler still loses the relational `r` in this example.
+
+Only disposable dependency copies received the existing documented patches; sibling repositories, corpus references and product code were unchanged. No training or provider inference was run. See the [research handoff](session-handoffs/2026-09-18-parser-lab-plan.md) for reproducibility and the next task.
+
 ## Guided learning and source-generated reference
 
 **Aprender** opens five Brazilian Portuguese lessons, budgeted at ten minutes: lexical reuse/arguments, nested possession and permissive, omission/imperative/negation, variant/nominal base, and larger postpositional/compositional constructions. The actual tree editor runs in isolated practice state, with saved progress/loose pieces, hints, confirmed stage-model replacement, undo and comprehension questions. Completion compares source structure, surface and annotations using the selected local engine. Corpus drafts, source publication and reference approval are untouched.
