@@ -1,6 +1,6 @@
 # Aprender e referência gerada
 
-O botão **Aprender** abre a prática sem mudar o rascunho nem a disposição dos painéis. As cinco lições somam uma estimativa de dez minutos; esse tempo ainda precisa ser medido com usuários iniciantes.
+O botão **Aprender** abre a prática sem mudar o rascunho nem a disposição dos painéis. **Referência**, também no cabeçalho do Studio, abre diretamente a consulta. As cinco lições somam uma estimativa de dez minutos; esse tempo ainda precisa ser medido com usuários iniciantes. O verbete **Comece aqui** oferece o roteiro e caminhos para continuar depois das lições.
 
 | Lição | Minutos | Registro de Araújo | Construções |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ As lições usam exemplos integrais que têm referência aprovada. Os exemplos d
 - `python/learning_library.py`: comentário de módulo com `@studio-lessons` seguido de uma lista JSON. Cada lição declara fonte, ordinal, etapas, dicas e pergunta de compreensão. A última etapa deve ter exatamente a estrutura da fonte, desconsiderando apenas formatação e parênteses redundantes.
 - `src/domain/operation-terms.ts`: verbetes junto às operações do editor.
 - `src/components/LearningWorkspace.tsx`: verbetes sobre a interação e o fluxo de revisão.
-- Métodos em `nhe-enga/pydicate/pydicate/**/*.py`: uma docstring pode conter `@studio-guide` e o mesmo objeto JSON. Assinaturas e docstrings técnicas já entram automaticamente na seção **Implementação**, sem necessidade de duplicação manual.
+- Arquivos em `nhe-enga/pydicate/pydicate/**/*.py` e `oldtupicorpus/historic/*.tu.py`, inclusive o léxico: comentários Python em linhas próprias e docstrings de módulo, classe ou função podem conter `@studio-guide` e o mesmo objeto JSON. Cada verbete guarda arquivo e linha. Assinaturas e docstrings técnicas do motor já entram automaticamente na seção **Implementação**, sem necessidade de duplicação manual.
 - Lambdas nos `.tu.py`: definições de helpers são indexadas automaticamente, com assinatura, código e localização. Todas as expressões das fontes históricas entram na seção **Exemplos**, com operações usadas e comparação de referência.
 
 Exemplo de comentário JSDoc, inserido junto à operação que ele descreve:
@@ -37,7 +37,25 @@ Exemplo de comentário JSDoc, inserido junto à operação que ele descreve:
 */
 ```
 
-Identificadores precisam ser únicos. JSON inválido, campos obrigatórios ausentes e referências de lições sem verbete falham na geração. `api` e `related` são opcionais. A docstring técnica original pode estar em outro idioma; o verbete destinado ao usuário deve ser escrito em português brasileiro. Exemplos explicativos de verbetes não recebem selo de aprovação: esse estado pertence aos registros do corpus.
+Em Python, o mesmo formato pode ficar junto à construção, sem mudar seu valor:
+
+```py
+# @studio-guide
+# {
+#   "id": "crer-no-espirito-santo",
+#   "title": "Reutilizar uma construção nomeada",
+#   "terms": ["arobiar", "crer", "Espírito Santo"],
+#   "body": "arobiar já reúne o sujeito omitido e o verbo. A outra peça completa a construção.",
+#   "ui": "Busque Espírito Santo e conecte ao conjunto arobiar com Vincular argumento (*).",
+#   "code": "arobiar * espirito_santo",
+#   "related": ["lexico", "vincular"]
+# }
+l += arobiar * espirito_santo
+```
+
+Mantenha o bloco de comentários contíguo. Texto em strings comuns e comentários após código na mesma linha não são tratados como diretivas. A extração usa tokens e AST, sem executar o conteúdo da documentação.
+
+Identificadores precisam ser únicos. JSON inválido, campos obrigatórios ausentes ou com tipo incorreto, IDs duplicados e links `related` inexistentes falham com arquivo e linha na mensagem. Referências de lições sem verbete também falham na geração. `api` e `related` são opcionais. A docstring técnica original pode estar em outro idioma; o verbete destinado ao usuário deve ser escrito em português brasileiro. Exemplos explicativos de verbetes não recebem selo de aprovação: esse estado pertence aos registros do corpus.
 
 ## Geração e atualização
 
@@ -50,13 +68,15 @@ npm run test:learning
 
 `PYDICATE_PROJECT_PARENT` seleciona a pasta que contém os clones `oldtupicorpus` e `nhe-enga`; por padrão é a pasta-pai do Studio. `scripts/build-learning.py --parent /caminho` aceita seleção explícita. `STUDIO_TEST_PORT` altera a porta dos testes de aprendizagem, cujo padrão é 5197; esses testes não reutilizam um servidor já aberto.
 
-O arquivo `src/generated/learning.json` é uma saída gerada, não um segundo lugar para editar a documentação. O build a regenera obrigatoriamente; `docs:check` compara bytes determinísticos. O navegador sem Electron usa esse registro como consulta e não afirma ter executado o motor local. No desktop, a operação read-only `learning_library` reconstrói o material no projeto selecionado, em processo Python novo, e verifica o fingerprint antes e depois. O cache também acompanha alterações na documentação do Studio. Atualizações de corpus/gramática invalidam o progresso antigo, preservado em chave separada.
+O arquivo `src/generated/learning.json` é uma saída gerada, não um segundo lugar para editar a documentação. O build a regenera obrigatoriamente; `docs:check` compara bytes determinísticos. O navegador sem Electron usa esse registro como consulta e não afirma ter executado o motor local. No desktop, a operação read-only `learning_library` reconstrói o material no projeto selecionado, em processo Python novo, e verifica o fingerprint antes e depois. Uma versão desatualizada provoca uma atualização do projeto e uma repetição da leitura, sem repetir gravações nem solicitações de IA. O cache também acompanha alterações na documentação do Studio. Atualizações de corpus/gramática invalidam o progresso antigo, preservado em chave separada.
 
 Uma lição é desativada quando muda sua estrutura-fonte, quando perde uma referência aprovada, quando o alvo declarado diverge ou quando falha a avaliação final. O build falha nesse caso e exige revisão do comentário da lição; não reescreve a fonte nem a referência para recuperar a coincidência. Etapas parciais intencionais declaram `partialExpected` e precisam de explicação própria. Atualmente isso ocorre antes da base nominal na lição 4.
 
 ## Prática e perguntas
 
-O componente usa o editor real `PydicateTree`/`ExpressionCanvas`, os mesmos parsers e o mesmo motor. Tentativa, peças soltas, etapa, resposta e conclusão ficam em armazenamento separado de progresso; os dados de floresta passam pelo validador existente ao restaurar. Modelos exigem confirmação antes de substituir a tentativa, e há desfazer. A conclusão exige mesma estrutura, forma e anotação do exemplo final, avaliação completa e resposta correta à pergunta. Não é uma aprovação linguística de análises alternativas.
+O componente usa o editor real `PydicateTree`/`ExpressionCanvas`, os mesmos parsers e o mesmo motor. Tentativa, peças soltas, etapa, resposta e conclusão ficam em armazenamento separado de progresso; os dados de floresta passam pelo validador existente ao restaurar. **Próxima etapa** muda a orientação preservando a árvore. Cada orientação descreve a montagem-alvo de seu próprio `raw`, e o aviso de conferência compara estrutura, forma, anotação e estado de avaliação dessa etapa. Modelos exigem confirmação antes de substituir a tentativa, e há desfazer. A conclusão exige mesma estrutura, forma e anotação do exemplo final, avaliação completa e resposta correta à pergunta. Não é uma aprovação linguística de análises alternativas.
+
+As dicas explicam diferenças entre peças isoladas e conjuntos: `arobiar` sozinho realiza `xererobîar`, enquanto a construção da lição realiza `arobîar Espírito Santo`; `+nde` sozinho ainda mostra `endé`, mas sua omissão aparece dentro de `+nde * mondarõ`. Os testes de navegador incluem montar a primeira lição pela busca e pelos conectores do mouse, sem instalar um modelo nem digitar código.
 
 **Tenho uma dúvida** oferece verbetes relacionados e uma pergunta explícita ao provedor configurado. O serviço de explicação recebe a expressão da prática e a passagem da lição, nunca o rascunho que ficou por trás do diálogo. Respostas ficam no histórico existente do provedor, filtradas pela lição; cancelar não apaga o histórico. Testes simulam o provedor, sem inferência paga. A nova fila de reconstrução não é usada para perguntas didáticas, que não precisam de transcrição nem de PDF.
 

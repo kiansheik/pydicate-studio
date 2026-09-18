@@ -1,5 +1,11 @@
 # Work log
 
+## 2026-09-18 - Tutorial stage guidance and source-comment audit
+
+Audited the existing learning workspace against the actual read-only authoring MCP: all 129 references agree and all five final lesson trees match approved Araújo expressions. Aligned each stage prompt with its own target, explained isolated arobiar and omission behavior, added visible stage navigation and evaluated feedback, a beginner roadmap and direct Referência entry. The library now extracts standalone Python comments and actual module/class/function docstrings from both engine and historic sources, with file/line attribution and strict metadata/link validation. Stale library reads use the existing one-refresh recovery path.
+
+Production build, 15 focused domain/recovery checks, 11 Python curriculum/comment checks and all five browser scenarios pass across suite/focused runs. The added scenario builds lesson 1 through word search and mouse connections. Source/reference hashes remain unchanged; providers are simulated. An ambiguous reference-test selector was scoped to its result list. A focused rerun during simultaneous source generation correctly rejected a changing fingerprint; reruns use settled source files. Documentation explains source-comment authoring and partial-step contracts. See [handoff](session-handoffs/2026-09-18-learning-source-audit.md).
+
 ## 2026-09-18 - Guided practice and generated Portuguese reference
 
 Mapped all current historical `.tu.py` sources and the shared lexicon, used the local read-only authoring MCP to verify both sources (89 Araújo, 40 Bettendorff records) and inspect/render the five selected examples with annotations. Added isolated guided practice using the existing tree editor, 24 source-comment guides, automatically indexed API/helper implementations and searchable corpus structures. `npm run build` regenerates the reference; changed lesson analyses or approvals require review. Questions carry only the lesson attempt into the existing explanation provider. No grammar, corpus, ground-truth or existing private drafts were edited.

@@ -701,7 +701,7 @@
       "sourceRaw": "(arobiar * espirito_santo)",
       "sourceLine": 113,
       "recordId": "araujo_catecismo_1686:0038",
-      "sourceHash": "9443765d637d17d226823c6e2fa08fe725e59038a8e39363ceedea11e3f5cd34"
+      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
     },
     {
       "id": "posse-modo",
@@ -2212,7 +2212,7 @@
       "sourceRaw": "(ur * (nde * reino)).perm()",
       "sourceLine": 19,
       "recordId": "araujo_catecismo_1686:0005",
-      "sourceHash": "9443765d637d17d226823c6e2fa08fe725e59038a8e39363ceedea11e3f5cd34"
+      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
     },
     {
       "id": "omitir-negar",
@@ -3861,7 +3861,7 @@
       "sourceRaw": "-(+nde * mondarõ).imp()",
       "sourceLine": 213,
       "recordId": "araujo_catecismo_1686:0069",
-      "sourceHash": "9443765d637d17d226823c6e2fa08fe725e59038a8e39363ceedea11e3f5cd34"
+      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
     },
     {
       "id": "variante-nominal",
@@ -4997,9 +4997,9 @@
       "reason": "",
       "reference": "nhemombe'u",
       "sourceRaw": "(((((((((mombeu)) * ((nhe)))).var(1)))))).base_nominal()",
-      "sourceLine": 260,
+      "sourceLine": 266,
       "recordId": "araujo_catecismo_1686:0085",
-      "sourceHash": "9443765d637d17d226823c6e2fa08fe725e59038a8e39363ceedea11e3f5cd34"
+      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
     },
     {
       "id": "reunir",
@@ -8077,10 +8077,10 @@
       "available": true,
       "reason": "",
       "reference": "asé re'õ îanondé nhandykaraíbarara",
-      "sourceRaw": "((ianonde) * ((asé) * (eo))) + (((((((nhandy) / (karaiba)) * (îar)).var(1)).base_nominal())))",
-      "sourceLine": 268,
+      "sourceRaw": "((ianonde) * ((asé) * (eo))) + (\n    ((((((nhandy) / (karaiba)) * (îar)).var(1)).base_nominal()))\n)",
+      "sourceLine": 274,
       "recordId": "araujo_catecismo_1686:0086",
-      "sourceHash": "9443765d637d17d226823c6e2fa08fe725e59038a8e39363ceedea11e3f5cd34"
+      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
     }
   ],
   "guides": [
@@ -8211,7 +8211,7 @@
         "gerar",
         "agente"
       ],
-      "body": "O build reúne verbetes escritos em comentários do Studio e em docstrings do motor, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.",
+      "body": "O build reúne verbetes escritos em comentários do Studio, comentários e docstrings Python do motor e das fontes .tu.py, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.",
       "ui": "Busque um assunto em Guia, uma assinatura em Implementação ou uma construção em Exemplos. Dentro de cada verbete há o caminho da fonte. No aplicativo desktop, a biblioteca é reconstruída para o projeto local aberto.",
       "code": "npm run docs:build\nnpm run docs:check",
       "related": [
@@ -9619,128 +9619,128 @@
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:250",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:249",
       "name": "__truediv__",
       "owner": "Noun",
       "signature": "__truediv__(self, modifier)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:250",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:249",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:262",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:261",
       "name": "__init__",
       "owner": "VocativeNoun",
       "signature": "__init__(self, noun: Noun)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:262",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:261",
       "docstring": "",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:275",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:274",
       "name": "__add__",
       "owner": "VocativeNoun",
       "signature": "__add__(self, other)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:275",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:274",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:280",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:279",
       "name": "__init__",
       "owner": "Conjunction",
       "signature": "__init__(self, value, definition='', tag='[CONJUNCTION]', category='conjunction')",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:280",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:279",
       "docstring": "Initialize a Conjunction object.",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:296",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:295",
       "name": "preval",
       "owner": "Conjunction",
       "signature": "preval(self, annotated=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:296",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:295",
       "docstring": "Evaluate the Conjunction object.",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:326",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:325",
       "name": "inflection",
       "owner": "Conjunction",
       "signature": "inflection(self)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:326",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:325",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:341",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:340",
       "name": "__add__",
       "owner": "Conjunction",
       "signature": "__add__(self, other)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:341",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:340",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:349",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:348",
       "name": "__mul__",
       "owner": "Conjunction",
       "signature": "__mul__(self, other)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:349",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:348",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:364",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:363",
       "name": "base_nominal",
       "owner": "Conjunction",
       "signature": "base_nominal(self, annotated=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:364",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:363",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:369",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:368",
       "name": "__init__",
       "owner": "ProperNoun",
       "signature": "__init__(self, value, tag='[PROPER_NOUN]', category='proper_noun', definition='')",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:369",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:368",
       "docstring": "",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:381",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:380",
       "name": "noun_function",
       "owner": "ProperNoun",
       "signature": "noun_function(self, neg=False, annotated=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:381",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:380",
       "docstring": "Return the noun in its base form.",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:389",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:388",
       "name": "__init__",
       "owner": "Pronoun",
       "signature": "__init__(self, inflection_or_verbete, pro_drop=False, definition='', tag='[PRONOUN]', category='pronoun', inflection_override=None)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:389",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:388",
       "docstring": "Initialize a Pronoun object.",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:420",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:419",
       "name": "noun_function",
       "owner": "Pronoun",
       "signature": "noun_function(self, neg=False, annotated=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:420",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:419",
       "docstring": "Return the noun in its base form.",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:430",
+      "id": "pydicate/pydicate/lang/tupilang/pos/noun.py:427",
       "name": "inflection",
       "owner": "Pronoun",
       "signature": "inflection(self, setter=None)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:430",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/noun.py:427",
       "docstring": "",
       "editorSupported": true
     },
@@ -9997,11 +9997,11 @@
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/suffix.py:20",
+      "id": "pydicate/pydicate/lang/tupilang/pos/suffix.py:22",
       "name": "attach",
       "owner": "SizeSuffix",
       "signature": "attach(self, base)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/suffix.py:20",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/suffix.py:22",
       "docstring": "",
       "editorSupported": false
     },
@@ -10159,83 +10159,83 @@
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:661",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:662",
       "name": "__init__",
       "owner": "IncorporatedObjectVerb",
       "signature": "__init__(self, noun, verb)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:661",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:662",
       "docstring": "",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:697",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:705",
       "name": "var",
       "owner": "IncorporatedObjectVerb",
       "signature": "var(self, setter)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:697",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:705",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:708",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:716",
       "name": "__mul__",
       "owner": "IncorporatedObjectVerb",
       "signature": "__mul__(self, other)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:708",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:716",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:722",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:730",
       "name": "preval",
       "owner": "IncorporatedObjectVerb",
       "signature": "preval(self, annotated=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:722",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:730",
       "docstring": "",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:726",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:736",
       "name": "base_nominal",
       "owner": "IncorporatedObjectVerb",
       "signature": "base_nominal(self, annotated=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:726",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:736",
       "docstring": "",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:755",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:765",
       "name": "__init__",
       "owner": "VerbAugmentor",
       "signature": "__init__(self, value='mo', definition='to make another do another verb', tag='[CAUSATIVE_PREFIX:MO]', category='verb_transitivizer', ero_switch=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:755",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:765",
       "docstring": "",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:773",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:783",
       "name": "__mul__",
       "owner": "VerbAugmentor",
       "signature": "__mul__(self, other)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:773",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:783",
       "docstring": "Divide a Transitivizer with another object.\n:param other: The object to divide with.\n:return: A new Transitivizer with the added argument.",
       "editorSupported": true
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:819",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:829",
       "name": "preval",
       "owner": "VerbAugmentor",
       "signature": "preval(self, annotated=False)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:819",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:829",
       "docstring": "",
       "editorSupported": false
     },
     {
-      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:830",
+      "id": "pydicate/pydicate/lang/tupilang/pos/verb.py:838",
       "name": "from_existing",
       "owner": "VerbAugmentor",
       "signature": "from_existing(cls, original: Verb)",
-      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:830",
+      "source": "nhe-enga/pydicate/pydicate/lang/tupilang/pos/verb.py:838",
       "docstring": "",
       "editorSupported": false
     },
@@ -11997,7 +11997,7 @@
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 80,
       "line": 232,
-      "raw": "((((iabiõ * n(opakombó)) + (\n    (supé * tupan) + (oîepé * (mbae * (asé * moîaoka)).base_nominal())\n)))\n)",
+      "raw": "(iabiõ * n(opakombó)) + (\n    (supé * tupan) + (oîepé * (mbae * (asé * moîaoka)).base_nominal())\n)",
       "surface": "opakombó îabi'õ Tupã supé oîepé asé mba'emoîa'oka",
       "reference": "opakombó îabi'õ Tupã supé oîepé asé mba'emoîa'oka",
       "status": "verified",
@@ -12013,7 +12013,7 @@
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 81,
       "line": 236,
-      "raw": "(pupé * ((pûera * (og * (emi * tym))) / ypy)) + (tupan * (potaba / meeng).var(1)).base_nominal() + no",
+      "raw": "(\n    (pupé * ((pûera * (og * (emi * tym))) / ypy))\n    + (tupan * (potaba / meeng).var(1)).base_nominal()\n    + no\n)",
       "surface": "oemitymbûerypy pupé Tupã potame'enga no",
       "reference": "oemitymbûerypy pupé Tupã potame'enga no",
       "status": "verified",
@@ -12029,7 +12029,7 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 82,
-      "line": 240,
+      "line": 243,
       "raw": "((ae * karaiba) * pupé) + (îe * moîasuk).var(((1))).base_nominal()",
       "surface": "i karaíba pupé îemboîasuka",
       "reference": "i karaíba pupé îemboîasuka",
@@ -12045,8 +12045,8 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 83,
-      "line": 249,
-      "raw": "((((pe) * ((asé) * (syba_2f344911))) + (((abareguasu) * (nong)) * ((nhandy) / (karaiba)))).base_nominal())",
+      "line": 252,
+      "raw": "(\n    ((pe) * ((asé) * (syba_2f344911)))\n    + (((abareguasu) * (nong)) * ((nhandy) / (karaiba)))\n).base_nominal()",
       "surface": "asé sybápe abaregûasu nhandykaraíbanonga",
       "reference": "asé sybápe abaregûasu nhandykaraíbanonga",
       "status": "verified",
@@ -12061,7 +12061,7 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 84,
-      "line": 254,
+      "line": 260,
       "raw": "(tupan * îar).var(1).base_nominal()",
       "surface": "Tupãrara",
       "reference": "Tupãrara",
@@ -12076,7 +12076,7 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 85,
-      "line": 260,
+      "line": 266,
       "raw": "(((((((((mombeu)) * ((nhe)))).var(1)))))).base_nominal()",
       "surface": "nhemombe'u",
       "reference": "nhemombe'u",
@@ -12091,8 +12091,8 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 86,
-      "line": 268,
-      "raw": "((ianonde) * ((asé) * (eo))) + (((((((nhandy) / (karaiba)) * (îar)).var(1)).base_nominal())))",
+      "line": 274,
+      "raw": "((ianonde) * ((asé) * (eo))) + (\n    ((((((nhandy) / (karaiba)) * (îar)).var(1)).base_nominal()))\n)",
       "surface": "asé re'õ îanondé nhandykaraíbarara",
       "reference": "asé re'õ îanondé nhandykaraíbarara",
       "status": "verified",
@@ -12108,7 +12108,7 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 87,
-      "line": 276,
+      "line": 284,
       "raw": "nhemoabare",
       "surface": "nhemoabaré",
       "reference": "nhemoabaré",
@@ -12119,7 +12119,7 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 88,
-      "line": 284,
+      "line": 292,
       "raw": "mendara",
       "surface": "mendara",
       "reference": "mendara",
@@ -12130,8 +12130,8 @@
     {
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 89,
-      "line": 292,
-      "raw": "(sete) * ((opakatu) + (((saba) * ((((nhe)) * (((angaipaba)) * (monhang))))) / (ypy)))",
+      "line": 300,
+      "raw": "(sete) * (\n    (opakatu) + (((saba) * ((((nhe)) * (((angaipaba)) * (monhang))))) / (ypy))\n)",
       "surface": "sete opakatu angaîpaba nhemonhangabypy",
       "reference": "sete opakatu angaîpaba nhemonhangabypy",
       "status": "verified",
@@ -12782,5 +12782,5 @@
     "bettendorff_compendio"
   ],
   "verifiedCount": 129,
-  "contentId": "fdc67d6995db734762572c0fa6360a136f650f81afa64f33684421bd740af4e3"
+  "contentId": "e5c9809dc1dff9362f5904a15b1bb515a760713bd32fc4227f698d52c44b8732"
 }

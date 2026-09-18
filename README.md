@@ -29,7 +29,7 @@ This milestone depends on actual uncommitted corpus/engine modifications. A HEAD
 
 ## Daily workflow
 
-**Aprender** opens five guided lessons (about ten minutes) in Brazilian Portuguese, using preserved corpus examples and the same tree editor in an isolated practice workspace. Progress, hints, stage models, undo and optional questions to the configured AI provider are available. The searchable **Referência** links concepts to UI actions, code, current implementation signatures and examples from both historic sources. Browser-only mode shows compiled examples; live editing and checking require the desktop project. No tutorial attempt publishes corpus or reference changes.
+**Aprender** opens five guided lessons (about ten minutes) in Brazilian Portuguese, using preserved corpus examples and the same tree editor in an isolated practice workspace. Progress, step-by-step checks, hints, stage models, undo and optional questions to the configured AI provider are available. **Referência** also opens directly from the header and links concepts to UI actions, code, current implementation signatures and examples from both historic sources. Start with **Comece aqui** for the beginner roadmap. Browser-only mode shows compiled examples; live editing and checking require the desktop project. No tutorial attempt publishes corpus or reference changes.
 
 The build regenerates this material from source comments/docstrings and local `.tu.py`/ground-truth records. Run `npm run docs:build`, `npm run docs:check`, and `npm run test:learning`; set `PYDICATE_PROJECT_PARENT` for non-sibling repositories. See [maintaining the learning reference](docs/design/learning.md).
 

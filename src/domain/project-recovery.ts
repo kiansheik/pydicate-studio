@@ -29,6 +29,7 @@ const retryable = new Set([
   'dictionary_search',
   'predicate_catalog',
   'lexicon_search',
+  'learning_library',
 ]);
 const refreshable = new Set([
   ...retryable,

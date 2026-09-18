@@ -30,15 +30,18 @@ describe('automatic read-only project recovery', () => {
     expect(serviceError(other)).toBe(other);
   });
 
-  it('refreshes a stale search once and retries with the current engine', async () => {
-    const { refresh } = setup();
-    const request = vi.fn().mockRejectedValueOnce(stale()).mockResolvedValueOnce('result');
-    await expect(
-      withProjectRecovery('dictionary_lookup', { query: 'tym', engineFingerprint: 'old' }, request),
-    ).resolves.toBe('result');
-    expect(refresh).toHaveBeenCalledExactlyOnceWith('project');
-    expect(request).toHaveBeenLastCalledWith({ query: 'tym', engineFingerprint: 'new' });
-  });
+  it.each(['dictionary_lookup', 'learning_library'])(
+    'refreshes a stale %s once and retries with the current engine',
+    async (method) => {
+      const { refresh } = setup();
+      const request = vi.fn().mockRejectedValueOnce(stale()).mockResolvedValueOnce('result');
+      await expect(
+        withProjectRecovery(method, { query: 'tym', engineFingerprint: 'old' }, request),
+      ).resolves.toBe('result');
+      expect(refresh).toHaveBeenCalledExactlyOnceWith('project');
+      expect(request).toHaveBeenLastCalledWith({ query: 'tym', engineFingerprint: 'new' });
+    },
+  );
 
   it('does not loop when files keep changing', async () => {
     const { refresh } = setup();

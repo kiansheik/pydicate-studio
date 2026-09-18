@@ -49,7 +49,7 @@ import '../learning.css';
 {"id":"referencia","title":"Forma, análise e referência não são a mesma coisa","terms":["ground truth","referência","concluída","publicar","aprovar","morfema","SUBJECT","OBJECT","erro"],"body":"A forma é a realização produzida pelo motor. A análise é a estrutura que a produziu. A referência é o registro revisado preservado no corpus. Dois códigos podem dar a mesma forma sem fazer a mesma afirmação gramatical. Confira as anotações SUBJECT e OBJECT; não infira papéis de uma tradução automática.","ui":"Compare a forma realizada, Morfemas e Código. No trabalho normal, revise a diferença antes de publicar na fonte. Aprovar Ground Truth é uma ação separada. As tentativas do tutorial nunca publicam nem aprovam registros.","code":"-(+nde * mondarõ).imp()","related":["editor","escopo"]}
 */
 /** @studio-guide
-{"id":"documentacao","title":"Como esta referência acompanha o código","terms":["documentação","implementação","build","docstring","comentário","gerar","agente"],"body":"O build reúne verbetes escritos em comentários do Studio e em docstrings do motor, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.","ui":"Busque um assunto em Guia, uma assinatura em Implementação ou uma construção em Exemplos. Dentro de cada verbete há o caminho da fonte. No aplicativo desktop, a biblioteca é reconstruída para o projeto local aberto.","code":"npm run docs:build\nnpm run docs:check","related":["referencia"]}
+{"id":"documentacao","title":"Como esta referência acompanha o código","terms":["documentação","implementação","build","docstring","comentário","gerar","agente"],"body":"O build reúne verbetes escritos em comentários do Studio, comentários e docstrings Python do motor e das fontes .tu.py, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.","ui":"Busque um assunto em Guia, uma assinatura em Implementação ou uma construção em Exemplos. Dentro de cada verbete há o caminho da fonte. No aplicativo desktop, a biblioteca é reconstruída para o projeto local aberto.","code":"npm run docs:build\nnpm run docs:check","related":["referencia"]}
 */
 
 const bundled = compiled as unknown as LearningLibrary;
@@ -394,7 +394,9 @@ function LessonPractice({
                   ? 'Estrutura desta etapa conferida. A forma fica completa nas próximas operações.'
                   : state.step < lesson.steps.length - 1
                     ? 'Etapa conferida. Continue em Próxima etapa; sua árvore será mantida.'
-                    : 'Montagem conferida. Responda à pergunta para concluir a lição.'
+                    : state.complete
+                      ? 'Lição concluída. Você pode continuar ou explorar esta árvore.'
+                      : 'Montagem conferida. Responda à pergunta para concluir a lição.'
                 : 'Monte o conjunto descrito nesta etapa. Você pode consultar a dica ou abrir o modelo.'}
           </p>
         )}

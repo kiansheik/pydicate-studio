@@ -172,6 +172,9 @@ test('a beginner builds the first lesson with word search and tree connectors', 
   await expect(page.getByRole('status', { name: 'Conferência da lição' })).toContainText(
     'Lição concluída:',
   );
+  await expect(feedback).toHaveText(
+    'Lição concluída. Você pode continuar ou explorar esta árvore.',
+  );
   expect(requests.some((request) => request.method === 'structure_search')).toBe(true);
   expect(requests.some((request) => request.method === 'structure_resolve')).toBe(true);
   expect(
