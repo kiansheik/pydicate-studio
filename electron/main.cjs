@@ -543,6 +543,8 @@ if (!app.requestSingleInstanceLock()) {
         stateDirectory: app.getPath('userData'),
         emit,
         getProject: () => activeProject,
+        getParent: () => projectParent,
+        applicationDirectory,
         getWorker: () => worker,
         openPath,
         reloadProject: (projectId) =>

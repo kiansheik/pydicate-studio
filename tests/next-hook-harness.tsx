@@ -480,6 +480,53 @@ function answer(method: string, params: Record<string, unknown>): unknown {
     };
     return { project: structuredClone(control.project), approval: { simulated: true } };
   }
+  // Simulated laboratory bridge: enough to exercise the hidden tab shell.
+  // Real analysis, engine morphology and tree editing are proved by
+  // tests/parser-lab.spec.ts against the actual Python laboratory worker.
+  if (method === 'parser_lab_status')
+    return {
+      projectId: control.project.id,
+      engineFingerprint: control.project.engineFingerprint,
+      artifactRoot: '/SIMULATED/parser-lab',
+      artifacts: [],
+      active: {},
+      interrupted: [],
+      exists: false,
+      profiles: [
+        {
+          profile: 'smoke',
+          label: 'Amostra mínima',
+          description: 'SIMULADO',
+          families: ['verb_clause'],
+          rootRules: ['clause'],
+          limits: { examples: 600 },
+          holdout: { lexemes: [], families: [] },
+          estimatedBytes: 900000,
+          inventoryCounts: { pronoun: 3 },
+        },
+      ],
+      jobs: [],
+      busy: false,
+      workerRunning: false,
+      note: 'SIMULADO',
+    };
+  if (method === 'parser_lab_job_start')
+    return {
+      id: 'simulated-job',
+      stage: params.stage,
+      profile: params.profile ?? null,
+      status: 'running',
+      phase: 'starting',
+      progress: [],
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      artifactId: null,
+      error: null,
+      result: null,
+    };
+  if (method === 'parser_lab_jobs') return { jobs: [], busy: false };
+  if (method.startsWith('parser_lab_'))
+    throw new Error('SIMULADO: prepare a linha de base antes de analisar.');
   throw new Error(`Unexpected simulated operation: ${method}`);
 }
 async function bridgeRequest(method: string, params: Record<string, unknown> = {}) {

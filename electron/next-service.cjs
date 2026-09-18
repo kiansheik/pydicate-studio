@@ -5,6 +5,7 @@ const { createEvidenceService } = require('./evidence-service.cjs');
 const { createProviderService } = require('./provider-service.cjs');
 const { createLexicalNotesService } = require('./lexical-notes-service.cjs');
 const { createAnalysisService } = require('./analysis-service.cjs');
+const { createParserLabService } = require('./parser-lab-service.cjs');
 const METHODS = new Set([
   'learning_library',
   'parse_expression',
@@ -153,6 +154,15 @@ function createNextService(options) {
         },
       })
     : null;
+  // Hidden experimental laboratory. Constructed here so its job records and
+  // artifacts are project scoped, but it starts no process until asked.
+  const parserLab = createParserLabService({
+    stateDirectory: path.join(stateDirectory, 'parser-lab'),
+    emit,
+    getProject,
+    getParent: options.getParent,
+    applicationDirectory: options.applicationDirectory ?? path.resolve(__dirname, '..'),
+  });
   async function invoke(method, params = {}) {
     if (
       typeof method !== 'string' ||
@@ -220,6 +230,7 @@ function createNextService(options) {
         throw new Error('Abra o projeto correto para consultar as notas lexicais.');
       return lexicalNotes.invoke(method, params);
     }
+    if (method.startsWith('parser_lab_')) return parserLab.invoke(method, params);
     if (method.startsWith('analysis_')) {
       if (!analysis) throw new Error('O serviço de análise não está disponível.');
       return analysis.invoke(method, params);
@@ -240,10 +251,12 @@ function createNextService(options) {
   return {
     invoke,
     analysis,
+    parserLab,
     saveSession: save,
-    hasWork: () => analysis?.hasWork() ?? false,
+    hasWork: () => (analysis?.hasWork() ?? false) || parserLab.hasWork(),
     close: async () => {
       await analysis?.close();
+      await parserLab.close();
       await provider.close();
       await writes;
     },

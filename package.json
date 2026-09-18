@@ -34,7 +34,9 @@
     "eval:authoring:build": "python3 -B scripts/build-authoring-eval.py",
     "test:smoke:example": "node scripts/smoke-desktop.mjs",
     "usage": "node scripts/usage-report.cjs",
-    "test:session": "node scripts/smoke-session.mjs"
+    "test:session": "node scripts/smoke-session.mjs",
+    "test:smoke:parser-lab": "node scripts/smoke-parser-lab.mjs",
+    "parser-lab": "python3 -B scripts/parser-lab/cli.py"
   },
   "dependencies": {
     "@napi-rs/canvas": "0.1.100",

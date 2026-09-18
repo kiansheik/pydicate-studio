@@ -1,0 +1,98 @@
+[
+  {
+    "input": "Asó xe rokype",
+    "normalized": "asoxerokype"
+  },
+  {
+    "input": "ASOXEROKYPE",
+    "normalized": "asoxerokype"
+  },
+  {
+    "input": "a so xé ró kŷ pe",
+    "normalized": "asoxerokype"
+  },
+  {
+    "input": "AsÓ   Xe\tRokype",
+    "normalized": "asoxerokype"
+  },
+  {
+    "input": "Açó xe rokîpe",
+    "normalized": "acoxerokipe"
+  },
+  {
+    "input": "ereso nde rokype",
+    "normalized": "eresonderokype"
+  },
+  {
+    "input": "amém",
+    "normalized": "amem"
+  },
+  {
+    "input": "tuba ta'yra Espírito Santo rera pupé",
+    "normalized": "tubata'yraespiritosantorerapupe"
+  },
+  {
+    "input": "mombe’u",
+    "normalized": "mombe'u"
+  },
+  {
+    "input": "mombeʼu",
+    "normalized": "mombe'u"
+  },
+  {
+    "input": "Asó, xe rokype.",
+    "normalized": "asoxerokype"
+  },
+  {
+    "input": "  xe  roka  ",
+    "normalized": "xeroka"
+  },
+  {
+    "input": "ÎANDÉ ÎARA",
+    "normalized": "iandeiara"
+  },
+  {
+    "input": "pu'ir",
+    "normalized": "pu'ir"
+  },
+  {
+    "input": "a só",
+    "normalized": "aso"
+  },
+  {
+    "input": "nderoka",
+    "normalized": "nderoka"
+  },
+  {
+    "input": "Îesu Cristo",
+    "normalized": "iesucristo"
+  },
+  {
+    "input": "ybaka pupé!",
+    "normalized": "ybakapupe"
+  },
+  {
+    "input": "Tupã — oré îar",
+    "normalized": "tupaoreiar"
+  },
+  {
+    "input": "zzzz",
+    "normalized": "zzzz"
+  },
+  {
+    "input": "agûaí",
+    "normalized": "aguai"
+  },
+  {
+    "input": "agûãî",
+    "normalized": "aguai"
+  },
+  {
+    "input": "ãgûa",
+    "normalized": "agua"
+  },
+  {
+    "input": "agûá",
+    "normalized": "agua"
+  }
+]

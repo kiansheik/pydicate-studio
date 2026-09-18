@@ -1,0 +1,20 @@
+{
+  "profile": "smoke",
+  "label": "Amostra mínima",
+  "description": "Perfil de fumaça: índice pequeno para a primeira frase, sem treino.",
+  "seed": 20260918,
+  "sourceId": "araujo_catecismo_1686",
+  "inventory": {
+    "pronoun": ["ixé", "nde", "ae"],
+    "verb": ["só", "ur", "ikó"],
+    "noun": ["oka", "taba", "kaa"],
+    "postposition": ["pe", "pupé"]
+  },
+  "families": ["verb_clause", "possessive_np", "bare_pp", "possessive_pp"],
+  "rootRules": ["clause", "np", "pp", "clause_pp"],
+  "limits": { "perFamily": 400, "examples": 600 },
+  "holdout": { "lexemes": [], "families": [] },
+  "split": { "train": 0.7, "dev": 0.15, "test": 0.15 },
+  "includeRetrieval": true,
+  "estimatedBytes": 900000
+}

@@ -43,6 +43,7 @@ import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
 import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
 import { DraftArchive } from './components/DraftArchive';
 import { track } from './domain/usage';
+import { LAB_ENABLED_KEY } from './domain/parser-lab';
 import './workbench.css';
 import { flattenNodes, invoke, type SourcePreview } from './domain/authoring';
 import { PhraseEditor, SelectionNote, nodeLabels } from './components/PhraseEditor';
@@ -53,6 +54,11 @@ const LearningWorkspace = lazy(() =>
   import('./components/LearningWorkspace').then((module) => ({
     default: module.LearningWorkspace,
   })),
+);
+// Hidden experimental workspace. The module is only fetched once a contributor
+// has enabled it and opened it, so an ordinary session never loads this code.
+const ParserLab = lazy(() =>
+  import('./components/ParserLab').then((module) => ({ default: module.ParserLab })),
 );
 const tabs = ['Construção', 'Morfemas', 'Árvore', 'Tradução', 'Histórico', 'Código'] as const;
 type Tab = (typeof tabs)[number];
@@ -464,6 +470,10 @@ export default function App() {
   const [details, setDetails] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [learningView, setLearningView] = useState<'lessons' | 'reference' | null>(null);
+  const [labEnabled, setLabEnabled] = useState(
+    () => localStorage.getItem(LAB_ENABLED_KEY) === 'on',
+  );
+  const [labOpen, setLabOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [groundTruthOpen, setGroundTruthOpen] = useState(false);
@@ -1438,6 +1448,15 @@ export default function App() {
           <button className="button small" onClick={() => setUsageOpen(true)}>
             Atividade
           </button>
+          {labEnabled && (
+            <button
+              className="button small"
+              data-testid="parser-lab-open"
+              onClick={() => setLabOpen(true)}
+            >
+              Tupi → Pydicate
+            </button>
+          )}
           <button
             className="button small"
             aria-label="Alternar tema"
@@ -1465,6 +1484,24 @@ export default function App() {
           </button>
         </div>
       </header>
+      {labEnabled && labOpen && (
+        <Suspense fallback={<p role="status">Abrindo o laboratório…</p>}>
+          <ParserLab
+            project={project}
+            onClose={() => setLabOpen(false)}
+            onTransfer={
+              studio.ready && project.mode === 'local'
+                ? (source) => {
+                    studio.edit({ raw: source }, draft?.revisionId);
+                    setLabOpen(false);
+                    changeTab('Árvore');
+                    changeMode('analysis');
+                  }
+                : undefined
+            }
+          />
+        </Suspense>
+      )}
       {learningView && (
         <Suspense fallback={<p role="status">Abrindo o guia…</p>}>
           <LearningWorkspace
@@ -1674,6 +1711,25 @@ export default function App() {
             Este primeiro editor cobre participantes, negação e modo da construção de Araújo 0067.
             Aprovação editorial, sincronização Git e assistência de IA são etapas futuras.
           </p>
+          <h3>Recursos experimentais</h3>
+          <label className="field-inline">
+            <input
+              type="checkbox"
+              data-testid="parser-lab-switch"
+              checked={labEnabled}
+              onChange={(event) => {
+                const next = event.target.checked;
+                localStorage.setItem(LAB_ENABLED_KEY, next ? 'on' : 'off');
+                setLabEnabled(next);
+                if (!next) setLabOpen(false);
+                track('ui.parser-lab', { enabled: next });
+              }}
+            />
+            <span>
+              Laboratório Tupi → Pydicate. Abre uma aba oculta que analisa uma frase normalizada
+              usando apenas artefatos preparados localmente. Nada é publicado nem aprovado.
+            </span>
+          </label>
           <button
             className="button"
             onClick={() => {

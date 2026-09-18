@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-18T15:26:17.210Z",
+  "productionOrigin": "studio://app/index.html",
+  "temporaryDirectory": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-tBp7FQ",
+  "boundary": "Isolated Electron profile, disposable corpus copy, engine symlink read-only. No provider call, no publication, no approval.",
+  "stages": [
+    {
+      "name": "hidden-by-default",
+      "startedAt": "2026-09-18T15:26:17.300Z",
+      "status": "passed",
+      "evidence": {
+        "entryPoint": "absent",
+        "labStateEntries": []
+      },
+      "finishedAt": "2026-09-18T15:26:19.213Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-01-hidden-by-default.png"
+    },
+    {
+      "name": "enable-persists-across-restart",
+      "startedAt": "2026-09-18T15:26:19.412Z",
+      "status": "passed",
+      "evidence": {
+        "labStateAfterEnable": [],
+        "persisted": true
+      },
+      "finishedAt": "2026-09-18T15:26:21.082Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-02-enable-persists-across-restart.png"
+    },
+    {
+      "name": "prepare-baseline-from-the-tab",
+      "startedAt": "2026-09-18T15:26:21.249Z",
+      "status": "passed",
+      "evidence": {
+        "artifactRoot": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-tBp7FQ/user-data/parser-lab/artifacts/local-21e34f636c9e3c3c57ee5b7b",
+        "artifact": "index-a4d0d9fd4921ba22",
+        "counts": {
+          "fragments": 42,
+          "retrieval": 1923,
+          "retrievalExpressions": 129,
+          "examples": 258,
+          "splitGroups": 258,
+          "split.test": 34,
+          "split.train": 190,
+          "split.dev": 34
+        }
+      },
+      "finishedAt": "2026-09-18T15:26:24.492Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-03-prepare-baseline-from-the-tab.png"
+    },
+    {
+      "name": "first-sentence-offline",
+      "startedAt": "2026-09-18T15:26:24.635Z",
+      "status": "passed",
+      "evidence": {
+        "normalized": "asoxerokype",
+        "screenshot": "docs/coverage/native-screenshots/parser-lab-first-result.png"
+      },
+      "finishedAt": "2026-09-18T15:26:25.743Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-04-first-sentence-offline.png"
+    },
+    {
+      "name": "variants-and-unknown-input",
+      "startedAt": "2026-09-18T15:26:25.898Z",
+      "status": "passed",
+      "evidence": {
+        "ASOXEROKYPE": "asoxerokype",
+        "a so xé ró kŷ pe": "asoxerokype",
+        "Asó, xe rokype.": "asoxerokype",
+        "zzzz": "unknown",
+        "Açó xe rokîpe": "unknown"
+      },
+      "finishedAt": "2026-09-18T15:26:26.370Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-05-variants-and-unknown-input.png"
+    },
+    {
+      "name": "composes-a-sentence-absent-from-the-index",
+      "startedAt": "2026-09-18T15:26:26.506Z",
+      "status": "passed",
+      "evidence": {
+        "knownExpression": false,
+        "route": "composition",
+        "source": "(+nde * só) + (pe * (nde * oka))"
+      },
+      "finishedAt": "2026-09-18T15:26:26.643Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-06-composes-a-sentence-absent-from-the-index.png"
+    },
+    {
+      "name": "tree-edit-changes-source-and-surface",
+      "startedAt": "2026-09-18T15:26:26.805Z",
+      "status": "passed",
+      "evidence": {
+        "edited": "asó nde rokype",
+        "undo": true,
+        "redo": true,
+        "treeGesture": "(+((ixé).var(1)) * só) + (pe * (nde * oka))"
+      },
+      "finishedAt": "2026-09-18T15:26:28.118Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-07-tree-edit-changes-source-and-surface.png"
+    },
+    {
+      "name": "ambiguity-and-collisions-preserved",
+      "startedAt": "2026-09-18T15:26:28.275Z",
+      "status": "passed",
+      "evidence": {
+        "collisionGroups": 0,
+        "neuralState": "blocked",
+        "neuralMissing": [
+          "transformers"
+        ],
+        "agentState": "ready"
+      },
+      "finishedAt": "2026-09-18T15:26:29.087Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-08-ambiguity-and-collisions-preserved.png"
+    },
+    {
+      "name": "train-and-evaluate-survive-a-reload",
+      "startedAt": "2026-09-18T15:26:29.240Z",
+      "status": "passed",
+      "evidence": {
+        "trainStatus": "succeeded",
+        "ranker": {
+          "id": "ranker-c2c112f80b50bdfe",
+          "metrics": {
+            "trainPairs": 2,
+            "devPairs": 0,
+            "trainSymmetricPairs": 0,
+            "devSymmetricPairs": 0,
+            "devPairwiseAccuracy": null,
+            "devBaselinePairwiseAccuracy": null,
+            "improvesOverBaseline": false,
+            "recommendActivation": false,
+            "finalLoss": 0.035346,
+            "elapsedSeconds": 1.16,
+            "note": "A acurácia pareada compara a expressão geradora com uma alternativa de estrutura ou léxico diferentes. Não é uma probabilidade calibrada nem prova que a alternativa seja agramatical. Um par simétrico — em que as duas análises se geram mutuamente a partir da mesma forma — é ambiguidade real e não pode ser decidido por estas características."
+          }
+        },
+        "evaluation": {
+          "id": "evaluation-d7b90c310dc0b4bb",
+          "metrics": {
+            "normalization_invariance": {
+              "total": 8,
+              "singleObservation": 8,
+              "stableCandidates": 8
+            },
+            "known_expression_retrieval": {
+              "total": 25,
+              "retrieved": 25,
+              "rate": 1,
+              "note": "Recuperação de análises já registradas. Não mede generalização."
+            },
+            "new_combinations": {
+              "total": 25,
+              "complete": 25,
+              "partial": 0,
+              "unknown": 0,
+              "completeRate": 1,
+              "top1": 1,
+              "surfaceAgreement": 1,
+              "meanCandidates": 1,
+              "meanSeconds": 0.0048,
+              "ambiguousRate": 0,
+              "lexemeRecovery": 1,
+              "recall@1": 1,
+              "recall@5": 1,
+              "recall@10": 1,
+              "morphemeSequenceExact": 1,
+              "morphemeTagF1": 1,
+              "morphemeDenominator": 25,
+              "split": "test",
+              "denominator": 25
+            },
+            "held_out_lexemes": {
+              "total": 0,
+              "split": "held_out_lexemes",
+              "denominator": 0,
+              "withResource": {
+                "note": "O recurso reservado continua declarado no índice: isto mede a reserva do classificador, não a do buscador."
+              },
+              "withoutResource": {
+                "total": 0,
+                "droppedLexemes": [],
+                "droppedFamilies": [],
+                "note": "O recurso reservado foi removido do índice. A busca declarada não inventa léxico nem famílias novas; esta linha mostra esse limite."
+              }
+            },
+            "held_out_families": {
+              "total": 0,
+              "split": "held_out_families",
+              "denominator": 0,
+              "withResource": {
+                "note": "O recurso reservado continua declarado no índice: isto mede a reserva do classificador, não a do buscador."
+              },
+              "withoutResource": {
+                "total": 0,
+                "droppedLexemes": [],
+                "droppedFamilies": [],
+                "note": "O recurso reservado foi removido do índice. A busca declarada não inventa léxico nem famílias novas; esta linha mostra esse limite."
+              }
+            },
+            "user_corrections": {
+              "total": 0,
+              "note": "Correções registradas pelo contribuidor; nenhuma publica ou aprova registro de corpus."
+            },
+            "frozen_reviewed_historical": {
+              "total": 0,
+              "note": "Requer exemplos históricos revisados marcados como tal no laboratório. Nenhum estava disponível nesta execução; a rota de recuperação do corpus é relatada separadamente e não substitui este conjunto."
+            },
+            "configurations": {
+              "retrieval_only": {
+                "total": 20,
+                "complete": 0,
+                "partial": 0,
+                "unknown": 20,
+                "completeRate": 0,
+                "top1": 0,
+                "surfaceAgreement": 0,
+                "meanCandidates": 0,
+                "meanSeconds": 0,
+                "ambiguousRate": 0,
+                "lexemeRecovery": 0,
+                "recall@1": 0,
+                "recall@5": 0,
+                "recall@10": 0,
+                "available": true,
+                "denominator": 20
+              },
+              "retrieval_composition": {
+                "total": 20,
+                "complete": 20,
+                "partial": 0,
+                "unknown": 0,
+                "completeRate": 1,
+                "top1": 1,
+                "surfaceAgreement": 1,
+                "meanCandidates": 1,
+                "meanSeconds": 0,
+                "ambiguousRate": 0,
+                "lexemeRecovery": 0,
+                "recall@1": 1,
+                "recall@5": 1,
+                "recall@10": 1,
+                "available": true,
+                "denominator": 20
+              },
+              "ranker": {
+                "available": false,
+                "reason": "Nenhum classificador treinado está ativo."
+              }
+            },
+            "elapsedSeconds": 0.533
+          }
+        }
+      },
+      "finishedAt": "2026-09-18T15:26:33.215Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-09-train-and-evaluate-survive-a-reload.png"
+    },
+    {
+      "name": "cancellation-and-interruption-are-honest",
+      "startedAt": "2026-09-18T15:26:33.359Z",
+      "status": "passed",
+      "evidence": {
+        "cancelledJob": "c10a560b-4f87-49bd-b9f0-7d40cee4adb5",
+        "activeIndexPreserved": "index-a4d0d9fd4921ba22",
+        "interruptedLeftovers": [
+          "index-1059cb5fff9c510d.fc190a1b"
+        ],
+        "discarded": true
+      },
+      "finishedAt": "2026-09-18T15:26:34.664Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-10-cancellation-and-interruption-are-honest.png"
+    },
+    {
+      "name": "corpus-untouched",
+      "startedAt": "2026-09-18T15:26:34.805Z",
+      "status": "passed",
+      "evidence": {
+        "watchedFiles": [
+          "historic/araujo_catecismo_1686.tu.py",
+          "historic/lexicon.tu.py",
+          "ground_truth/records/historic/araujo_catecismo_1686.jsonl"
+        ],
+        "unchanged": true
+      },
+      "finishedAt": "2026-09-18T15:26:34.806Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-11-corpus-untouched.png"
+    }
+  ],
+  "pageErrors": [],
+  "finishedAt": "2026-09-18T15:26:35.096Z",
+  "passed": true
+}

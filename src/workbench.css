@@ -376,3 +376,15 @@
     font-size: 10px;
   }
 }
+
+/* Experimental feature switch inside the project information panel. */
+.project-details .field-inline {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+.project-details .field-inline input {
+  margin-top: 3px;
+}

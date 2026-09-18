@@ -1,0 +1,20 @@
+{
+  "profile": "baseline",
+  "label": "Linha de base",
+  "description": "Inventário modesto com reservas de léxico e de família para avaliação honesta.",
+  "seed": 20260918,
+  "sourceId": "araujo_catecismo_1686",
+  "inventory": {
+    "pronoun": ["ixé", "nde", "ae", "oré", "îandé"],
+    "verb": ["só", "ur", "ikó", "kanhem", "ikobé", "îebyr"],
+    "noun": ["oka", "taba", "kaa", "era", "îara", "apé", "yby", "ara"],
+    "postposition": ["pe", "pupé", "suí", "esé"]
+  },
+  "families": ["verb_clause", "negated_clause", "possessive_np", "bare_pp", "possessive_pp"],
+  "rootRules": ["clause", "np", "pp", "clause_pp"],
+  "limits": { "perFamily": 4000, "examples": 40000 },
+  "holdout": { "lexemes": ["taba", "suí"], "families": ["negated_clause"] },
+  "split": { "train": 0.7, "dev": 0.15, "test": 0.15 },
+  "includeRetrieval": true,
+  "estimatedBytes": 90000000
+}

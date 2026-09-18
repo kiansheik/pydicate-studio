@@ -25,6 +25,17 @@ The protocol is one JSON object per line: `{ "id": 1, "method": "open_project", 
 | `assistant_context` | `{passageId,raw?}` → neighbors, original/edited text, lexical definitions, evidence and exact versions. Incomplete syntax includes a diagnostic and original lexical context. |
 | `contribution_prepare` | `{draft?}` → reviewable Git binary patch for staged/unstaged/new source and reference files, with versions and draft. It does not create a commit or publish. |
 
+## Tupi → Pydicate laboratory (hidden, experimental)
+
+`python/parser_lab/` is a separate package with its own persistent worker,
+`python3 -B python/parser_lab/worker.py --parent <pair> --artifacts <dir>`. It never
+runs inside the interactive Studio worker, and it is started only by an explicit
+laboratory request. Its namespace loads the shared lexicon alone, so no saved
+passage expression can supply an answer. `scripts/parser-lab/cli.py` exposes
+`prepare`, `train`, `evaluate`, `analyze`, `status` and `activate` for scripted runs.
+Recipes live in `configs/parser-lab/`; generated artifacts stay outside Git. See
+[the contract](../docs/design/parser-lab.md) and `python/tests/test_parser_lab.py`.
+
 `render` still accepts the original strict fixed-model request for backward compatibility. Browser examples remain examples; they do not stand in for live engine execution.
 
 ## Source and engine fidelity
