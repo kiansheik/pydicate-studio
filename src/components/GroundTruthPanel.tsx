@@ -2,13 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, ClipboardCheck, X } from 'lucide-react';
 import type { Studio } from '../useStudio';
 import { invoke } from '../domain/authoring';
-interface ReferenceStatus {
-  record: null | { surface: string; normalized_target?: string; status?: string };
-  recordPath: string;
-  recordCount: number;
-  nextOrdinal: number;
-  canApproveSequentially: boolean;
-}
+import { approvalState, targetConflicts, type ReferenceStatus } from '../domain/ground-truth';
 export function GroundTruthPanel({
   studio,
   onReviewSource,
@@ -64,18 +58,18 @@ export function GroundTruthPanel({
               } as Record<string, string>
             )[key],
         )));
-  const declared = status?.record?.normalized_target;
-  const targetConflict =
-    !!declared && !!result && result.evaluationStatus !== 'partial' && declared !== result.surface;
-  const blocked =
-    isNewPassage ||
-    !status ||
-    !status.canApproveSequentially ||
-    changed ||
-    studio.conflict ||
-    !result ||
-    result.evaluationStatus === 'partial' ||
-    targetConflict;
+  const targetConflict = targetConflicts(status, result);
+  // One shared definition, so the automatic save after a source edit can never
+  // approve in a state this panel would have refused.
+  const approval = approvalState({
+    isNewPassage,
+    status,
+    changed,
+    conflict: studio.conflict,
+    result,
+    ready: studio.ready,
+  });
+  const blocked = !approval.ready;
   return (
     <section className="ground-truth-panel" aria-label="Salvar ground truth">
       <header>
@@ -147,7 +141,7 @@ export function GroundTruthPanel({
             )}
             <button
               className="button primary"
-              disabled={blocked || saved || !studio.ready}
+              disabled={blocked || saved}
               onClick={async () => {
                 setError('');
                 setSaved(false);

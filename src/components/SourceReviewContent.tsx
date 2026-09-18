@@ -1,7 +1,7 @@
 import type { SourcePreview } from '../domain/authoring';
 import type { RenderResult } from '../domain/types';
 
-function reviewKind(preview: SourcePreview) {
+export function reviewKind(preview: SourcePreview) {
   if (preview.reviewSummary) return preview.reviewSummary.kind;
   if (preview.kind === 'recovery') return 'recovery';
   if (preview.kind === 'lexicon' || preview.name) return 'lexicon';

@@ -164,7 +164,8 @@
   background: #4a3028;
   color: #ffdac2;
 }
-[data-theme='dark'] .notice {
+[data-theme='dark'] .notice,
+[data-theme='dark'] .notice-banner {
   background: #29442f;
   color: #c2e8bc;
 }

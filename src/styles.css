@@ -1294,6 +1294,19 @@ button:hover:not(:disabled) {
   line-height: 1.7;
   font-size: 12px;
 }
+/* Outcome of an automatic ground-truth save: same shape as the error banner,
+   the affirmative palette of .notice. */
+.notice-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  background: #eff5e7;
+  color: #65784e;
+  padding: 10px 28px;
+  line-height: 1.7;
+  font-size: 12px;
+}
 .notice {
   padding: 10px 28px;
   color: #65784e;

@@ -25,7 +25,11 @@ import {
 } from 'lucide-react';
 import { compareReference, expressionFor } from './domain/model';
 import { SourceRecovery } from './components/SourceRecovery';
-import { SourceReviewContent, sourceReviewTitle } from './components/SourceReviewContent';
+import {
+  SourceReviewContent,
+  reviewKind,
+  sourceReviewTitle,
+} from './components/SourceReviewContent';
 import { AuthoringEditor, LexiconPanel } from './components/AuthoringEditor';
 import { DictionaryTab } from './components/DictionaryTab';
 import {
@@ -39,6 +43,7 @@ import { UsagePanel } from './components/UsagePanel';
 import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
 import { PassageLexicon } from './components/PassageLexicon';
 import { GroundTruthDialog } from './components/GroundTruthPanel';
+import { approvalState, type ReferenceStatus } from './domain/ground-truth';
 import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
 import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
 import { DraftArchive } from './components/DraftArchive';
@@ -500,6 +505,7 @@ export default function App() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [evidencePointer, setEvidencePointer] = useState<Record<string, unknown> | null>(null);
   const [reviewError, setReviewError] = useState('');
+  const [groundTruthNote, setGroundTruthNote] = useState('');
   const [gitContribution, setGitContribution] = useState<{
     patch: string;
     instructions: string;
@@ -589,6 +595,65 @@ export default function App() {
       studio.setError(String(e));
     }
   }
+  /** Save the reference right after the reviewed source edit lands.
+   *
+   * The contributor already reviewed this exact form, so a second trip through
+   * the dialog adds nothing. Every guard the dialog applies is checked here
+   * first, against a freshly read record: if any of them blocks, the source
+   * edit still stands and the reason is shown rather than swallowed.
+   */
+  async function saveGroundTruthAfterApply(applied: SourcePreview, reviewed: typeof result) {
+    // Only a passage review approves a reference. A lexicon entry or a recovery
+    // also goes through this overlay, and neither is a statement about this
+    // passage's reference.
+    const kind = reviewKind(applied);
+    if (kind !== 'passage-update' && kind !== 'passage-new') return;
+    const current = studio.passage;
+    if (!current) return;
+    if (current.id.startsWith('pending:')) {
+      // A new passage only gets its corpus identity from this apply, and
+      // approving it needs that identity plus a fresh evaluation under it.
+      // Say so rather than appear to have saved nothing for no reason.
+      setGroundTruthNote(
+        'A nova passagem foi acrescentada à fonte. Abra “Commit to Ground Truth” para registrar a referência dela.',
+      );
+      return;
+    }
+    let status: ReferenceStatus | undefined;
+    try {
+      status = await invoke<ReferenceStatus>('reference_status', { passageId: current.id });
+    } catch (reason) {
+      setGroundTruthNote(
+        'A fonte foi aplicada. Não foi possível ler o registro atual para salvar a ground truth: ' +
+          (reason instanceof Error ? reason.message : String(reason)),
+      );
+      return;
+    }
+    const approval = approvalState({
+      isNewPassage: false,
+      status,
+      changed: false,
+      conflict: studio.conflict,
+      result: reviewed,
+      ready: studio.ready,
+    });
+    if (!approval.ready) {
+      setGroundTruthNote('A fonte foi aplicada. A ground truth não foi salva: ' + approval.reason);
+      return;
+    }
+    try {
+      await studio.approveGroundTruth(approval.surface);
+      // Success already has its own notice from the save itself; this banner
+      // exists for the case that was previously silent, a refusal.
+      track('ui.ground-truth', { via: 'source-apply' });
+    } catch (reason) {
+      setGroundTruthNote(
+        'A fonte foi aplicada. A ground truth não foi salva: ' +
+          (reason instanceof Error ? reason.message : String(reason)),
+      );
+    }
+  }
+
   async function reviewSource(useProposal = false) {
     if (!draft || reviewBusy) return;
     setReviewBusy(true);
@@ -1511,6 +1576,18 @@ export default function App() {
           />
         </Suspense>
       )}
+      {groundTruthNote && (
+        <div role="status" className="notice-banner">
+          <span>{groundTruthNote}</span>
+          <button
+            className="icon-button"
+            aria-label="Fechar aviso da ground truth"
+            onClick={() => setGroundTruthNote('')}
+          >
+            <X size={17} />
+          </button>
+        </div>
+      )}
       {studio.error && (
         <div role="alert" className="error-banner">
           <span>{studio.error}</span>
@@ -1578,12 +1655,14 @@ export default function App() {
                 disabled={reviewBusy || !previewHasChanges}
                 onClick={() => {
                   setReviewBusy(true);
+                  setGroundTruthNote('');
                   void studio
                     .applySource(preview)
-                    .then(() => {
+                    .then(async () => {
                       setPreview(null);
                       setEvidencePointer(null);
                       setReviewError('');
+                      await saveGroundTruthAfterApply(preview, result);
                     })
                     .catch((e) => setReviewError(e.message))
                     .finally(() => setReviewBusy(false));

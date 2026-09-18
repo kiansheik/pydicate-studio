@@ -186,6 +186,14 @@ async function savedDraft(passageId, predicate) {
     .toBe(true);
   return draft;
 }
+async function reviewDiff(dialog) {
+  // SourceReviewContent leads with a human summary; the exact diff is opt-in.
+  const technical = dialog.locator('details.source-review-technical');
+  if ((await technical.getAttribute('open')) === null)
+    await technical.locator(':scope > summary').click();
+  return technical.locator('pre').first().innerText();
+}
+
 async function readyPdf() {
   await expect(page.getByTestId('pdf-canvas')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('button', { name: 'Marcar região', exact: true })).toBeEnabled({
@@ -436,18 +444,13 @@ try {
     await page
       .getByRole('button', { name: 'Revisar definição e usos afetados', exact: true })
       .click();
-    await expect(
-      page.getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true }),
-    ).toBeVisible({ timeout: 25_000 });
-    const diff = await page
-      .getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true })
-      .locator('pre')
-      .innerText();
+    await expect(page.getByRole('dialog', { name: /^Revisar/ })).toBeVisible({ timeout: 25_000 });
+    const diff = await reviewDiff(page.getByRole('dialog', { name: /^Revisar/ }));
     assert(diff.includes('Navarro') || diff.includes('dictionary'));
     await page.getByRole('button', { name: 'Aplicar edição revisada', exact: true }).click();
-    await expect(
-      page.getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true }),
-    ).toHaveCount(0, { timeout: 25_000 });
+    await expect(page.getByRole('dialog', { name: /^Revisar/ })).toHaveCount(0, {
+      timeout: 25_000,
+    });
     const modified = await fs.readFile(sourcePath, 'utf8');
     assert(modified.includes(headword));
     project = await readProject();
@@ -495,15 +498,19 @@ try {
 
   await stage('reviewed-source-writeback', async () => {
     const before = await fs.readFile(sourcePath, 'utf8');
+    // Captured before the apply, because the apply is what approves the
+    // reference now; every other record must still come through untouched.
+    const recordsPath = path.join(corpus, 'ground_truth/records/historic', `${sourceName}.jsonl`);
+    const beforeRecords = (await fs.readFile(recordsPath, 'utf8')).trimEnd().split('\n');
     const editor = await rawEditor();
     const candidate = `(${initialRaw}).copy()`;
     await editor.fill(candidate);
     await waitEvaluated();
     await page.getByRole('button', { name: 'Revisar', exact: true }).click();
     await page.getByRole('button', { name: 'Revisar edição da fonte', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true });
+    const dialog = page.getByRole('dialog', { name: /^Revisar/ });
     await expect(dialog).toBeVisible({ timeout: 25_000 });
-    const diff = await dialog.locator('pre').innerText();
+    const diff = await reviewDiff(dialog);
     assert(diff.includes('.copy()'));
     await page.getByRole('button', { name: 'Aplicar edição revisada', exact: true }).click();
     await expect(dialog).toHaveCount(0, { timeout: 25_000 });
@@ -515,24 +522,24 @@ try {
     assert.equal((await readProject()).passages.length, initialCount);
     await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', pdfRect);
     project = await readProject();
-    const recordsPath = path.join(corpus, 'ground_truth/records/historic', `${sourceName}.jsonl`);
-    const beforeRecords = (await fs.readFile(recordsPath, 'utf8')).trimEnd().split('\n');
+    // Applying the reviewed edit now saves the reference in the same action, so
+    // the record is already approved without a second trip through the dialog.
+    await expect
+      .poll(
+        async () => {
+          const rows = (await fs.readFile(recordsPath, 'utf8')).trimEnd().split('\n');
+          return JSON.parse(rows[66]).status;
+        },
+        { timeout: 30_000 },
+      )
+      .toBe('approved');
+    await expect(page.locator('.notice-banner')).toHaveCount(0);
     await page
       .locator('.workspace-footer')
       .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
       .click();
     const groundTruth = page.getByRole('dialog', { name: 'Commit to Ground Truth', exact: true });
-    const confirm = groundTruth.getByRole('button', {
-      name: 'Confirmar e salvar ground truth',
-      exact: true,
-    });
-    await expect(confirm).toBeEnabled({ timeout: 20_000 });
-    await groundTruth
-      .getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true })
-      .click();
-    await expect(
-      page.getByText('Ground truth salva. As outras passagens foram preservadas.', { exact: true }),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(groundTruth).toContainText('já tem um registro aprovado', { timeout: 20_000 });
     await groundTruth.getByRole('button', { name: 'Fechar ground truth', exact: true }).click();
     const afterRecords = (await fs.readFile(recordsPath, 'utf8')).trimEnd().split('\n');
     assert.equal(afterRecords.length, beforeRecords.length);
@@ -548,7 +555,7 @@ try {
       identityPreserved: selectedId,
       pdfRetained: true,
       countUnchanged: true,
-      explicitGroundTruthConfirmed: true,
+      groundTruthSavedByTheApplyItself: true,
       otherReferenceRecordsUnchanged: true,
       otherReferenceBytesUnchanged: afterRecords.every(
         (line, index) => index === 66 || line === beforeRecords[index],
@@ -573,9 +580,9 @@ try {
       .getByRole('textbox', { name: 'Pydicate da nova passagem', exact: true })
       .fill('nde');
     await newDialog.getByRole('button', { name: 'Revisar nova passagem', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true });
+    const dialog = page.getByRole('dialog', { name: /^Revisar/ });
     await expect(dialog).toBeVisible();
-    const diff = await dialog.locator('pre').innerText();
+    const diff = await reviewDiff(dialog);
     await page.getByRole('button', { name: 'Aplicar edição revisada', exact: true }).click();
     await expect(dialog).toHaveCount(0, { timeout: 25_000 });
     project = await readProject();
@@ -687,9 +694,9 @@ try {
       .getByRole('textbox', { name: 'Pydicate da nova passagem', exact: true })
       .fill('nde');
     await restored.getByRole('button', { name: 'Revisar nova passagem', exact: true }).click();
-    const review = page.getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true });
+    const review = page.getByRole('dialog', { name: /^Revisar/ });
     await expect(review).toBeVisible();
-    const diff = await review.locator('pre').innerText();
+    const diff = await reviewDiff(review);
     assert(diff.includes(metadata.diplomatic));
     assert(diff.includes(metadata.notes));
     assert.equal(await fs.readFile(sourcePath, 'utf8'), sourceBefore);
@@ -789,7 +796,7 @@ try {
     await waitEvaluated();
     await page.getByRole('button', { name: 'Revisar', exact: true }).click();
     await page.getByRole('button', { name: 'Revisar edição da fonte', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Revisar alterações na fonte', exact: true });
+    const dialog = page.getByRole('dialog', { name: /^Revisar/ });
     await expect(dialog).toBeVisible();
     const outside = '\n# Native smoke: external edit in disposable source only.\n';
     await fs.appendFile(sourcePath, outside);
