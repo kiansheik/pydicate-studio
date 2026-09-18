@@ -1,0 +1,684 @@
+{
+  "schema_version": 1,
+  "description": "Bounded synthetic compositional probe, not historical parser accuracy",
+  "python": "3.12.14",
+  "studio_base": "8d21298c41ac5e5a66877b64ed96e02f00d31e56",
+  "dependencies": {
+    "nhe-enga": "348686045bf0791c847be3cba1b15eaae7312a11 + Studio documented patch",
+    "oldtupicorpus": "292a28722a1790abf3f3b93083c29fbd47b4ffd0 + Studio documented patch"
+  },
+  "source_hashes": {
+    "python/studio_authoring.py": "2b79609bf120a0d69c38325237dd2e64b5ec0e05d5a92a47f48ddb683de2273d",
+    "python/authoring_runtime.py": "584d9b5585dfadce57a60fe3dc98e8b411be8a0490dc9496d4b8281460bc8aac",
+    "python/rendered_structures.py": "fa863266095ecdb1965a47e1f91dd97b59640b529dbdabe529c121fcc0315e3a",
+    "docs/design/dependency-patches/nhe-enga.patch": "07f0d1a9dff14329f6545ca4d04bf13747bc8abc3a78ce76b6eabf0ea3def031",
+    "docs/design/dependency-patches/oldtupicorpus.patch": "8bbf1119fb9ca83cf15b171d0de14608c77c259dff9fbb4bfd4634ed53cbadea"
+  },
+  "grammar": {
+    "people": [
+      "ixé",
+      "nde",
+      "ae",
+      "oré",
+      "îandé"
+    ],
+    "verbs": [
+      "só",
+      "ur",
+      "ikó",
+      "kanhem",
+      "ikobé"
+    ],
+    "nouns": [
+      "oka",
+      "taba",
+      "kaa",
+      "era",
+      "îara",
+      "apé"
+    ],
+    "postpositions": [
+      "pe",
+      "pupé",
+      "suí",
+      "esé"
+    ],
+    "root_rule": "verb_clause + postpositional_phrase",
+    "indexed_full_sentences": 0
+  },
+  "fragment_count": 145,
+  "by_kind": {
+    "verb_clause": 25,
+    "postpositional_phrase": 120
+  },
+  "fragment_build_seconds": 0.1298399809993498,
+  "skipped": [],
+  "normalization": [
+    {
+      "input": "Asó xe rokype",
+      "key": "asoxerokype"
+    },
+    {
+      "input": "ASOXEROKYPE",
+      "key": "asoxerokype"
+    },
+    {
+      "input": "a so xé ró kŷ pe",
+      "key": "asoxerokype"
+    },
+    {
+      "input": "Asó xe rokype",
+      "key": "asoxerokype"
+    }
+  ],
+  "probes": [
+    {
+      "input": "Asó xe rokype",
+      "key": "asoxerokype",
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "raw": "(+ixé * só) + (pe * (ixé * oka))",
+          "surface": "asó xe rokype",
+          "split": 3
+        }
+      ],
+      "seconds": 0.0013671280003109132
+    },
+    {
+      "input": "ASOXEROKYPE",
+      "key": "asoxerokype",
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "raw": "(+ixé * só) + (pe * (ixé * oka))",
+          "surface": "asó xe rokype",
+          "split": 3
+        }
+      ],
+      "seconds": 0.0016104240003187442
+    },
+    {
+      "input": "a so xé ró kŷ pe",
+      "key": "asoxerokype",
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "raw": "(+ixé * só) + (pe * (ixé * oka))",
+          "surface": "asó xe rokype",
+          "split": 3
+        }
+      ],
+      "seconds": 0.001473669000006339
+    },
+    {
+      "input": "Asó xe rokype",
+      "key": "asoxerokype",
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "raw": "(+ixé * só) + (pe * (ixé * oka))",
+          "surface": "asó xe rokype",
+          "split": 3
+        }
+      ],
+      "seconds": 0.003140357000120275
+    },
+    {
+      "input": "ereso nde rokype",
+      "key": "eresonderokype",
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "raw": "(+nde * só) + (pe * (nde * oka))",
+          "surface": "eresó nde rokype",
+          "split": 5
+        }
+      ],
+      "seconds": 0.0013879389998692204
+    },
+    {
+      "input": "zzzz",
+      "key": "zzzz",
+      "candidate_count": 0,
+      "candidates": [],
+      "seconds": 4.716999683296308e-06
+    },
+    {
+      "input": "Açó xe rokîpe",
+      "key": "acoxerokipe",
+      "candidate_count": 0,
+      "candidates": [],
+      "seconds": 9.735000276123174e-06
+    }
+  ],
+  "synthetic_composition": {
+    "combinations": 3000,
+    "sample_size": 60,
+    "original_expression_in_candidates": 60,
+    "mean_candidate_count": 1.0,
+    "mean_parse_seconds": 0.0018266026833164992,
+    "cases": [
+      {
+        "raw": "(+ae * só) + (pupé * (ae * era))",
+        "surface": "osó sera pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.003227979000257619
+      },
+      {
+        "raw": "(+nde * só) + (esé * (nde * taba))",
+        "surface": "eresó nde taba resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0014984949993959162
+      },
+      {
+        "raw": "(+îandé * ur) + (suí * (ixé * kaa))",
+        "surface": "îaîur xe rka'a suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.00177673500002129
+      },
+      {
+        "raw": "(+ixé * ur) + (suí * (oré * era))",
+        "surface": "aîur oré rera suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001892438000140828
+      },
+      {
+        "raw": "(+îandé * só) + (pe * (oré * era))",
+        "surface": "îasó oré rerype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.006526733999635326
+      },
+      {
+        "raw": "(+ae * ikobé) + (suí * (oré * era))",
+        "surface": "oîkobé oré rera suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0018994789998032502
+      },
+      {
+        "raw": "(+ae * ikó) + (suí * (ixé * oka))",
+        "surface": "oîkó xe roka suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0020480929997575004
+      },
+      {
+        "raw": "(+îandé * ur) + (pupé * (ae * taba))",
+        "surface": "îaîur i taba pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0015488419994653668
+      },
+      {
+        "raw": "(+ae * ur) + (pe * (ixé * era))",
+        "surface": "our xe rerype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0016784059998826706
+      },
+      {
+        "raw": "(+îandé * ikó) + (pe * (ae * era))",
+        "surface": "îaîkó serype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001979349000066577
+      },
+      {
+        "raw": "(+nde * só) + (pupé * (nde * îara))",
+        "surface": "eresó nde îara pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0013009479998800089
+      },
+      {
+        "raw": "(+ae * ikó) + (suí * (nde * oka))",
+        "surface": "oîkó nde roka suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0017799190000005183
+      },
+      {
+        "raw": "(+ixé * kanhem) + (pe * (oré * îara))",
+        "surface": "akanhem oré îarype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0012001869999949122
+      },
+      {
+        "raw": "(+oré * kanhem) + (pe * (oré * îara))",
+        "surface": "orokanhem oré îarype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0011619689994404325
+      },
+      {
+        "raw": "(+îandé * só) + (esé * (ixé * era))",
+        "surface": "îasó xe rera resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0012933870002598269
+      },
+      {
+        "raw": "(+ae * ikó) + (pupé * (oré * oka))",
+        "surface": "oîkó oré roka pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001842974000282993
+      },
+      {
+        "raw": "(+ixé * ikobé) + (esé * (nde * taba))",
+        "surface": "aîkobé nde taba resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0018364940005994868
+      },
+      {
+        "raw": "(+ixé * kanhem) + (pe * (nde * îara))",
+        "surface": "akanhem nde îarype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0012648239999180078
+      },
+      {
+        "raw": "(+nde * ikó) + (esé * (ae * oka))",
+        "surface": "ereîkó soka resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001977337000425905
+      },
+      {
+        "raw": "(+nde * ur) + (esé * (ae * kaa))",
+        "surface": "ereîur ska'a resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0017163040001832996
+      },
+      {
+        "raw": "(+ixé * ur) + (suí * (ae * apé))",
+        "surface": "aîur sapé suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0016387060004490195
+      },
+      {
+        "raw": "(+ae * ur) + (pupé * (ae * kaa))",
+        "surface": "our ska'a pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001640618999772414
+      },
+      {
+        "raw": "(+nde * ur) + (suí * (nde * oka))",
+        "surface": "ereîur nde roka suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0015866179992372054
+      },
+      {
+        "raw": "(+îandé * ikó) + (esé * (oré * îara))",
+        "surface": "îaîkó oré îara resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0018862699998862809
+      },
+      {
+        "raw": "(+îandé * só) + (suí * (ae * apé))",
+        "surface": "îasó sapé suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0014198069993653917
+      },
+      {
+        "raw": "(+nde * ikobé) + (pupé * (îandé * kaa))",
+        "surface": "ereîkobé îandé rka'a pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001914110999678087
+      },
+      {
+        "raw": "(+nde * kanhem) + (esé * (ixé * oka))",
+        "surface": "erekanhem xe roka resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0012748789995384868
+      },
+      {
+        "raw": "(+îandé * só) + (suí * (oré * kaa))",
+        "surface": "îasó oré rka'a suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0012447640001482796
+      },
+      {
+        "raw": "(+îandé * ur) + (pe * (ae * taba))",
+        "surface": "îaîur i tápe",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0015698830002293107
+      },
+      {
+        "raw": "(+oré * ur) + (pupé * (îandé * apé))",
+        "surface": "oroîur îandé rapé pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0024119809995681862
+      },
+      {
+        "raw": "(+îandé * kanhem) + (esé * (nde * apé))",
+        "surface": "îakanhem nde rapé resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001351124000393611
+      },
+      {
+        "raw": "(+nde * ikobé) + (esé * (ae * kaa))",
+        "surface": "ereîkobé ska'a resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0018228640001325402
+      },
+      {
+        "raw": "(+oré * kanhem) + (pupé * (îandé * apé))",
+        "surface": "orokanhem îandé rapé pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0011867660005009384
+      },
+      {
+        "raw": "(+nde * ikó) + (esé * (oré * taba))",
+        "surface": "ereîkó oré taba resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0018758340002023033
+      },
+      {
+        "raw": "(+îandé * ikó) + (suí * (oré * apé))",
+        "surface": "îaîkó oré rapé suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0018542309999247664
+      },
+      {
+        "raw": "(+oré * kanhem) + (pupé * (oré * taba))",
+        "surface": "orokanhem oré taba pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0011262950001764693
+      },
+      {
+        "raw": "(+oré * ur) + (pupé * (îandé * kaa))",
+        "surface": "oroîur îandé rka'a pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0017415910006093327
+      },
+      {
+        "raw": "(+oré * ikó) + (suí * (nde * kaa))",
+        "surface": "oroîkó nde rka'a suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0020156040000074427
+      },
+      {
+        "raw": "(+ixé * ikó) + (pupé * (nde * oka))",
+        "surface": "aîkó nde roka pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0021329709998099133
+      },
+      {
+        "raw": "(+oré * kanhem) + (pe * (îandé * apé))",
+        "surface": "orokanhem îandé rapépe",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0014321059998110286
+      },
+      {
+        "raw": "(+nde * ur) + (esé * (îandé * taba))",
+        "surface": "ereîur îandé taba resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.00165598300009151
+      },
+      {
+        "raw": "(+ixé * ikobé) + (pe * (ae * oka))",
+        "surface": "aîkobé sokype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0020562849995258148
+      },
+      {
+        "raw": "(+nde * kanhem) + (suí * (nde * îara))",
+        "surface": "erekanhem nde îara suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0011281980005151127
+      },
+      {
+        "raw": "(+îandé * ikó) + (pupé * (ixé * taba))",
+        "surface": "îaîkó xe taba pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0019501859997035353
+      },
+      {
+        "raw": "(+îandé * só) + (pe * (ae * oka))",
+        "surface": "îasó sokype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.001351103000160947
+      },
+      {
+        "raw": "(+nde * só) + (suí * (ae * oka))",
+        "surface": "eresó soka suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0012833519995183451
+      },
+      {
+        "raw": "(+ixé * kanhem) + (suí * (îandé * era))",
+        "surface": "akanhem îandé rera suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0012651240003833664
+      },
+      {
+        "raw": "(+ae * ikó) + (pe * (îandé * era))",
+        "surface": "oîkó îandé rerype",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0019386880003366969
+      },
+      {
+        "raw": "(+nde * kanhem) + (pupé * (îandé * îara))",
+        "surface": "erekanhem îandé îara pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0013222399993537692
+      },
+      {
+        "raw": "(+ae * ikobé) + (esé * (nde * kaa))",
+        "surface": "oîkobé nde rka'a resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.002101091999975324
+      },
+      {
+        "raw": "(+nde * kanhem) + (esé * (îandé * era))",
+        "surface": "erekanhem îandé rera resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0013166720000299392
+      },
+      {
+        "raw": "(+ixé * ikó) + (suí * (ixé * taba))",
+        "surface": "aîkó xe taba suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0019162649996360415
+      },
+      {
+        "raw": "(+nde * ikobé) + (pe * (nde * apé))",
+        "surface": "ereîkobé nde rapépe",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.005708492999474402
+      },
+      {
+        "raw": "(+oré * ikó) + (esé * (ae * taba))",
+        "surface": "oroîkó i taba resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0021507280007426743
+      },
+      {
+        "raw": "(+oré * kanhem) + (pupé * (oré * kaa))",
+        "surface": "orokanhem oré rka'a pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.00115056199956598
+      },
+      {
+        "raw": "(+nde * kanhem) + (suí * (nde * taba))",
+        "surface": "erekanhem nde taba suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0013736380005866522
+      },
+      {
+        "raw": "(+nde * só) + (pupé * (oré * oka))",
+        "surface": "eresó oré roka pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0016160430004674708
+      },
+      {
+        "raw": "(+ixé * ur) + (suí * (nde * kaa))",
+        "surface": "aîur nde rka'a suí",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.002012799999647541
+      },
+      {
+        "raw": "(+oré * ikobé) + (esé * (ixé * taba))",
+        "surface": "oroîkobé xe taba resé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.002018549000240455
+      },
+      {
+        "raw": "(+îandé * ur) + (pupé * (nde * era))",
+        "surface": "îaîur nde rera pupé",
+        "candidate_count": 1,
+        "source_expression_recovered": true,
+        "seconds": 0.0017022430001816247
+      }
+    ]
+  },
+  "normalization_collision_groups": 0,
+  "collision_examples": [],
+  "dictionary_normalization_collisions": [
+    {
+      "key": "agua",
+      "entries": [
+        {
+          "vid": 2452,
+          "headword": "ãgûa"
+        },
+        {
+          "vid": 2453,
+          "headword": "agûá"
+        }
+      ]
+    },
+    {
+      "key": "aguai",
+      "entries": [
+        {
+          "vid": 2454,
+          "headword": "agûaí"
+        },
+        {
+          "vid": 2456,
+          "headword": "agûãî"
+        }
+      ]
+    }
+  ],
+  "example": {
+    "raw": "(+ixé * só) + (pe * (ixé * oka))",
+    "surface": "asó xe rokype",
+    "annotated": "a[SUBJECT_PREFIX:1ps]só[ROOT] xe[POSSESSIVE_PRONOUN:1ps] r[PLURIFORM_PREFIX:R]ok[ROOT][SUBSTANTIVE_SUFFIX:CONSONANT_ENDING][ROOT]y[SUBSTANTIVE_SUFFIX:CONSONANT_ENDING:CLITIC]pe[POSTPOSITION:LOCATIVE]",
+    "source_tree_nodes": 10,
+    "editable": true,
+    "morphemes": [
+      {
+        "surface": "a",
+        "tags": [
+          "SUBJECT_PREFIX:1ps"
+        ]
+      },
+      {
+        "surface": "só",
+        "tags": [
+          "ROOT"
+        ]
+      },
+      {
+        "surface": "xe",
+        "tags": [
+          "POSSESSIVE_PRONOUN:1ps"
+        ]
+      },
+      {
+        "surface": "r",
+        "tags": [
+          "PLURIFORM_PREFIX:R"
+        ]
+      },
+      {
+        "surface": "ok",
+        "tags": [
+          "ROOT",
+          "ROOT",
+          "SUBSTANTIVE_SUFFIX:CONSONANT_ENDING"
+        ]
+      },
+      {
+        "surface": "y",
+        "tags": [
+          "SUBSTANTIVE_SUFFIX:CONSONANT_ENDING:CLITIC"
+        ]
+      },
+      {
+        "surface": "pe",
+        "tags": [
+          "POSTPOSITION:LOCATIVE"
+        ]
+      }
+    ],
+    "tree_span_edit": {
+      "replacement": "nde * oka",
+      "raw": "(+ixé * só) + (pe * ((nde * oka)))",
+      "surface": "asó nde rokype"
+    }
+  },
+  "existing_decompiler_gold_annotation_probe": {
+    "raw": "((+Pronoun('a', inflection_override='1ps') * só) + (pe * (xe * Noun('ok', definition='(r) undef'))))",
+    "surface": "asó xe okype",
+    "matches": false
+  },
+  "limits": [
+    "One manually declared composition family; five pronouns, five verbs, six nouns, four postpositions.",
+    "Sampled full sentences were absent from the reverse index but their fragments and composition rule were available.",
+    "Recovering a generating expression in a candidate set does not establish correct top-1 analysis.",
+    "No trained neural model, historical/OCR benchmark, paid inference, or native UI interaction was run.",
+    "Studio typed parse, bounded interpretation, evaluation, morphology extraction and source span edit were exercised."
+  ]
+}
