@@ -1,5 +1,18 @@
 # Work log
 
+## 2026-09-18 - Custom-graph structural search research
+
+Inspected Grew's OCaml matcher, corpus traversal, Python wrapper/backend and
+local Grew-match launcher. Added a read-only exporter using Studio's existing
+source adapter, 11 queries and 14 synthetic controls, a narrow native matcher,
+and an optional actual-Grew binding comparison. Ran on the public historical
+snapshot: 122 expressions, 1,895 nodes, all native fixture checks and 1,964 UTF-16
+source-span checks passed, source hashes unchanged. System package installation
+failed on unavailable user/group permissions; Grew remains unexecuted and the
+report records that explicitly. No product/corpus changes or provider calls.
+See [findings and integration assignment](../design/pydicate-structural-search.md)
+and [handoff](session-handoffs/2026-09-18-structural-search.md).
+
 ## 2026-09-18 - Tupi parser lab research branch
 
 Audited current Studio at `8d21298c41ac5e5a66877b64ed96e02f00d31e56` and reused its documented dependency patches in disposable snapshots. Added a complete agent implementation assignment for a hidden Tupi → Pydicate lab, plus an executable offline probe and result artifact. The plan covers normalization and ambiguity, shared tree/code editing, bounded inverse search, original-expression synthetic targets, durable artifact jobs, an actual small ranker training path, optional neural/MCP proposals and leakage-controlled evaluation.

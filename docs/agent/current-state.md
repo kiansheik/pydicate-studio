@@ -1,5 +1,22 @@
 # Current state
 
+## Structural search research
+
+The [Grew investigation](../design/pydicate-structural-search.md) and
+[read-only probe](../../scripts/experiments/probe-structural-search.py) export the
+existing source trees as custom feature graphs without a UD conversion. The
+selected public corpus contains 122 expressions and 1,895 nodes. Eleven native
+query checks over 14 synthetic controls pass; real source matches include eight
+`.perm()` occurrences, seven unary-minus ancestors of `.imp()`, and four explicit
+`.var(1).base_nominal()` constructions. All 1,964 source spans including controls
+were verified, and both source files remained unchanged.
+
+The [report](../evaluation/structural-search-probe.json) explicitly records Grew
+as unavailable: this environment has no OCaml backend and system package setup
+failed on user/group permissions. The `--grew` comparison path is prepared but
+unexecuted; there is no Grew/native equivalence or speed claim. No UI, grammar or
+dependency configuration changed. See the [handoff](session-handoffs/2026-09-18-structural-search.md).
+
 ## Tupi parser lab research and implementation plan
 
 Branch `codex/tupi-parser-lab` contains a [complete implementation assignment](../design/tupi-parser-lab-implementation.md) for a hidden experimental normalized-Tupi → Pydicate workspace. No product tab or training service is implemented by this research commit. The plan reuses the current isolated learning workspace, shared source/tree editor, bounded interpreter, structure retrieval, durable job ownership and existing MCP/provider loop.
