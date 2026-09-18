@@ -13,6 +13,7 @@ import unicodedata
 
 from parser_lab import projection
 from parser_lab.artifacts import read_jsonl
+from parser_lab.equivalence import annotation_identical
 from parser_lab.datasets import split_of
 from parser_lab.normalization import normalize, prepare
 from parser_lab.search import Budget, analyze
@@ -120,7 +121,15 @@ def _summary(rows, k_values=(1, 5, 10)):
         'partial': sum(1 for row in rows if row['completeness'] == 'partial'),
         'unknown': sum(1 for row in rows if row['completeness'] == 'unknown'),
         'completeRate': round(complete / total, 4),
+        # Three levels, from strict to lenient, never conflated:
+        #   top1Exact            the generating expression itself
+        #   top1AnnotationSame   a reading the grammar annotates identically
+        #   completeRate         any validated reading of the observation
         'top1': round(sum(1 for row in rows if row['rank'] == 1) / total, 4),
+        'top1Exact': round(sum(1 for row in rows if row['rank'] == 1) / total, 4),
+        'top1AnnotationSame': round(
+            sum(1 for row in rows if row.get('annotationRank') == 1) / total, 4),
+        'annotationDenominator': sum(1 for row in rows if row.get('annotationRank') is not None),
         'surfaceAgreement': round(sum(1 for row in rows if row['surfaceAgrees']) / total, 4),
         'meanCandidates': round(sum(row['candidates'] for row in rows) / total, 4),
         'meanSeconds': round(sum(row['seconds'] for row in rows) / total, 4),
@@ -151,9 +160,16 @@ def reconstruct(engine, index, example, ranker, *, restrict=True, budget=None,
     seconds = time.perf_counter() - started
     gold = example['sourceAst']
     rank = None
+    annotation_rank = None
     for position, row in enumerate(candidates, 1):
-        if structural_match(row['source'], gold):
+        if rank is None and structural_match(row['source'], gold):
             rank = position
+        # A reading the grammar annotates identically is the same answer written
+        # differently, so it is credited separately from the strict match.
+        if annotation_rank is None and example.get('annotated') \
+                and annotation_identical(example['annotated'], row.get('annotated', '')):
+            annotation_rank = position
+        if rank is not None and annotation_rank is not None:
             break
     best = candidates[0] if candidates else None
     morphemes = None
@@ -166,7 +182,7 @@ def reconstruct(engine, index, example, ranker, *, restrict=True, budget=None,
         'id': example.get('id'), 'observed': observed,
         'goldSource': example['sourceExpression'],
         'bestSource': best['source'] if best else None,
-        'rank': rank, 'candidates': len(candidates),
+        'rank': rank, 'annotationRank': annotation_rank, 'candidates': len(candidates),
         'completeness': 'complete' if candidates else 'unknown',
         'surfaceAgrees': bool(best and normalize(best['surface']) == observed),
         'lexemeRecovery': recovery, 'morphemes': morphemes, 'seconds': seconds,
@@ -324,15 +340,53 @@ def run_suites(engine, store, index, index_id, ranker_id=None, progress=None, ca
                            'seconds': 0.0, 'lexemeRecovery': 0.0, 'morphemes': None})
         configurations[name] = {**_summary(trials), 'available': True, 'denominator': len(frozen)}
 
-    corrections = options.get('corrections') or []
-    suites['user_corrections'] = {'total': len(corrections),
-                                  'note': 'Correções registradas pelo contribuidor; nenhuma publica '
-                                          'ou aprova registro de corpus.'}
+    # Contributor evidence. These two suites are empty until the laboratory has
+    # been used, and that emptiness is itself reported rather than hidden.
+    from parser_lab.feedback import confirmed_examples, coverage_gaps, preference_pairs
+    judgments = list(options.get('judgments') or ())
+    attempts = list(options.get('attempts') or ())
+    reviewed = confirmed_examples(judgments)
+    # Contributor examples carry no annotation of their own, so realize each one
+    # here; without it the annotation-identical metric has an empty denominator.
+    for example in reviewed:
+        try:
+            realized = engine.realize(example['sourceExpression'])
+            example['annotated'] = realized.get('annotated', '')
+            example['morphemes'] = engine.morphemes(example['annotated'])
+            example.setdefault('canonicalSurface', realized.get('surface', ''))
+        except Exception:
+            example['annotated'] = ''
+    progress({'stage': 'evaluate', 'suite': 'frozen_reviewed_historical', 'status': 'running',
+              'total': len(reviewed)})
+    reviewed_trials = []
+    for example in reviewed[:sample]:
+        if cancelled and cancelled():
+            break
+        reviewed_trials.append(reconstruct(engine, index, example, ranker))
     suites['frozen_reviewed_historical'] = {
-        'total': 0,
-        'note': 'Requer exemplos históricos revisados marcados como tal no laboratório. '
-                'Nenhum estava disponível nesta execução; a rota de recuperação do corpus '
-                'é relatada separadamente e não substitui este conjunto.'}
+        **_summary(reviewed_trials), 'cases': reviewed_trials[:10],
+        'denominator': len(reviewed), 'available': len(reviewed),
+        'note': 'Leituras confirmadas ou corrigidas pelo contribuidor, sobre entrada real, '
+                'com a resposta removida da recuperação. É evidência de laboratório '
+                '(lab-reviewed) e nunca aprovação editorial do corpus.'
+                if reviewed else
+                'Nenhuma leitura revisada ainda. Analise frases e confirme ou corrija a '
+                'leitura em Analisar; cada decisão passa a contar aqui.'}
+
+    pairs = preference_pairs(judgments)
+    verdicts = {}
+    for row in judgments:
+        verdicts[row.get('verdict')] = verdicts.get(row.get('verdict'), 0) + 1
+    not_proposed = sum(1 for row in judgments if row.get('verdict') == 'corrected'
+                       and row.get('correctionWasProposed') is False)
+    suites['user_corrections'] = {
+        'total': len(judgments), 'verdicts': verdicts,
+        'decidedPairs': len(pairs), 'confirmedReadings': len(reviewed),
+        'correctionsTheSearchNeverProposed': not_proposed,
+        'coverageGaps': len(coverage_gaps(attempts)),
+        'note': 'Correções que a busca nunca propôs são falhas de cobertura, não de '
+                'ordenação, e nenhum classificador as resolve. Nada aqui publica fonte '
+                'nem aprova referência.'}
 
     metrics = {suite: {key: value for key, value in body.items() if key != 'cases'}
                for suite, body in suites.items()}

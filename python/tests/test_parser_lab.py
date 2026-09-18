@@ -18,6 +18,10 @@ sys.path.insert(0, str(STUDIO))
 from parser_lab import grammar
 from parser_lab.artifacts import ArtifactStore, write_jsonl
 from parser_lab.datasets import assign_splits, load_profile, split_of
+from parser_lab.equivalence import (AcceptanceSet, acceptance_from_judgments,
+                                    annotation_difference, annotation_identical, classify, group)
+from parser_lab.feedback import (AttemptLog, confirmed_examples, coverage_gaps,
+                                 preference_pairs, summary)
 from parser_lab.index import LabIndex
 from parser_lab.judgments import JudgmentLog
 from parser_lab.normalization import InputError, PROFILE, normalize, prepare
@@ -158,6 +162,151 @@ class SplitTests(unittest.TestCase):
         splits = assign_splits(self.rows(), {'seed': 7, 'holdout': {'lexemes': ['taba']}})
         self.assertEqual(splits['policy']['seed'], 7)
         self.assertEqual(splits['policy']['holdout']['lexemes'], ['taba'])
+
+
+class EquivalenceTests(unittest.TestCase):
+    ABSOLUTE = 's[PLURIFORM_PREFIX:S:ABSOLUTE]apé[ROOT]pe[POSTPOSITION:LOCATIVE]'
+    POSSESSED = 's[PLURIFORM_PREFIX:S]apé[ROOT]pe[POSTPOSITION:LOCATIVE]'
+
+    def test_identical_annotation_is_one_answer_written_twice(self):
+        self.assertTrue(annotation_identical(self.ABSOLUTE, self.ABSOLUTE))
+        self.assertEqual(classify(self.ABSOLUTE, self.ABSOLUTE), 'annotation-identical')
+
+    def test_a_differing_qualifier_keeps_two_readings_apart(self):
+        self.assertFalse(annotation_identical(self.ABSOLUTE, self.POSSESSED))
+        self.assertEqual(classify(self.ABSOLUTE, self.POSSESSED), 'co-generating')
+
+    def test_the_difference_names_the_exact_tag_that_disagrees(self):
+        rows = annotation_difference(self.ABSOLUTE, self.POSSESSED)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['surface'], 's')
+        self.assertEqual(rows[0]['left'], ['PLURIFORM_PREFIX:S:ABSOLUTE'])
+        self.assertEqual(rows[0]['right'], ['PLURIFORM_PREFIX:S'])
+        self.assertTrue(rows[0]['onlyTags'])
+
+    def test_grouping_collapses_identical_annotations_and_keeps_the_spelling(self):
+        rows = group([
+            {'source': 'a * b', 'annotated': self.ABSOLUTE, 'provenance': {}},
+            {'source': '(a * b)', 'annotated': self.ABSOLUTE, 'provenance': {}},
+            {'source': 'c * d', 'annotated': self.POSSESSED, 'provenance': {}},
+        ])
+        self.assertEqual([row['source'] for row in rows], ['a * b', 'c * d'])
+        self.assertEqual(rows[0]['provenance']['annotationIdenticalSources'], ['(a * b)'])
+
+    def test_co_generating_readings_are_acceptable_until_someone_decides(self):
+        acceptance = AcceptanceSet('aso')
+        self.assertFalse(acceptance.decided())
+        self.assertTrue(acceptance.acceptable('(pe * apé)'))
+        self.assertEqual(acceptance.verdict('(pe * apé)'), 'presumed')
+        # Ambiguity is not error: an undecided pair may not become a contrast.
+        self.assertFalse(acceptance.contrastable('(pe * apé)', '(pe * (ae * apé))'))
+
+    def test_choosing_one_of_the_shown_readings_prefers_it_over_the_rest(self):
+        """Picking the best among those on screen is itself a preference."""
+        acceptance = acceptance_from_judgments('sapepe', [
+            {'normalized': 'sapepe', 'verdict': 'accepted', 'candidateSource': 'B',
+             'shownSources': ['A', 'B']}])
+        self.assertEqual(acceptance.verdict('B'), 'confirmed')
+        self.assertEqual(acceptance.verdict('A'), 'not-preferred')
+        # Not chosen is not ungrammatical: it stays an acceptable reading.
+        self.assertTrue(acceptance.acceptable('A'))
+        self.assertTrue(acceptance.contrastable('B', 'A'))
+        self.assertFalse(acceptance.contrastable('A', 'B'))
+
+    def test_a_judgment_decides_the_pair_in_both_directions(self):
+        judgments = [{'normalized': 'sapepe', 'verdict': 'accepted', 'candidateSource': 'A'},
+                     {'normalized': 'sapepe', 'verdict': 'rejected', 'candidateSource': 'B'}]
+        acceptance = acceptance_from_judgments('sapepe', judgments)
+        self.assertTrue(acceptance.decided())
+        self.assertEqual(acceptance.verdict('A'), 'confirmed')
+        self.assertEqual(acceptance.verdict('B'), 'rejected')
+        self.assertTrue(acceptance.contrastable('A', 'B'))
+        self.assertFalse(acceptance.contrastable('B', 'A'))
+
+    def test_a_correction_confirms_the_fix_and_rejects_what_it_replaced(self):
+        acceptance = acceptance_from_judgments('sapepe', [
+            {'normalized': 'sapepe', 'verdict': 'corrected',
+             'candidateSource': 'A', 'correctedSource': 'B'}])
+        self.assertEqual(acceptance.verdict('B'), 'confirmed')
+        self.assertEqual(acceptance.verdict('A'), 'rejected')
+
+    def test_judgments_for_another_observation_are_ignored(self):
+        acceptance = acceptance_from_judgments('aso', [
+            {'normalized': 'sapepe', 'verdict': 'rejected', 'candidateSource': 'A'}])
+        self.assertFalse(acceptance.decided())
+        self.assertEqual(acceptance.verdict('A'), 'presumed')
+
+
+class FeedbackTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.attempts = AttemptLog(Path(self.directory.name) / 'attempts.jsonl')
+
+    def attempt(self, **overrides):
+        return {'normalized': 'zzzz', 'status': 'unknown', 'candidateCount': 0,
+                'candidateSources': [], 'artifacts': {}, **overrides}
+
+    def test_an_identical_repeated_attempt_is_not_recorded_twice(self):
+        self.assertTrue(self.attempts.record(self.attempt())['appended'])
+        self.assertFalse(self.attempts.record(self.attempt())['appended'])
+        self.assertTrue(self.attempts.record(self.attempt(normalized='yyyy'))['appended'])
+        self.assertEqual(len(self.attempts.read()), 2)
+
+    def test_coverage_gaps_rank_unanalysable_inputs_and_ignore_successes(self):
+        self.attempts.record(self.attempt(normalized='aaa'))
+        self.attempts.record(self.attempt(normalized='bbb'))
+        self.attempts.record(self.attempt(normalized='aaa', rawInput='again'))
+        self.attempts.record(self.attempt(normalized='ccc', status='complete',
+                                          candidateCount=1, candidateSources=['x']))
+        gaps = coverage_gaps(self.attempts.read())
+        self.assertEqual([row['normalized'] for row in gaps], ['aaa', 'bbb'])
+        self.assertEqual(gaps[0]['attempts'], 2)
+
+    def test_a_confirmed_reading_becomes_a_reviewed_example_without_approval(self):
+        rows = confirmed_examples([
+            {'normalized': 'xeroka', 'verdict': 'accepted', 'candidateSource': '(ixé * oka)',
+             'recordedAt': '2026-09-18T12:00:00Z'}])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['sourceExpression'], '(ixé * oka)')
+        self.assertEqual(rows[0]['provenance'], 'contributor-confirmed')
+        self.assertEqual(rows[0]['reviewStatus'], 'lab-reviewed')
+        self.assertFalse(rows[0]['grantsApproval'])
+        self.assertEqual(rows[0]['sourceAst'], project('(ixé * oka)'))
+
+    def test_the_latest_verdict_for_an_observation_wins(self):
+        rows = confirmed_examples([
+            {'normalized': 'xeroka', 'verdict': 'accepted', 'candidateSource': '(ixé * oka)',
+             'recordedAt': '2026-09-18T12:00:00Z'},
+            {'normalized': 'xeroka', 'verdict': 'corrected', 'candidateSource': '(ixé * oka)',
+             'correctedSource': '(pe * oka)', 'recordedAt': '2026-09-18T12:05:00Z'}])
+        self.assertEqual([row['sourceExpression'] for row in rows], ['(pe * oka)'])
+        self.assertEqual(rows[0]['provenance'], 'contributor-corrected')
+
+    def test_preferences_come_only_from_decided_pairs(self):
+        # An acceptance with nothing else on screen compares nothing.
+        self.assertEqual(preference_pairs([
+            {'normalized': 'sapepe', 'verdict': 'accepted', 'candidateSource': 'A'}]), [])
+        chosen = preference_pairs([
+            {'normalized': 'sapepe', 'verdict': 'accepted', 'candidateSource': 'A',
+             'shownSources': ['A', 'B']}])
+        self.assertEqual([(row['preferred'], row['other'], row['strength']) for row in chosen],
+                         [('A', 'B', 'passed-over')])
+        pairs = preference_pairs([
+            {'normalized': 'sapepe', 'verdict': 'accepted', 'candidateSource': 'A'},
+            {'normalized': 'sapepe', 'verdict': 'rejected', 'candidateSource': 'B'}])
+        self.assertEqual([(row['preferred'], row['other'], row['strength']) for row in pairs],
+                         [('A', 'B', 'rejected')])
+
+    def test_the_summary_separates_coverage_failures_from_ranking(self):
+        self.attempts.record(self.attempt(normalized='aaa'))
+        rows = summary(self.attempts.read(), [
+            {'normalized': 'sapepe', 'verdict': 'corrected', 'candidateSource': 'A',
+             'correctedSource': 'B', 'correctionWasProposed': False}])
+        self.assertEqual(rows['attemptsUnknown'], 1)
+        self.assertEqual(rows['coverageGaps'], 1)
+        self.assertEqual(rows['correctionsTheSearchNeverProposed'], 1)
+        self.assertEqual(rows['confirmedExamples'], 1)
 
 
 class ArtifactTests(unittest.TestCase):
@@ -456,6 +605,71 @@ class SearchTests(unittest.TestCase):
             self.assertEqual(normalize(row['canonicalSurface']), row['normalized'])
             self.assertEqual(row['provenance'], 'engine-generated')
             self.assertEqual(row['reviewStatus'], 'unreviewed')
+
+    def test_readings_the_grammar_annotates_identically_become_one_answer(self):
+        """`ikó * +endé` and `(+nde * ikó)` make the same morphological claim."""
+        self.assertEqual(self.engine._evaluate('(+nde * ikó)', annotated=True),
+                         self.engine._evaluate('ikó * +endé', annotated=True))
+        candidates, _rejections, _timings, _diagnostics = self.analyze('ereîkó')
+        self.assertEqual(len(candidates), 1)
+        spellings = candidates[0]['provenance'].get('annotationIdenticalSources', [])
+        self.assertIn(candidates[0]['source'], {'ikó * +endé', '(+nde * ikó)'})
+        self.assertTrue(spellings, 'the other spelling is recorded, not discarded')
+
+    def test_co_generating_readings_stay_separate_with_their_exact_difference(self):
+        """`sapépe` is genuinely ambiguous: absolute versus third-person possessed."""
+        candidates, _rejections, _timings, _diagnostics = self.analyze('sapépe')
+        self.assertEqual(len(candidates), 2)
+        sources = {row['source'] for row in candidates}
+        self.assertEqual(sources, {'(pe * apé)', '(pe * (ae * apé))'})
+        for row in candidates:
+            self.assertTrue(row['provenance']['coGenerating'])
+            self.assertEqual(row['provenance']['acceptance'], 'presumed')
+        difference = candidates[1]['provenance']['annotationDifferenceFromBest']
+        self.assertEqual([row['surface'] for row in difference], ['s'])
+        self.assertTrue(row['provenance'] for row in difference)
+        self.assertNotEqual(difference[0]['left'], difference[0]['right'])
+
+    def test_an_undecided_ambiguity_produces_no_training_contrast(self):
+        from parser_lab.ranker import build_training_pairs
+        examples = [{'normalized': prepare('sapépe')['normalized'],
+                     'sourceAst': project('(pe * apé)')}]
+        pairs, statistics = build_training_pairs(self.engine, self.index, examples, judgments=[])
+        self.assertEqual(pairs, [])
+        self.assertEqual(statistics['coGeneratingSkipped'], 1)
+        self.assertEqual(statistics['undecidedObservations'], 1)
+
+    def test_a_contributor_decision_creates_the_contrast_and_reorders_at_once(self):
+        from parser_lab.ranker import build_training_pairs, human_pairs
+        from parser_lab.search import Budget, analyze
+        observed = prepare('sapépe')['normalized']
+        judgments = [
+            {'normalized': observed, 'verdict': 'accepted', 'candidateSource': '(pe * (ae * apé))'},
+            {'normalized': observed, 'verdict': 'rejected', 'candidateSource': '(pe * apé)'}]
+        examples = [{'normalized': observed, 'sourceAst': project('(pe * (ae * apé))')}]
+        pairs, statistics = build_training_pairs(self.engine, self.index, examples,
+                                                 judgments=judgments)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]['goldSource'], '(pe * (ae * apé))')
+        self.assertEqual(statistics['coGeneratingSkipped'], 0)
+        judged, judged_statistics = human_pairs(self.engine, self.index, judgments)
+        self.assertEqual(len(judged), 1)
+        self.assertEqual(judged_statistics['usable'], 1)
+        # The decision applies to the very next analysis, before any training.
+        acceptance = acceptance_from_judgments(observed, judgments)
+        candidates, _rejections, _timings, _diagnostics = analyze(
+            self.engine, self.index, observed, budget=Budget({'maxSeconds': 20.0}),
+            acceptance=acceptance)
+        self.assertEqual(candidates[0]['source'], '(pe * (ae * apé))')
+        self.assertEqual(candidates[0]['provenance']['acceptance'], 'confirmed')
+        self.assertEqual(candidates[-1]['provenance']['acceptance'], 'rejected')
+
+    def test_an_unanalysable_input_reports_which_pieces_were_recognized(self):
+        _candidates, _rejections, _timings, diagnostics = self.analyze('asó xe zzzz')
+        self.assertEqual(_candidates, [])
+        recognized = diagnostics['recognizedSpans']
+        self.assertTrue(recognized, 'a gap report needs the pieces that did match')
+        self.assertTrue(any(row['text'] == 'aso' for row in recognized))
 
     def test_reconstruction_excludes_the_answer_from_retrieval(self):
         from parser_lab.evaluation import RestrictedIndex

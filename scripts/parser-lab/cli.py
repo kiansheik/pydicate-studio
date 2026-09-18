@@ -173,7 +173,13 @@ def main(argv=None):
     activate_parser.set_defaults(handler=command_activate)
 
     arguments = parser.parse_args(argv)
-    return arguments.handler(arguments)
+    try:
+        return arguments.handler(arguments)
+    except (ValueError, RuntimeError, OSError) as error:
+        # Refusing to train without decided contrasts is an expected answer, not
+        # a crash. The contributor reads this message; a traceback helps nobody.
+        print(str(error), file=sys.stderr)
+        return 2
 
 
 if __name__ == '__main__':

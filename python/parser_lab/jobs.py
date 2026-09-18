@@ -126,12 +126,19 @@ def train(engine, store, index_id, progress=None, cancelled=None, options=None):
     if manifest['context']['fingerprint'] != context['fingerprint']:
         raise ValueError('O índice foi construído com outro motor/léxico. Reconstrua antes de treinar.')
     index = load_index(store, index_id)
-    recipe = {'trainer': 'logistic-pairwise-v1', 'parent': index_id, **(options or {})}
+    # Contributor judgments are the only supervision a sound validator leaves
+    # behind, so training always reads them from beside the artifacts.
+    from parser_lab.judgments import JudgmentLog
+    judgments = JudgmentLog(store.root / 'judgments.jsonl').read(10 ** 6)
+    options = {**(options or {}), 'judgments': judgments}
+    recipe = {'trainer': 'logistic-pairwise-v1', 'parent': index_id,
+              'judgmentCount': len(judgments),
+              **{key: value for key, value in options.items() if key != 'judgments'}}
     writer = store.begin('ranker', recipe=recipe, context=context, normalizer_profile=PROFILE,
                          grammar_version=grammar.GRAMMAR_VERSION, ast_schema=AST_SCHEMA,
                          split_policy=manifest.get('splitPolicy', {}),
                          lexical_snapshot=manifest.get('lexicalSnapshot', {}), parents=[index_id])
-    result = train_ranker(engine, store, index, index_id, writer, progress, cancelled, options or {})
+    result = train_ranker(engine, store, index, index_id, writer, progress, cancelled, options)
     manifest = writer.commit(counts=result['counts'], metrics=result['metrics'], parents=[index_id])
     progress({'stage': 'train', 'status': 'done', 'artifactId': manifest['artifactId']})
     return manifest
@@ -143,11 +150,21 @@ def evaluate(engine, store, index_id, ranker_id=None, progress=None, cancelled=N
     cancelled = cancelled or (lambda: False)
     context = engine.context()
     index = load_index(store, index_id)
-    recipe = {'evaluator': 'suites-v1', 'index': index_id, 'ranker': ranker_id, **(options or {})}
+    # The reviewed and corrections suites are built from what use recorded, so
+    # they read the same local logs training does.
+    from parser_lab.feedback import AttemptLog
+    from parser_lab.judgments import JudgmentLog
+    judgments = JudgmentLog(store.root / 'judgments.jsonl').read(10 ** 6)
+    attempts = AttemptLog(store.root / 'attempts.jsonl').read()
+    options = {**(options or {}), 'judgments': judgments, 'attempts': attempts}
+    recipe = {'evaluator': 'suites-v1', 'index': index_id, 'ranker': ranker_id,
+              'judgmentCount': len(judgments), 'attemptCount': len(attempts),
+              **{key: value for key, value in options.items()
+                 if key not in ('judgments', 'attempts')}}
     writer = store.begin('evaluation', recipe=recipe, context=context, normalizer_profile=PROFILE,
                          grammar_version=grammar.GRAMMAR_VERSION, ast_schema=AST_SCHEMA,
                          parents=[item for item in (index_id, ranker_id) if item])
-    report = run_suites(engine, store, index, index_id, ranker_id, progress, cancelled, options or {})
+    report = run_suites(engine, store, index, index_id, ranker_id, progress, cancelled, options)
     (writer.path('evaluation.json')).write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     manifest = writer.commit(counts=report['counts'], metrics=report['metrics'],

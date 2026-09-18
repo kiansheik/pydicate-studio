@@ -247,3 +247,21 @@
     height: 46vh;
   }
 }
+
+/* Readings the surface cannot separate: all shown, the chosen one marked. */
+.lab-candidates li.acceptance-not-preferred button {
+  opacity: 0.82;
+}
+.lab-candidates li.acceptance-rejected button {
+  opacity: 0.62;
+  border-style: dashed;
+}
+.lab-candidates li.acceptance-confirmed button {
+  border-color: var(--accent, #6ea8fe);
+}
+.lab-candidates .lab-difference {
+  opacity: 0.9;
+}
+.lab-candidates .lab-choose {
+  margin: 6px 0 0 10px;
+}

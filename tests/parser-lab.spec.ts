@@ -267,6 +267,40 @@ test('a sentence absent from the recorded expressions is still composed', async 
   await expect(page.getByTestId('lab-surface')).toHaveText('eresó nde rokype');
 });
 
+test('both readings of an ambiguous form are shown, and choosing one sticks', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.getByTestId('lab-input').fill('sapépe');
+  await page.getByTestId('lab-analyse').click();
+  const candidates = page.getByTestId('lab-candidates');
+  await expect(candidates.locator('li')).toHaveCount(2);
+  await expect(candidates).toContainText('(pe * apé)');
+  await expect(candidates).toContainText('(pe * (ae * apé))');
+  // The grammar's own annotation says exactly what separates them.
+  await expect(candidates).toContainText('PLURIFORM_PREFIX:S:ABSOLUTE');
+  await expect(page.getByTestId('lab-acceptance')).toContainText('a forma não decide entre elas');
+
+  // Choose the second reading; the choice is recorded and applied at once.
+  await candidates.locator('li').nth(1).locator('button').first().click();
+  await page.getByTestId('lab-choose-1').click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Registrado no laboratório' }),
+  ).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await candidates.locator('li').first().innerText()).includes('(pe * (ae * apé))'),
+    )
+    .toBe(true);
+  await expect(candidates.locator('li').first()).toContainText('leitura que você confirmou');
+  await expect(page.getByTestId('lab-acceptance')).toContainText('Confirmada por você');
+
+  const judgments = (await lab.request('judgment_list', { limit: 5 })) as {
+    judgments: { verdict: string; shownSources: string[]; chosenRank: number }[];
+  };
+  expect(judgments.judgments[0].verdict).toBe('accepted');
+  expect(judgments.judgments[0].shownSources).toHaveLength(2);
+  expect(judgments.judgments[0].chosenRank).toBe(2);
+});
+
 test('an explicit transfer is confirmed before it reaches a draft', async ({ page }) => {
   test.setTimeout(120_000);
   await page.getByTestId('lab-input').fill('Asó xe rokype');

@@ -297,7 +297,9 @@ if (ok)
   });
 
 if (ok)
-  ok = await stage('train-and-evaluate-survive-a-reload', async () => {
+  ok = await stage('choose-a-reading-then-learn-from-it', async () => {
+    // Without a decided contrast there is nothing to learn, and training must
+    // say so rather than invent supervision from an ambiguity.
     await page.getByRole('button', { name: 'Treinar' }).click();
     await page.getByTestId('lab-start-train').click();
     await expect
@@ -305,6 +307,39 @@ if (ok)
         timeout: 600_000,
       })
       .toMatch(/succeeded|failed/);
+    const refused = (await invoke('parser_lab_status', {})).jobs[0];
+    assert.equal(refused.status, 'failed', 'an undecided laboratory has nothing to train on');
+    assert.match(refused.error, /contrastes decididos/);
+
+    // `sapépe` has two readings the surface cannot separate. Both are shown with
+    // the exact tag that differs, and the contributor chooses one.
+    const shown = await analyse('sapépe');
+    assert.match(shown, /Análise completa/);
+    const candidates = page.getByTestId('lab-candidates');
+    assert.equal(await candidates.locator('li').count(), 2, 'both readings are offered');
+    const listed = await candidates.innerText();
+    assert.match(listed, /\(pe \* apé\)/);
+    assert.match(listed, /\(pe \* \(ae \* apé\)\)/);
+    assert.match(listed, /PLURIFORM_PREFIX:S:ABSOLUTE/);
+    await candidates.locator('li').nth(1).locator('button').first().click();
+    await page.getByTestId('lab-choose-1').click();
+    await expect(page.getByTestId('lab-acceptance')).toContainText('Confirmada por você', {
+      timeout: 60_000,
+    });
+    const reordered = await candidates.locator('li').first().innerText();
+    assert.match(reordered, /\(pe \* \(ae \* apé\)\)/, 'the confirmed reading comes first now');
+
+    // That one decision is what training can actually use.
+    const learned = await invoke('parser_lab_feedback', {});
+    assert.equal(learned.summary.confirmedExamples, 1);
+    assert.ok(learned.summary.attempts > 0);
+    await page.getByRole('button', { name: 'Treinar' }).click();
+    await page.getByTestId('lab-start-train').click();
+    await expect
+      .poll(async () => (await invoke('parser_lab_status', {})).jobs[0].status, {
+        timeout: 600_000,
+      })
+      .toBe('succeeded');
     const trained = (await invoke('parser_lab_status', {})).jobs[0];
     await page.getByRole('button', { name: 'Avaliar' }).click();
     await page.getByTestId('lab-start-evaluate').click();
@@ -320,7 +355,14 @@ if (ok)
     const evaluation = status.artifacts.find((item) => item.kind === 'evaluation');
     assert.ok(ranker?.completed, 'the trained ranker must survive a reload');
     assert.ok(evaluation?.completed, 'the evaluation artifact must survive a reload');
+    assert.ok(
+      ranker.metrics.trainPairsFromJudgments > 0,
+      'the contributor decision must be what training used',
+    );
     return {
+      refusedWithoutJudgments: refused.error.slice(0, 120),
+      readingsOffered: 2,
+      learned: learned.summary,
       trainStatus: trained.status,
       ranker: { id: ranker.artifactId, metrics: ranker.metrics },
       evaluation: { id: evaluation.artifactId, metrics: evaluation.metrics },

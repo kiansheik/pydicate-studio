@@ -78,10 +78,64 @@ Soundness comes from the engine, so the chart's concatenation assumption can
 only cost recall, never validity. Nothing is passed through a literal or a
 catch-all wrapper and called a parse.
 
-Candidates are deduplicated by the documented structural comparator
-(`parser_lab.projection`), so `+ae * ikó` and `(+ae * ikó)` are one analysis with
-two spellings, while `(pe * apé)` and `(pe * (ae * apé))` stay two analyses of
-one ambiguous surface.
+## One answer, or a choice?
+
+Every returned candidate realizes the whole observation, so "same surface"
+separates nothing. Two finer notions decide, and the engine supplies both:
+
+- **Annotation-identical** — the engine emits byte-identical annotated output,
+  so the grammar makes the same morphological claim about every surface unit.
+  These are one answer written twice and are merged, with the other spelling kept
+  under `annotationIdenticalSources`. `(+nde * ikó)` and `ikó * +endé` merge.
+- **Co-generating** — both realize the observation but annotate differently, so
+  the surface genuinely does not decide. `(pe * apé)` and `(pe * (ae * apé))`
+  differ by exactly `PLURIFORM_PREFIX:S:ABSOLUTE` versus `PLURIFORM_PREFIX:S`:
+  unpossessed against third-person possessed. Both are shown, each with the
+  precise tag difference from the first reading, and the contributor picks.
+
+Co-generating readings are **presumed mutually acceptable**: never scored as an
+error against each other, never used as a training contrast. Only a contributor
+judgment demotes one, because only a reader can decide which reading a passage
+intends. Source spelling alone still never creates a second analysis: `+ae * ikó`
+and `(+ae * ikó)` are collapsed by the structural comparator first.
+
+Scoring reports three levels and never conflates them: `top1Exact` (the
+generating expression itself), `top1AnnotationSame` (a reading the grammar
+annotates identically), and `completeRate` (any validated reading).
+
+## Learning from use
+
+The laboratory keeps three local records, each with different evidential weight:
+
+| Record | What it is | What it is for |
+| --- | --- | --- |
+| `attempts.jsonl` | every analysis and its outcome, deduplicated | coverage gaps: the inputs this laboratory could not analyse, and which pieces it did recognize |
+| `judgments.jsonl` | explicit verdicts with the whole set that was on screen, which reading was chosen, and whether a correction had been proposed at all | confirmed readings and decided preferences |
+| `feedback.json` | the derived examples, preference pairs and gaps | a reusable export for training |
+
+Choosing one of the readings on screen is itself a preference over the others.
+A reading that was passed over is `not-preferred`: still a possible reading, not
+an error, and weaker evidence than an explicit rejection — the two are kept
+distinguishable by `strength` on each derived pair. So a single click produces
+usable supervision, without claiming the other reading is ungrammatical.
+
+A judgment takes effect **immediately**: the next analysis of that observation
+orders confirmed, presumed, not-preferred, rejected — each labelled — before any
+training run. Nothing is hidden; a rejected reading still validates, and showing
+it is what keeps the decision reviewable.
+
+Training then has real supervision. Because the validator is sound, a generating
+expression is not evidence that the alternatives are wrong, so **decided pairs
+are the only contrasts trained on**; undecided co-generating pairs are counted
+as `coGeneratingSkipped` and skipped. A preferred reading the search never
+proposes is a *coverage* failure, counted separately as
+`judgmentsPreferredNotProposed`, and no ranker can fix it.
+
+Confirmed and corrected readings become reviewed examples on real input with
+`provenance: contributor-confirmed` / `contributor-corrected` and
+`reviewStatus: lab-reviewed`. They populate the `frozen_reviewed_historical`
+suite, which is otherwise empty. `grantsApproval` stays `false`: this is
+laboratory evidence, never corpus editorial approval.
 
 Every request is bounded: observation length, span candidates, engine renders,
 AST size, wall time and returned candidates. Exhaustion is reported as
@@ -198,9 +252,10 @@ reproduced from a script.
   returns `unknown`, as the evaluation shows.
 - Synthetic composition is not historical accuracy. No frozen reviewed
   historical laboratory set exists yet.
-- The ranker trains for real, but on this data almost every contrast is a
-  symmetric ambiguity, so it does not beat the deterministic baseline and is not
-  recommended for activation. That result is recorded in the artifact.
+- Ranking supervision cannot come from the generator. Every candidate realizes
+  the observation, so only a contributor judgment can separate two readings. A
+  fresh laboratory therefore trains on nothing and says so; the deterministic
+  ordering stays active until judgments exist.
 - The neural proposer is a documented recipe with a dependency check. It was not
   trained, and it says so.
 - Agent escalation requires explicit user initiation and a configured provider.

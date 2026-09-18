@@ -21,6 +21,8 @@ from parser_lab.artifacts import ArtifactStore
 from parser_lab.contracts import result as make_result
 from parser_lab.engine import LabEngine
 from parser_lab.index import LabIndex
+from parser_lab.equivalence import acceptance_from_judgments
+from parser_lab.feedback import AttemptLog, coverage_gaps, export, summary
 from parser_lab.judgments import JudgmentLog
 from parser_lab.normalization import InputError, prepare
 from parser_lab.projection import project
@@ -44,6 +46,7 @@ class LabWorker:
         self._engine = None
         self.store = ArtifactStore(artifacts)
         self.judgments = JudgmentLog(Path(artifacts) / 'judgments.jsonl')
+        self.attempts = AttemptLog(Path(artifacts) / 'attempts.jsonl')
         self._index = None
         self._index_id = None
         self._ranker = None
@@ -100,22 +103,39 @@ class LabWorker:
         use_ranker = params.get('useRanker', True)
         ranker_id, ranker = self.ranker_for(params.get('rankerId')) if use_ranker else (None, None)
         seconds = min(float(params.get('seconds', 6.0)), 30.0)
+        # Past decisions for this exact observation are applied now, so a
+        # correction improves the very next analysis of the same sentence.
+        acceptance = acceptance_from_judgments(prepared['normalized'],
+                                               self.judgments.read(10 ** 6))
         candidates, rejections, timings, diagnostics = analyze(
             self.engine, index, prepared['normalized'],
-            budget=Budget({'maxSeconds': seconds}), ranker=ranker)
+            budget=Budget({'maxSeconds': seconds}), ranker=ranker, acceptance=acceptance)
         timings['request'] = round(time.perf_counter() - started, 4)
         status = 'complete' if candidates else 'unknown'
         message = ''
         if not candidates:
             message = ('Nenhuma análise completa foi validada. A busca só combina as famílias e '
                        'o léxico declarados neste índice; ortografia histórica não é convertida.')
+        artifacts = {'index': index_id, 'ranker': ranker_id, 'indexCounts': index.counts(),
+                     'indexRecipe': (self.store.manifest(index_id) or {}).get('recipe', {})}
+        # Every attempt is kept locally. Completed ones show what the laboratory
+        # can already do; unknown ones are the coverage gaps worth closing.
+        self.attempts.record({
+            'normalized': prepared['normalized'], 'rawInput': prepared['raw'], 'status': status,
+            'candidateCount': len(candidates),
+            'candidateSources': [row['source'] for row in candidates],
+            'artifacts': {'index': index_id, 'ranker': ranker_id},
+            'context': {'sourceId': self.source_id,
+                        'fingerprint': self.engine.context_fingerprint()},
+            'recognizedSpans': diagnostics.get('recognizedSpans', []),
+            'rejections': [row['code'] for row in rejections],
+            'seconds': timings.get('request', 0.0)})
         return make_result(
-            input_profile=prepared, context=self.engine.context(),
-            artifacts={'index': index_id, 'ranker': ranker_id, 'indexCounts': index.counts(),
-                       'indexRecipe': (self.store.manifest(index_id) or {}).get('recipe', {})},
+            input_profile=prepared, context=self.engine.context(), artifacts=artifacts,
             candidates=candidates, rejections=rejections, timings=timings, status=status,
             message=message, configuration={'diagnostics': diagnostics, 'ranker': bool(ranker),
-                                            'seconds': seconds})
+                                            'seconds': seconds,
+                                            'acceptance': acceptance.describe()})
 
     def parse(self, params):
         """Parse a lab expression into the editable source tree."""
@@ -166,6 +186,19 @@ class LabWorker:
     def judgment_list(self, params):
         return {'judgments': self.judgments.read(int(params.get('limit', 100)))}
 
+    def feedback_summary(self, params):
+        """What use has taught the laboratory so far, and what it still cannot do."""
+        attempts = self.attempts.read()
+        judgments = self.judgments.read(10 ** 6)
+        return {'summary': summary(attempts, judgments),
+                'coverageGaps': coverage_gaps(attempts, int(params.get('limit', 25)))}
+
+    def feedback_export(self, params):
+        """Write the derived examples, preferences and gaps beside the raw logs."""
+        target = Path(self.artifacts) / 'feedback.json'
+        result = export(self.attempts.read(), self.judgments.read(10 ** 6), target)
+        return {'path': str(target), 'summary': result}
+
     def optional_status(self, params):
         from parser_lab.agent import agent_status
         from parser_lab.neural import neural_status
@@ -177,7 +210,7 @@ class LabWorker:
 
 METHODS = ('context', 'status', 'analyze', 'parse', 'evaluate', 'activate', 'deactivate',
            'collisions', 'judgment_add', 'judgment_list', 'optional_status', 'project',
-           'clear_staging')
+           'clear_staging', 'feedback_summary', 'feedback_export')
 
 
 def main():

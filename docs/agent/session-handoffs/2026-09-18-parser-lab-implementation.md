@@ -34,10 +34,11 @@ native smoke works on a disposable clone with the engine symlinked read-only.
 - `src/components/ParserLab.tsx`, `src/domain/parser-lab.ts`,
   `src/domain/parser-lab-fixtures.json`, `src/parser-lab.css`; the switch lives
   in App's project information panel under **Recursos experimentais**.
-- Tests: `python/tests/test_parser_lab.py` (46),
+- Tests: `python/tests/test_parser_lab.py` (66),
   `electron/tests/parser-lab-service.test.cjs` (10),
-  `src/domain/parser-lab.test.ts` (11), `tests/parser-lab.spec.ts` (7, real
-  Python laboratory worker, including a context-menu tree gesture),
+  `src/domain/parser-lab.test.ts` (11), `tests/parser-lab.spec.ts` (8, real
+  Python laboratory worker, including a context-menu tree gesture and choosing
+  between two readings),
   `tests/parser-lab-shell.spec.ts` (4, App shell).
 - `scripts/smoke-parser-lab.mjs` (`npm run test:smoke:parser-lab`) and its
   report at `docs/coverage/parser-lab-native.json`.
@@ -72,10 +73,17 @@ Screenshot: `docs/coverage/native-screenshots/parser-lab-first-result.png`.
   index they are ~1.0; with `taba`/`suí` or `negated_clause` removed, 25/25 come
   back `unknown`. The declared searcher does not invent lexemes or families, and
   that is now the documented generalization boundary.
-- Ranker on the full train split: 88 contrast pairs, of which 86 are symmetric
-  (`(pe * apé)` ↔ `(pe * (ae * apé))` both realize `sapepe`). Dev pairwise
-  accuracy 0.5 equals the baseline, `recommendActivation: false`. The
-  deterministic ordering stays active; the artifact records why.
+- Ranking supervision cannot come from the generator. Every candidate realizes
+  the observation, so a generating expression is not evidence the alternatives
+  are wrong. What looked like an 88-pair training set was 86 co-generating
+  ambiguities; those are now counted as `coGeneratingSkipped` and excluded, and
+  a laboratory with no judgments refuses to train, with the reason. The
+  deterministic ordering stays active until a contributor decides something.
+- The engine separates readings, not us. Annotation-identical sources merge
+  (`(+nde * ikó)` ≡ `ikó * +endé`), keeping the alternative spelling.
+  Co-generating ones stay apart, are all shown, and each carries the exact tag
+  difference — for `sapépe`, `PLURIFORM_PREFIX:S:ABSOLUTE` versus
+  `PLURIFORM_PREFIX:S`.
 
 ## Checks run
 
@@ -108,10 +116,29 @@ everything else under `python/` is a new file, so these cannot be caused by the
 laboratory. `python/tests/test_parser_lab.py` passes 46/46. No historical source
 or approval was rewritten to make anything green.
 
+## Learning from use
+
+`attempts.jsonl` records every analysis (deduplicated), `judgments.jsonl` records
+each verdict with the whole set that was on screen, which reading was chosen and
+whether a correction had been proposed at all, and `feedback.json` exports the
+derived examples, preferences and gaps. Choosing one of the readings on screen prefers it over the rest: those are
+`not-preferred`, still possible and weaker than a rejection, so a single click
+already yields a contrast. A decision applies to the **next analysis
+immediately** — confirmed, presumed, not-preferred, rejected — before any
+training. Confirmed and corrected readings become reviewed examples on real
+input (`lab-reviewed`, `grantsApproval: false`) and populate
+`frozen_reviewed_historical`. Unanalysable inputs become a coverage-gap list that
+names the pieces that were recognized, which is what says what to add next. A
+preferred reading the search never proposes is counted as a coverage failure, not
+a ranking one.
+
+Scoring reports three levels without conflating them: `top1Exact`,
+`top1AnnotationSame` and `completeRate`.
+
 ## Remaining questions
 
-- No frozen reviewed historical laboratory set exists, so the suite that would
-  measure usefulness on real text reports `total: 0`.
+- The reviewed-historical suite is populated by use, so it is empty until the
+  laboratory has been used; its emptiness is reported rather than hidden.
 - The neural ByT5 recipe is documented and dependency-checked; `transformers` is
   absent here, so it was never trained. Agent escalation was never invoked.
 - Composition currently proposes constituents by concatenating fragment keys

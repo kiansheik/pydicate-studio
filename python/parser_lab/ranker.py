@@ -4,11 +4,11 @@ Pairwise logistic ranking over numeric features plus sparse symbols (root rule,
 family, bound lexeme, source character 3-grams). The vocabulary and the weights
 are fitted on the training split only.
 
-Label honesty: a positive is *the expression that generated the example*. An
-alternative with the same realized surface is not thereby ungrammatical, so
-alternatives are treated as lower-preference, not as proven errors. Contrast
-pairs are only used where the two analyses differ in a way that is a real
-claim — a different root rule or a different lexical identity.
+Label honesty: every candidate the search returns realizes the whole
+observation, so two candidates for one input are readings the surface cannot
+separate. Only a contributor judgment can make one of them preferable, and only
+such decided pairs are trained on. A generating expression is not, by itself,
+evidence that the alternatives are wrong.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ import math
 import random
 import time
 
+from parser_lab.equivalence import acceptance_from_judgments
 from parser_lab.normalization import normalize
 from parser_lab import projection
 
@@ -122,25 +123,32 @@ def _update(model, record, gradient, l2, rate):
 
 # -- training data ---------------------------------------------------------
 
-def contrast_kind(gold_ast, gold_bindings, candidate):
-    """Why this alternative is a different claim, or why it is only a variant."""
-    if candidate['provenance'].get('rootRule') and candidate['family'] != gold_ast.get('rootRule'):
-        return 'different-root-rule'
-    if set(candidate['bindings'].values()) != set(gold_bindings.values()):
-        return 'different-lexical-identity'
-    if candidate.get('astFingerprint') != gold_ast.get('fingerprint'):
-        return 'different-structure'
-    return 'variant'
+def _record(candidate):
+    """Feature record for one candidate, as both scoring and fitting see it."""
+    return (candidate['features'], symbols_of(
+        rule=candidate['family'], families=candidate['provenance'].get('families', []),
+        bindings=candidate['bindings'], source=candidate['source']))
 
 
 def build_training_pairs(engine, index, examples, progress=None, cancelled=None, limit=None,
-                         rules=None):
-    """Propose with the runtime searcher, then keep examples with real contrasts."""
-    from parser_lab.search import analyze, Budget, features_of
+                         rules=None, judgments=()):
+    """Propose with the runtime searcher, then keep only decided contrasts.
+
+    Every candidate the search returns already realizes the whole observation, so
+    two candidates for one input are co-generating readings the surface cannot
+    separate. Training the ranker to prefer whichever happened to generate a
+    synthetic row would teach an arbitrary preference and then report it as
+    accuracy. Such pairs are counted and skipped.
+
+    A pair survives only when a contributor judgment separated it. That is the
+    honest consequence of a sound validator: ranking supervision comes from
+    readers, not from the generator.
+    """
+    from parser_lab.search import analyze, Budget
 
     rows = []
     statistics = {'examples': 0, 'withContrast': 0, 'goldFound': 0, 'goldMissing': 0,
-                  'noAlternatives': 0}
+                  'noAlternatives': 0, 'coGeneratingSkipped': 0, 'undecidedObservations': 0}
     for example in examples:
         if cancelled and cancelled():
             break
@@ -149,7 +157,8 @@ def build_training_pairs(engine, index, examples, progress=None, cancelled=None,
         statistics['examples'] += 1
         if progress and statistics['examples'] % 25 == 0:
             progress({'stage': 'contrasts', 'processed': statistics['examples'],
-                      'kept': statistics['withContrast']})
+                      'kept': statistics['withContrast'],
+                      'coGeneratingSkipped': statistics['coGeneratingSkipped']})
         observed = example['normalized']
         candidates, _rejections, _timings, _diagnostics = analyze(
             engine, index, observed, budget=Budget({'maxCandidates': 12, 'maxSeconds': 3.0}),
@@ -170,68 +179,114 @@ def build_training_pairs(engine, index, examples, progress=None, cancelled=None,
             statistics['goldMissing'] += 1
             continue
         statistics['goldFound'] += 1
-        alternatives = [row for row in candidates if row is not gold]
+        acceptance = acceptance_from_judgments(observed, judgments)
+        if not acceptance.decided():
+            statistics['undecidedObservations'] += 1
         kept = []
-        for row in alternatives:
-            kind = ('different-root-rule' if row['family'] != gold['family'] else
-                    'different-lexical-identity'
-                    if set(row['bindings'].values()) != set(gold['bindings'].values())
-                    else 'variant')
-            # A "variant" shares rule and lexemes: it is not a contrast we can
-            # justify labelling, so it stays unlabelled and out of training.
-            if kind != 'variant':
-                kept.append((row, kind))
+        for row in candidates:
+            if row is gold:
+                continue
+            if acceptance.contrastable(gold['source'], row['source']):
+                kept.append(row)
+            else:
+                statistics['coGeneratingSkipped'] += 1
         if not kept:
-            statistics['noAlternatives'] += 1
             continue
         statistics['withContrast'] += 1
-        positive = (gold['features'], symbols_of(rule=gold['family'], families=gold['provenance'].get('families', []),
-                                                 bindings=gold['bindings'], source=gold['source']))
-        for row, kind in kept:
-            negative = (row['features'], symbols_of(rule=row['family'],
-                                                    families=row['provenance'].get('families', []),
-                                                    bindings=row['bindings'], source=row['source']))
-            rows.append({'positive': positive, 'negative': negative, 'contrast': kind,
-                         'observed': observed, 'goldSource': gold['source'],
-                         'alternativeSource': row['source']})
+        for row in kept:
+            rows.append({'positive': _record(gold), 'negative': _record(row),
+                         'contrast': 'contributor-decided', 'observed': observed,
+                         'goldSource': gold['source'], 'alternativeSource': row['source'],
+                         'origin': 'judged-generated'})
     if progress:
         progress({'stage': 'contrasts', 'processed': statistics['examples'],
-                  'kept': statistics['withContrast'], 'status': 'done'})
+                  'kept': statistics['withContrast'],
+                  'coGeneratingSkipped': statistics['coGeneratingSkipped'], 'status': 'done'})
     return rows, statistics
 
 
-def symmetric_pairs(pairs):
-    """Pairs whose two analyses each appear as the other's generator.
+def human_pairs(engine, index, judgments, progress=None, cancelled=None):
+    """Contrasts a contributor decided, turned into feature records.
 
-    A symmetric pair is genuine ambiguity: the surface does not determine which
-    expression produced it, so no ranker can be expected to decide it.
+    Both sides must still be reachable by the current searcher, because a ranker
+    can only reorder what the search proposes. A preferred reading the search
+    never proposes is a *coverage* failure, counted separately so it is never
+    mistaken for a ranking result.
     """
-    seen = {(pair['goldSource'], pair['alternativeSource']) for pair in pairs}
-    return sum(1 for left, right in seen if (right, left) in seen)
+    from parser_lab.search import analyze, Budget
+    from parser_lab.feedback import preference_pairs
+
+    rows = []
+    statistics = {'declared': 0, 'usable': 0, 'preferredNotProposed': 0,
+                  'alternativeNotProposed': 0}
+    by_observation = {}
+    for pair in preference_pairs(judgments):
+        by_observation.setdefault(pair['observed'], []).append(pair)
+    for observed, pairs in sorted(by_observation.items()):
+        if cancelled and cancelled():
+            break
+        candidates, _rejections, _timings, _diagnostics = analyze(
+            engine, index, observed, budget=Budget({'maxCandidates': 25, 'maxSeconds': 5.0}))
+        found = {row['source']: row for row in candidates}
+        for pair in pairs:
+            statistics['declared'] += 1
+            preferred = found.get(pair['preferred'])
+            other = found.get(pair['other'])
+            if preferred is None:
+                statistics['preferredNotProposed'] += 1
+                continue
+            if other is None:
+                statistics['alternativeNotProposed'] += 1
+                continue
+            statistics['usable'] += 1
+            rows.append({'positive': _record(preferred), 'negative': _record(other),
+                         'contrast': 'contributor-judgment', 'observed': observed,
+                         'goldSource': pair['preferred'], 'alternativeSource': pair['other'],
+                         'origin': 'judgment'})
+        if progress:
+            progress({'stage': 'human-contrasts', 'observations': len(by_observation),
+                      'usable': statistics['usable']})
+    return rows, statistics
 
 
 def train_ranker(engine, store, index, index_id, writer, progress, cancelled, options):
-    """Full trainable path used by the job runner and the CLI."""
+    """Full trainable path used by the job runner and the CLI.
+
+    Two sources feed it, and they are kept distinguishable in the artifact:
+    contrasts a contributor decided (the only supervision a sound validator can
+    leave behind), and generated examples whose alternatives a judgment has
+    separated. Co-generating readings nobody has decided are skipped, counted
+    and reported, never silently trained against.
+    """
     from parser_lab.artifacts import read_jsonl
-    from parser_lab.search import features_of
+    from parser_lab.datasets import split_of
 
     started = time.time()
     directory = store.directory(index_id)
     splits = json.loads((directory / 'splits.json').read_text(encoding='utf-8'))
     examples = list(read_jsonl(directory / 'examples.jsonl'))
-    from parser_lab.datasets import split_of
+    judgments = list(options.get('judgments') or ())
     train_examples = [row for row in examples if split_of(splits, row) == 'train']
     dev_examples = [row for row in examples if split_of(splits, row) == 'dev']
     limit = options.get('maxExamples')
     if limit:
         train_examples = train_examples[:limit]
         dev_examples = dev_examples[:max(limit // 4, 1)]
+
+    progress({'stage': 'human-contrasts', 'status': 'running', 'judgments': len(judgments)})
+    judged_pairs, judged_statistics = human_pairs(engine, index, judgments, progress, cancelled)
     progress({'stage': 'contrasts', 'status': 'running', 'train': len(train_examples)})
-    pairs, statistics = build_training_pairs(engine, index, train_examples, progress, cancelled,
-                                             limit=options.get('maxContrasts'))
+    generated_pairs, statistics = build_training_pairs(
+        engine, index, train_examples, progress, cancelled,
+        limit=options.get('maxContrasts'), judgments=judgments)
+    pairs = judged_pairs + generated_pairs
     if not pairs:
-        raise ValueError('Não há contrastes suficientes para treinar. '
-                         'Amplie o perfil ou mantenha a ordenação determinística.')
+        raise ValueError(
+            'Não há contrastes decididos para treinar. Toda análise devolvida realiza a '
+            'mesma forma, então duas leituras só podem ser separadas por um julgamento do '
+            'contribuidor. Analise frases, escolha ou corrija a leitura correta em Analisar '
+            'e treine de novo; até lá a ordenação determinística permanece ativa.')
+
     numeric = sorted({name for pair in pairs for name in pair['positive'][0]})
     counter = {}
     for pair in pairs:
@@ -240,25 +295,29 @@ def train_ranker(engine, store, index, index_id, writer, progress, cancelled, op
     vocabulary = [symbol for symbol, _ in
                   sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:MAX_SYMBOLS]]
     progress({'stage': 'fit', 'status': 'running', 'pairs': len(pairs),
-              'numeric': len(numeric), 'symbols': len(vocabulary)})
+              'judgmentPairs': len(judged_pairs), 'numeric': len(numeric),
+              'symbols': len(vocabulary)})
     model = fit([(pair['positive'], pair['negative']) for pair in pairs],
                 numeric=numeric, vocabulary=vocabulary,
                 epochs=options.get('epochs', 8), rate=options.get('rate', 0.1),
                 seed=options.get('seed', 20260918))
-    model.metadata.update({'artifactId': writer.id, 'trainedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                           'contrastStatistics': statistics, 'parent': index_id})
+    model.metadata.update({'artifactId': writer.id,
+                           'trainedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                           'contrastStatistics': statistics,
+                           'judgmentStatistics': judged_statistics, 'parent': index_id})
     model.save(writer.path('ranker.json'))
-    contrast_rows = [{'observed': pair['observed'], 'gold': pair['goldSource'],
-                      'alternative': pair['alternativeSource'], 'contrast': pair['contrast']}
-                     for pair in pairs[:500]]
-    (writer.path('contrasts.json')).write_text(
-        json.dumps({'pairs': len(pairs), 'sample': contrast_rows}, ensure_ascii=False, indent=2) + '\n',
-        encoding='utf-8')
+    (writer.path('contrasts.json')).write_text(json.dumps({
+        'pairs': len(pairs), 'fromJudgments': len(judged_pairs),
+        'fromGeneratedExamples': len(generated_pairs),
+        'sample': [{'observed': pair['observed'], 'preferred': pair['goldSource'],
+                    'alternative': pair['alternativeSource'], 'origin': pair['origin']}
+                   for pair in pairs[:500]]}, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     progress({'stage': 'fit', 'status': 'done'})
 
-    # Held-out pairwise comparison against the deterministic baseline.
-    dev_pairs, dev_statistics = build_training_pairs(engine, index, dev_examples, progress, cancelled,
-                                                     limit=options.get('maxContrasts'))
+    # Held-out comparison against the deterministic ordering, on decided pairs only.
+    dev_pairs, dev_statistics = build_training_pairs(
+        engine, index, dev_examples, progress, cancelled,
+        limit=options.get('maxContrasts'), judgments=judgments)
     trained_correct = baseline_correct = 0
     for pair in dev_pairs:
         if model.raw(*pair['positive']) > model.raw(*pair['negative']):
@@ -268,24 +327,30 @@ def train_ranker(engine, store, index, index_id, writer, progress, cancelled, op
     trained = round(trained_correct / len(dev_pairs), 4) if dev_pairs else None
     baseline = round(baseline_correct / len(dev_pairs), 4) if dev_pairs else None
     metrics = {
-        'trainPairs': len(pairs), 'devPairs': len(dev_pairs),
-        'trainSymmetricPairs': symmetric_pairs(pairs),
-        'devSymmetricPairs': symmetric_pairs(dev_pairs),
+        'trainPairs': len(pairs),
+        'trainPairsFromJudgments': len(judged_pairs),
+        'trainPairsFromGeneratedExamples': len(generated_pairs),
+        'devPairs': len(dev_pairs),
+        'coGeneratingSkipped': statistics['coGeneratingSkipped'],
+        'undecidedObservations': statistics['undecidedObservations'],
+        'judgmentsPreferredNotProposed': judged_statistics['preferredNotProposed'],
         'devPairwiseAccuracy': trained,
         'devBaselinePairwiseAccuracy': baseline,
         'improvesOverBaseline': bool(trained is not None and baseline is not None and trained > baseline),
         'recommendActivation': bool(trained is not None and baseline is not None and trained > baseline),
         'finalLoss': model.metadata['lossByEpoch'][-1] if model.metadata.get('lossByEpoch') else None,
         'elapsedSeconds': round(time.time() - started, 3),
-        'note': 'A acurácia pareada compara a expressão geradora com uma alternativa de '
-                'estrutura ou léxico diferentes. Não é uma probabilidade calibrada nem '
-                'prova que a alternativa seja agramatical. Um par simétrico — em que as '
-                'duas análises se geram mutuamente a partir da mesma forma — é ambiguidade '
-                'real e não pode ser decidido por estas características.',
+        'note': 'Só pares decididos por um contribuidor entram no treino: duas leituras que '
+                'geram a mesma forma são ambiguidade, não erro, e treinar nelas ensinaria uma '
+                'preferência arbitrária. Uma leitura preferida que a busca nunca propõe é '
+                'falha de cobertura, contada à parte e não corrigível por ordenação. '
+                'A acurácia pareada não é uma probabilidade calibrada.',
     }
     counts = {'trainExamples': len(train_examples), 'devExamples': len(dev_examples),
+              'judgments': len(judgments),
               'trainPairs': len(pairs), 'devPairs': len(dev_pairs),
               'numericFeatures': len(numeric), 'symbolFeatures': len(vocabulary),
-              **{f'contrast.{k}': v for k, v in statistics.items()}}
+              **{f'contrast.{k}': v for k, v in statistics.items()},
+              **{f'judgment.{k}': v for k, v in judged_statistics.items()}}
     return {'counts': counts, 'metrics': metrics, 'model': model,
             'devStatistics': dev_statistics}

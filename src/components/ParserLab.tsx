@@ -17,7 +17,9 @@ import {
 import { invoke, type ParsedExpression } from '../domain/authoring';
 import { emptyCanvas, type CanvasState } from '../domain/canvas';
 import {
+  acceptanceLabel,
   activeArtifact,
+  annotationDifference,
   artifactUsable,
   describeAmbiguity,
   formatBytes,
@@ -25,6 +27,7 @@ import {
   previewLabInput,
   routeLabel,
   type LabCandidate,
+  type LabFeedback,
   type LabJob,
   type LabResult,
   type LabStatus,
@@ -232,7 +235,6 @@ function AnalyseSection({
     setEditor(null);
     setEvaluated(null);
     setParsed(null);
-    setJudged('');
     try {
       const value = await invoke<LabResult>('parser_lab_analyze', {
         projectId: project.id,
@@ -304,12 +306,28 @@ function AnalyseSection({
           rawInput: result.input.raw,
           candidateSource: result.candidates[selected]?.source ?? '',
           correctedSource: verdict === 'corrected' ? (editor?.raw ?? '') : '',
+          surface: result.candidates[selected]?.surface ?? '',
+          // The whole set that was on screen and which one was chosen: that is
+          // what makes this a usable preference later, not just a verdict.
+          shownSources: result.candidates.map((row) => row.source),
+          chosenRank: selected + 1,
+          // Distinguishes a ranking mistake from a coverage failure.
+          correctionWasProposed:
+            verdict === 'corrected'
+              ? result.candidates.some((row) => row.source === editor?.raw)
+              : undefined,
           context: result.context,
           artifacts: result.artifacts,
           normalizerProfile: result.input.profile,
         },
       });
-      setJudged('Registrado no laboratório. Isto não publica fonte nem aprova referência.');
+      // Re-analyse first, so the confirmation appears beside the reordered
+      // readings instead of being cleared by the refresh behind it.
+      await analyse();
+      setJudged(
+        'Registrado no laboratório. A próxima análise desta frase já usa a sua escolha, e o ' +
+          'treino pode usá-la como contraste. Isto não publica fonte nem aprova referência.',
+      );
     } catch (reason) {
       setError(String(reason instanceof Error ? reason.message : reason));
     }
@@ -330,7 +348,10 @@ function AnalyseSection({
             rows={2}
             spellCheck={false}
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value);
+              setJudged('');
+            }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing) return;
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void analyse();
@@ -381,7 +402,14 @@ function AnalyseSection({
           {result.candidates.length > 0 && (
             <ol className="lab-candidates" data-testid="lab-candidates">
               {result.candidates.map((item, index) => (
-                <li key={item.source} className={index === selected ? 'selected' : ''}>
+                <li
+                  key={item.source}
+                  className={
+                    (index === selected ? 'selected ' : '') +
+                    'acceptance-' +
+                    (item.provenance.acceptance ?? 'presumed')
+                  }
+                >
                   <button
                     onClick={() => {
                       setSelected(index);
@@ -392,8 +420,42 @@ function AnalyseSection({
                     <span lang="tpw">{item.surface}</span>
                     <small>
                       {routeLabel(item)} · {item.family} · ordenação {item.score.toFixed(3)}
+                      {item.provenance.acceptance === 'confirmed' &&
+                        ' · leitura que você confirmou'}
+                      {item.provenance.acceptance === 'rejected' && ' · leitura que você recusou'}
+                      {item.provenance.acceptance === 'not-preferred' &&
+                        ' · leitura possível que você não escolheu'}
                     </small>
+                    {/* Two readings that realize the same form differ somewhere in
+                        the grammar's own annotation. Showing exactly where turns
+                        the choice into an informed one. */}
+                    {annotationDifference(item).length > 0 && (
+                      <small className="lab-difference">
+                        Difere da primeira leitura em{' '}
+                        {annotationDifference(item)
+                          .map(
+                            (row) =>
+                              `${row.surface}: ${(row.left ?? ['—']).join(' ')} vs ${(row.right ?? ['—']).join(' ')}`,
+                          )
+                          .join('; ')}
+                      </small>
+                    )}
+                    {(item.provenance.annotationIdenticalSources ?? []).length > 0 && (
+                      <small>
+                        Mesma análise, outra escrita:{' '}
+                        {(item.provenance.annotationIdenticalSources ?? []).join(', ')}
+                      </small>
+                    )}
                   </button>
+                  {index === selected && result.candidates.length > 1 && (
+                    <button
+                      className="button small lab-choose"
+                      data-testid={`lab-choose-${index}`}
+                      onClick={() => void judge('accepted')}
+                    >
+                      <Check size={14} /> Esta é a leitura correta
+                    </button>
+                  )}
                 </li>
               ))}
             </ol>
@@ -444,6 +506,10 @@ function AnalyseSection({
                             .join(' + ')
                         : 'Correspondência única em toda a entrada.'}
                     </dd>
+                  </div>
+                  <div>
+                    <dt>Estado desta leitura</dt>
+                    <dd data-testid="lab-acceptance">{acceptanceLabel(candidate)}</dd>
                   </div>
                   <div>
                     <dt>Procedência</dt>
@@ -892,6 +958,7 @@ function TrainSection({
           )}
         </details>
       ))}
+      <LearningPanel project={project} />
       <section aria-label="Rotas opcionais">
         <h3>Rotas opcionais</h3>
         <button
@@ -913,6 +980,94 @@ function TrainSection({
         {optional && <pre data-testid="lab-optional">{JSON.stringify(optional, null, 2)}</pre>}
       </section>
     </main>
+  );
+}
+
+function LearningPanel({ project }: { project: StudioProject }) {
+  const [feedback, setFeedback] = useState<LabFeedback | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function load() {
+    setBusy(true);
+    setError('');
+    try {
+      setFeedback(await invoke<LabFeedback>('parser_lab_feedback', { projectId: project.id }));
+    } catch (reason) {
+      setError(String(reason instanceof Error ? reason.message : reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section aria-label="Aprendizado com o uso">
+      <h3>O que o uso já ensinou</h3>
+      <p className="lab-note">
+        Cada análise fica registrada localmente. Confirmar ou corrigir uma leitura vale mais do que
+        qualquer exemplo gerado: duas leituras que realizam a mesma forma só podem ser separadas por
+        quem lê. Correções que a busca nunca propôs são falhas de cobertura, não de ordenação, e
+        aparecem abaixo como lacunas.
+      </p>
+      <div className="lab-actions">
+        <button className="button small" data-testid="lab-feedback" onClick={() => void load()}>
+          <RefreshCw size={15} /> {busy ? 'Conferindo…' : 'Conferir aprendizado'}
+        </button>
+        {feedback && (
+          <button
+            className="button small"
+            onClick={() =>
+              void invoke('parser_lab_feedback_export', { projectId: project.id }).catch((reason) =>
+                setError(String(reason instanceof Error ? reason.message : reason)),
+              )
+            }
+          >
+            Exportar para treino
+          </button>
+        )}
+      </div>
+      {error && <p role="alert">{error}</p>}
+      {feedback && (
+        <>
+          <ul className="lab-profile" data-testid="lab-feedback-summary">
+            <li>
+              {feedback.summary.attempts} análises registradas, {feedback.summary.attemptsUnknown}{' '}
+              sem nenhuma leitura válida
+            </li>
+            <li>
+              {feedback.summary.judgments} julgamentos · {feedback.summary.confirmedExamples}{' '}
+              leituras confirmadas · {feedback.summary.preferencePairs} contrastes decididos para o
+              treino
+            </li>
+            <li>
+              {feedback.summary.correctionsTheSearchNeverProposed} correções que a busca nunca
+              propôs (cobertura, não ordenação)
+            </li>
+          </ul>
+          {feedback.coverageGaps.length > 0 && (
+            <details className="lab-details" open>
+              <summary>Lacunas de cobertura ({feedback.coverageGaps.length})</summary>
+              <ul className="lab-profile" data-testid="lab-gaps">
+                {feedback.coverageGaps.map((gap) => (
+                  <li key={gap.normalized}>
+                    <code lang="tpw">{gap.normalized}</code> · {gap.attempts}×
+                    {gap.recognizedSpans.length > 0
+                      ? ' · reconhecido: ' +
+                        gap.recognizedSpans
+                          .slice(0, 4)
+                          .map((span) => `${span.text} (${span.types.join('/')})`)
+                          .join(', ')
+                      : ' · nenhum trecho reconhecido'}
+                  </li>
+                ))}
+              </ul>
+              <p className="lab-note">
+                Cada linha é uma frase que alguém quis analisar e o inventário declarado não
+                alcançou. Amplie o perfil em Dados e prepare de novo.
+              </p>
+            </details>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

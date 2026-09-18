@@ -85,6 +85,13 @@ npm run parser-lab -- --parent <pasta> --artifacts <dir> analyze "Asó xe rokype
 npm run test:smoke:parser-lab
 ```
 
+When a form has more than one reading, all of them are shown with the exact tag
+that separates them, and you pick. That choice applies to the next analysis of
+the same sentence immediately, and it is the signal the laboratory learns from:
+analyses, verdicts and corrections are kept locally, confirmed readings become
+reviewed examples, and inputs it could not analyse become a coverage-gap list
+saying what to add next.
+
 It is a bounded laboratory, not a general parser for historical Tupi: it composes
 only the lexemes and constructions its profile declares, and it reports unknown
 rather than guessing. See [the contract](docs/design/parser-lab.md) for the

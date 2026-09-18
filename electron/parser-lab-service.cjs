@@ -35,6 +35,8 @@ const WORKER_METHODS = new Set([
   'optional_status',
   'project',
   'clear_staging',
+  'feedback_summary',
+  'feedback_export',
 ]);
 
 function labError(code, message) {
@@ -463,6 +465,9 @@ function createParserLabService(options) {
     running.set(job.id, child);
     let stdout = '';
     let stderrTail = '';
+    // Progress is protocol and also arrives on stderr. Keeping the non-protocol
+    // lines apart means a failure shows its reason, not a progress dump.
+    let diagnostic = '';
     let buffer = '';
     child.stdout.on('data', (chunk) => {
       stdout = (stdout + chunk.toString('utf8')).slice(-2_000_000);
@@ -474,15 +479,18 @@ function createParserLabService(options) {
       while ((newline = buffer.indexOf('\n')) !== -1) {
         const line = buffer.slice(0, newline).trim();
         buffer = buffer.slice(newline + 1);
-        if (!line.startsWith('{')) continue;
-        try {
-          const event = JSON.parse(line);
-          job.phase = event.stage || job.phase;
-          job.progress = [...job.progress, event].slice(-MAX_PROGRESS);
-          notify(job);
-        } catch {
-          /* non-protocol output is ignored */
+        if (line.startsWith('{')) {
+          try {
+            const event = JSON.parse(line);
+            job.phase = event.stage || job.phase;
+            job.progress = [...job.progress, event].slice(-MAX_PROGRESS);
+            notify(job);
+            continue;
+          } catch {
+            /* not protocol after all; treat it as diagnostic text */
+          }
         }
+        diagnostic = (diagnostic + line + '\n').slice(-4096);
       }
     });
     child.on('error', (error) => {
@@ -510,7 +518,10 @@ function createParserLabService(options) {
         }
       } else {
         job.status = 'failed';
-        job.error = stderrTail.trim().slice(-1200) || `O processo terminou (${signal || code}).`;
+        job.error =
+          diagnostic.trim().slice(-1200) ||
+          stderrTail.trim().slice(-1200) ||
+          `O processo terminou (${signal || code}).`;
       }
       notify(job);
       void persist();
@@ -631,6 +642,8 @@ function createParserLabService(options) {
       parser_lab_deactivate: ['deactivate', { kind: params.kind }, 60_000],
       parser_lab_collisions: ['collisions', { limit: params.limit }, 120_000],
       parser_lab_clear_staging: ['clear_staging', {}, 60_000],
+      parser_lab_feedback: ['feedback_summary', { limit: params.limit }, 120_000],
+      parser_lab_feedback_export: ['feedback_export', {}, 120_000],
       parser_lab_judgment: ['judgment_add', params.judgment || {}, 60_000],
       parser_lab_judgments: ['judgment_list', { limit: params.limit }, 60_000],
       parser_lab_optional: ['optional_status', {}, 60_000],

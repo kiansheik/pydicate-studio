@@ -50,9 +50,48 @@ export interface LabCandidate {
     measuresGeneralization?: boolean;
     equivalentSources?: string[];
     occurrences?: { sourceId: string; ordinal: number; line: number }[];
+    /** 'presumed' until a contributor decides between co-generating readings.
+     *  'not-preferred' means it was on screen when another was chosen — still a
+     *  possible reading, just not the one preferred. */
+    acceptance?: 'presumed' | 'confirmed' | 'not-preferred' | 'rejected';
+    coGenerating?: boolean;
+    /** Other sources the engine annotates identically: one answer, another spelling. */
+    annotationIdenticalSources?: string[];
+    annotationDifferenceFromBest?: AnnotationDifference[];
   };
   editable: boolean;
   seconds: number;
+}
+
+/** Where two readings disagree in the grammar's own annotation. */
+export interface AnnotationDifference {
+  position: number;
+  surface: string;
+  left: string[] | null;
+  right: string[] | null;
+  onlyTags: boolean;
+}
+
+export interface LabFeedback {
+  summary: {
+    attempts: number;
+    attemptsComplete: number;
+    attemptsUnknown: number;
+    judgments: number;
+    verdicts: Record<string, number>;
+    confirmedExamples: number;
+    preferencePairs: number;
+    coverageGaps: number;
+    correctionsTheSearchNeverProposed: number;
+    note: string;
+  };
+  coverageGaps: {
+    normalized: string;
+    attempts: number;
+    rawInput: string;
+    recognizedSpans: { start: number; end: number; text: string; types: string[] }[];
+    rejections: string[];
+  }[];
 }
 
 export interface LabRejection {
@@ -210,6 +249,22 @@ export function routeLabel(candidate: LabCandidate) {
   if (route === 'neural') return 'Proposta por modelo';
   if (route === 'agent') return 'Proposta assistida';
   return 'Ordenada por classificador';
+}
+
+/** The annotation difference between this reading and the first one, if any. */
+export function annotationDifference(candidate: LabCandidate): AnnotationDifference[] {
+  return candidate.provenance.annotationDifferenceFromBest ?? [];
+}
+
+/** Plain-language state of one reading for the contributor. */
+export function acceptanceLabel(candidate: LabCandidate) {
+  const acceptance = candidate.provenance.acceptance ?? 'presumed';
+  if (acceptance === 'confirmed') return 'Confirmada por você';
+  if (acceptance === 'rejected') return 'Recusada por você';
+  if (acceptance === 'not-preferred') return 'Leitura possível que você não escolheu';
+  return candidate.provenance.coGenerating
+    ? 'Leitura possível — a forma não decide entre elas'
+    : 'Única leitura validada';
 }
 
 export function jobLabel(job: LabJob) {

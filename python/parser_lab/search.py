@@ -193,7 +193,7 @@ def compose(engine, index, observed, budget, rules=None):
 
 
 def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
-            include_retrieval=True, include_composition=True):
+            include_retrieval=True, include_composition=True, acceptance=None):
     """The bounded cascade. Returns candidates ordered by score and rejections."""
     budget = budget or Budget()
     timings = {}
@@ -262,7 +262,20 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
         elif item['source'] not in existing['provenance']['equivalentSources'] \
                 and item['source'] != existing['source']:
             existing['provenance']['equivalentSources'].append(item['source'])
-    rows = distinct
+    # Annotation-identical sources are one answer written two ways; the engine,
+    # not this module, decides that. Co-generating readings stay separate and
+    # are reported as a choice, with the exact tag difference attached.
+    from parser_lab.equivalence import annotation_difference, group as group_equivalent
+    for item in distinct:
+        item['annotated'] = item['realized'].get('annotated', '')
+    rows = group_equivalent(distinct)
+    for item in rows[1:]:
+        item['provenance']['annotationDifferenceFromBest'] = annotation_difference(
+            rows[0]['annotated'], item['annotated'])
+    if len(rows) > 1:
+        for item in rows:
+            item['provenance']['coGenerating'] = True
+            item['provenance']['acceptance'] = 'presumed'
     candidates = []
     ambiguity = len(rows)
     for item in rows:
@@ -290,10 +303,28 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
             annotated=realized.get('annotated', ''),
             morphemes=engine.morphemes(realized['annotated']) if realized.get('annotated') else [],
             provenance=provenance, editable=True))
-    candidates.sort(key=lambda row: (-row['score'], len(row['source']), row['source']))
+    if acceptance is not None:
+        # A decision the contributor already made applies immediately, without
+        # waiting for a training run: confirmed readings first, rejected ones
+        # last and labelled. Nothing is hidden — a rejected reading still
+        # validates, and showing it is what makes the decision reviewable.
+        for candidate in candidates:
+            candidate['provenance']['acceptance'] = acceptance.verdict(candidate['source'])
+        order = {'confirmed': 0, 'presumed': 1, 'not-preferred': 2, 'rejected': 3}
+        candidates.sort(key=lambda row: (order[row['provenance']['acceptance']], -row['score'],
+                                         len(row['source']), row['source']))
+    else:
+        candidates.sort(key=lambda row: (-row['score'], len(row['source']), row['source']))
     timings['ranking'] = round(time.perf_counter() - started, 4)
     timings['total'] = round(sum(timings.values()), 4)
+    recognized = sorted(
+        ({'start': start, 'end': end, 'text': observed[start:end],
+          'types': sorted(types)} for (start, end), types in spans.items()),
+        key=lambda row: (row['start'] - row['end'], row['start']))[:50]
     diagnostics = {'spans': len(spans), 'assemblies': budget.assemblies,
                    'budgetExhausted': budget.exhausted,
-                   'knownExpression': index.known_expression(observed)}
+                   'knownExpression': index.known_expression(observed),
+                   # What the declared inventory did recognize. When nothing
+                   # qualified, this is the actionable part of the failure.
+                   'recognizedSpans': recognized}
     return candidates[:budget.limits['maxCandidates']], rejections, timings, diagnostics

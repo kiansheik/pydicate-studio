@@ -16,7 +16,7 @@ import time
 import uuid
 from pathlib import Path
 
-JUDGMENT_SCHEMA = 1
+JUDGMENT_SCHEMA = 2
 VERDICTS = ('accepted', 'rejected', 'corrected', 'uncertain')
 MAX_FILE = 32 * 1024 * 1024
 
@@ -41,6 +41,14 @@ class JudgmentLog:
             'rawInput': payload.get('rawInput', ''),
             'candidateSource': payload.get('candidateSource', ''),
             'correctedSource': payload.get('correctedSource', ''),
+            'surface': payload.get('surface', ''),
+            # The whole ranked set that was on screen, so a preference can be
+            # derived later: what this reading was actually chosen over.
+            'shownSources': list(payload.get('shownSources') or ())[:25],
+            'chosenRank': payload.get('chosenRank'),
+            # A correction the search never proposed is a coverage failure, not
+            # a ranking one. Recording which it was keeps the two apart.
+            'correctionWasProposed': payload.get('correctionWasProposed'),
             'note': str(payload.get('note', ''))[:2000],
             'context': payload.get('context', {}),
             'artifacts': payload.get('artifacts', {}),
@@ -73,7 +81,7 @@ class JudgmentLog:
                     rows.append(json.loads(line))
                 except ValueError:
                     continue
-        return list(reversed(rows))[:limit]
+        return [upgrade(row) for row in reversed(rows)][:limit]
 
     def count(self):
         return len(self.read(10 ** 6))
@@ -82,3 +90,11 @@ class JudgmentLog:
 def _same(previous, row):
     return all(previous.get(key) == row.get(key) for key in
                ('verdict', 'normalized', 'candidateSource', 'correctedSource', 'note'))
+
+
+def upgrade(row):
+    """Read a v1 judgment as a v2 one; older rows simply lack the new context."""
+    if row.get('schemaVersion') == JUDGMENT_SCHEMA:
+        return row
+    return {**row, 'schemaVersion': JUDGMENT_SCHEMA, 'surface': row.get('surface', ''),
+            'shownSources': [], 'chosenRank': None, 'correctionWasProposed': None}

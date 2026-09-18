@@ -160,13 +160,16 @@ test('a failed job keeps its diagnostic instead of claiming an artifact', async 
   const { service, spawned } = await harness();
   t.after(() => service.close());
   const job = await service.invoke('parser_lab_job_start', { projectId, stage: 'evaluate' });
+  // Progress also arrives on stderr; the reported reason must not be a progress dump.
+  spawned[0].child.stderr.emit('data', Buffer.from('{"stage":"examples","status":"running"}\n'));
   spawned[0].child.stderr.emit('data', Buffer.from('ValueError: perfil ausente\n'));
+  spawned[0].child.stderr.emit('data', Buffer.from('{"stage":"examples","status":"done"}\n'));
   spawned[0].child.emit('close', 2, null);
   await new Promise((resolve) => setImmediate(resolve));
   const { jobs } = await service.invoke('parser_lab_jobs', { projectId });
   const finished = jobs.find((item) => item.id === job.id);
   assert.equal(finished.status, 'failed');
-  assert.match(finished.error, /perfil ausente/);
+  assert.equal(finished.error, 'ValueError: perfil ausente');
   assert.equal(finished.artifactId, null);
 });
 

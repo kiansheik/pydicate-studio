@@ -1,67 +1,67 @@
 {
   "version": 1,
-  "startedAt": "2026-09-18T15:26:17.210Z",
+  "startedAt": "2026-09-18T16:59:53.027Z",
   "productionOrigin": "studio://app/index.html",
-  "temporaryDirectory": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-tBp7FQ",
+  "temporaryDirectory": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-Y4Q11s",
   "boundary": "Isolated Electron profile, disposable corpus copy, engine symlink read-only. No provider call, no publication, no approval.",
   "stages": [
     {
       "name": "hidden-by-default",
-      "startedAt": "2026-09-18T15:26:17.300Z",
+      "startedAt": "2026-09-18T16:59:53.109Z",
       "status": "passed",
       "evidence": {
         "entryPoint": "absent",
         "labStateEntries": []
       },
-      "finishedAt": "2026-09-18T15:26:19.213Z",
+      "finishedAt": "2026-09-18T16:59:54.899Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-01-hidden-by-default.png"
     },
     {
       "name": "enable-persists-across-restart",
-      "startedAt": "2026-09-18T15:26:19.412Z",
+      "startedAt": "2026-09-18T16:59:55.056Z",
       "status": "passed",
       "evidence": {
         "labStateAfterEnable": [],
         "persisted": true
       },
-      "finishedAt": "2026-09-18T15:26:21.082Z",
+      "finishedAt": "2026-09-18T16:59:56.550Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-02-enable-persists-across-restart.png"
     },
     {
       "name": "prepare-baseline-from-the-tab",
-      "startedAt": "2026-09-18T15:26:21.249Z",
+      "startedAt": "2026-09-18T16:59:56.712Z",
       "status": "passed",
       "evidence": {
-        "artifactRoot": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-tBp7FQ/user-data/parser-lab/artifacts/local-21e34f636c9e3c3c57ee5b7b",
-        "artifact": "index-a4d0d9fd4921ba22",
+        "artifactRoot": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-Y4Q11s/user-data/parser-lab/artifacts/local-649a74c6c8c0e00898fd7e77",
+        "artifact": "index-4395de1e75dfb9c6",
         "counts": {
-          "fragments": 42,
+          "fragments": 53,
           "retrieval": 1923,
           "retrievalExpressions": 129,
-          "examples": 258,
-          "splitGroups": 258,
-          "split.test": 34,
-          "split.train": 190,
-          "split.dev": 34
+          "examples": 341,
+          "splitGroups": 321,
+          "split.test": 47,
+          "split.train": 245,
+          "split.dev": 49
         }
       },
-      "finishedAt": "2026-09-18T15:26:24.492Z",
+      "finishedAt": "2026-09-18T16:59:59.952Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-03-prepare-baseline-from-the-tab.png"
     },
     {
       "name": "first-sentence-offline",
-      "startedAt": "2026-09-18T15:26:24.635Z",
+      "startedAt": "2026-09-18T17:00:00.105Z",
       "status": "passed",
       "evidence": {
         "normalized": "asoxerokype",
         "screenshot": "docs/coverage/native-screenshots/parser-lab-first-result.png"
       },
-      "finishedAt": "2026-09-18T15:26:25.743Z",
+      "finishedAt": "2026-09-18T17:00:01.222Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-04-first-sentence-offline.png"
     },
     {
       "name": "variants-and-unknown-input",
-      "startedAt": "2026-09-18T15:26:25.898Z",
+      "startedAt": "2026-09-18T17:00:01.366Z",
       "status": "passed",
       "evidence": {
         "ASOXEROKYPE": "asoxerokype",
@@ -70,24 +70,24 @@
         "zzzz": "unknown",
         "Açó xe rokîpe": "unknown"
       },
-      "finishedAt": "2026-09-18T15:26:26.370Z",
+      "finishedAt": "2026-09-18T17:00:01.849Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-05-variants-and-unknown-input.png"
     },
     {
       "name": "composes-a-sentence-absent-from-the-index",
-      "startedAt": "2026-09-18T15:26:26.506Z",
+      "startedAt": "2026-09-18T17:00:01.976Z",
       "status": "passed",
       "evidence": {
         "knownExpression": false,
         "route": "composition",
         "source": "(+nde * só) + (pe * (nde * oka))"
       },
-      "finishedAt": "2026-09-18T15:26:26.643Z",
+      "finishedAt": "2026-09-18T17:00:02.096Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-06-composes-a-sentence-absent-from-the-index.png"
     },
     {
       "name": "tree-edit-changes-source-and-surface",
-      "startedAt": "2026-09-18T15:26:26.805Z",
+      "startedAt": "2026-09-18T17:00:02.234Z",
       "status": "passed",
       "evidence": {
         "edited": "asó nde rokype",
@@ -95,48 +95,67 @@
         "redo": true,
         "treeGesture": "(+((ixé).var(1)) * só) + (pe * (nde * oka))"
       },
-      "finishedAt": "2026-09-18T15:26:28.118Z",
+      "finishedAt": "2026-09-18T17:00:03.654Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-07-tree-edit-changes-source-and-surface.png"
     },
     {
       "name": "ambiguity-and-collisions-preserved",
-      "startedAt": "2026-09-18T15:26:28.275Z",
+      "startedAt": "2026-09-18T17:00:03.804Z",
       "status": "passed",
       "evidence": {
-        "collisionGroups": 0,
+        "collisionGroups": 2,
         "neuralState": "blocked",
         "neuralMissing": [
           "transformers"
         ],
         "agentState": "ready"
       },
-      "finishedAt": "2026-09-18T15:26:29.087Z",
+      "finishedAt": "2026-09-18T17:00:04.564Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-08-ambiguity-and-collisions-preserved.png"
     },
     {
-      "name": "train-and-evaluate-survive-a-reload",
-      "startedAt": "2026-09-18T15:26:29.240Z",
+      "name": "choose-a-reading-then-learn-from-it",
+      "startedAt": "2026-09-18T17:00:04.706Z",
       "status": "passed",
       "evidence": {
+        "refusedWithoutJudgments": "Não há contrastes decididos para treinar. Toda análise devolvida realiza a mesma forma, então duas leituras só podem ser",
+        "readingsOffered": 2,
+        "learned": {
+          "attempts": 7,
+          "attemptsComplete": 5,
+          "attemptsUnknown": 2,
+          "judgments": 1,
+          "verdicts": {
+            "accepted": 1
+          },
+          "confirmedExamples": 1,
+          "preferencePairs": 1,
+          "coverageGaps": 2,
+          "correctionsTheSearchNeverProposed": 0,
+          "note": "Dados locais do laboratório. Exemplos confirmados são evidência de contribuidor (lab-reviewed) e nunca aprovação editorial do corpus. Correções que a busca nunca propôs medem falhas de cobertura, não de ordenação."
+        },
         "trainStatus": "succeeded",
         "ranker": {
-          "id": "ranker-c2c112f80b50bdfe",
+          "id": "ranker-f48750cddd8c4b49",
           "metrics": {
             "trainPairs": 2,
+            "trainPairsFromJudgments": 1,
+            "trainPairsFromGeneratedExamples": 1,
             "devPairs": 0,
-            "trainSymmetricPairs": 0,
-            "devSymmetricPairs": 0,
+            "coGeneratingSkipped": 23,
+            "undecidedObservations": 22,
+            "judgmentsPreferredNotProposed": 0,
             "devPairwiseAccuracy": null,
             "devBaselinePairwiseAccuracy": null,
             "improvesOverBaseline": false,
             "recommendActivation": false,
-            "finalLoss": 0.035346,
-            "elapsedSeconds": 1.16,
-            "note": "A acurácia pareada compara a expressão geradora com uma alternativa de estrutura ou léxico diferentes. Não é uma probabilidade calibrada nem prova que a alternativa seja agramatical. Um par simétrico — em que as duas análises se geram mutuamente a partir da mesma forma — é ambiguidade real e não pode ser decidido por estas características."
+            "finalLoss": 0.009537,
+            "elapsedSeconds": 1.46,
+            "note": "Só pares decididos por um contribuidor entram no treino: duas leituras que geram a mesma forma são ambiguidade, não erro, e treinar nelas ensinaria uma preferência arbitrária. Uma leitura preferida que a busca nunca propõe é falha de cobertura, contada à parte e não corrigível por ordenação. A acurácia pareada não é uma probabilidade calibrada."
           }
         },
         "evaluation": {
-          "id": "evaluation-d7b90c310dc0b4bb",
+          "id": "evaluation-6ca0bb320cce61d2",
           "metrics": {
             "normalization_invariance": {
               "total": 8,
@@ -155,17 +174,20 @@
               "partial": 0,
               "unknown": 0,
               "completeRate": 1,
-              "top1": 1,
+              "top1": 0.92,
+              "top1Exact": 0.92,
+              "top1AnnotationSame": 0.92,
+              "annotationDenominator": 25,
               "surfaceAgreement": 1,
-              "meanCandidates": 1,
-              "meanSeconds": 0.0048,
-              "ambiguousRate": 0,
-              "lexemeRecovery": 1,
-              "recall@1": 1,
+              "meanCandidates": 1.08,
+              "meanSeconds": 0.004,
+              "ambiguousRate": 0.08,
+              "lexemeRecovery": 0.992,
+              "recall@1": 0.92,
               "recall@5": 1,
               "recall@10": 1,
-              "morphemeSequenceExact": 1,
-              "morphemeTagF1": 1,
+              "morphemeSequenceExact": 0.92,
+              "morphemeTagF1": 0.9886,
               "morphemeDenominator": 25,
               "split": "test",
               "denominator": 25
@@ -198,13 +220,41 @@
                 "note": "O recurso reservado foi removido do índice. A busca declarada não inventa léxico nem famílias novas; esta linha mostra esse limite."
               }
             },
-            "user_corrections": {
-              "total": 0,
-              "note": "Correções registradas pelo contribuidor; nenhuma publica ou aprova registro de corpus."
-            },
             "frozen_reviewed_historical": {
-              "total": 0,
-              "note": "Requer exemplos históricos revisados marcados como tal no laboratório. Nenhum estava disponível nesta execução; a rota de recuperação do corpus é relatada separadamente e não substitui este conjunto."
+              "total": 1,
+              "complete": 1,
+              "partial": 0,
+              "unknown": 0,
+              "completeRate": 1,
+              "top1": 0,
+              "top1Exact": 0,
+              "top1AnnotationSame": 0,
+              "annotationDenominator": 1,
+              "surfaceAgreement": 1,
+              "meanCandidates": 2,
+              "meanSeconds": 0.0036,
+              "ambiguousRate": 1,
+              "lexemeRecovery": 0.6667,
+              "recall@1": 0,
+              "recall@5": 1,
+              "recall@10": 1,
+              "morphemeSequenceExact": 0,
+              "morphemeTagF1": 0.8333,
+              "morphemeDenominator": 1,
+              "denominator": 1,
+              "available": 1,
+              "note": "Leituras confirmadas ou corrigidas pelo contribuidor, sobre entrada real, com a resposta removida da recuperação. É evidência de laboratório (lab-reviewed) e nunca aprovação editorial do corpus."
+            },
+            "user_corrections": {
+              "total": 1,
+              "verdicts": {
+                "accepted": 1
+              },
+              "decidedPairs": 1,
+              "confirmedReadings": 1,
+              "correctionsTheSearchNeverProposed": 0,
+              "coverageGaps": 2,
+              "note": "Correções que a busca nunca propôs são falhas de cobertura, não de ordenação, e nenhum classificador as resolve. Nada aqui publica fonte nem aprova referência."
             },
             "configurations": {
               "retrieval_only": {
@@ -214,6 +264,9 @@
                 "unknown": 20,
                 "completeRate": 0,
                 "top1": 0,
+                "top1Exact": 0,
+                "top1AnnotationSame": 0,
+                "annotationDenominator": 0,
                 "surfaceAgreement": 0,
                 "meanCandidates": 0,
                 "meanSeconds": 0,
@@ -231,13 +284,16 @@
                 "partial": 0,
                 "unknown": 0,
                 "completeRate": 1,
-                "top1": 1,
+                "top1": 0.95,
+                "top1Exact": 0.95,
+                "top1AnnotationSame": 0,
+                "annotationDenominator": 0,
                 "surfaceAgreement": 1,
-                "meanCandidates": 1,
+                "meanCandidates": 1.05,
                 "meanSeconds": 0,
-                "ambiguousRate": 0,
+                "ambiguousRate": 0.05,
                 "lexemeRecovery": 0,
-                "recall@1": 1,
+                "recall@1": 0.95,
                 "recall@5": 1,
                 "recall@10": 1,
                 "available": true,
@@ -248,31 +304,32 @@
                 "reason": "Nenhum classificador treinado está ativo."
               }
             },
-            "elapsedSeconds": 0.533
+            "elapsedSeconds": 0.457
           }
         }
       },
-      "finishedAt": "2026-09-18T15:26:33.215Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-09-train-and-evaluate-survive-a-reload.png"
+      "finishedAt": "2026-09-18T17:00:11.823Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-09-choose-a-reading-then-learn-from-it.png"
     },
     {
       "name": "cancellation-and-interruption-are-honest",
-      "startedAt": "2026-09-18T15:26:33.359Z",
+      "startedAt": "2026-09-18T17:00:11.967Z",
       "status": "passed",
       "evidence": {
-        "cancelledJob": "c10a560b-4f87-49bd-b9f0-7d40cee4adb5",
-        "activeIndexPreserved": "index-a4d0d9fd4921ba22",
+        "cancelledJob": "bdd2b14d-35ad-47bb-bc9a-c21e42e40cce",
+        "activeIndexPreserved": "index-4395de1e75dfb9c6",
         "interruptedLeftovers": [
-          "index-1059cb5fff9c510d.fc190a1b"
+          "index-1bfbfe69ec28d876.1eedf3f6",
+          "ranker-b95792caa48862e8.ecd1b40f"
         ],
         "discarded": true
       },
-      "finishedAt": "2026-09-18T15:26:34.664Z",
+      "finishedAt": "2026-09-18T17:00:13.354Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-10-cancellation-and-interruption-are-honest.png"
     },
     {
       "name": "corpus-untouched",
-      "startedAt": "2026-09-18T15:26:34.805Z",
+      "startedAt": "2026-09-18T17:00:13.506Z",
       "status": "passed",
       "evidence": {
         "watchedFiles": [
@@ -282,11 +339,11 @@
         ],
         "unchanged": true
       },
-      "finishedAt": "2026-09-18T15:26:34.806Z",
+      "finishedAt": "2026-09-18T17:00:13.507Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-11-corpus-untouched.png"
     }
   ],
   "pageErrors": [],
-  "finishedAt": "2026-09-18T15:26:35.096Z",
+  "finishedAt": "2026-09-18T17:00:13.804Z",
   "passed": true
 }
