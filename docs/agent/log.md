@@ -8,6 +8,19 @@ The local sibling repositories are newer than the recorded baseline and clean, a
 
 Two findings are recorded rather than smoothed over. Removing a reserved lexeme or family from the index makes 25/25 held-out reconstructions return unknown, which is the declared generalization boundary. Of 88 training contrasts, 86 are symmetric ambiguities, so the ranker matches the baseline at 0.5 and is not recommended for activation. The ByT5 recipe is documented and dependency-checked but was not trained, and agent escalation was not invoked; both report their real state. Format, typecheck, build, 147 renderer, 197 desktop, 46 focused Python laboratory and 11 browser checks pass; no provider call was made. The repository-wide Python suite still ends with four failures and seven errors across six modules; a separate clean `main` worktree reproduces exactly the same set with the selected newer dependency revisions, and this branch changes no existing Python module, so they are pre-existing and were not worked around. See [contract](../design/parser-lab.md) and [handoff](session-handoffs/2026-09-18-parser-lab-implementation.md).
 
+## 2026-09-18 - Custom-graph structural search research
+
+Inspected Grew's OCaml matcher, corpus traversal, Python wrapper/backend and
+local Grew-match launcher. Added a read-only exporter using Studio's existing
+source adapter, 11 queries and 14 synthetic controls, a narrow native matcher,
+and an optional actual-Grew binding comparison. Ran on the public historical
+snapshot: 122 expressions, 1,895 nodes, all native fixture checks and 1,964 UTF-16
+source-span checks passed, source hashes unchanged. System package installation
+failed on unavailable user/group permissions; Grew remains unexecuted and the
+report records that explicitly. No product/corpus changes or provider calls.
+See [findings and integration assignment](../design/pydicate-structural-search.md)
+and [handoff](session-handoffs/2026-09-18-structural-search.md).
+
 ## 2026-09-18 - Tutorial stage guidance and source-comment audit
 
 Audited the existing learning workspace against the actual read-only authoring MCP: all 129 references agree and all five final lesson trees match approved Araújo expressions. Aligned each stage prompt with its own target, explained isolated arobiar and omission behavior, added visible stage navigation and evaluated feedback, a beginner roadmap and direct Referência entry. The library now extracts standalone Python comments and actual module/class/function docstrings from both engine and historic sources, with file/line attribution and strict metadata/link validation. Stale library reads use the existing one-refresh recovery path.

@@ -10,6 +10,33 @@ The small ranker really trains, saves, reloads and is evaluated against the dete
 
 Verification: 46 focused Python laboratory checks, 10 desktop service checks, 11 renderer domain checks, 11 browser scenarios and an 11-stage native Electron run with an isolated profile, a disposable corpus copy and no provider call. The [native report](../coverage/parser-lab-native.json) and screenshots record the evidence. Broader accuracy on historical text is unmeasured; see [the contract](../design/parser-lab.md) for the declared limits and [the assignment](../design/tupi-parser-lab-implementation.md) for the research that preceded it.
 
+The separate [structural search research](../design/pydicate-structural-search.md) below is not wired into this laboratory; its retrieval route remains a proposal.
+
+## Structural search research
+
+The [Grew investigation](../design/pydicate-structural-search.md) and
+[read-only probe](../../scripts/experiments/probe-structural-search.py) export the
+existing source trees as custom feature graphs without a UD conversion. The
+selected public corpus contains 122 expressions and 1,895 nodes. Eleven native
+query checks over 14 synthetic controls pass; real source matches include eight
+`.perm()` occurrences, seven unary-minus ancestors of `.imp()`, and four explicit
+`.var(1).base_nominal()` constructions. All 1,964 source spans including controls
+were verified, and both source files remained unchanged.
+
+The [report](../evaluation/structural-search-probe.json) explicitly records Grew
+as unavailable: this environment has no OCaml backend and system package setup
+failed on user/group permissions. The `--grew` comparison path is prepared but
+unexecuted; there is no Grew/native equivalence or speed claim. No UI, grammar or
+dependency configuration changed. See the [handoff](session-handoffs/2026-09-18-structural-search.md).
+
+## Tupi parser lab research and implementation plan
+
+Branch `codex/tupi-parser-lab` contains a [complete implementation assignment](../design/tupi-parser-lab-implementation.md) for a hidden experimental normalized-Tupi → Pydicate workspace. No product tab or training service is implemented by this research commit. The plan reuses the current isolated learning workspace, shared source/tree editor, bounded interpreter, structure retrieval, durable job ownership and existing MCP/provider loop.
+
+A [bounded offline probe](../evaluation/parser-lab-probe.json) generated 145 fragments and recovered the original expressions for 60/60 sampled combinations in one declared grammar family, with no full sentences indexed. `asoxerokype` produced `(+ixé * só) + (pe * (ixé * oka))`, complete engine morphology and an editable ten-node source tree. The actual source-span edit primitive changed the possessor to `nde` and rendered `asó nde rokype`. This is synthetic composition evidence, not historical accuracy or native UI verification. Dictionary accent collisions were recorded; the existing gold-annotation decompiler still loses the relational `r` in this example.
+
+Only disposable dependency copies received the existing documented patches; sibling repositories, corpus references and product code were unchanged. No training or provider inference was run. See the [research handoff](session-handoffs/2026-09-18-parser-lab-plan.md) for reproducibility and the next task.
+
 ## Guided learning and source-generated reference
 
 **Aprender** opens five Brazilian Portuguese lessons, budgeted at ten minutes: lexical reuse/arguments, nested possession and permissive, omission/imperative/negation, variant/nominal base, and larger postpositional/compositional constructions. The actual tree editor runs in isolated practice state, with saved progress/loose pieces, hints, confirmed stage-model replacement, undo and comprehension questions. **Próxima etapa** keeps the attempt while advancing guidance; each step reports whether its structure, surface, annotation and evaluation status match. Completion requires a complete evaluation and correct comprehension answer. Corpus drafts, source publication and reference approval are untouched.

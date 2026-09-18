@@ -3,6 +3,12 @@
 Research date: 2026-09-18. Branch: `codex/tupi-parser-lab`.
 Studio base: `8d21298c41ac5e5a66877b64ed96e02f00d31e56`.
 
+Follow-up research: [Pydicate structural search](pydicate-structural-search.md)
+provides a source-graph exporter, a tested native query baseline and an optional
+Grew comparison harness. It describes reuse inside the hidden lab without UD
+conversion. Grew execution remains unverified; this optional retrieval feature
+does not replace or block the inverse-pipeline milestones below.
+
 ## Decision and readiness
 
 Build a hidden experimental workspace inside Studio. Reuse the existing grammar,
