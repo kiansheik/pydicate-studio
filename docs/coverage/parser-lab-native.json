@@ -1,43 +1,44 @@
 {
   "version": 1,
-  "startedAt": "2026-09-18T16:59:53.027Z",
+  "startedAt": "2026-09-19T10:19:11.763Z",
   "productionOrigin": "studio://app/index.html",
-  "temporaryDirectory": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-Y4Q11s",
+  "temporaryDirectory": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-A3nFF4",
   "boundary": "Isolated Electron profile, disposable corpus copy, engine symlink read-only. No provider call, no publication, no approval.",
   "stages": [
     {
-      "name": "hidden-by-default",
-      "startedAt": "2026-09-18T16:59:53.109Z",
+      "name": "solver-sits-with-the-passage",
+      "startedAt": "2026-09-19T10:19:11.836Z",
       "status": "passed",
       "evidence": {
-        "entryPoint": "absent",
+        "entryPoint": "editor tab",
         "labStateEntries": []
       },
-      "finishedAt": "2026-09-18T16:59:54.899Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-01-hidden-by-default.png"
+      "finishedAt": "2026-09-19T10:19:13.275Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-01-solver-sits-with-the-passage.png"
     },
     {
-      "name": "enable-persists-across-restart",
-      "startedAt": "2026-09-18T16:59:55.056Z",
+      "name": "opening-the-tab-starts-nothing",
+      "startedAt": "2026-09-19T10:19:13.432Z",
       "status": "passed",
       "evidence": {
-        "labStateAfterEnable": [],
-        "persisted": true
+        "preparationOffered": true,
+        "artifacts": 0,
+        "jobs": 0
       },
-      "finishedAt": "2026-09-18T16:59:56.550Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-02-enable-persists-across-restart.png"
+      "finishedAt": "2026-09-19T10:19:13.467Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-02-opening-the-tab-starts-nothing.png"
     },
     {
       "name": "prepare-baseline-from-the-tab",
-      "startedAt": "2026-09-18T16:59:56.712Z",
+      "startedAt": "2026-09-19T10:19:13.603Z",
       "status": "passed",
       "evidence": {
-        "artifactRoot": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-Y4Q11s/user-data/parser-lab/artifacts/local-649a74c6c8c0e00898fd7e77",
-        "artifact": "index-4395de1e75dfb9c6",
+        "artifactRoot": "/var/folders/pf/4fk62ck54h59svl6ypvj4pcm0000gn/T/pydicate-parser-lab-A3nFF4/user-data/parser-lab/artifacts/local-c95c3ec7e2b3217d8962acda",
+        "artifact": "index-5143a032f21c8ea4",
         "counts": {
           "fragments": 53,
-          "retrieval": 1923,
-          "retrievalExpressions": 129,
+          "retrieval": 1930,
+          "retrievalExpressions": 130,
           "examples": 341,
           "splitGroups": 321,
           "split.test": 47,
@@ -45,23 +46,34 @@
           "split.dev": 49
         }
       },
-      "finishedAt": "2026-09-18T16:59:59.952Z",
+      "finishedAt": "2026-09-19T10:19:35.624Z",
       "screenshot": "docs/coverage/native-screenshots/parser-lab-03-prepare-baseline-from-the-tab.png"
     },
     {
+      "name": "solve-and-import-into-the-draft",
+      "startedAt": "2026-09-19T10:19:35.772Z",
+      "status": "passed",
+      "evidence": {
+        "importedIntoDraft": "(+ixé * só) + (pe * (ixé * oka))",
+        "undoRestored": true
+      },
+      "finishedAt": "2026-09-19T10:19:38.498Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-04-solve-and-import-into-the-draft.png"
+    },
+    {
       "name": "first-sentence-offline",
-      "startedAt": "2026-09-18T17:00:00.105Z",
+      "startedAt": "2026-09-19T10:19:38.629Z",
       "status": "passed",
       "evidence": {
         "normalized": "asoxerokype",
         "screenshot": "docs/coverage/native-screenshots/parser-lab-first-result.png"
       },
-      "finishedAt": "2026-09-18T17:00:01.222Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-04-first-sentence-offline.png"
+      "finishedAt": "2026-09-19T10:19:39.015Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-05-first-sentence-offline.png"
     },
     {
       "name": "variants-and-unknown-input",
-      "startedAt": "2026-09-18T17:00:01.366Z",
+      "startedAt": "2026-09-19T10:19:39.164Z",
       "status": "passed",
       "evidence": {
         "ASOXEROKYPE": "asoxerokype",
@@ -70,24 +82,24 @@
         "zzzz": "unknown",
         "Açó xe rokîpe": "unknown"
       },
-      "finishedAt": "2026-09-18T17:00:01.849Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-05-variants-and-unknown-input.png"
+      "finishedAt": "2026-09-19T10:19:39.616Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-06-variants-and-unknown-input.png"
     },
     {
       "name": "composes-a-sentence-absent-from-the-index",
-      "startedAt": "2026-09-18T17:00:01.976Z",
+      "startedAt": "2026-09-19T10:19:39.740Z",
       "status": "passed",
       "evidence": {
         "knownExpression": false,
         "route": "composition",
         "source": "(+nde * só) + (pe * (nde * oka))"
       },
-      "finishedAt": "2026-09-18T17:00:02.096Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-06-composes-a-sentence-absent-from-the-index.png"
+      "finishedAt": "2026-09-19T10:19:39.842Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-07-composes-a-sentence-absent-from-the-index.png"
     },
     {
       "name": "tree-edit-changes-source-and-surface",
-      "startedAt": "2026-09-18T17:00:02.234Z",
+      "startedAt": "2026-09-19T10:19:39.980Z",
       "status": "passed",
       "evidence": {
         "edited": "asó nde rokype",
@@ -95,12 +107,12 @@
         "redo": true,
         "treeGesture": "(+((ixé).var(1)) * só) + (pe * (nde * oka))"
       },
-      "finishedAt": "2026-09-18T17:00:03.654Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-07-tree-edit-changes-source-and-surface.png"
+      "finishedAt": "2026-09-19T10:19:41.291Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-08-tree-edit-changes-source-and-surface.png"
     },
     {
       "name": "ambiguity-and-collisions-preserved",
-      "startedAt": "2026-09-18T17:00:03.804Z",
+      "startedAt": "2026-09-19T10:19:41.429Z",
       "status": "passed",
       "evidence": {
         "collisionGroups": 2,
@@ -110,25 +122,26 @@
         ],
         "agentState": "ready"
       },
-      "finishedAt": "2026-09-18T17:00:04.564Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-08-ambiguity-and-collisions-preserved.png"
+      "finishedAt": "2026-09-19T10:19:42.138Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-09-ambiguity-and-collisions-preserved.png"
     },
     {
       "name": "choose-a-reading-then-learn-from-it",
-      "startedAt": "2026-09-18T17:00:04.706Z",
+      "startedAt": "2026-09-19T10:19:42.285Z",
       "status": "passed",
       "evidence": {
         "refusedWithoutJudgments": "Não há contrastes decididos para treinar. Toda análise devolvida realiza a mesma forma, então duas leituras só podem ser",
         "readingsOffered": 2,
+        "confirmedBefore": 1,
         "learned": {
           "attempts": 7,
           "attemptsComplete": 5,
           "attemptsUnknown": 2,
-          "judgments": 1,
+          "judgments": 2,
           "verdicts": {
-            "accepted": 1
+            "accepted": 2
           },
-          "confirmedExamples": 1,
+          "confirmedExamples": 2,
           "preferencePairs": 1,
           "coverageGaps": 2,
           "correctionsTheSearchNeverProposed": 0,
@@ -136,7 +149,7 @@
         },
         "trainStatus": "succeeded",
         "ranker": {
-          "id": "ranker-f48750cddd8c4b49",
+          "id": "ranker-8fc29cb9bfbbf00d",
           "metrics": {
             "trainPairs": 2,
             "trainPairsFromJudgments": 1,
@@ -150,12 +163,12 @@
             "improvesOverBaseline": false,
             "recommendActivation": false,
             "finalLoss": 0.009537,
-            "elapsedSeconds": 1.46,
+            "elapsedSeconds": 1.375,
             "note": "Só pares decididos por um contribuidor entram no treino: duas leituras que geram a mesma forma são ambiguidade, não erro, e treinar nelas ensinaria uma preferência arbitrária. Uma leitura preferida que a busca nunca propõe é falha de cobertura, contada à parte e não corrigível por ordenação. A acurácia pareada não é uma probabilidade calibrada."
           }
         },
         "evaluation": {
-          "id": "evaluation-6ca0bb320cce61d2",
+          "id": "evaluation-dbd0ccab55594051",
           "metrics": {
             "normalization_invariance": {
               "total": 8,
@@ -180,7 +193,7 @@
               "annotationDenominator": 25,
               "surfaceAgreement": 1,
               "meanCandidates": 1.08,
-              "meanSeconds": 0.004,
+              "meanSeconds": 0.0041,
               "ambiguousRate": 0.08,
               "lexemeRecovery": 0.992,
               "recall@1": 0.92,
@@ -221,37 +234,37 @@
               }
             },
             "frozen_reviewed_historical": {
-              "total": 1,
-              "complete": 1,
+              "total": 2,
+              "complete": 2,
               "partial": 0,
               "unknown": 0,
               "completeRate": 1,
-              "top1": 0,
-              "top1Exact": 0,
-              "top1AnnotationSame": 0,
-              "annotationDenominator": 1,
+              "top1": 0.5,
+              "top1Exact": 0.5,
+              "top1AnnotationSame": 0.5,
+              "annotationDenominator": 2,
               "surfaceAgreement": 1,
-              "meanCandidates": 2,
-              "meanSeconds": 0.0036,
-              "ambiguousRate": 1,
-              "lexemeRecovery": 0.6667,
-              "recall@1": 0,
+              "meanCandidates": 1.5,
+              "meanSeconds": 0.004,
+              "ambiguousRate": 0.5,
+              "lexemeRecovery": 0.8333,
+              "recall@1": 0.5,
               "recall@5": 1,
               "recall@10": 1,
-              "morphemeSequenceExact": 0,
-              "morphemeTagF1": 0.8333,
-              "morphemeDenominator": 1,
-              "denominator": 1,
-              "available": 1,
+              "morphemeSequenceExact": 0.5,
+              "morphemeTagF1": 0.9167,
+              "morphemeDenominator": 2,
+              "denominator": 2,
+              "available": 2,
               "note": "Leituras confirmadas ou corrigidas pelo contribuidor, sobre entrada real, com a resposta removida da recuperação. É evidência de laboratório (lab-reviewed) e nunca aprovação editorial do corpus."
             },
             "user_corrections": {
-              "total": 1,
+              "total": 2,
               "verdicts": {
-                "accepted": 1
+                "accepted": 2
               },
               "decidedPairs": 1,
-              "confirmedReadings": 1,
+              "confirmedReadings": 2,
               "correctionsTheSearchNeverProposed": 0,
               "coverageGaps": 2,
               "note": "Correções que a busca nunca propôs são falhas de cobertura, não de ordenação, e nenhum classificador as resolve. Nada aqui publica fonte nem aprova referência."
@@ -304,32 +317,32 @@
                 "reason": "Nenhum classificador treinado está ativo."
               }
             },
-            "elapsedSeconds": 0.457
+            "elapsedSeconds": 0.468
           }
         }
       },
-      "finishedAt": "2026-09-18T17:00:11.823Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-09-choose-a-reading-then-learn-from-it.png"
+      "finishedAt": "2026-09-19T10:19:48.604Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-10-choose-a-reading-then-learn-from-it.png"
     },
     {
       "name": "cancellation-and-interruption-are-honest",
-      "startedAt": "2026-09-18T17:00:11.967Z",
+      "startedAt": "2026-09-19T10:19:48.725Z",
       "status": "passed",
       "evidence": {
-        "cancelledJob": "bdd2b14d-35ad-47bb-bc9a-c21e42e40cce",
-        "activeIndexPreserved": "index-4395de1e75dfb9c6",
+        "cancelledJob": "e94de83a-4e90-4f9b-b608-b9cc48472173",
+        "activeIndexPreserved": "index-5143a032f21c8ea4",
         "interruptedLeftovers": [
-          "index-1bfbfe69ec28d876.1eedf3f6",
-          "ranker-b95792caa48862e8.ecd1b40f"
+          "index-9cdd044f5a6d841b.3045d5d6",
+          "ranker-550aa33f1eb166d9.08cee50d"
         ],
         "discarded": true
       },
-      "finishedAt": "2026-09-18T17:00:13.354Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-10-cancellation-and-interruption-are-honest.png"
+      "finishedAt": "2026-09-19T10:19:49.825Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-11-cancellation-and-interruption-are-honest.png"
     },
     {
       "name": "corpus-untouched",
-      "startedAt": "2026-09-18T17:00:13.506Z",
+      "startedAt": "2026-09-19T10:19:49.967Z",
       "status": "passed",
       "evidence": {
         "watchedFiles": [
@@ -339,11 +352,11 @@
         ],
         "unchanged": true
       },
-      "finishedAt": "2026-09-18T17:00:13.507Z",
-      "screenshot": "docs/coverage/native-screenshots/parser-lab-11-corpus-untouched.png"
+      "finishedAt": "2026-09-19T10:19:49.967Z",
+      "screenshot": "docs/coverage/native-screenshots/parser-lab-12-corpus-untouched.png"
     }
   ],
   "pageErrors": [],
-  "finishedAt": "2026-09-18T17:00:13.804Z",
+  "finishedAt": "2026-09-19T10:19:50.257Z",
   "passed": true
 }

@@ -265,3 +265,34 @@
 .lab-candidates .lab-choose {
   margin: 6px 0 0 10px;
 }
+
+/* Solver inside the editor tabs: no dialog chrome, same reading affordances. */
+.projection.solver {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 20px;
+}
+.projection.solver .lab-prepare {
+  border: 1px dashed var(--line, #2a2f3a);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.projection.solver .section-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lab-morphemes-inline {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

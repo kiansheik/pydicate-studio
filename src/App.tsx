@@ -43,12 +43,12 @@ import { UsagePanel } from './components/UsagePanel';
 import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
 import { PassageLexicon } from './components/PassageLexicon';
 import { GroundTruthDialog } from './components/GroundTruthPanel';
+import { PassageSolver } from './components/PassageSolver';
 import { approvalState, type ReferenceStatus } from './domain/ground-truth';
 import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
 import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
 import { DraftArchive } from './components/DraftArchive';
 import { track } from './domain/usage';
-import { LAB_ENABLED_KEY } from './domain/parser-lab';
 import './workbench.css';
 import { flattenNodes, invoke, type SourcePreview } from './domain/authoring';
 import { PhraseEditor, SelectionNote, nodeLabels } from './components/PhraseEditor';
@@ -65,7 +65,15 @@ const LearningWorkspace = lazy(() =>
 const ParserLab = lazy(() =>
   import('./components/ParserLab').then((module) => ({ default: module.ParserLab })),
 );
-const tabs = ['Construção', 'Morfemas', 'Árvore', 'Tradução', 'Histórico', 'Código'] as const;
+const tabs = [
+  'Construção',
+  'Morfemas',
+  'Árvore',
+  'Sugerir',
+  'Tradução',
+  'Histórico',
+  'Código',
+] as const;
 type Tab = (typeof tabs)[number];
 const statusLabels = {
   untranscribed: 'Por transcrever',
@@ -115,6 +123,7 @@ function Projections({
   inspectLexeme,
   prepareDiagnostic,
   askAI,
+  openLaboratory,
 }: {
   studio: Studio;
   tab: Tab;
@@ -123,6 +132,7 @@ function Projections({
   inspectLexeme: () => void;
   prepareDiagnostic: (report: CanvasDiagnostic) => void;
   askAI: (id: string) => void;
+  openLaboratory: () => void;
 }) {
   const { draft, passage, result } = studio;
   if (studio.project.mode === 'local' && tab === 'Árvore')
@@ -160,6 +170,7 @@ function Projections({
         codeOnly={tab === 'Código'}
       />
     );
+  if (tab === 'Sugerir') return <PassageSolver studio={studio} onOpenLaboratory={openLaboratory} />;
   if (tab === 'Construção')
     return <PhraseEditor studio={studio} selected={selected} select={select} />;
   if (tab === 'Morfemas')
@@ -475,9 +486,6 @@ export default function App() {
   const [details, setDetails] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [learningView, setLearningView] = useState<'lessons' | 'reference' | null>(null);
-  const [labEnabled, setLabEnabled] = useState(
-    () => localStorage.getItem(LAB_ENABLED_KEY) === 'on',
-  );
   const [labOpen, setLabOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -1206,6 +1214,7 @@ export default function App() {
                     select={setSelected}
                     inspectLexeme={() => changeMode('lexicon')}
                     prepareDiagnostic={setGrammarReport}
+                    openLaboratory={() => setLabOpen(true)}
                     askAI={(id) => {
                       setSelected(id);
                       layout.support('ai');
@@ -1513,15 +1522,6 @@ export default function App() {
           <button className="button small" onClick={() => setUsageOpen(true)}>
             Atividade
           </button>
-          {labEnabled && (
-            <button
-              className="button small"
-              data-testid="parser-lab-open"
-              onClick={() => setLabOpen(true)}
-            >
-              Tupi → Pydicate
-            </button>
-          )}
           <button
             className="button small"
             aria-label="Alternar tema"
@@ -1549,7 +1549,7 @@ export default function App() {
           </button>
         </div>
       </header>
-      {labEnabled && labOpen && (
+      {labOpen && (
         <Suspense fallback={<p role="status">Abrindo o laboratório…</p>}>
           <ParserLab
             project={project}
@@ -1790,25 +1790,6 @@ export default function App() {
             Este primeiro editor cobre participantes, negação e modo da construção de Araújo 0067.
             Aprovação editorial, sincronização Git e assistência de IA são etapas futuras.
           </p>
-          <h3>Recursos experimentais</h3>
-          <label className="field-inline">
-            <input
-              type="checkbox"
-              data-testid="parser-lab-switch"
-              checked={labEnabled}
-              onChange={(event) => {
-                const next = event.target.checked;
-                localStorage.setItem(LAB_ENABLED_KEY, next ? 'on' : 'off');
-                setLabEnabled(next);
-                if (!next) setLabOpen(false);
-                track('ui.parser-lab', { enabled: next });
-              }}
-            />
-            <span>
-              Laboratório Tupi → Pydicate. Abre uma aba oculta que analisa uma frase normalizada
-              usando apenas artefatos preparados localmente. Nada é publicado nem aprovado.
-            </span>
-          </label>
           <button
             className="button"
             onClick={() => {

@@ -488,8 +488,20 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       projectId: control.project.id,
       engineFingerprint: control.project.engineFingerprint,
       artifactRoot: '/SIMULATED/parser-lab',
-      artifacts: [],
-      active: {},
+      artifacts: [
+        {
+          artifactId: 'index-simulated',
+          kind: 'index',
+          status: 'complete',
+          completed: true,
+          counts: { fragments: 3 },
+          metrics: {},
+          recipe: {},
+          parents: [],
+          contextFingerprint: 'sha256:simulated',
+        },
+      ],
+      active: { index: 'index-simulated' },
       interrupted: [],
       exists: false,
       profiles: [
@@ -525,6 +537,58 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       result: null,
     };
   if (method === 'parser_lab_jobs') return { jobs: [], busy: false };
+  if (method === 'parser_lab_analyze') {
+    // Two readings of one form, so the choice and the import can be exercised.
+    const candidate = (source: string, acceptance: string) => ({
+      schemaVersion: 1,
+      source,
+      surface: 'SIMULADO:sapépe',
+      normalized: 'sapepe',
+      route: 'composition',
+      family: 'pp',
+      bindings: {},
+      spans: [],
+      score: 0.6,
+      scoreMeaning: 'SIMULADO',
+      features: {},
+      completeness: 'complete',
+      annotated: 'SIMULADO',
+      morphemes: [{ occurrence: 0, surface: 's', tags: ['SIMULADO'], provenance: 'engine' }],
+      provenance: { route: 'composition', acceptance, coGenerating: true },
+      editable: true,
+      seconds: 0,
+    });
+    return {
+      schemaVersion: 1,
+      astSchemaVersion: 1,
+      input: {
+        profile: 'lab-v1',
+        raw: params.text,
+        normalized: 'sapepe',
+        removedPunctuation: [],
+        note: '',
+      },
+      context: {
+        sourceId: 'araujo_catecismo_1686',
+        line: 1,
+        answerFree: true,
+        normalizerProfile: 'lab-v1',
+        fingerprint: 'sha256:simulated',
+        lexemeCount: 1,
+      },
+      artifacts: { index: 'index-simulated', ranker: null },
+      candidates: [candidate('(pe * apé)', 'presumed'), candidate('(pe * (ae * apé))', 'presumed')],
+      best: null,
+      rejections: [],
+      timings: { total: 0 },
+      status: 'complete',
+      message: '',
+      configuration: {},
+      coordinateSystem: 'normalized-input-codepoints',
+      alignmentNote: 'SIMULADO',
+    };
+  }
+  if (method === 'parser_lab_judgment') return { appended: true, id: 'simulated-judgment' };
   if (method.startsWith('parser_lab_'))
     throw new Error('SIMULADO: prepare a linha de base antes de analisar.');
   throw new Error(`Unexpected simulated operation: ${method}`);

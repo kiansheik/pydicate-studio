@@ -1,5 +1,13 @@
 # Work log
 
+## 2026-09-19 - The solver moved to where the work happens
+
+A contributor spent ten minutes hunting for the laboratory and could not find it. That was a design failure, not a discoverability detail: it sat behind an unlabelled icon in the project information panel, and a solver you cannot reach from the passage you are working on is a demonstration rather than a tool.
+
+**Sugerir** is now a tab in the editor beside Árvore, prefilled with the current passage's transcription, and each proposed reading carries **Usar esta análise no rascunho** — an ordinary undoable draft edit that touches neither source nor reference and records which reading was chosen, so the loop is fed by real work. With no index the tab offers a single **Preparar índice** button instead of sending the contributor to another screen. The full laboratory opens from the same tab. The hidden-by-default switch and its header button are gone, superseding that part of the original brief; what the switch actually guarded is kept, since the module is still a separate lazy chunk, reading state is still a filesystem listing, and the Python worker still starts only on the first request that needs the engine.
+
+Native proof covers the point of the tool: analyse the transcribed form, take `(+ixé * só) + (pe * (ixé * oka))` into the draft, undo restores the previous expression, nothing published or approved. The import also feeds training — the stage that expected an undecided laboratory had to be corrected, because the import had already confirmed a reading, while training still refused since a single reading yields no contrast. One browser run failed misleadingly against a stale Vite dev server before the tab existed in the served module; restarting it resolved that.
+
 ## 2026-09-18 - Readings, choices and learning from corrections
 
 Reworked what counts as one answer and where ranking supervision can come from. The engine decides: sources it annotates identically are merged, keeping the alternative spelling, so `(+nde * ikó)` and `ikó * +endé` are one reading. Sources that annotate differently stay separate, are all shown, and each carries the exact tag difference from the first — `sapépe` is `(pe * apé)` against `(pe * (ae * apé))`, differing only by `PLURIFORM_PREFIX:S:ABSOLUTE`. Such co-generating readings are presumed mutually acceptable: never an error against each other, never a training contrast.

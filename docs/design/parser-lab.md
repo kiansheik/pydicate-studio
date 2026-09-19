@@ -7,14 +7,28 @@ analyze unrestricted historical Tupi. See the
 [implementation assignment](tupi-parser-lab-implementation.md) for the research
 that preceded it and the [probe report](../evaluation/parser-lab-probe.json).
 
-## Enabling and boundaries
+## Where it lives
 
-The tab is absent by default. **Informações do projeto → Recursos experimentais**
-persists the switch in `localStorage` under `studio-parser-lab-enabled`; the
-entry point then appears in the header. Revealing it starts nothing: the
-workspace module is a separate lazy chunk, the status read is a filesystem
-listing, and the Python laboratory worker is spawned only by the first request
-that needs the engine.
+**Sugerir** is a tab in the editor, beside Árvore, because a solver you cannot
+reach from the passage you are working on is a demonstration rather than a tool.
+It is a projection of the current passage like Morfemas or Código.
+
+The input starts from that passage's transcription, so the form on screen does
+not have to be retyped. Each proposed reading offers **Usar esta análise no
+rascunho**, which takes it into the draft as an ordinary, undoable edit — the
+source and the reference are untouched — and records which reading was chosen,
+so the laboratory learns from real work instead of a separate exercise.
+
+With no index, the tab offers one button, **Preparar índice**: the smoke profile,
+locally, in a couple of seconds. The full laboratory — Dados, Treinar, Avaliar,
+Execuções — opens from **Laboratório** in the same tab.
+
+This supersedes the original brief's hidden-by-default switch. Ten minutes of
+hunting for a toggle buried in the project information panel showed that hiding
+it cost more than it protected. What the switch was really guarding is kept
+without it: the workspace module is a separate lazy chunk, reading state is a
+filesystem listing, and the Python laboratory worker is spawned only by the first
+request that needs the engine. Opening the tab still starts nothing.
 
 The analysis opens in the real source/tree editor, bidirectionally: editing the
 code rebuilds the tree, and a tree gesture rewrites the code and triggers a fresh

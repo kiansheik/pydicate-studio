@@ -68,16 +68,20 @@ Routine verification uses deterministic transports with **no paid generation**. 
 
 PDFs and regions live in application data, with fingerprint/replacement checks and same-witness relocation. Source comments store the stable versioned evidence pointer. A Git patch alone does not contain the managed PDF or private draft/AI state. See [PDF evidence format](docs/design/pdf-evidence.md). Clearing application data removes these local assets; retain independent source PDF backups.
 
-## Experimental: Tupi → Pydicate laboratory
+## Experimental: suggest an analysis from the form
 
-A hidden workspace that proposes a Pydicate analysis for a normalized Tupi
-string. It is absent until you enable it under **Informações do projeto →
-Recursos experimentais**; nothing in it runs until you ask. **Preparar baseline**
-builds a small local index, and **Analisar** then folds the input (spaces, case
-and accents are discarded, apostrophes are not), searches recorded corpus
-expressions and declared grammar families, and accepts only analyses the selected
-engine realizes back to the same form. The result opens in the real tree editor
-and never publishes source or approves a reference.
+**Sugerir** is a tab in the editor, beside Árvore. It proposes a Pydicate
+analysis for the form the current passage is transcribed as, and its input starts
+from that transcription. The first time, one button prepares a small local index;
+after that, **Sugerir análise** folds the input (spaces, case and accents are
+discarded, apostrophes are not), searches recorded corpus expressions and the
+declared grammar families, and accepts only analyses the selected engine realizes
+back to the same form.
+
+A proposed reading goes into the draft with **Usar esta análise no rascunho** —
+an ordinary undoable edit that never publishes source or approves a reference.
+The full laboratory, for preparation, training and evaluation, opens from the
+same tab.
 
 ```sh
 npm run parser-lab -- --parent <pasta> --artifacts <dir> prepare --profile smoke --activate

@@ -95,10 +95,20 @@ const invoke = (method, params = {}) =>
   page.evaluate(({ method, params }) => window.studio.invoke(method, params), { method, params });
 
 async function openLab() {
-  await page.getByTestId('parser-lab-open').click();
+  // The full laboratory (preparation, training, evaluation) opens from the tab.
+  await page.getByRole('tab', { name: 'Sugerir', exact: true }).click();
+  await page.getByRole('button', { name: 'Laboratório', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Tupi → Pydicate' })).toBeVisible();
 }
 async function analyse(text) {
+  // These stages exercise the full laboratory, which keeps its own editor.
+  if (
+    !(await page
+      .getByRole('heading', { name: 'Tupi → Pydicate' })
+      .isVisible()
+      .catch(() => false))
+  )
+    await openLab();
   await page.getByRole('button', { name: 'Analisar' }).first().click();
   await page.getByTestId('lab-input').fill(text);
   await page.getByTestId('lab-analyse').click();
@@ -155,38 +165,37 @@ async function listing(directory) {
   }
 }
 
-let ok = await stage('hidden-by-default', async () => {
+let ok = await stage('solver-sits-with-the-passage', async () => {
   await launch();
-  await expect(page.getByTestId('parser-lab-open')).toHaveCount(0);
+  // The solver is a projection of the passage being worked on, beside the tree
+  // it feeds, not a separate place to remember.
+  await page.getByRole('button', { name: 'Montar a análise', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Sugerir', exact: true })).toBeVisible();
   const state = await listing(labState);
-  assert.deepEqual(state, [], 'A hidden laboratory must create no state.');
-  return { entryPoint: 'absent', labStateEntries: state };
+  assert.deepEqual(state, [], 'Opening Studio must create no laboratory state.');
+  return { entryPoint: 'editor tab', labStateEntries: state };
 });
 
 if (ok)
-  ok = await stage('enable-persists-across-restart', async () => {
-    await page.getByRole('button', { name: 'Informações do projeto' }).click();
-    await page.getByTestId('parser-lab-switch').check();
-    await expect(page.getByTestId('parser-lab-open')).toBeVisible();
-    await page.getByRole('button', { name: 'Fechar informações' }).click();
-    // Revealing the tab must not start preparation, training or a download.
-    const beforeRestart = await listing(labState);
-    await close();
-    await launch();
-    await expect(page.getByTestId('parser-lab-open')).toBeVisible();
-    return { labStateAfterEnable: beforeRestart, persisted: true };
+  ok = await stage('opening-the-tab-starts-nothing', async () => {
+    await page.getByRole('tab', { name: 'Sugerir', exact: true }).click();
+    await expect(page.getByRole('heading', { name: /Sugerir uma análise/ })).toBeVisible();
+    // Reading state is a filesystem listing; preparation is offered, not run.
+    await expect(page.getByRole('button', { name: /Preparar índice/ })).toBeVisible({
+      timeout: 30_000,
+    });
+    const status = await invoke('parser_lab_status', {});
+    assert.deepEqual(status.artifacts, []);
+    assert.deepEqual(status.jobs, []);
+    return { preparationOffered: true, artifacts: 0, jobs: 0 };
   });
 
 if (ok)
   ok = await stage('prepare-baseline-from-the-tab', async () => {
-    await openLab();
-    await expect(page.getByTestId('lab-artifacts')).toContainText('Nenhum índice ativo');
-    await page.getByRole('button', { name: 'Dados' }).click();
-    await page.getByTestId('lab-profile').selectOption('smoke');
-    await page.getByTestId('lab-start-prepare').click();
-    await expect(page.getByTestId('lab-artifacts')).toContainText('Índice ativo', {
-      timeout: 300_000,
-    });
+    // One button, in the tab, for a contributor who has never opened the
+    // laboratory: no profile to choose and no other screen to find.
+    await page.getByRole('button', { name: /Preparar índice/ }).click();
+    await expect(page.getByTestId('solver-analyse')).toBeEnabled({ timeout: 300_000 });
     const status = await invoke('parser_lab_status', {});
     assert.equal(status.jobs[0].stage, 'prepare');
     assert.equal(status.jobs[0].status, 'succeeded');
@@ -197,6 +206,33 @@ if (ok)
       artifact: status.jobs[0].artifactId,
       counts: status.artifacts.find((item) => item.artifactId === status.active.index)?.counts,
     };
+  });
+
+if (ok)
+  ok = await stage('solve-and-import-into-the-draft', async () => {
+    // The point of the tool: analyse the form this passage is transcribed as,
+    // and take the chosen reading into the draft being built.
+    await page.getByRole('tab', { name: 'Código', exact: true }).click();
+    const editor = page.getByRole('textbox', { name: 'Pydicate editável', exact: true });
+    const before = await editor.inputValue();
+    await page.getByRole('tab', { name: 'Sugerir', exact: true }).click();
+    await page.getByTestId('solver-input').fill('Asó xe rokype');
+    await expect(page.getByTestId('solver-normalized')).toContainText('asoxerokype');
+    await page.getByTestId('solver-analyse').click();
+    const candidates = page.getByTestId('solver-candidates');
+    await expect(candidates).toContainText('(+ixé * só) + (pe * (ixé * oka))', {
+      timeout: 120_000,
+    });
+    await page.getByTestId('solver-use-0').click();
+    await expect(page.getByTestId('solver-imported')).toBeVisible();
+    await page.getByRole('tab', { name: 'Código', exact: true }).click();
+    await expect(editor).toHaveValue('(+ixé * só) + (pe * (ixé * oka))');
+    // An ordinary draft edit, undoable, and nothing published or approved.
+    await page.getByRole('tab', { name: 'Árvore', exact: true }).click();
+    await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+    await page.getByRole('tab', { name: 'Código', exact: true }).click();
+    await expect(editor).toHaveValue(before);
+    return { importedIntoDraft: '(+ixé * só) + (pe * (ixé * oka))', undoRestored: true };
   });
 
 if (ok)
@@ -298,8 +334,9 @@ if (ok)
 
 if (ok)
   ok = await stage('choose-a-reading-then-learn-from-it', async () => {
-    // Without a decided contrast there is nothing to learn, and training must
-    // say so rather than invent supervision from an ambiguity.
+    // The import in an earlier stage already confirmed one reading, but a form
+    // with a single reading yields no contrast, so training must still refuse.
+    const learnedBefore = await invoke('parser_lab_feedback', {});
     await page.getByRole('button', { name: 'Treinar' }).click();
     await page.getByTestId('lab-start-train').click();
     await expect
@@ -331,7 +368,12 @@ if (ok)
 
     // That one decision is what training can actually use.
     const learned = await invoke('parser_lab_feedback', {});
-    assert.equal(learned.summary.confirmedExamples, 1);
+    assert.equal(
+      learned.summary.confirmedExamples,
+      learnedBefore.summary.confirmedExamples + 1,
+      'choosing a reading adds exactly one confirmed reading',
+    );
+    assert.ok(learned.summary.preferencePairs > learnedBefore.summary.preferencePairs);
     assert.ok(learned.summary.attempts > 0);
     await page.getByRole('button', { name: 'Treinar' }).click();
     await page.getByTestId('lab-start-train').click();
@@ -349,7 +391,8 @@ if (ok)
       })
       .toMatch(/succeeded|failed/);
     await page.reload();
-    await page.getByTestId('parser-lab-open').click();
+    await page.getByRole('button', { name: 'Montar a análise', exact: true }).click();
+    await openLab();
     const status = await invoke('parser_lab_status', {});
     const ranker = status.artifacts.find((item) => item.kind === 'ranker');
     const evaluation = status.artifacts.find((item) => item.kind === 'evaluation');
@@ -362,6 +405,7 @@ if (ok)
     return {
       refusedWithoutJudgments: refused.error.slice(0, 120),
       readingsOffered: 2,
+      confirmedBefore: learnedBefore.summary.confirmedExamples,
       learned: learned.summary,
       trainStatus: trained.status,
       ranker: { id: ranker.artifactId, metrics: ranker.metrics },
