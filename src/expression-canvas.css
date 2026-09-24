@@ -587,13 +587,19 @@
 .morpheme-highlight {
   color: var(--morpheme-ink);
   background: var(--morpheme-background);
-  border-radius: 2px;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
+  border-radius: 3px;
+  padding: 1px 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
+/* SVG text takes no background, so the highlight is a rounded halo painted behind the
+   glyphs in the same colour; it reads as the marker stroke the HTML side gets. */
 .expression-canvas .morpheme-highlight-svg {
   fill: var(--morpheme-ink);
   font-weight: 700;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
+  stroke: var(--morpheme-background);
+  stroke-width: 7px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke fill;
 }

@@ -2026,15 +2026,15 @@ test('automatic morpheme tracing follows selection in existing ancestor result b
   await svg(page).screenshot({ path: testInfo.outputPath('morpheme-trace.png') });
 });
 
-test('selecting negation highlights only its affixes while a silent variant highlights nothing', async ({
-  page,
-}) => {
+test('the selected root and a silent variant both highlight nothing', async ({ page }) => {
   await openCanvas(page, '-(oré * tym)');
-  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText(['n', 'i']);
+  // The root is selected on open. Marking a whole realised form conveys nothing, so the
+  // surface stays plain until a constituent below it is chosen.
+  await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
   await expect(card(page, 'main:root/operand').locator('[data-morpheme-highlight]')).toHaveCount(0);
   await page.evaluate(() => window.canvasReplaceRaw('(oré * tym).var(1)'));
   await expect(page.locator('#canvas-ready')).toHaveText('ready');
-  await expect(card(page, 'main:root')).toHaveAttribute('data-morpheme-trace', 'none');
+  await expect(card(page, 'main:root')).not.toHaveAttribute('data-morpheme-trace');
   await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Rastreamento de morfemas' })).toHaveCount(0);
 });
@@ -2066,7 +2066,7 @@ test('morpheme tracing clears stale highlights when the draft changes during eva
   await node(page, 'main:root/right/right').click();
   await page.evaluate(() => window.canvasReplaceRaw('(oré * tym).var(1)'));
   await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
-  await expect(card(page, 'main:root')).toHaveAttribute('data-morpheme-trace', 'none');
+  await expect(card(page, 'main:root')).not.toHaveAttribute('data-morpheme-trace');
   const staleResponse = page.waitForResponse((response) => {
     if (!response.url().endsWith('/__canvas_rpc')) return false;
     const request = response.request().postDataJSON();
@@ -2074,7 +2074,7 @@ test('morpheme tracing clears stale highlights when the draft changes during eva
   });
   release!();
   await staleResponse;
-  await expect(card(page, 'main:root')).toHaveAttribute('data-morpheme-trace', 'none');
+  await expect(card(page, 'main:root')).not.toHaveAttribute('data-morpheme-trace');
   await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
   await expect(page.locator('#canvas-raw')).toHaveText('(oré * tym).var(1)');
 });

@@ -77,8 +77,12 @@ export function useMorphemeTrace(input: {
     () => (root && current?.result?.tree ? expressionGraph(root, raw, current.result.tree) : null),
     [root, raw, current],
   );
+  // Tracing the root says nothing useful: a composition marks its whole realised form, so
+  // every morpheme lights up at once. With nothing selected there is no question to answer
+  // either. Both leave the surface plain.
   const trace = useMemo(
-    () => (graph && selectedId ? traceMorphemes(graph, selectedId) : null),
+    () =>
+      graph && selectedId && selectedId !== graph.rootId ? traceMorphemes(graph, selectedId) : null,
     [graph, selectedId],
   );
   return {
