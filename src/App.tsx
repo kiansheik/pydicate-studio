@@ -125,6 +125,7 @@ function Projections({
   selected,
   select,
   inspectLexeme,
+  lexicalPreview,
   prepareDiagnostic,
   askAI,
   openLaboratory,
@@ -135,6 +136,7 @@ function Projections({
   selected: string;
   select: (id: string) => void;
   inspectLexeme: () => void;
+  lexicalPreview: (preview: SourcePreview) => void;
   prepareDiagnostic: (report: CanvasDiagnostic) => void;
   askAI: (id: string) => void;
   openLaboratory: () => void;
@@ -163,6 +165,7 @@ function Projections({
         onRedo={studio.redo}
         canUndo={studio.canUndo}
         canRedo={studio.canRedo}
+        onLexicalPreview={lexicalPreview}
         onInspectLexeme={inspectLexeme}
         onAskAI={askAI}
       />
@@ -518,6 +521,8 @@ export default function App() {
   const [dictionaryEvidence, setDictionaryEvidence] = useState<AnalysisEvidence | null>(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('studio-theme') || 'dark');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
+  const [approveOnSave, setApproveOnSave] = useState(true);
+  useEffect(() => setApproveOnSave(true), [preview?.previewId]);
   const passageReview =
     !!preview && ['passage-update', 'passage-new'].includes(reviewKind(preview));
   const previewHasChanges = Boolean(preview?.diff || preview?.files?.some((file) => file.diff));
@@ -627,8 +632,8 @@ export default function App() {
     setNotice('');
     setSelected('object');
   };
-  function addNextPassage() {
-    if (!studio.createPendingDraft()) return;
+  function addNextPassage(position?: 'before' | 'after') {
+    if (!studio.createPendingDraft(position)) return;
     setMode('analysis');
     setTab('Árvore');
     setSelected('root');
@@ -790,7 +795,7 @@ export default function App() {
       <button
         className="button new-passage"
         disabled={project.mode !== 'local' || !studio.ready}
-        onClick={addNextPassage}
+        onClick={() => addNextPassage()}
       >
         <Plus size={15} /> Adicionar próxima passagem
       </button>
@@ -815,10 +820,46 @@ export default function App() {
             <button
               className="button small add-next-passage"
               disabled={!studio.ready}
-              onClick={addNextPassage}
+              onClick={() => addNextPassage()}
             >
               <Plus size={14} /> Adicionar próxima passagem
             </button>
+          )}
+          {project.mode === 'local' && (
+            <>
+              <button
+                className="button small"
+                disabled={!studio.ready}
+                aria-label="Inserir antes desta passagem"
+                onClick={() => addNextPassage('before')}
+              >
+                Inserir antes
+              </button>
+              <button
+                className="button small"
+                disabled={!studio.ready}
+                aria-label="Inserir depois desta passagem"
+                onClick={() => addNextPassage('after')}
+              >
+                Inserir depois
+              </button>
+              <button
+                className="button small"
+                disabled={!studio.ready}
+                onClick={() => {
+                  void studio
+                    .persist()
+                    .then(() => {
+                      if (project.passages[selectedIndex + 1])
+                        changePassage(project.passages[selectedIndex + 1].id);
+                      else addNextPassage();
+                    })
+                    .catch((error) => studio.setError(String(error)));
+                }}
+              >
+                Continuar depois
+              </button>
+            </>
           )}
           <button
             className="icon-button"
@@ -910,7 +951,12 @@ export default function App() {
                   <button
                     className="button primary small"
                     disabled={!studio.ready}
-                    onClick={() => studio.setWorkflow('complete')}
+                    onClick={() => {
+                      const index = passages.findIndex((item) => item.id === passage.id);
+                      const next = index >= 0 ? passages[index + 1] : undefined;
+                      studio.setWorkflow('complete');
+                      if (next && next.id !== passage.id) changePassage(next.id);
+                    }}
                   >
                     <Check size={14} /> Concluir passagem
                   </button>
@@ -1220,6 +1266,7 @@ export default function App() {
                     selected={selected}
                     select={setSelected}
                     inspectLexeme={() => changeMode('lexicon')}
+                    lexicalPreview={setPreview}
                     prepareDiagnostic={setGrammarReport}
                     openLaboratory={() => setLabOpen(true)}
                     translate={openTranslation}
@@ -1371,7 +1418,7 @@ export default function App() {
                   <strong>Pronto para uma revisão humana</strong>
                   <p>
                     Exporte a contribuição com a análise, a referência preservada e as versões
-                    usadas. A aprovação explícita usa o fluxo editorial sequencial do corpus.
+                    usadas. Cada passagem pode ser aprovada independentemente das anteriores.
                   </p>
                 </div>
               </div>
@@ -1655,6 +1702,17 @@ export default function App() {
           <section>
             <h2>{sourceReviewTitle(preview)}</h2>
             {reviewError && <p role="alert">{reviewError}</p>}
+            {passageReview && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={approveOnSave}
+                  disabled={reviewBusy}
+                  onChange={(event) => setApproveOnSave(event.target.checked)}
+                />{' '}
+                Registrar também como ground truth
+              </label>
+            )}
             <SourceReviewContent
               preview={preview}
               hasChanges={previewHasChanges}
@@ -1664,7 +1722,7 @@ export default function App() {
               engineFingerprint={project.engineFingerprint}
               result={result}
               pending={studio.pending}
-              saveGroundTruth={passageReview}
+              saveGroundTruth={passageReview && approveOnSave}
               acceptedReference={passage.acceptedReference}
             />
             <div>
@@ -1676,7 +1734,7 @@ export default function App() {
                 disabled={
                   reviewBusy ||
                   !studio.ready ||
-                  (passageReview
+                  (passageReview && approveOnSave
                     ? studio.pending ||
                       !reviewedResult ||
                       reviewedResult.evaluationStatus === 'partial'
@@ -1686,7 +1744,10 @@ export default function App() {
                   setReviewBusy(true);
                   setGroundTruthNote('');
                   void studio
-                    .applySource(preview, passageReview ? reviewedResult! : undefined)
+                    .applySource(
+                      preview,
+                      passageReview && approveOnSave ? reviewedResult! : undefined,
+                    )
                     .then((outcome) => {
                       setPreview(null);
                       setEvidencePointer(null);
@@ -1713,11 +1774,13 @@ export default function App() {
               >
                 {reviewBusy
                   ? 'Salvando…'
-                  : passageReview
+                  : passageReview && approveOnSave
                     ? previewHasChanges
                       ? 'Salvar fonte e ground truth'
                       : 'Salvar ground truth'
-                    : 'Aplicar edição revisada'}
+                    : passageReview
+                      ? 'Salvar somente a fonte'
+                      : 'Aplicar edição revisada'}
               </button>
             </div>
           </section>

@@ -36,7 +36,8 @@ import {
   type CanvasPoint,
   type CanvasState,
 } from '../domain/canvas';
-import { expressionGraph } from '../domain/expression-tree';
+import { ReferenceInspector } from './ReferenceInspector';
+import { expressionGraph, definitionBody } from '../domain/expression-tree';
 import {
   initialRuntimeOverview,
   isOperationJunction,
@@ -75,6 +76,7 @@ import {
 import '../expression-canvas.css';
 
 export interface ExpressionCanvasProps {
+  onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
   raw?: string;
   authoringRoot?: AuthorNode | null;
   evaluatedRoot?: AuthorNode | null;
@@ -2296,6 +2298,17 @@ export function ExpressionCanvas({
             <button aria-expanded={advanced} onClick={() => setAdvanced((value) => !value)}>
               {advanced ? <ChevronUp size={15} /> : <ChevronDown size={15} />}Detalhes e edição
             </button>
+            {selectedScope && definitionBody(selectedScope).kind === 'reference' && (
+              <button
+                onClick={() =>
+                  container.current
+                    ?.querySelector('.reference-inspector')
+                    ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+                }
+              >
+                Ver estrutura e usos
+              </button>
+            )}
             {selectedRoot && props.onPrepareDiagnostic && (
               <button
                 onClick={async () => {
@@ -2334,6 +2347,56 @@ export function ExpressionCanvas({
               {selectedNode.inheritedDefinition || 'Significado não informado.'}
             </p>
           )}
+          {selectedScope &&
+            definitionBody(selectedScope).kind === 'reference' &&
+            selectedPosition && (
+              <ReferenceInspector
+                key={`${selectedPiece!.id}:${selectedScope.id}:${props.revisionId}`}
+                name={definitionBody(selectedScope).code}
+                passageId={props.passageId}
+                sourceId={props.sourceId}
+                revisionId={props.revisionId}
+                engineFingerprint={props.engineFingerprint}
+                onPreview={props.onLexicalPreview}
+                onCopy={(replacement) =>
+                  commit({
+                    type: 'replace',
+                    source: bound({
+                      ...selectedPosition.address,
+                      nodeId: definitionBody(selectedScope).id,
+                    }),
+                    raw: replacement,
+                  })
+                }
+                onDefinition={async (definition) => {
+                  const ticket = liveSession.current;
+                  const address = bound(selectedPosition.address);
+                  const response = await invoke<{
+                    raw: string;
+                    revisionId?: string;
+                    engineFingerprint?: string;
+                  }>('node_definition', {
+                    raw: selectedScope.code,
+                    sourceNodeId: 'root',
+                    definition,
+                    action: 'set',
+                    passageId: props.passageId,
+                    sourceId: props.sourceId,
+                    revisionId: props.revisionId,
+                    engineFingerprint: props.engineFingerprint,
+                  });
+                  if (!mounted.current || ticket !== liveSession.current) return;
+                  if (
+                    response.revisionId !== props.revisionId ||
+                    response.engineFingerprint !== props.engineFingerprint
+                  )
+                    throw new Error(
+                      'A referência mudou durante a edição. Abra novamente seu significado.',
+                    );
+                  commit({ type: 'replace', source: address, raw: response.raw });
+                }}
+              />
+            )}
           {advanced &&
             (selectedRoot && selectedScope ? (
               <TreeScopeEditor

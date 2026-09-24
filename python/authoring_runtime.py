@@ -700,12 +700,13 @@ def lexicon_result(payload, corpus, path, namespace):
             return {**entry,'parameters':parameters,'template':template,'templateContext':context,'authoring':expression_tree(template),'namedReference':expression_tree(entry['name']),'expandedStructure':None,'diagnostics':diagnostics,'editScopes':['occurrence','source','shared'],'affectedUses':entry['uses']}
         safe_expansion = None
         try:
-            candidate = interpret(parse_ast(entry['expression']), namespace)
-            if hasattr(candidate, 'eval') and shape(candidate) == shape(value):
-                safe_expansion = entry['expression']
-        except (SyntaxError, ValueError, TypeError, AttributeError):
+            from reference_expansion import occurrence_copy
+            safe_expansion = occurrence_copy(entry['name'], entries, namespace)
+        except (SyntaxError, ValueError, TypeError, AttributeError, RecursionError):
             pass
-        return {**entry, 'expandedStructure':shape(value), 'authoring':expression_tree(entry['expression']), 'namedReference':expression_tree(entry['name']), 'editScopes':['occurrence','source','shared'], 'affectedUses':entry['uses'], 'safeOccurrenceExpansion':safe_expansion}
+        from reference_uses import reference_uses
+        usage = reference_uses(corpus, entry['name'], entry['sourcePath'], entry['line']) if entry.get('sourcePath') and entry.get('line') else {'uses':[], 'diagnostics':['Declaração de origem indisponível.']}
+        return {**entry, 'expandedStructure':shape(value), 'runtimeTree':runtime_graph(value), 'authoring':expression_tree(entry['expression']), 'namedReference':expression_tree(entry['name']), 'editScopes':['occurrence','source','shared'], 'affectedUses':entry['uses'], 'projectUses':usage, 'safeOccurrenceExpansion':safe_expansion}
     def fold(value): return ''.join(c for c in unicodedata.normalize('NFKD',value.casefold()) if not unicodedata.combining(c))
     query=fold(payload.get('query',''))
     from rendered_structures import normalize
@@ -723,77 +724,56 @@ def lexicon_result(payload, corpus, path, namespace):
     return {'query':payload.get('query',''),'total':len(matches),'results':matches[:payload.get('limit',40)]}
 
 def approve_authoritatively(payload, corpus):
-    """Use upstream review rules with an atomic, recoverable persistence sink."""
-    import os
-    import tempfile
-    import time
+    """Approve only the selected passage; gaps contain no synthesized references."""
     import uuid
-    from dataclasses import replace
     from studio_authoring import authoritative_metadata, source_directives, SOURCE_TEXT_FIELDS
-    source_path=corpus/'historic'/f"{payload['sourceId']}.tu.py"
-    expected_source=payload['sourceFileFingerprint']
-    def fingerprint(data):return 'sha256:'+hashlib.sha256(data).hexdigest()
-    if fingerprint(source_path.read_bytes())!=expected_source:raise ValueError('A fonte mudou desde a revisão.')
-    annotation=authoritative_metadata(corpus,source_path).get(payload['ordinal'],{})
-    directives=source_directives(source_entries(source_path)[payload['ordinal']-1])
-    from authoring import service
-    records_path=corpus/'ground_truth/records/historic'/f"{payload['sourceId']}.jsonl"
-    original=records_path.read_bytes() if records_path.exists() else b''
-    state_dir=Path(payload['stateDir'])
-    def persist(path, records):
-        path=Path(path)
-        if path.resolve()!=records_path.resolve():raise ValueError('Destino de referência inesperado.')
-        records = list(records)
-        target_index = payload['ordinal'] - 1
-        if target_index < 0 or target_index >= len(records) or records[target_index].surface != service.normalize_surface(payload['reviewedSurface']):
-            raise ValueError('A superfície mudou desde a revisão. Confira a nova forma antes de salvar ground truth.')
-        # Approval carries the reviewed source's explicit scholarly text. The
-        # upstream commit otherwise only copies the previous JSONL metadata.
-        fields={SOURCE_TEXT_FIELDS[key]:annotation.get(SOURCE_TEXT_FIELDS[key])
-                for key,_ in directives if key in SOURCE_TEXT_FIELDS and key!='note'}
-        if any(key=='note' and not value.startswith(('studio:v1 ','studio-lexical:v1 ')) for key,value in directives):
-            fields['notes']=tuple(note for note in annotation.get('notes',())
-                                  if not str(note).startswith(('studio:v1 ','studio-lexical:v1 ')))
-        target=fields.get('normalized_target')
-        if target and service.normalize_surface(target)!=service.normalize_surface(payload['reviewedSurface']):
-            raise ValueError('A leitura @target da fonte não coincide com a superfície revisada. Revise a leitura antes de aprovar.')
-        records[target_index]=replace(records[target_index],**fields)
-        # Keep every neighboring record byte-for-byte, including its metadata
-        # whitespace. This review approves exactly one record.
-        rows=original.splitlines(keepends=True)
-        row_indices={}
-        for index,row in enumerate(rows):
-            if row.strip():row_indices[json.loads(row).get('ordinal',len(row_indices)+1)]=index
-        serialized=json.dumps(records[target_index].to_dict(),ensure_ascii=False,sort_keys=True)
-        # The upstream JSONL reader uses str.splitlines(), which also splits
-        # these Unicode separators even when they occur inside JSON strings.
-        for character in ('\x85','\u2028','\u2029'):
-            serialized=serialized.replace(character,'\\u%04x' % ord(character))
-        replacement=(serialized+'\n').encode('utf-8')
-        if payload['ordinal'] in row_indices:rows[row_indices[payload['ordinal']]]=replacement
-        elif payload['ordinal']==len(row_indices)+1:
-            if rows and not rows[-1].endswith(b'\n'):rows[-1]+=b'\n'
-            rows.append(replacement)
-        else:raise ValueError('As referências precisam ser aprovadas na ordem da fonte.')
-        data=b''.join(rows)
-        if fingerprint(source_path.read_bytes())!=expected_source:raise ValueError('A fonte mudou durante a revisão.')
-        if (path.read_bytes() if path.exists() else b'')!=original:raise ValueError('As referências mudaram durante a revisão.')
-        event_id=str(uuid.uuid4());recovery=state_dir/'recovery';recovery.mkdir(parents=True,exist_ok=True)
-        event={'path':str(path),'before':original.decode('utf-8'),'afterFingerprint':fingerprint(data),'kind':'reference-approval','ordinal':payload['ordinal'],'reviewedSurface':payload['reviewedSurface'],'sourceFileFingerprint':expected_source,'engineFingerprint':payload['engineFingerprint'],'at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}
-        recovery_file=recovery/(event_id+'.json')
-        with recovery_file.open('x',encoding='utf-8') as handle:json.dump(event,handle,ensure_ascii=False);handle.flush();os.fsync(handle.fileno())
-        path.parent.mkdir(parents=True,exist_ok=True);descriptor,temporary=tempfile.mkstemp(prefix='.'+path.name+'.studio-',dir=path.parent)
-        try:
-            with os.fdopen(descriptor,'wb') as handle:handle.write(data);handle.flush();os.fsync(handle.fileno())
-            if (path.read_bytes() if path.exists() else b'')!=original:raise ValueError('As referências mudaram antes da gravação.')
-            os.replace(temporary,path)
-            directory=os.open(path.parent,os.O_RDONLY)
-            try:os.fsync(directory)
-            finally:os.close(directory)
-        finally:
-            if os.path.exists(temporary):os.unlink(temporary)
-    service.write_records=persist
-    return service.commit_ground_truth(payload['sourceId'],payload['ordinal'])
+    from passage_references import read, changes
+    from reviewed_files import apply_reviewed_files
+    from authoring.records import normalize_surface
+    source=payload['sourceId']; ordinal=payload['ordinal']
+    source_path=corpus/'historic'/f'{source}.tu.py'
+    before=source_path.read_bytes()
+    if 'sha256:'+hashlib.sha256(before).hexdigest()!=payload['sourceFileFingerprint']:
+        raise ValueError('A fonte mudou desde a revisão.')
+    entries=source_entries(source_path)
+    entry=entries[ordinal-1]
+    namespace=namespace_for(corpus,source_path,entry['line'])
+    rendered=normalize_surface(str(interpret(parse_ast(entry['expression']),namespace).eval()))
+    if rendered!=normalize_surface(payload['reviewedSurface']):
+        raise ValueError('A superfície mudou desde a revisão.')
+    records=read(corpus,source); prior=records.get(ordinal,{})
+    identifier=payload.get('passageId') or (entry.get('studio') or {}).get('passageId')
+    if not identifier: raise ValueError('A aprovação exige uma identidade estável da passagem.')
+    if prior.get('studio_passage_id',identifier)!=identifier:
+        raise ValueError('A identidade da referência mudou.')
+    if prior.get('normalized_target') and normalize_surface(prior['normalized_target'])!=rendered:
+        raise ValueError('A forma não coincide com o alvo humano declarado; ele não será substituído.')
+    annotation=authoritative_metadata(corpus,source_path).get(ordinal,{})
+    directives=source_directives(entry)
+    record={**prior,'id':prior.get('id',f'{source}:{ordinal:04d}'),'source':source,
+            'kind':'historic','ordinal':ordinal,'surface':rendered,'status':'approved',
+            'studio_passage_id':identifier}
+    for key,_ in directives:
+        if key in SOURCE_TEXT_FIELDS and key!='note':
+            field=SOURCE_TEXT_FIELDS[key]
+            if annotation.get(field) is None: record.pop(field,None)
+            else: record[field]=annotation[field]
+    if any(key=='note' and not value.startswith(('studio:v1 ','studio-lexical:v1 ')) for key,value in directives):
+        record['notes']=[note for note in annotation.get('notes',()) if not str(note).startswith(('studio:v1 ','studio-lexical:v1 '))]
+    if record.get('normalized_target') and normalize_surface(record['normalized_target'])!=rendered:
+        raise ValueError('A leitura @target da fonte não coincide com a superfície revisada.')
+    records[ordinal]=record
+    members=changes(corpus,source,records)
+    # Include a read-only source guard in the same atomic review transaction.
+    members.append({'path':source_path,'before':before,'after':before})
+    journal_rows=[{'path':str(item['path']),'before':item['before'].decode('utf-8'),
+                  'beforeExists':item.get('beforeExists',True),
+                  'afterFingerprint':'sha256:'+hashlib.sha256(item['after']).hexdigest()} for item in members]
+    journal={'version':2,**journal_rows[0],'files':journal_rows,'kind':'reference-approval',
+             'ordinal':ordinal,'reviewedSurface':rendered,'status':'prepared'}
+    def fail(message,code): raise ValueError(message)
+    apply_reviewed_files(members,Path(payload['stateDir'])/'recovery'/(str(uuid.uuid4())+'.json'),journal,fail)
+    return {'source':source,'ordinal':ordinal,'committed_surface':rendered}
 
 
 def main():
@@ -823,8 +803,8 @@ def main():
             elif payload.get('action')=='approve':
                 result=approve_authoritatively(payload,corpus)
             elif payload.get('action')=='verify':
-                from authoring.service import verify_ground_truth
-                result=verify_ground_truth(payload['sourceId'])
+                from passage_references import verify
+                result=verify(corpus,payload['sourceId'])
             else:
                 namespace=namespace_for(corpus,path,payload.get('line',10**9))
                 if payload.get('action') == 'active_lexicon':

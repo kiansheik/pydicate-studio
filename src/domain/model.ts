@@ -253,7 +253,17 @@ function isDraft(value: unknown, passageId: string): value is Draft {
     (value.pending === undefined ||
       (passageId.startsWith('pending:') &&
         isObject(value.pending) &&
-        hasOnlyKeys(value.pending, ['sourceId', 'previousPassageId', 'ordinal']) &&
+        hasOnlyKeys(value.pending, [
+          'sourceId',
+          'previousPassageId',
+          'beforePassageId',
+          'ordinal',
+        ]) &&
+        (value.pending.beforePassageId === undefined ||
+          value.pending.beforePassageId === null ||
+          (typeof value.pending.beforePassageId === 'string' &&
+            value.pending.beforePassageId.length > 0 &&
+            value.pending.beforePassageId.length <= 200)) &&
         typeof value.pending.sourceId === 'string' &&
         /^[a-zA-Z0-9_-]{1,200}$/.test(value.pending.sourceId) &&
         Number.isSafeInteger(value.pending.ordinal) &&

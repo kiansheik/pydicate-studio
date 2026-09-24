@@ -137,11 +137,17 @@ araujo_catecismo_1686 = l
         self.assertEqual(self.path.read_bytes(),before)
 
     def test_pending_identity_never_masquerades_as_published_source_for_writes_or_approval(self):
-        for method,extra in [('source_preview',{'raw':'amen'}),('reference_status',{}),('reference_verify',{}),('reference_approve',{}),('lexicon_create',{'headword':'abá','definition':'pessoa'}),('lexicon_update',{'name':'amen','definition':'sentido novo','scope':'source'})]:
+        for method,extra in [('source_preview',{'raw':'amen'}),('reference_status',{}),('reference_verify',{}),('reference_approve',{}),('lexicon_create',{'headword':'abá','definition':'pessoa'})]:
             with self.subTest(method=method),self.assertRaises(AdapterError) as error:
                 self.adapter.invoke(method,{**self.pending,**extra})
             self.assertEqual(error.exception.code,'PASSAGE_NOT_FOUND')
         self.assertEqual(self.path.read_bytes(),self.original)
+
+    def test_pending_lexical_update_is_a_reviewable_preview_not_source_publication(self):
+        before=self.path.read_bytes()
+        preview=self.adapter.invoke('lexicon_update',{**self.pending,'name':'amen','definition':'sentido novo','scope':'source'})
+        self.assertTrue(preview['diff'])
+        self.assertEqual(self.path.read_bytes(),before)
 
     def test_catalog_and_creation_follow_actual_constructor_signatures(self):
         catalog=self.adapter.invoke('predicate_catalog',self.pending)

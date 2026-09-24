@@ -543,3 +543,33 @@
     font-size: 9px;
   }
 }
+
+.reference-inspector {
+  padding: 14px;
+  margin-top: 12px;
+  border: 1px solid var(--tree-border);
+  border-radius: 10px;
+}
+.reference-inspector .runtime-viewport {
+  height: 360px;
+}
+.reference-inspector > details {
+  margin: 12px 0;
+}
+.reference-inspector pre,
+.reference-inspector code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reference-inspector label {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+.reference-inspector textarea {
+  min-height: 90px;
+  width: 100%;
+}
+.reference-inspector li {
+  margin: 10px 0;
+}

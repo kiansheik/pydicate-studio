@@ -464,7 +464,13 @@ function createAnalysisService({
       throw error('INVALID_TASK', 'Tarefa de análise inválida.');
     if (!['passage', 'constituent'].includes(params.scope))
       throw error('INVALID_SCOPE', 'Escolha passagem inteira ou constituinte.');
+    const insertion = require('./pending-context.cjs').pendingContext(
+      project,
+      envelope,
+      draft.passageId,
+    );
     const scopeContext = {
+      ...insertion,
       projectId: project.id,
       passageId: draft.passageId,
       sourceId,
@@ -609,6 +615,7 @@ function createAnalysisService({
       projectId: project.id,
       sourceId,
       passageId: draft.passageId,
+      ...insertion,
       baseRevisionId: draft.revisionId,
       sourceFingerprint: draft.sourceFingerprint,
       engineFingerprint: project.engineFingerprint,

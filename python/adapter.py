@@ -378,7 +378,11 @@ class ProjectAdapter:
                 except Exception as metadata_error:
                     metadata_by_ordinal = {}
                     diagnostics.append(f"{path.name}: metadados autoritativos indisponíveis: {metadata_error}")
+                from passage_references import read as read_references
                 records, record_diagnostics = load_records(corpus / "ground_truth/records/historic" / f"{source}.jsonl")
+                try: records = read_references(corpus, source)
+                except (ValueError, OSError, TypeError, KeyError) as error:
+                    record_diagnostics.append(f"{source}: referências independentes indisponíveis ({error}); arquivo preservado.")
                 diagnostics.extend(record_diagnostics)
             except (OSError, ValueError, SyntaxError, tokenize.TokenError, AdapterError) as exc:
                 diagnostics.append(f"{path.name}: leitura indisponível ({exc}). Outros documentos continuam disponíveis.")
@@ -400,6 +404,9 @@ class ProjectAdapter:
                 identifier = studio_identity if isinstance(studio_identity, str) and studio_identity.startswith('passage:') else reconciled_ids.get(ordinal - 1) or registry.identifier(f"{source}:{fingerprint}{duplicate}")
                 source_identities.append({'fingerprint': fingerprint, 'id': identifier, 'context': entry.get('commentBlock', '')})
                 record = records.get(ordinal, {})
+                if record.get("studio_passage_id", identifier) != identifier:
+                    diagnostics.append(f"{source}:{ordinal}: referência de outra identidade preservada sem reassociação.")
+                    record = {}
                 saved = _string(record.get("normalized_target")) or _string(record.get("surface")) or None
                 if saved is None:
                     missing += 1

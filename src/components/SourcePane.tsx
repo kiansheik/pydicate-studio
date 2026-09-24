@@ -146,6 +146,7 @@ export function SourcePane({
           sourceId={passage.sourceId}
           passageId={passage.id.replace(/^pending:/, 'passage:')}
           previousPassageId={draft?.pending?.previousPassageId?.replace(/^pending:/, 'passage:')}
+          insertionBeforePassageId={draft?.pending?.beforePassageId}
           newPassageGuide={isNewPassage}
           disabled={!ready}
           initialPage={passage.witness.pdfPage}

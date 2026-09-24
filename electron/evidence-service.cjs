@@ -212,11 +212,15 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
     if (params.newPassageGuide === true) {
       const candidates = [
         { id: params.previousPassageId },
-        { id: params.lastVisitedPassageId },
-        ...previousPassages,
-        ...Object.keys(document.passages)
-          .reverse()
-          .map((id) => ({ id })),
+        ...(params.insertionBeforePassageId
+          ? previousPassages
+          : [
+              { id: params.lastVisitedPassageId },
+              ...previousPassages,
+              ...Object.keys(document.passages)
+                .reverse()
+                .map((id) => ({ id })),
+            ]),
       ];
       const seen = new Set([params.passageId]);
       for (const candidate of candidates) {

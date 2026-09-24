@@ -161,3 +161,24 @@ describe('next-passage shells', () => {
     expect(validateDraftEnvelope(wrap({ ...draft, passageId: 'passage:published' }))).toBe(false);
   });
 });
+
+it('places missed drafts between stable passages and preserves a chain of pending insertions', () => {
+  const source = project();
+  const first = pending(source, 'first');
+  first.pending!.beforePassageId = source.passages[1].id;
+  first.pending!.previousPassageId = source.passages[0].id;
+  const second = pending(source, 'second');
+  second.pending!.beforePassageId = first.passageId;
+  const result = projectWithPending(source, {
+    version: 1,
+    projectId: source.id,
+    drafts: { [first.passageId]: first, [second.passageId]: second },
+  });
+  expect(result.passages.map((p) => p.id)).toEqual([
+    source.passages[0].id,
+    second.passageId,
+    first.passageId,
+    source.passages[1].id,
+  ]);
+  expect(result.passages.at(-1)!.acceptedReference).toBe(source.passages[1].acceptedReference);
+});

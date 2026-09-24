@@ -86,7 +86,12 @@ export interface Draft {
     at: string;
   }[];
   /** A new passage uses the ordinary editor before a reviewed source append. */
-  pending?: { sourceId: string; previousPassageId?: string; ordinal: number };
+  pending?: {
+    sourceId: string;
+    previousPassageId?: string;
+    beforePassageId?: string | null;
+    ordinal: number;
+  };
   /** Detached expressions and layout remain local draft material. */
   canvas?: import('./canvas').CanvasState;
   workflow?: { stage: 'analysis' | 'review' | 'complete'; updatedAt: string };

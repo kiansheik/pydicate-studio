@@ -40,6 +40,22 @@ const METHODS = new Set([
 function createNextService(options) {
   const { stateDirectory, emit, getProject, getWorker, openPath, defaultParent, chooseFile } =
     options;
+  async function workerRequest(method, params) {
+    const project = getProject();
+    if (
+      project &&
+      options.draftStore &&
+      params?.passageId?.startsWith('pending:') &&
+      !Object.hasOwn(params, 'beforePassageId')
+    ) {
+      const envelope = await options.draftStore.load(project.id);
+      params = {
+        ...params,
+        ...require('./pending-context.cjs').pendingContext(project, envelope, params.passageId),
+      };
+    }
+    return getWorker().request(method, params);
+  }
   const settingsFile = path.join(stateDirectory, 'session.json');
   const lexicalNotes = createLexicalNotesService({
     stateDirectory: path.join(stateDirectory, 'lexical-notes'),
@@ -56,7 +72,7 @@ function createNextService(options) {
     if (!records?.length) return undefined;
     if (!getWorker() || getProject()?.id !== params.projectId)
       throw new Error('Abra o projeto destas interpretações.');
-    const inventory = await getWorker().request('passage_lexicon', params);
+    const inventory = await workerRequest('passage_lexicon', params);
     return interpretationContext(records, inventory, params);
   }
   let settings = {},
@@ -114,7 +130,7 @@ function createNextService(options) {
         (request.context?.sourceId !== undefined && request.context.sourceId !== sourceId)
       )
         throw new Error('A passagem ou a fonte da solicitação não existe neste projeto.');
-      const context = await getWorker().request('assistant_context', {
+      const context = await workerRequest('assistant_context', {
         projectId: project.id,
         passageId: request.passageId,
         sourceId,
@@ -199,7 +215,7 @@ function createNextService(options) {
         emit,
         request: (method, params) => {
           if (!getWorker()) throw new Error('Abra o projeto local.');
-          return getWorker().request(method, params);
+          return workerRequest(method, params);
         },
       })
     : null;
@@ -257,6 +273,9 @@ function createNextService(options) {
       const passage = project.passages.find(
         (item) => item.id === params.passageId && item.sourceId === params.sourceId,
       );
+      const insertionBoundary = params.insertionBeforePassageId
+        ? (project.passages.find((p) => p.id === params.insertionBeforePassageId)?.ordinal ?? 0)
+        : Infinity;
       const previousPassages = passage
         ? project.passages
             .filter((item) => item.sourceId === passage.sourceId && item.ordinal < passage.ordinal)
@@ -268,7 +287,9 @@ function createNextService(options) {
             .map((item) => ({ id: item.id, ordinal: item.ordinal }))
         : params.newPassageGuide === true
           ? project.passages
-              .filter((item) => item.sourceId === params.sourceId)
+              .filter(
+                (item) => item.sourceId === params.sourceId && item.ordinal < insertionBoundary,
+              )
               .sort((a, b) => b.ordinal - a.ordinal)
               .map((item) => ({ id: item.id, ordinal: item.ordinal }))
           : [];
@@ -288,7 +309,7 @@ function createNextService(options) {
     if (!METHODS.has(method)) throw new Error('Operação indisponível.');
     if (!getWorker() || !getProject()) throw new Error('Abra o projeto local.');
     const execute = async () => {
-      const result = await getWorker().request(method, params);
+      const result = await workerRequest(method, params);
       if (method === 'source_apply') options.adoptProject(result);
       if (method === 'reference_approve' && result?.project) options.adoptProject(result.project);
       return result;

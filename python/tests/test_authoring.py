@@ -194,7 +194,7 @@ class CorpusCopyTests(unittest.TestCase):
             event=json.loads(next((self.state/'recovery').glob('*.json')).read_text());self.assertEqual(event['kind'],'reference-approval');self.assertEqual(event['before'].encode('utf-8'),before)
         finally:records.write_bytes(original)
 
-    def test_reference_approval_requires_explicit_surface_and_sequential_authority(self):
+    def test_reference_approval_requires_explicit_surface_but_allows_gaps(self):
         records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
         # Construct an actual gap in this disposable copy; the user's saved
         # reference count can grow between runs.
@@ -205,8 +205,11 @@ class CorpusCopyTests(unittest.TestCase):
             with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint']})
             self.assertEqual(error.exception.code,'REVIEW_REQUIRED')
             rendered=self.adapter.invoke('evaluate_expression',{'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'approval','engineFingerprint':self.project['engineFingerprint']})
-            with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
-            self.assertIn('approved in order',str(error.exception));self.assertEqual(records.read_bytes(),before)
+            self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
+            self.assertEqual(records.read_bytes(),before)
+            from passage_references import read, paths
+            self.assertEqual(read(self.corpus,passage['sourceId'])[ordinal]['surface'],rendered['surface'])
+            paths(self.corpus,passage['sourceId'])[1].unlink(missing_ok=True)
         finally:records.write_bytes(original)
 
     def test_reference_approval_rejects_stale_engine_after_backend_refresh_with_same_surface(self):

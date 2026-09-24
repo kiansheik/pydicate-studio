@@ -2,6 +2,14 @@
 
 ## Contributor application
 
+- `src/components/ReferenceInspector.tsx`: selected-reference runtime tree, source and project usage list, verified occurrence copy and local/shared meanings through the existing review callback.
+- `python/reference_expansion.py`: bounded nested compound/alias copies verified against current runtime shape, including explicit meaning-only overrides.
+- `python/reference_uses.py`: read-only AST dependency candidates across historic sources, preserving declaration identity through aliases and later name rebinding.
+
+- `python/passage_insertion.py`: source-local insertion, stable identity pinning, inherited locator preservation and reference relocation.
+- `python/passage_references.py`: merged sparse approvals, contiguous legacy JSONL projection, portable companion and verification. `reviewed_files.py` includes creation/rollback of new companion files.
+- `electron/pending-context.cjs`: pending anchor chain resolution shared by desktop authoring, analysis and scratch evaluation.
+
 - `src/components/LearningWorkspace.tsx`, `LessonQuestion.tsx`, `src/domain/learning.ts`, `src/learning.css`: lazy-loaded Aprender workspace, isolated real editor practice, persistent progress and strict completion, searchable guides/API/corpus examples, scoped optional explanation questions. The main workspace remains mounted and unchanged.
 - `python/learning_library.py`, `scripts/build-learning.py`, `src/generated/learning.json`: source-comment curriculum/docs, read-only corpus/reference matching, method/helper AST inventory and deterministic build artifact. `learning_library` is allowlisted through the desktop worker; cache binds selected engine and Studio documentation fingerprints. See `docs/design/learning.md` and `tests/learning.spec.ts`.
 

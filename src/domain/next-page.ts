@@ -26,13 +26,28 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
         (a.pending?.ordinal ?? Number.MAX_SAFE_INTEGER) -
         (b.pending?.ordinal ?? Number.MAX_SAFE_INTEGER),
     );
-  for (const draft of pending) {
+  const waiting = [...pending];
+  for (let attempts = 0; waiting.length && attempts <= pending.length; attempts++) {
+    const draft = waiting.shift()!;
+    const beforeId = draft.pending?.beforePassageId;
+    if (
+      beforeId?.startsWith('pending:') &&
+      !passages.some((p) => p.id === beforeId) &&
+      waiting.some((d) => d.passageId === beforeId) &&
+      attempts < pending.length
+    ) {
+      waiting.push(draft);
+      continue;
+    }
+    attempts = 0;
     const sourceId = draft.pending?.sourceId ?? 'araujo_catecismo_1686';
     const siblings = passages.filter((passage) => passage.sourceId === sourceId);
-    const previous = siblings.at(-1);
+    const previous =
+      passages.find((p) => p.id === draft.pending?.previousPassageId) ?? siblings.at(-1);
     if (!previous) continue;
     const locators = draft.locators ?? nextPassageLocators(previous);
-    passages.push({
+    const insertion = beforeId ? passages.findIndex((p) => p.id === beforeId) : -1;
+    passages.splice(insertion < 0 ? passages.length : insertion, 0, {
       ...previous,
       id: draft.passageId,
       legacyId: draft.passageId,
@@ -64,5 +79,44 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
       studioMetadata: {},
     });
   }
-  return { ...project, passages };
+  const ordinals = new Map<string, number>();
+  return {
+    ...project,
+    passages: passages.map((p) => {
+      const ordinal = (ordinals.get(p.sourceId) ?? 0) + 1;
+      ordinals.set(p.sourceId, ordinal);
+      return { ...p, ordinal };
+    }),
+  };
+}
+
+/** Resolve a local position to the next published identity, never a guessed ordinal. */
+export function pendingInsertionContexts(
+  project: StudioProject,
+  envelope?: DraftEnvelope,
+): Record<string, { beforePassageId: string | null }> {
+  return Object.fromEntries(
+    project.passages.flatMap((p, index) =>
+      p.id.startsWith('pending:')
+        ? [
+            [
+              p.id,
+              {
+                beforePassageId:
+                  envelope?.drafts[p.id]?.pending?.beforePassageId &&
+                  !project.passages.some(
+                    (next) => next.id === envelope.drafts[p.id].pending?.beforePassageId,
+                  )
+                    ? envelope.drafts[p.id].pending!.beforePassageId!
+                    : (project.passages
+                        .slice(index + 1)
+                        .find(
+                          (next) => next.sourceId === p.sourceId && !next.id.startsWith('pending:'),
+                        )?.id ?? null),
+              },
+            ],
+          ]
+        : [],
+    ),
+  );
 }

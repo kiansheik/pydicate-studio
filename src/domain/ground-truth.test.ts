@@ -69,12 +69,11 @@ describe('when a reference may be approved', () => {
     expect(blocked).toMatchObject({ code: 'UNAPPLIED_CHANGES' });
   });
 
-  it('refuses a passage that is out of sequence and names the one to do first', () => {
+  it('allows an independently reviewed passage even when earlier references are missing', () => {
     const blocked = approvalState(
       context({ status: { ...status, canApproveSequentially: false, nextOrdinal: 7 } }),
     );
-    expect(blocked).toMatchObject({ ready: false, code: 'OUT_OF_SEQUENCE' });
-    expect(blocked.ready === false && blocked.reason).toContain('0007');
+    expect(blocked).toMatchObject({ ready: true, surface: result.surface });
   });
 
   it('never overwrites a declared human target that the form contradicts', () => {

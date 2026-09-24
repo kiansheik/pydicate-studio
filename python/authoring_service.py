@@ -196,7 +196,7 @@ class AuthoringService:
             files.append({'path':str(item['path']),'sourceFingerprint':digest(item['before']),'diff':difference})
         if any(item['before']!=item['after'] for item in changes):
             from publication_regression import check_publication
-            details['regression']=check_publication(self,changes,recovery=bool(details.get('recovery')))
+            details['regression']=check_publication(self,changes,recovery=bool(details.get('recovery')),insertion=(Path(path).name.removesuffix('.tu.py'),details['reviewSummary']['passageOrdinal']) if details.get('newPassage') else None)
             details['regressionFingerprint']=self.fresh()
         result={'previewId':preview_id,'diff':''.join(item['diff'] for item in files),'files':files,'sourceFingerprint':digest(before),'path':str(path),'kind':'new-passage' if details.get('newPassage') else 'source' if details.get('passageId') else 'lexicon' if details.get('lexicalId') else 'recovery','targetPassageId':details.get('passageId'),**details}
         self.adapter.previews[preview_id]={'before':before,'after':after,**result,'path':Path(path),'changes':changes}
@@ -389,8 +389,10 @@ class AuthoringService:
         if any(passage['id']==passage_id for passage in self.adapter.project['passages']):self.error('Esta identidade já pertence a uma passagem; revise a passagem existente.','PASSAGE_ID_EXISTS')
         metadata=params.get('metadata') or {}
         if not isinstance(metadata,dict):self.error('Metadados precisam ser um objeto.')
+        target=next((p for p in self.adapter.project['passages'] if p['id']==params.get('beforePassageId') and p['sourceId']==source_id),None)
+        if params.get('beforePassageId') is not None and target is None:self.error('O ponto de inserção mudou. Selecione novamente.','STALE_INSERTION')
         prior=next((passage for passage in reversed(self.adapter.project['passages'])
-                    if passage['sourceId']==source_id and (anchor is None or passage['sourceLine']<anchor.lineno)),None)
+                    if passage['sourceId']==source_id and (passage['ordinal']<target['ordinal'] if target else anchor is None or passage['sourceLine']<anchor.lineno)),None)
         metadata=self.hierarchy_metadata(metadata,(prior or {}).get('witness',{}))
         studio={'passageId':passage_id}
         if 'translations' in metadata:
@@ -409,11 +411,14 @@ class AuthoringService:
                 try: encoded=encode_source_text(directive,value,studio)
                 except ValueError as error:self.error(str(error))
                 directives.append('# @'+directive+' '+encoded+'\n')
-        raw,lexical_changes,lexical_additions,lexical_diagnostics,definition_repairs=self.prepare_lexical_publication(raw,{'sourceId':source_id,'line':anchor.lineno if anchor else 10**9})
+        raw,lexical_changes,lexical_additions,lexical_diagnostics,definition_repairs=self.prepare_lexical_publication(raw,{'sourceId':source_id,'line':target['sourceLine'] if target else anchor.lineno if anchor else 10**9})
         review_summary={'kind':'passage-new','passageOrdinal':(prior['ordinal'] if prior else 0)+1,'analysisChanged':True,'fields':self.review_fields(metadata)}
-        expression='('+raw+'\n)' if '\n' in raw else raw
-        new='\n'+''.join(directives)+'# @note studio:v1 '+json.dumps(studio)+'\nl += '+expression+'\n\n'
-        return self._preview(path,before,(text[:offset]+new+text[offset:]).encode('utf-8'),extra_changes=lexical_changes,passageId=passage_id,newPassage=True,raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,definitionRepairs=definition_repairs,reviewSummary=review_summary)
+        from passage_insertion import insert
+        try:
+            after,reference_changes,ordinal=insert(self.corpus,source_id,text,raw,directives,studio,self.adapter.project['passages'],params.get('beforePassageId'))
+        except ValueError as error:self.error(str(error),'INSERTION_INVALID')
+        review_summary['passageOrdinal']=ordinal
+        return self._preview(path,before,after.encode('utf-8'),extra_changes=[*lexical_changes,*reference_changes],passageId=passage_id,newPassage=True,raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,definitionRepairs=definition_repairs,reviewSummary=review_summary)
 
     def source_apply(self,params):
         from reviewed_files import apply_reviewed_files
@@ -422,13 +427,13 @@ class AuthoringService:
         if params.get('sourceFingerprint')!=preview['sourceFingerprint']:self.error('A prévia não corresponde à revisão aprovada.','STALE_SOURCE')
         changes=preview.get('changes') or [{'path':Path(preview['path']),'before':preview['before'],'after':preview['after']}]
         for item in changes:
-            if item['path'].read_bytes()!=item['before']:self.error('Um dos arquivos mudou externamente. Nada foi aplicado; mantenha o rascunho e revise novamente.','STALE_SOURCE')
+            if (item['path'].read_bytes() if item['path'].exists() else b'')!=item['before'] or item['path'].exists()!=item.get('beforeExists',True):self.error('Um dos arquivos mudou externamente. Nada foi aplicado; mantenha o rascunho e revise novamente.','STALE_SOURCE')
         current_fingerprint=self.fresh()
         if preview.get('regressionFingerprint') != current_fingerprint and any(item['before']!=item['after'] for item in changes):
             self.error('O projeto mudou depois da regressão. Gere outra revisão antes de publicar.','STALE_SOURCE')
         if all(item['before']==item['after'] for item in changes):return self.adapter.project
         if not self.adapter.state_dir:self.error('Configure armazenamento local para manter a recuperação.','STATE_ERROR')
-        records=[{'path':str(item['path']),'before':item['before'].decode('utf-8'),'afterFingerprint':digest(item['after'])} for item in changes]
+        records=[{'path':str(item['path']),'before':item['before'].decode('utf-8'),'afterFingerprint':digest(item['after']),'beforeExists':item.get('beforeExists',True)} for item in changes]
         primary=next(item for item in records if item['path']==str(preview['path']))
         journal={'version':2,**primary,'files':records,'status':'prepared'}
         apply_reviewed_files(changes,self.adapter.state_dir/'recovery'/(preview['previewId']+'.json'),journal,self.error)
@@ -446,7 +451,7 @@ class AuthoringService:
             if not path.is_relative_to(self.corpus.resolve()):self.error('Recuperação pertence a outro projeto.')
             if path in seen:self.error('Registro de recuperação contém arquivos repetidos.','INVALID_RECOVERY')
             seen.add(path)
-            before=item['before'].encode('utf-8');current=path.read_bytes()
+            before=item['before'].encode('utf-8');current=path.read_bytes() if path.exists() else b''
             result.append({'path':path,'before':before,'current':current,'afterFingerprint':item['afterFingerprint'],
                            'known':current==before or digest(current)==item['afterFingerprint']})
         return result
@@ -474,7 +479,7 @@ class AuthoringService:
         recovery=json.loads((self.adapter.state_dir/'recovery'/(identifier+'.json')).read_text())
         members=self.recovery_members(recovery)
         if not all(item['known'] for item in members):self.error('Um dos arquivos mudou desde a aplicação; recuperação exige conciliação manual.','STALE_SOURCE')
-        changes=[{'path':item['path'],'before':item['current'],'after':item['before']} for item in members]
+        changes=[{'path':item['path'],'before':item['current'],'beforeExists':item['path'].exists(),'after':item['before']} for item in members]
         path=Path(recovery['path']).resolve();primary=next(item for item in changes if item['path']==path)
         review_summary={'kind':'recovery','fields':[{'label':'Léxico' if item['path'].name=='lexicon.tu.py' else 'Referências' if item['path'].suffix=='.jsonl' else 'Passagem','after':'Restaurar a versão anterior'} for item in changes if item['before']!=item['after']]}
         # Restore the passage before removing shared declarations, so an
@@ -512,6 +517,10 @@ class AuthoringService:
             source = self.adapter.project['passages'][0]['sourceId']
         if source not in {p['sourceId'] for p in self.adapter.project['passages']}:
             self.error('Fonte da nova passagem não encontrada; atualize o projeto.', 'PASSAGE_NOT_FOUND')
+        if params.get('beforePassageId') is not None:
+            target=next((p for p in self.adapter.project['passages'] if p['id']==params['beforePassageId'] and p['sourceId']==source),None)
+            if target is None:self.error('O ponto de inserção mudou. Selecione novamente.','STALE_INSERTION')
+            return {'sourceId':source,'line':target['sourceLine']}
         # Match the source publication point, excluding definitions that occur
         # after the final collection alias. Unsaved passages use this namespace
         # for evaluation, lexical search and constructor creation alike.
@@ -826,12 +835,18 @@ class AuthoringService:
     def reference_status(self,params):
         passage=self.passage(params)
         path=self.corpus/'ground_truth/records/historic'/f"{passage['sourceId']}.jsonl"
-        try: records=[json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
-        except FileNotFoundError:records=[]
-        record=records[passage['ordinal']-1] if passage['ordinal']<=len(records) else None
+        from passage_references import read
+        records=read(self.corpus,passage['sourceId'])
+        record=records.get(passage['ordinal'])
+        if record and record.get('studio_passage_id',passage['id'])!=passage['id']:
+            self.error('A identidade da referência mudou. Concilie a fonte antes de aprovar.','REFERENCE_IDENTITY')
+        prefix=0
+        while prefix+1 in records:prefix+=1
+        if passage['ordinal']>prefix+(0 if record else 1):path=path.with_suffix('.studio.json')
         return {'sourceId':passage['sourceId'],'ordinal':passage['ordinal'],'record':record,
                 'recordPath':str(path.relative_to(self.corpus)),'recordCount':len(records),
-                'nextOrdinal':len(records)+1,'canApproveSequentially':passage['ordinal']<=len(records)+1}
+                'nextOrdinal':next((i for i in range(1,len(self.adapter.project['passages'])+2) if i not in records),1),
+                'canApproveSequentially':True}
 
     def reference_approve(self,params):
         passage=self.passage(params); self.fresh(params)
@@ -840,7 +855,7 @@ class AuthoringService:
         if rendered.get('evaluationStatus') == 'partial': self.error('A análise precisa ser realizada por completo antes de salvar como ground truth.', 'INCOMPLETE_EVALUATION')
         if not isinstance(params.get('reviewedSurface'),str) or params['reviewedSurface']!=rendered['surface']: self.error('Confirme explicitamente a superfície revisada; avaliação não concede aprovação.','REVIEW_REQUIRED')
         if not self.adapter.state_dir:self.error('Configure armazenamento de recuperação antes de aprovar.','STATE_ERROR')
-        result=self.child({'action':'approve','sourceId':passage['sourceId'],'ordinal':passage['ordinal'],'sourceFileFingerprint':passage['sourceFileFingerprint'],'reviewedSurface':params['reviewedSurface'],'engineFingerprint':self.adapter.project['engineFingerprint'],'stateDir':str(self.adapter.state_dir)},timeout=90)
+        result=self.child({'action':'approve','passageId':passage['id'],'sourceId':passage['sourceId'],'ordinal':passage['ordinal'],'sourceFileFingerprint':passage['sourceFileFingerprint'],'reviewedSurface':params['reviewedSurface'],'engineFingerprint':self.adapter.project['engineFingerprint'],'stateDir':str(self.adapter.state_dir)},timeout=90)
         return {'approval':result,'project':self.adapter.refresh_project()}
 
     def contribution_prepare(self,params):

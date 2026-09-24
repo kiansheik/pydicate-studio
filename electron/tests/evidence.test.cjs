@@ -305,3 +305,18 @@ test('guide fallback uses source evidence and rejects invalid guide saves withou
   assert.equal(unchanged.revision, 2);
   assert.deepEqual(unchanged.passage.regions, [f.region]);
 });
+
+test('inserting before the first passage never borrows a later PDF region as its guide', async (t) => {
+  const { api, params, save } = await fixture(t);
+  await api.invoke('evidence_save', save);
+  const inserted = await api.invoke('evidence_status', {
+    ...params,
+    passageId: 'passage:inserted',
+    newPassageGuide: true,
+    insertionBeforePassageId: params.passageId,
+    previousPassages: [],
+    lastVisitedPassageId: params.passageId,
+  });
+  assert.deepEqual(inserted.guideCandidates, []);
+  assert.equal(inserted.guideSeed, null);
+});

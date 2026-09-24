@@ -35,6 +35,7 @@ interface Props {
   sourceId: string;
   passageId: string;
   previousPassageId?: string;
+  insertionBeforePassageId?: string | null;
   newPassageGuide?: boolean;
   disabled?: boolean;
   initialPage?: number | null;
@@ -71,6 +72,7 @@ export function PdfEvidence({
   sourceId,
   passageId,
   previousPassageId,
+  insertionBeforePassageId,
   newPassageGuide,
   disabled,
   initialPage,
@@ -97,11 +99,19 @@ export function PdfEvidence({
   const [width, setWidth] = useState(500);
   const [drawing, setDrawing] = useState(false);
   const [selection, setSelection] = useState<string | null>(null);
+  const [focusRequest, setFocusRequest] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const surface = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
-  const params = { projectId, sourceId, passageId, previousPassageId, newPassageGuide };
+  const params = {
+    projectId,
+    sourceId,
+    passageId,
+    previousPassageId,
+    insertionBeforePassageId,
+    newPassageGuide,
+  };
   const view = working?.view || emptyView(initialPage ?? 1);
   const regions = working?.regions || [];
   const regionPages = [...new Set(regions.map((region) => region.pageIndex + 1))].sort(
@@ -171,6 +181,7 @@ export function PdfEvidence({
       const region = working?.regions.find((item) => item.id === regionId);
       if (region) {
         setSelection(region.id);
+        setFocusRequest((value) => value + 1);
         changeView({ pageIndex: region.pageIndex });
       }
     },
@@ -267,10 +278,20 @@ export function PdfEvidence({
         );
       }
     }
+    const initialRegion = restoreDraft
+      ? (nextWorking?.regions[0] ?? (!restored ? nextWorking?.guide?.region : undefined))
+      : undefined;
+    if (initialRegion && nextWorking)
+      nextWorking = {
+        ...nextWorking,
+        view: { ...nextWorking.view, pageIndex: initialRegion.pageIndex },
+      };
     setWorking(nextWorking);
     setDirty(restored);
     setSelection(
-      nextWorking?.regions.find((region) => region.pageIndex === nextWorking?.view.pageIndex)?.id ||
+      initialRegion?.id ||
+        nextWorking?.regions.find((region) => region.pageIndex === nextWorking?.view.pageIndex)
+          ?.id ||
         null,
     );
     try {
@@ -421,6 +442,40 @@ export function PdfEvidence({
       task?.cancel();
     };
   }, [pdf, view.pageIndex, view.zoom, view.rotation, width]);
+
+  useEffect(() => {
+    if (
+      rendering ||
+      drawing ||
+      gesture.current ||
+      !viewport ||
+      !scroller.current ||
+      !surface.current
+    )
+      return;
+    const region = regions.find((item) => item.id === selection) ?? working?.guide?.region;
+    if (!region || region.pageIndex !== view.pageIndex) return;
+    const box = viewportRect(viewport, region.rect);
+    const container = scroller.current;
+    const page = surface.current;
+    const outer = container.getBoundingClientRect();
+    const inner = page.getBoundingClientRect();
+    container.scrollTo({
+      left:
+        container.scrollLeft +
+        inner.left -
+        outer.left +
+        (box[0] + box[2]) / 2 -
+        container.clientWidth / 2,
+      top:
+        container.scrollTop +
+        inner.top -
+        outer.top +
+        (box[1] + box[3]) / 2 -
+        container.clientHeight / 2,
+      behavior: 'instant',
+    });
+  }, [selection, viewport, rendering, key, focusRequest]);
 
   async function operation(method: string, extra: Record<string, unknown> = {}) {
     if (!window.studio?.invoke || busy) return;
@@ -865,6 +920,7 @@ export function PdfEvidence({
                   aria-pressed={selection === region.id}
                   onClick={() => {
                     setSelection(region.id);
+                    setFocusRequest((value) => value + 1);
                     changeView({ pageIndex: region.pageIndex });
                   }}
                 >

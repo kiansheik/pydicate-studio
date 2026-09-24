@@ -20,6 +20,7 @@ declare global {
     canvasShowTree: (visible: boolean) => void;
     canvasDiagnostic?: CanvasDiagnostic;
     canvasClipboard?: string;
+    canvasLexicalPreview?: import('../src/domain/authoring').SourcePreview;
   }
 }
 const storageKey = 'canvas-browser-fixture';
@@ -124,6 +125,9 @@ function Harness() {
           onSelectSourceNode={setSelection}
           onChangeRaw={changeRaw}
           onChangeCanvas={apply}
+          onLexicalPreview={(preview) => {
+            window.canvasLexicalPreview = preview;
+          }}
           onPrepareDiagnostic={(report) => {
             window.canvasDiagnostic = report;
           }}

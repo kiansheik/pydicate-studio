@@ -14,7 +14,11 @@ import type { Draft, DraftEnvelope, RenderResult, StudioProject } from './domain
 import { flushEdits, setUsageContext, track, trackEdit } from './domain/usage';
 import { registerStructureContext, structureDrafts } from './domain/structure-drafts';
 import { editCanvas, emptyCanvas } from './domain/canvas';
-import { nextPassageLocators, projectWithPending } from './domain/next-page';
+import {
+  nextPassageLocators,
+  projectWithPending,
+  pendingInsertionContexts,
+} from './domain/next-page';
 import { registerProjectRecovery } from './domain/project-recovery';
 import { approvalState, type ReferenceStatus } from './domain/ground-truth';
 
@@ -106,6 +110,7 @@ export function useStudio() {
           projectId: current.project.id,
           engineFingerprint: current.project.engineFingerprint,
           drafts: structureDrafts(current.project, current.envelope),
+          pendingContexts: pendingInsertionContexts(current.project, current.envelope),
         };
       }),
     [],
@@ -500,15 +505,6 @@ export function useStudio() {
     assertCurrent();
     const pendingId = selected.id.startsWith('pending:') ? selected.id : undefined;
     const newPassage = isNew || !!pendingId;
-    if (pendingId) {
-      const firstPending = current.project.passages.find(
-        (item) => item.sourceId === selected.sourceId && item.id.startsWith('pending:'),
-      );
-      if (firstPending && firstPending.id !== pendingId)
-        throw new Error(
-          `Inclua primeiro a passagem ${firstPending.ordinal} na fonte. As novas passagens são acrescentadas na ordem em que foram criadas; seus rascunhos continuam salvos.`,
-        );
-    }
     await persist();
     assertCurrent();
     const preview = await invoke<SourcePreview>(
@@ -612,7 +608,30 @@ export function useStudio() {
           : null;
       if (savedPassage && previousDraft) {
         const drafts = { ...current.envelope.drafts };
-        if (preview.pendingDraftId) delete drafts[preview.pendingDraftId];
+        if (preview.pendingDraftId) {
+          delete drafts[preview.pendingDraftId];
+          // Preserve the visible order when a later draft is published first.
+          const ordered = current.project.passages.filter(
+            (p) => p.sourceId === savedPassage.sourceId,
+          );
+          for (const [index, item] of ordered.entries()) {
+            const pending = drafts[item.id]?.pending;
+            if (!pending) continue;
+            const nextId = ordered[index + 1]?.id;
+            drafts[item.id] = {
+              ...drafts[item.id],
+              pending: {
+                ...pending,
+                beforePassageId:
+                  nextId === preview.pendingDraftId ? savedPassage.id : (nextId ?? null),
+                previousPassageId:
+                  pending.previousPassageId === preview.pendingDraftId
+                    ? savedPassage.id
+                    : pending.previousPassageId,
+              },
+            };
+          }
+        }
         drafts[savedPassage.id] = {
           ...previousDraft,
           passageId: savedPassage.id,
@@ -669,7 +688,7 @@ export function useStudio() {
         });
         if (!approval.ready) throw new Error(approval.reason);
         // The backend re-evaluates the published expression and checks this
-        // exact human-reviewed surface, source bytes and sequential record.
+        // exact human-reviewed surface, source bytes and passage identity.
         const response = await invoke<{ project: StudioProject; approval: unknown }>(
           'reference_approve',
           {
@@ -748,14 +767,16 @@ export function useStudio() {
     );
   }
 
-  function createPendingDraft() {
+  function createPendingDraft(position?: 'before' | 'after') {
     const current = latest.current;
     if (!current.ready || (operation.current && !automaticRefresh.current)) return null;
     const identifier = 'pending:' + crypto.randomUUID();
-    const lastPassage = [...current.project.passages]
-      .filter((passage) => passage.sourceId === 'araujo_catecismo_1686')
-      .sort((a, b) => a.ordinal - b.ordinal)
-      .at(-1);
+    const lastPassage = position
+      ? current.project.passages.find((p) => p.id === current.selectedId)
+      : [...current.project.passages]
+          .filter((passage) => passage.sourceId === 'araujo_catecismo_1686')
+          .sort((a, b) => a.ordinal - b.ordinal)
+          .at(-1);
     if (!lastPassage) return null;
     const empty = createDraft({
       ...lastPassage,
@@ -770,9 +791,18 @@ export function useStudio() {
       analysis: null,
     });
     empty.locators = nextPassageLocators(lastPassage, current.envelope.drafts[lastPassage.id]);
+    const siblings = current.project.passages.filter((p) => p.sourceId === lastPassage.sourceId);
+    const selectedIndex = siblings.findIndex((p) => p.id === lastPassage.id);
+    const beforePassageId =
+      position === 'before'
+        ? lastPassage.id
+        : position === 'after'
+          ? (siblings[selectedIndex + 1]?.id ?? null)
+          : null;
     empty.pending = {
+      beforePassageId,
       sourceId: lastPassage.sourceId,
-      previousPassageId: lastPassage.id,
+      previousPassageId: position === 'before' ? siblings[selectedIndex - 1]?.id : lastPassage.id,
       ordinal: lastPassage.ordinal + 1,
     };
     empty.canvas = { ...emptyCanvas(), layout: 'bottom-up' };

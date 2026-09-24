@@ -37,3 +37,13 @@ The primary new-line workflow passes `newPassageGuide` and an evidence-bound `pr
 - Evidence is durable on this machine. Exporting a source-comment pointer alone does not distribute the managed PDF or region manifest to another contributor; a portable evidence bundle remains separate future work.
 
 PDF.js API contract: [official Mozilla documentation](https://mozilla.github.io/pdf.js/api/draft/api.js.html). The installed dependency is pinned to `pdfjs-dist` 5.4.624.
+
+## Opening and focusing saved regions
+
+Opening a passage with saved evidence selects region 1, loads its physical PDF
+page and centers its viewport rectangle after rendering. Clicking any region
+repeats page navigation and centering, including a repeated click after manual
+scrolling. Zoom and rotation are retained; drawing gestures are not interrupted.
+A new passage without owned regions may use a predecessor's last region as a
+guide, retaining deliberate saved guide navigation. Inserted passages cannot
+borrow a later passage's region as preceding evidence.

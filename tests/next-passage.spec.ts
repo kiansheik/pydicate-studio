@@ -70,7 +70,7 @@ test('dictionary insertion is revision-bound and forms one undoable main or loos
   await expect(page.getByLabel('Pydicate simulado')).toHaveValue(expression);
 });
 
-test('a later pending line cannot publish before the first and both drafts remain editable', async ({
+test('a later pending line can be reviewed while the first remains an unfinished draft', async ({
   page,
 }) => {
   await page.goto('/tests/next-hook-harness.html');
@@ -88,24 +88,9 @@ test('a later pending line cannot publish before the first and both drafts remai
   );
   await page.evaluate(() => window.__nextStudio.persist());
   const before = await page.evaluate(() => window.__nextStudio.envelope);
-  const rejected = await page.evaluate(async () => {
-    const count = window.__nextControl.requests.length;
-    let error = '';
-    try {
-      await window.__nextStudio.sourcePreview();
-    } catch (reason) {
-      error = String(reason);
-    }
-    return {
-      error,
-      requests: window.__nextControl.requests.slice(count),
-      envelope: window.__nextStudio.envelope,
-    };
-  });
-  expect(rejected.error).toContain('Inclua primeiro a passagem 3');
-  expect(rejected.requests).toEqual([]);
-  expect(rejected.envelope).toEqual(before);
-  expect(await saved(page)).toEqual(before);
+  const later = await page.evaluate(() => window.__nextStudio.sourcePreview());
+  expect(later.pendingDraftId).toBe(second);
+  expect((await saved(page)).drafts[first]).toEqual(before.drafts[first]);
   await page.evaluate((id) => window.__nextStudio.setSelectedId(id), first);
   await expect(page.getByTestId('passage')).toHaveText(first);
   const preview = await page.evaluate(() => window.__nextStudio.sourcePreview());
@@ -114,8 +99,8 @@ test('a later pending line cannot publish before the first and both drafts remai
   const requests = await page.evaluate(() =>
     window.__nextControl.requests.filter((request) => request.method === 'source_new_preview'),
   );
-  expect(requests).toHaveLength(1);
-  expect(requests[0].params).toMatchObject({ passageId: first, raw: 'first_line' });
+  expect(requests).toHaveLength(2);
+  expect(requests[1].params).toMatchObject({ passageId: first, raw: 'first_line' });
   expect((await page.evaluate(() => window.__nextStudio.envelope)).drafts[second]).toEqual(
     before.drafts[second],
   );
@@ -324,4 +309,92 @@ test('simulated pending source preview is revision-bound and migrates the exact 
   });
   expect(state.drafts[targetId].pending).toBeUndefined();
   expect(await page.evaluate(() => window.__nextStudio.passage.acceptedReference)).toBeNull();
+});
+
+test('insert before the selected passage and skip it while retaining its unfinished reading', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace');
+  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
+  await page.getByRole('button', { name: 'Inserir antes desta passagem', exact: true }).click();
+  const id = await selectedId(page);
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('a missed reading');
+  await page.getByRole('button', { name: 'Continuar depois', exact: true }).click();
+  await expect.poll(() => selectedId(page)).toBe('passage-a');
+  const envelope = await saved(page);
+  expect(envelope.drafts[id].diplomatic).toBe('a missed reading');
+  expect(envelope.drafts[id].pending?.beforePassageId).toBe('passage-a');
+  expect(envelope.drafts[id].workflow?.stage).not.toBe('complete');
+  expect(
+    await page.evaluate(() =>
+      window.__nextControl.requests.some((r) => r.method === 'reference_approve'),
+    ),
+  ).toBe(false);
+});
+
+test('publishing the later draft first keeps the earlier draft immediately before it', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html');
+  await expect(page.getByTestId('ready')).toHaveText('true');
+  const first = await page.evaluate(() => window.__nextStudio.createPendingDraft()!);
+  await expect(page.getByTestId('passage')).toHaveText(first);
+  const second = await page.evaluate(() => window.__nextStudio.createPendingDraft()!);
+  await expect(page.getByTestId('passage')).toHaveText(second);
+  await page.evaluate(() => window.__nextStudio.edit({ raw: 'later' }));
+  await page.evaluate(async () => {
+    const studio = window.__nextStudio;
+    const preview = await studio.sourcePreview();
+    window.__nextControl.applyResult = {
+      ...window.__nextControl.project,
+      passages: [
+        ...window.__nextControl.project.passages,
+        {
+          ...studio.passage,
+          id: preview.targetPassageId!,
+          sourceExpression: 'later',
+          sourceFingerprint: 'published',
+          acceptedReference: null,
+        },
+      ],
+    };
+    await studio.applySource(preview);
+  });
+  const published = second.replace('pending:', 'passage:');
+  await expect(page.getByTestId('passage')).toHaveText(published);
+  expect(
+    await page.evaluate(
+      (id) => window.__nextStudio.envelope.drafts[id].pending?.beforePassageId,
+      first,
+    ),
+  ).toBe(published);
+  await page.evaluate((id) => window.__nextStudio.setSelectedId(id), first);
+  await expect(page.getByTestId('passage')).toHaveText(first);
+  await page.evaluate(() => window.__nextStudio.edit({ raw: 'earlier' }));
+  await page.evaluate(() => window.__nextStudio.sourcePreview());
+  const request = await page.evaluate(() =>
+    [...window.__nextControl.requests].reverse().find((r) => r.method === 'source_new_preview'),
+  );
+  expect(request!.params.beforePassageId).toBe(published);
+});
+
+test('completing a passage advances to the next visible item and stays at the end', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/tests/next-hook-harness.html?workspace');
+  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
+  await page.screenshot({ path: testInfo.outputPath('passage-controls.png') });
+  await page.getByRole('button', { name: 'Concluir passagem', exact: true }).click();
+  await expect.poll(() => selectedId(page)).toBe('passage-b');
+  await expect
+    .poll(async () => (await saved(page)).drafts['passage-a']?.workflow?.stage)
+    .toBe('complete');
+  await page.getByRole('button', { name: 'Concluir passagem', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Etapa do trabalho' })).toHaveValue('complete');
+  expect(await selectedId(page)).toBe('passage-b');
+  expect(
+    await page.evaluate(() =>
+      window.__nextControl.requests.some((r) => r.method === 'reference_approve'),
+    ),
+  ).toBe(false);
 });

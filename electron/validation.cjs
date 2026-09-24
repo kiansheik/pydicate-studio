@@ -221,6 +221,7 @@ function envelope(value) {
       object(draft.pending, 'contexto da nova passagem', [
         'sourceId',
         'previousPassageId',
+        'beforePassageId',
         'ordinal',
       ]);
       if (!key.startsWith('pending:') || !/^[a-zA-Z0-9_-]{1,200}$/.test(draft.pending.sourceId))
@@ -228,6 +229,8 @@ function envelope(value) {
       if (typeof draft.pending.sourceId !== 'string') fail('fonte da nova passagem');
       if (!Number.isSafeInteger(draft.pending.ordinal) || draft.pending.ordinal < 1)
         fail('ordem da nova passagem');
+      if (draft.pending.beforePassageId !== undefined && draft.pending.beforePassageId !== null)
+        string(draft.pending.beforePassageId, 'passagem seguinte', 200, true);
       if (draft.pending.previousPassageId !== undefined)
         string(draft.pending.previousPassageId, 'passagem anterior', 200, true);
     }

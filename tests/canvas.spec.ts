@@ -26,7 +26,10 @@ else:
  path=corpus/'historic/araujo_catecismo_1686.tu.py'
  entry=source_entries(path)[80]
  namespace=namespace_for(corpus,path,entry['statementLine'])
- if payload['method']=='dictionary_lookup': result={**dictionary_lookup(Path(payload['parent'])/'nhe-enga',payload),'engineFingerprint':'canvas-fixture-engine'}
+ if payload['method']=='lexicon_inspect':
+  from authoring_runtime import lexicon_result
+  result=lexicon_result({**payload,'action':'lexicon_inspect'},corpus,path,namespace)
+ elif payload['method']=='dictionary_lookup': result={**dictionary_lookup(Path(payload['parent'])/'nhe-enga',payload),'engineFingerprint':'canvas-fixture-engine'}
  elif payload['method']=='dictionary_predicate':
   descriptor,row=dictionary_entry(Path(payload['parent'])/'nhe-enga',payload)
   result={**dictionary_predicate({**payload,'entry':descriptor,'entryRecord':row},namespace),'engineFingerprint':'canvas-fixture-engine','revisionId':payload.get('revisionId','fixture')}
@@ -134,7 +137,10 @@ const node = (page: Page, key: string) => card(page, key).locator(':scope > [ari
 async function ready(page: Page) {
   await expect(page.locator('#canvas-ready')).toHaveText('ready');
   await expect(svg(page)).toBeVisible();
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
 }
 async function menu(page: Page, key: string, action: RegExp | string) {
   await node(page, key).click({ button: 'right' });
@@ -428,7 +434,10 @@ test('clicking outside a combination panel cancels it without combining the inde
   };
   await openCanvas(page, 'tym', initial);
   await expect(card(page, 'prefix:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   await dragTo(page, 'main:root', 'prefix:root');
   const combination = page.getByRole('dialog', { name: 'Combinar peças', exact: true });
   await combination
@@ -672,7 +681,10 @@ test('visible create action creates a real predicate in an empty canvas and pers
   const raw = (await page.locator('#canvas-raw').textContent())!;
   const parsed = run('parse_expression', { raw }).root;
   await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   const rootCenter = await center(node(page, 'main:root'));
   const childCenter = await center(node(page, `main:${parsed.children[0].node.id}`));
   expect(rootCenter.y).toBeLessThan(childCenter.y);
@@ -702,7 +714,10 @@ test('independent pieces dragged together choose an operator while explicit swap
   };
   await openCanvas(page, 'tym', initial);
   await expect(card(page, 'prefix:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   await dragTo(page, 'main:root', 'prefix:root');
   const dialog = page.getByRole('dialog', { name: 'Combinar peças', exact: true });
   await expect(dialog).toBeVisible();
@@ -764,7 +779,10 @@ test('combination previews follow order and operator without editing until the e
   };
   const requests = await openCanvas(page, 'tym', initial);
   await expect(card(page, 'prefix:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   await dragTo(page, 'main:root', 'prefix:root');
   const dialog = page.getByRole('dialog', { name: 'Combinar peças', exact: true });
   const preview = dialog.getByRole('region', { name: 'Prévia do resultado', exact: true });
@@ -965,7 +983,10 @@ test('combining the final two loose trees promotes the result and undoes as one 
   await expect(card(page, 'prefix:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
   await expect(card(page, 'verb:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
   expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: '', canvas: initial });
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   await dragTo(page, 'verb:root', 'prefix:root');
   const dialog = page.getByRole('dialog', { name: 'Combinar peças', exact: true });
   await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText('temityma');
@@ -1253,7 +1274,10 @@ test('removing only an operation from a loose tree preserves the principal and a
   };
   await openCanvas(page, 'emi * tym', canvas);
   await expect(card(page, 'loose:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   const before = await page.evaluate(() => window.canvasSnapshot);
   await menu(page, 'loose:root', 'Retirar só a operação…');
   const dialog = page.getByRole('dialog', { name: 'Retirar operação', exact: true });
@@ -1379,7 +1403,10 @@ test('real pointer dragging swaps occupied operands and moves an orphan into a h
   await expect(
     card(page, `${fragment.id}:root`).locator('[data-evaluation-state="ok"]'),
   ).toHaveCount(1);
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   await dragTo(page, `${fragment.id}:root`, 'main:root/right');
   await ready(page);
   expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
@@ -1462,7 +1489,10 @@ test('partial evaluation keeps working sibling results, identifies direct errors
   const raw = '(emi * tym) + (__studio_slot_A1 * missing_predicate)';
   await openCanvas(page, raw);
   await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   await expect(card(page, 'main:root/left').locator('[data-evaluation-state="ok"]')).toContainText(
     'temityma',
   );
@@ -1834,7 +1864,10 @@ test('the selected tree constituent shows its scoped whole meaning and separate 
   expect(base.baseDefinition).toBeTruthy();
   expect(base.baseDefinition).not.toBe(definition);
   await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
-  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
   await node(page, `main:${base.id}`).click();
   await expect(inspector.getByTestId('canvas-base-definition')).toHaveText(
     `Significado da peça: ${base.baseDefinition}`,
@@ -1849,4 +1882,107 @@ test('the selected tree constituent shows its scoped whole meaning and separate 
   await expect(inspector.getByTestId('canvas-base-definition')).toHaveCount(0);
   await expect(inspector.getByTestId('canvas-composite-definition')).toHaveCount(0);
   await expect(page.locator('#canvas-raw')).toHaveText(raw);
+});
+
+test('a shared reference reveals its object tree and uses before making an editable local copy', async ({
+  page,
+}) => {
+  await openCanvas(page, 'risetoheaven');
+  const inspector = page.getByRole('region', { name: 'Estrutura de risetoheaven', exact: true });
+  await expect(inspector).toBeVisible();
+  await expect(
+    inspector.getByRole('group', { name: 'Diagrama interativo da análise realizada' }),
+  ).toBeVisible();
+  await expect(inspector).toContainText('araujo_catecismo_1686');
+  await expect(page.locator('#canvas-raw')).toHaveText('risetoheaven');
+  await inspector.getByRole('button', { name: 'Preparar cópia para editar a árvore' }).click();
+  await expect(inspector.getByLabel('Forma prevista', { exact: true })).toBeVisible();
+  await inspector.getByRole('button', { name: 'Usar cópia nesta ocorrência' }).click();
+  await expect(page.locator('#canvas-raw')).toContainText('saguera');
+  await expect(page.locator('#canvas-raw')).not.toHaveText('risetoheaven');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await expect(page.locator('#canvas-raw')).toHaveText('risetoheaven');
+});
+
+test('a reference meaning can change locally without replacing its grammar', async ({ page }) => {
+  await openCanvas(page, 'risetoheaven');
+  const inspector = page.getByRole('region', { name: 'Estrutura de risetoheaven', exact: true });
+  await inspector.getByText('Editar significado desta referência', { exact: true }).click();
+  await inspector
+    .getByLabel('Significado da referência', { exact: true })
+    .fill('aquele que subiu ao céu');
+  await inspector
+    .getByRole('button', { name: 'Aplicar significado nesta ocorrência', exact: true })
+    .click();
+  await expect(page.locator('#canvas-raw')).toContainText('studio_define((risetoheaven),');
+  await expect(page.locator('#canvas-raw')).toContainText('aquele que subiu ao céu');
+  await expect(page.locator('#canvas-ready')).toHaveText('ready');
+  await expect(node(page, 'main:root')).toContainText('ybakype oîeupiragûera');
+  await page
+    .locator('.canvas-toolbar')
+    .getByRole('button', { name: 'Desfazer edição na árvore', exact: true })
+    .click();
+  await expect(page.locator('#canvas-raw')).toHaveText('risetoheaven');
+});
+
+test('shared reference meaning requests a source review without changing the passage draft', async ({
+  page,
+}) => {
+  const requests = await openCanvas(page, 'risetoheaven');
+  await page.route('**/__canvas_rpc', async (route) => {
+    if (route.request().postDataJSON().method !== 'lexicon_update') return route.fallback();
+    requests.push(route.request().postDataJSON());
+    await route.fulfill({
+      json: { previewId: 'reference-review', kind: 'lexicon', diff: 'reviewed meaning change' },
+    });
+  });
+  const inspector = page.getByRole('region', { name: 'Estrutura de risetoheaven', exact: true });
+  await inspector.getByText('Editar significado desta referência', { exact: true }).click();
+  await inspector.getByLabel('Significado da referência', { exact: true }).fill('ascensão');
+  await inspector.getByLabel('Alcance do significado da referência').selectOption('shared');
+  await inspector
+    .getByRole('button', { name: 'Revisar alteração compartilhada', exact: true })
+    .click();
+  await expect
+    .poll(() => page.evaluate(() => window.canvasLexicalPreview))
+    .toMatchObject({ previewId: 'reference-review' });
+  expect(requests.find((request) => request.method === 'lexicon_update')?.params).toMatchObject({
+    name: 'risetoheaven',
+    scope: 'shared',
+    definition: 'ascensão',
+    preserveGrammar: true,
+  });
+  expect(requests.some((request) => request.method === 'source_apply')).toBe(false);
+  await expect(page.locator('#canvas-raw')).toHaveText('risetoheaven');
+});
+
+test('a delayed reference meaning edit cannot overwrite a different passage', async ({ page }) => {
+  await openCanvas(page, 'risetoheaven');
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requested = false;
+  await page.route('**/__canvas_rpc', async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.method !== 'node_definition') return route.fallback();
+    requested = true;
+    const response = run(request.method, request.params);
+    await held;
+    await route.fulfill({ json: response });
+  });
+  const inspector = page.getByRole('region', { name: 'Estrutura de risetoheaven', exact: true });
+  await inspector.getByText('Editar significado desta referência', { exact: true }).click();
+  await inspector
+    .getByLabel('Significado da referência', { exact: true })
+    .fill('não aplicar na outra passagem');
+  await inspector
+    .getByRole('button', { name: 'Aplicar significado nesta ocorrência', exact: true })
+    .click();
+  await expect.poll(() => requested).toBe(true);
+  await page.evaluate(() => window.canvasSetPassageId('different-passage'));
+  await expect(page.locator('#canvas-passage')).toHaveText('different-passage');
+  release!();
+  await expect(page.locator('#canvas-ready')).toHaveText('ready');
+  await expect(page.locator('#canvas-raw')).toHaveText('risetoheaven');
 });

@@ -241,7 +241,11 @@ def source_entries(path):
             block.insert(0, lines[index]); index -= 1
         entry['commentBlock'] = '\n'.join(block)
         entry['studio'] = None
-        for line in block:
+        identity_block=[]
+        index=entry['openingLine']-2
+        while index>=0 and (not lines[index].strip() or lines[index].lstrip().startswith('#')):
+            identity_block.insert(0,lines[index]);index-=1
+        for line in [*identity_block,*block]:
             match = re.match(r'\s*#\s*@note\s+studio:v1\s+(\{.*\})\s*$', line)
             if match:
                 try: entry['studio'] = json.loads(match.group(1))

@@ -341,7 +341,9 @@ test('an existing human target is preserved when the reviewed form disagrees', a
   expect(await publicationCalls(page)).toEqual(['source_apply']);
 });
 
-test('a refused reference leaves the applied source alone and says why', async ({ page }) => {
+test('missing earlier references do not block explicit approval of this passage', async ({
+  page,
+}) => {
   await workspace(page);
   await page.evaluate(() => {
     window.__nextControl.responses.reference_status = {
@@ -358,10 +360,7 @@ test('a refused reference leaves the applied source alone and says why', async (
     .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
     .click();
   await expect(review(page)).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'A fonte foi salva' })).toContainText(
-    '0003',
-  );
-  expect(await publicationCalls(page)).toEqual(['source_apply']);
+  expect(await publicationCalls(page)).toEqual(['source_apply', 'reference_approve']);
 });
 
 // Real GroundTruthPanel + useStudio; only the backend is simulated. No corpus or provider writes.
@@ -454,4 +453,19 @@ test('one explicit save requires current reviewed source; failure and concurrenc
           .length,
     ),
   ).toBe(2);
+});
+
+test('source review can save only the passage without approving ground truth', async ({ page }) => {
+  await workspace(page);
+  await editRaw(page, 'alpha_unreviewed');
+  await mainCommit(page).click();
+  await review(page)
+    .getByRole('checkbox', { name: 'Registrar também como ground truth' })
+    .uncheck();
+  await review(page).getByRole('button', { name: 'Salvar somente a fonte', exact: true }).click();
+  await expect(review(page)).toHaveCount(0);
+  expect(await publicationCalls(page)).toEqual(['source_apply']);
+  await expect(page.getByRole('combobox', { name: 'Etapa do trabalho' })).not.toHaveValue(
+    'complete',
+  );
 });

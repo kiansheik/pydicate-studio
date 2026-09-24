@@ -1,5 +1,22 @@
 # Work log
 
+## 2026-09-24 - Shared reference structure and occurrence editing
+
+The canvas now shows the selected reference's object tree, source and cross-source
+usage candidates without replacing its name. Explicit verified copying expands
+nested compounds and keeps gloss overrides; users can edit the copied operations
+with ordinary canvas undo. Local versus shared meaning controls open the proper
+draft/review path. See [handoff](session-handoffs/2026-09-24-reference-inspection.md).
+
+## 2026-09-24 - Independent passage order and focused navigation
+
+Added before/after insertion, save-and-skip navigation, optional source-only
+review and independent reference approval. Stable IDs and sparse-reference
+companions preserve existing reviews around inserted or unfinished passages.
+PDF evidence opens centered on region 1 and recenters on selection.
+**Concluir passagem** advances to the next visible item, staying at the end.
+See [handoff](session-handoffs/2026-09-24-independent-passage-order.md).
+
 ## 2026-09-24 - Ordered evidence across PDF pages
 
 Made multipage region capture explicit with **Adicionar região na próxima

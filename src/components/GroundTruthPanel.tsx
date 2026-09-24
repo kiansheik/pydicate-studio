@@ -108,12 +108,6 @@ export function GroundTruthPanel({
                 : 'Esta passagem ainda não tem ground truth.'}
             </p>
           )}
-          {status && !status.canApproveSequentially && (
-            <p role="alert">
-              Primeiro salve a passagem {String(status.nextOrdinal).padStart(4, '0')}. O corpus
-              mantém as referências em sequência.
-            </p>
-          )}
           <div className="ground-truth-forms">
             <div>
               <small>GROUND TRUTH ATUAL</small>

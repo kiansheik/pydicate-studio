@@ -46,6 +46,7 @@ import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type { EvaluationFailure } from '../domain/authoring';
 
 interface TreeEditingProps {
+  onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
   canvas?: CanvasState;
   onChangeCanvas?: (change: CanvasEdit) => void;
   onPrepareDiagnostic?: (report: CanvasDiagnostic) => void;

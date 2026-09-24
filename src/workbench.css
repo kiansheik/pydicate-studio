@@ -9,8 +9,11 @@
   min-height: 28px;
 }
 .workspace-shell .desk-header {
-  height: 32px;
-  padding: 0 14px;
+  min-height: 32px;
+  height: auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 14px;
 }
 .workspace-shell .workspace-top {
   padding: 7px 14px 0;
@@ -387,4 +390,8 @@
 }
 .project-details .field-inline input {
   margin-top: 3px;
+}
+
+.workspace-shell .desk-nav {
+  flex-wrap: wrap;
 }

@@ -364,6 +364,9 @@ function createScratchService({
         projectId: input.projectId,
         passageId: input.passageId,
         sourceId: input.sourceId,
+        ...(Object.hasOwn(input, 'beforePassageId')
+          ? { beforePassageId: input.beforePassageId }
+          : {}),
         engineFingerprint: input.engineFingerprint,
       },
       excluded: exclusions(input),

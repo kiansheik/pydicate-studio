@@ -256,7 +256,9 @@ test('actual PDF canvas and same physical region survive zoom, resize, rotation,
     service = createEvidenceService(options);
     await page.reload();
     await ready(page);
-    await expect(page.getByLabel('Página física do PDF', { exact: true })).toHaveValue('2');
+    await expect(page.getByLabel('Página física do PDF', { exact: true })).toHaveValue('1');
+    await page.getByRole('button', { name: 'Região 2 · PDF 2', exact: true }).click();
+    await ready(page);
     const multi = (await service.invoke('evidence_status', params)) as EvidenceStatus;
     expect(multi.passage!.regions.map((entry) => entry.pageIndex)).toEqual([0, 1]);
     await page.getByRole('button', { name: 'Remover região', exact: true }).click();
@@ -486,6 +488,42 @@ test('an unsaved predecessor and repeated empty pending passages preserve a guid
     await ready(page);
     await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', rect!);
     await expect(page.getByTestId('pdf-guide-region')).toHaveCount(0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('opening a passage centers its first crop and clicking it again restores focus after scrolling', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-focus-'));
+  try {
+    const { fixture, assetId, revision } = await guideFixture(page, directory);
+    await fixture.service.invoke('evidence_save', {
+      ...params,
+      assetId,
+      expectedRevision: revision,
+      regions: [
+        { id: 'first', assetId, pageIndex: 0, rect: [100, 100, 200, 200] },
+        { id: 'last', assetId, pageIndex: 1, rect: [100, 300, 200, 400] },
+      ],
+      view: { pageIndex: 1, zoom: 2, rotation: 0 },
+    });
+    await page.goto('/tests/pdf-harness.html?guide');
+    await ready(page);
+    await expect(page.getByLabel('Página física do PDF', { exact: true })).toHaveValue('1');
+    const scroller = page.locator('.evidence-scroller');
+    await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
+    const centered = await scroller.evaluate((el) => el.scrollTop);
+    await scroller.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true }).click();
+    await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeCloseTo(centered, 0);
+    await page.getByRole('button', { name: 'Região 2 · PDF 2', exact: true }).click();
+    await ready(page);
+    await expect(page.getByLabel('Página física do PDF', { exact: true })).toHaveValue('2');
+    await expect(page.getByTestId('pdf-region')).toBeInViewport();
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

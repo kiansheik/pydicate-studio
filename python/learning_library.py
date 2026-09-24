@@ -254,8 +254,8 @@ def build(corpus):
         path = corpus / 'historic' / f'{source}.tu.py'
         entries = source_entries(path)
         metadata = authoritative_metadata(corpus, path)
-        record_path = corpus / 'ground_truth/records/historic' / f'{source}.jsonl'
-        saved = {row['ordinal']: row for line in record_path.read_text().splitlines() if line.strip() for row in [json.loads(line)]} if record_path.exists() else {}
+        from passage_references import read
+        saved = read(corpus, source)
         references[source] = saved
         for entry, row in zip(entries, snapshot_source.get('rows', [])):
             record = saved.get(entry['ordinal'], {})

@@ -163,6 +163,8 @@ class RuntimeProvenanceTests(unittest.TestCase):
         namespace = namespace_for(self.corpus, self.path, entry['statementLine'])
         info = lexicon_result({'action':'lexicon_inspect','name':'risetoheaven'}, self.corpus, self.path, namespace)
         self.assertTrue(info['safeOccurrenceExpansion'])
+        self.assertGreater(len(info['runtimeTree']['nodes']), 1)
+        self.assertTrue(any(use['sourceId'] == 'araujo_catecismo_1686' for use in info['projectUses']['uses']))
         original = realize(entry['expression'], namespace)
         expanded = realize(entry['expression'].replace('risetoheaven', '(' + info['safeOccurrenceExpansion'] + ')'), namespace)
         self.assertEqual(original['surface'], expanded['surface'])
@@ -171,7 +173,10 @@ class RuntimeProvenanceTests(unittest.TestCase):
         namespace['risetoheaven'] = namespace['risetoheaven'].copy()
         namespace['risetoheaven'].definition = 'context changed after declaration'
         changed = lexicon_result({'action':'lexicon_inspect','name':'risetoheaven'}, self.corpus, self.path, namespace)
-        self.assertIsNone(changed['safeOccurrenceExpansion'])
+        self.assertIn('context changed after declaration', changed['safeOccurrenceExpansion'])
+        self.assertEqual(shape(interpret(parse_ast(changed['safeOccurrenceExpansion']), namespace)), shape(namespace['risetoheaven']))
+        namespace['risetoheaven'].negated = not namespace['risetoheaven'].negated
+        self.assertIsNone(lexicon_result({'action':'lexicon_inspect','name':'risetoheaven'}, self.corpus, self.path, namespace)['safeOccurrenceExpansion'])
 
 
 if __name__ == '__main__': unittest.main()

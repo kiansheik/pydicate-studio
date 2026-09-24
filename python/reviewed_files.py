@@ -13,10 +13,11 @@ import tempfile
 
 
 def _staged(path, content):
+    path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix='.' + path.name + '.studio-', dir=path.parent)
     try:
         with os.fdopen(descriptor, 'wb') as handle:
-            os.fchmod(handle.fileno(), path.stat().st_mode & 0o777)
+            os.fchmod(handle.fileno(), (path.stat().st_mode & 0o777) if path.exists() else 0o600)
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
@@ -37,7 +38,7 @@ def _sync_parent(path):
 def apply_reviewed_files(changes, journal_path, journal, error):
     changed = [item for item in changes if item['before'] != item['after']]
     for item in changes:
-        if item['path'].read_bytes() != item['before']:
+        if (item['path'].read_bytes() if item['path'].exists() else b'') != item['before'] or item['path'].exists() != item.get('beforeExists', True):
             error('Um dos arquivos mudou externamente. Nada foi aplicado; revise a diferença novamente.', 'STALE_SOURCE')
     journal_path.parent.mkdir(parents=True, exist_ok=True)
     with journal_path.open('w', encoding='utf-8') as handle:
@@ -58,10 +59,10 @@ def apply_reviewed_files(changes, journal_path, journal, error):
             staged.append((item, replacement, backup))
         # Recheck the whole set after staging, before the first replacement.
         for item in changes:
-            if item['path'].read_bytes() != item['before']:
+            if (item['path'].read_bytes() if item['path'].exists() else b'') != item['before'] or item['path'].exists() != item.get('beforeExists', True):
                 error('Um dos arquivos mudou durante a preparação. Nada foi aplicado.', 'STALE_SOURCE')
         for item, replacement, backup in staged:
-            if item['path'].read_bytes() != item['before']:
+            if (item['path'].read_bytes() if item['path'].exists() else b'') != item['before'] or item['path'].exists() != item.get('beforeExists', True):
                 error('Um dos arquivos mudou durante a gravação. A aplicação será desfeita.', 'STALE_SOURCE')
             os.replace(replacement, item['path'])
             completed.append((item, backup))
@@ -72,7 +73,7 @@ def apply_reviewed_files(changes, journal_path, journal, error):
             try:
                 if item['path'].read_bytes() != item['after']:
                     raise OSError('O arquivo recebeu outra edição.')
-                os.replace(backup, item['path'])
+                os.replace(backup, item['path']) if item.get('beforeExists', True) else item['path'].unlink()
                 _sync_parent(item['path'])
             except OSError:
                 failed.append(str(item['path']))

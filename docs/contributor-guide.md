@@ -189,3 +189,34 @@ Toda revisão para publicar uma edição, nova passagem ou mudança lexical exec
 
 
 Rascunhos antigos que colocaram uma definição inequívoca do composto em uma peça podem ser corrigidos ao abrir a revisão normal. **Significado do conjunto corrigido** explica a mudança e as entradas mostram os dois sentidos separados. Não é preciso repetir a definição na árvore nesse caso. Feche uma revisão já aberta e gere outra para atualizar sua diferença; o rascunho original continua salvo até a publicação escolhida por você.
+
+### Inserir, deixar para depois e concluir
+
+Use **Inserir antes** ou **Inserir depois** para acrescentar uma passagem
+esquecida junto à selecionada. **Continuar depois** salva o rascunho e avança
+sem registrar ground truth. Você pode voltar pela lista a qualquer momento e
+revisar as passagens em qualquer ordem. Na revisão, desmarque **Registrar também
+como ground truth** para **Salvar somente a fonte**.
+
+**Concluir passagem** marca sua etapa local como concluída e seleciona a próxima
+passagem da lista visível; na última, permanece nela. Ao abrir Fonte, o PDF
+seleciona e centraliza a região 1 salva. Clique em outra região para ir até ela;
+clicar novamente também restaura a centralização após rolar a página.
+
+### Inspecionar uma referência e editar sua ocorrência
+
+Selecione a referência na árvore e use **Ver estrutura e usos**. O painel mostra
+os objetos, as relações gramaticais, os significados e a declaração de origem,
+além das passagens salvas que dependem dela diretamente ou por outras composições.
+Essa lista não inclui rascunhos locais nem garante dependências dinâmicas de helpers.
+
+**Preparar cópia para editar a árvore** confere a estrutura no motor e mostra a
+forma antes de **Usar cópia nesta ocorrência**. Depois disso, edite as operações
+normalmente; **Desfazer** recupera a referência. Composições internas verificáveis
+são expandidas; palavras e chamadas de helpers podem continuar como referências.
+
+Em **Editar significado desta referência**, **Só esta ocorrência** mantém a
+gramática e altera seu significado no rascunho. **Definição compartilhada** abre
+a revisão da alteração no léxico, incluindo a regressão do corpus. Para entradas
+declaradas na própria fonte, a opção existente é **Deste ponto em diante nesta
+fonte**. Confira os usos e a diferença antes de aceitar.

@@ -1,5 +1,28 @@
 # Current state
 
+## Inspect and copy shared references from the canvas
+
+Selecting a named reference exposes its actual runtime object tree, declaration
+and cross-source dependency candidates in **Ver estrutura e usos**. A verified
+local copy expands nested compounds where their current objects can be reproduced,
+keeping intermediate definitions. Copying is one undoable occurrence edit.
+The inspector edits meanings locally or opens the existing shared/source review;
+local meanings preserve grammar. Late edits are discarded after context changes.
+See [contract](../design/reference-inspection.md) and
+[handoff](session-handoffs/2026-09-24-reference-inspection.md).
+
+## Independent passage order and automatic navigation
+
+Passages can be inserted before/after the current item, skipped with their draft
+saved, and published or approved without completing earlier items. The review
+checkbox allows source-only saving. Stable source IDs preserve neighbors across
+insertion; sparse approvals use a portable companion while legacy JSONL keeps
+its contiguous approved prefix. **Concluir passagem** advances to the next
+visible item and stays at the end. Opening PDF evidence centers region 1;
+clicking a region navigates and centers it, including repeated clicks.
+See [workflow contract](../design/next-passage.md) and
+[handoff](session-handoffs/2026-09-24-independent-passage-order.md).
+
 ## Ordered evidence across PDF pages
 
 **Adicionar região na próxima página** preserves existing crops, advances the
@@ -117,7 +140,7 @@ path. See [contract](../design/node-interpretations.md) and
 reviewed form in one action. New passages use their returned stable identity;
 unchanged sources offer **Salvar ground truth** without another source write.
 One operation lock covers source publication and reference approval. The
-existing revision, engine, target, sequence and fresh realization guards remain.
+existing revision, engine, target and fresh realization guards remain.
 If source publication succeeds but reference approval fails, the app states both
 outcomes and supports reopening the review to retry only the missing reference.
 Lexicon-only edits and recovery do not approve a passage. Source/reference writes
@@ -363,7 +386,7 @@ The complete source AST still controls evaluation and validation. Build/typechec
 
 ## Direct ground-truth review
 
-**Commit to Ground Truth** sits beside **Verificar** and **Salvar rascunho** and opens the passage/lexicon review from either workspace entry. **Salvar fonte e ground truth** is the single confirmation. Opening or cancelling does not apply source or approve a reference. Revision freshness, complete engine evaluation, source conflicts, declared targets and sequential approval still gate saving. The former standalone ground-truth panel remains only for legacy regression fixtures.
+**Commit to Ground Truth** sits beside **Verificar** and **Salvar rascunho** and opens the passage/lexicon review from either workspace entry. **Salvar fonte e ground truth** is the single confirmation. Opening or cancelling does not apply source or approve a reference. Revision freshness, complete engine evaluation, source conflicts, declared targets still gate approval. The former standalone ground-truth panel remains only for legacy regression fixtures.
 
 The native modal contains Cancelar, Escape and close controls; pending saves prevent dismissal and duplicate submission. A required source review closes the reference dialog before opening the ordinary source preview. Two focused browser regressions pass with a simulated backend, including delayed status, cancellation, dirty fields, failed approval/retry and concurrent requests. The combined production build passes. Browser screenshots confirm the footer and modal layout. No provider calls or historical corpus writes. See [handoff](session-handoffs/2026-09-17-ground-truth-shortcut.md).
 
@@ -407,7 +430,7 @@ Verification: final build/typecheck and whitespace/format checks; 15 desktop che
 
 The secondary **Tipos de peça e código** control opens the actual selected-engine predicate catalog, with Portuguese labels, field forms, rendered-Tupi reuse and optional code. New shells default to bottom-up geometry with the result above its inputs; horizontal layout remains available and persists without changing the expression. Dragging independent roots together chooses an operator/order, while explicit swapping and nested rewiring remain available. Context actions support `.var` and `.imp` chaining. Pending expressions evaluate in the real source append context; lexical/assistant context never invents a published reference.
 
-**Revisar nova passagem** produces the actual source diff and only explicit application migrates the local draft to its reserved source identity. Multiple pending lines publish in creation order. Ground-truth approval stays separate. Section/subsection directives round-trip through source comments; clearing an inherited subsection re-emits its section, while clearing an inherited section is rejected because upstream comment inheritance cannot encode it.
+**Revisar nova passagem** produces the actual source diff and only explicit application migrates the local draft to its reserved source identity. Pending lines publish independently at stable insertion anchors. The review can save source alone or source with explicit ground-truth approval. Section/subsection directives round-trip through source comments; clearing an inherited subsection re-emits its section, while clearing an inherited section is rejected because upstream comment inheritance cannot encode it.
 
 Verification: build/typecheck, 54 focused domain checks, 21 desktop checks, 44 Python checks, and 22 browser scenarios pass. Native production checks with a temporary profile, disposable repositories and a vector PDF create/combine predicates, compare output with independent Python, preserve previous evidence, and restore the selected shell/metadata/tree/PDF after restart. No AI calls or original historical source/reference changes. See [workflow contract](../design/next-passage.md) and [handoff](session-handoffs/2026-09-17-next-passage.md).
 
@@ -472,7 +495,7 @@ Atividade exposes durable local session/build/request logs, grouped edits, opera
 - Actual project lexicon/alias/compound/helper search and inspection, helper argument binding, reference vs copied occurrence, scoped definition edits with affected uses, stable lexical identities and reviewed new definitions. Real NavarroDB/SQLite search preserves separate senses, class information and provenance.
 - Managed fingerprinted PDF assets, relocation/replacement detection, saved unrotated page-point regions, draw/move/resize/remove, multiple pages, zoom/rotation and restart. Scholarly page/folio/line fields remain distinct from physical PDF pages.
 - One-click new-passage shells open in the ordinary tree workspace, accept empty or invalid analysis, inherit editable scholarly hierarchy and PDF guides, and retain their reserved identity until explicit source diff application.
-- Atomic local draft/source persistence, stale-source detection, concrete recovery previews, authoritative verification and explicit sequential reference approval. Git sharing exports a reviewable patch rather than automatically publishing source or private application data.
+- Atomic local draft/source persistence, stale-source detection, concrete recovery previews, authoritative verification and explicit independent reference approval. Git sharing exports a reviewable patch rather than automatically publishing source or private application data.
 - Codex App Server and Claude Messages adapters with visible configuration/status, streaming/cancellation, exact input provenance, immutable original AI output and explicit acceptance. Validated history survives interruption and rejects malformed data without overwriting it. Authoring MCP supplies actual read-only context.
 
 ## Earlier milestone verification

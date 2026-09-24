@@ -1,3 +1,4 @@
+import { pendingInsertionContexts } from './next-page';
 import { draftConflicts } from './model';
 import type { DraftEnvelope, StudioProject } from './types';
 
@@ -26,6 +27,7 @@ export function structureDrafts(project: StudioProject, envelope: DraftEnvelope)
       passageId: draft.passageId,
       sourceId: passage?.sourceId ?? 'araujo_catecismo_1686',
       revisionId: draft.revisionId,
+      ...pendingInsertionContexts(project, envelope)[draft.passageId],
     };
     const entries: StructureDraft[] = [];
     if (draft.raw?.trim() && draft.raw !== passage?.sourceExpression)
@@ -37,7 +39,12 @@ export function structureDrafts(project: StudioProject, envelope: DraftEnvelope)
   });
 }
 
-type SearchContext = { projectId: string; engineFingerprint: string; drafts: StructureDraft[] };
+type SearchContext = {
+  projectId: string;
+  engineFingerprint: string;
+  drafts: StructureDraft[];
+  pendingContexts?: Record<string, { beforePassageId: string | null }>;
+};
 let currentContext: (() => SearchContext | undefined) | undefined;
 
 /** Read at request time, including edits not yet flushed to disk. */
@@ -49,7 +56,18 @@ export function registerStructureContext(read: () => SearchContext | undefined) 
 }
 
 export function withStructureContext(method: string, params: Record<string, unknown>) {
-  if (method !== 'structure_search' && method !== 'structure_resolve') return params;
   const context = currentContext?.();
-  return context ? { ...params, ...context } : params;
+  const pending =
+    typeof params.passageId === 'string' ? context?.pendingContexts?.[params.passageId] : undefined;
+  if (method !== 'structure_search' && method !== 'structure_resolve')
+    return pending ? { ...params, ...pending } : params;
+  return context
+    ? {
+        ...params,
+        projectId: context.projectId,
+        engineFingerprint: context.engineFingerprint,
+        drafts: context.drafts,
+        ...pending,
+      }
+    : params;
 }

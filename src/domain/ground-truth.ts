@@ -12,6 +12,7 @@ export interface ReferenceStatus {
   recordPath: string;
   recordCount: number;
   nextOrdinal: number;
+  /** Legacy transport field; approval is now independent of sequence. */
   canApproveSequentially: boolean;
 }
 
@@ -33,7 +34,6 @@ export type ApprovalBlock =
   | 'NOT_READY'
   | 'NEW_PASSAGE'
   | 'NO_STATUS'
-  | 'OUT_OF_SEQUENCE'
   | 'UNAPPLIED_CHANGES'
   | 'DRAFT_CONFLICT'
   | 'NO_RESULT'
@@ -71,12 +71,6 @@ export function approvalState(context: ApprovalContext): Approval {
       ready: false,
       code: 'NO_STATUS',
       reason: 'Conferindo o registro atual desta passagem.',
-    };
-  if (!status.canApproveSequentially)
-    return {
-      ready: false,
-      code: 'OUT_OF_SEQUENCE',
-      reason: `Primeiro salve a passagem ${String(status.nextOrdinal).padStart(4, '0')}. O corpus mantém as referências em sequência.`,
     };
   if (changed)
     return {
