@@ -17,15 +17,16 @@ import {
 } from './canvas';
 
 function parse(raw: string): AuthorNode {
+  // Match the app's JSON transport so Windows stdin preserves CR/CRLF source bytes.
   const parsed: ParsedExpression = JSON.parse(
     execFileSync(
       'python3',
       [
         '-B',
         '-c',
-        'import json,sys;from python.studio_authoring import expression_tree;print(json.dumps(expression_tree(sys.stdin.read())))',
+        'import json,sys;from python.studio_authoring import expression_tree;print(json.dumps(expression_tree(json.load(sys.stdin))))',
       ],
-      { input: raw, encoding: 'utf8' },
+      { input: JSON.stringify(raw), encoding: 'utf8' },
     ),
   );
   if (!parsed.root) throw new Error(JSON.stringify(parsed.diagnostics));
@@ -268,6 +269,7 @@ describe('removing only a source-bound operation', () => {
     expect(doc).toEqual(before);
   });
 
+  // Each case launches the real parser; allow slower native Intel CI process startup.
   it('does not infer removal roles for primitives, opaque syntax or ambiguous method settings', () => {
     for (const raw of [
       'abá',
@@ -294,7 +296,7 @@ describe('removing only a source-bound operation', () => {
         editCanvas(doc, { type: 'unwrap', source: source(), keepChildId: 'root/receiver' }),
       ).toThrow(/parte direta/);
     }
-  });
+  }, 30_000);
 
   it('rejects an added branch ID collision atomically', () => {
     const doc = document('abá * tym', sample());

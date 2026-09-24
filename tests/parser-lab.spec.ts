@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -69,6 +70,11 @@ function startLab(artifactDirectory: string) {
 }
 
 test.beforeAll(async () => {
+  test.skip(
+    !existsSync(path.join(parent, 'oldtupicorpus/historic')) ||
+      !existsSync(path.join(parent, 'nhe-enga/pydicate/pydicate')),
+    'Selected local corpus and engine are not installed',
+  );
   test.setTimeout(180_000);
   temporary = await mkdtemp(path.join(tmpdir(), 'parser-lab-spec-'));
   artifacts = path.join(temporary, 'artifacts');

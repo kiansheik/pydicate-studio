@@ -99,11 +99,14 @@ test('quick tree translation previews a local prompt and adopts only a reviewed 
   await expect(page.getByLabel('Tradução humana preservada')).toHaveText('Minha tradução humana.');
   await page.getByRole('button', { name: 'Revisar tradução', exact: true }).click();
   await expect(page.getByText('Tradução atual do rascunho', { exact: true })).toBeVisible();
+  await expect(page.locator('.assistant-candidate')).toContainText(
+    'My previous English translation.',
+  );
   await page.getByLabel('Sugestão revisada').fill('My reviewed translation.');
   await page.getByRole('button', { name: 'Aceitar no rascunho', exact: true }).click();
-  await expect(page.getByLabel('Tradução humana preservada')).toHaveText(
-    'My reviewed translation.',
-  );
+  await expect(page.getByLabel('Tradução em inglês')).toHaveText('My reviewed translation.');
+  await expect(page.getByLabel('Tradução humana preservada')).toHaveText('Minha tradução humana.');
+  await expect(page.getByLabel('Tradução em português')).toHaveText('Minha tradução em português.');
 });
 
 test('quick translation discards delayed prompts and prevents applying results to a changed tree or engine', async ({

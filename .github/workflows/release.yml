@@ -96,7 +96,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --config electron-builder.config.cjs --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+        run: |
+          # Absent GitHub secrets become empty strings; builder interprets an
+          # explicitly empty CSC_LINK as a certificate path at the working dir.
+          for credential_key in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!credential_key}" ]; then unset "$credential_key"; fi
+          done
+          npx electron-builder --config electron-builder.config.cjs --${{ matrix.platform }} --${{ matrix.arch }} --publish never
       - name: Open the packaged app with isolated data and bundled runtime
         if: matrix.platform != 'linux'
         run: |

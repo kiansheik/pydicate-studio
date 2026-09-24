@@ -13,19 +13,25 @@
   repository availability requirement as its reused fixture.
   `test_runtime_tree.py` exercises the current approval sink with a standalone
   source and selected-engine boundary, retaining mismatch/no-write and successful
-  recovery-journal assertions.
+  recovery-journal assertions. Real learning/parser-lab browser setup now also
+  declares its corpus and engine requirements. The provider harness preserves
+  separate English, Portuguese and unlabelled translations. The narrow workspace
+  header wraps its existing controls instead of overflowing the viewport.
 - Commands: failed-run inspection; Prettier and `git diff --check`; focused
   dictionary/assistant/approval tests; full desktop and Python suites with
   `PYDICATE_PROJECT_PARENT` set to a deliberately unavailable fixture directory.
 - Worked: desktop 265 passed, 3 repository-dependent skips; Python 154 passed,
   218 repository-dependent skips. Focused dictionary 5 and assistant 4 passed.
   A clean public-main desktop run also passed 265 checks before exposing the
-  three now-repaired assistant mock failures.
+  three now-repaired assistant mock failures. The full browser sweep passed 175
+  checks and exposed four issues: two absent-corpus setups, the outdated language
+  harness and header overflow. After the corrections, all four affected browser
+  suites passed: 11 browser checks and 13 explicit repository-dependent skips.
 - Failed: the first desktop run was denied Unix sockets by the execution sandbox;
   rerunning with socket access resolved those environment failures. The previous
   CI run failed because `docs:build` had no selected external corpus.
-- Remaining questions: browser-suite and hosted CI outcomes are recorded by the
-  publishing task. Existing corpus-dependent checks still require an explicit
+- Remaining questions: hosted CI outcomes are recorded by the publishing task.
+  Existing corpus-dependent checks still require an explicit
   local fixture and are not claimed by the portable suite.
 - Suggested next prompt: inspect the published release run and platform startup
   evidence, then validate installation on real Windows/Linux/Intel Mac machines.

@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { AssistantPanel } from '../src/components/AssistantPanel';
 import { createExampleProject } from '../src/domain/example';
 import type { AIPhase, AIRecord } from '../src/domain/ai';
+import type { PassageTranslations } from '../src/domain/types';
+import { translationChange } from '../src/domain/translations';
 import '../src/styles.css';
 import '../src/theme.css';
 
@@ -148,6 +150,11 @@ function Harness() {
   const [revision, setRevision] = useState('revision');
   const [engine, setEngine] = useState(project.engineFingerprint);
   const [translation, setTranslation] = useState(translationOnly ? 'Minha tradução humana.' : '');
+  const [translations, setTranslations] = useState<PassageTranslations>(
+    translationOnly
+      ? { pt: 'Minha tradução em português.', en: 'My previous English translation.' }
+      : {},
+  );
   window.__providerHarness.changeTree = () => {
     setTree('changed_tree');
     setRevision('revision:changed');
@@ -156,17 +163,30 @@ function Harness() {
   return (
     <>
       <output aria-label="Tradução humana preservada">{translation}</output>
+      <output aria-label="Tradução em português">{translations.pt}</output>
+      <output aria-label="Tradução em inglês">{translations.en}</output>
       <AssistantPanel
         translationOnly={translationOnly}
         projectId={project.id}
         passage={passage}
-        draft={{ revisionId: revision, diplomatic: '', normalized: '', translation, notes: '' }}
+        draft={{
+          revisionId: revision,
+          diplomatic: '',
+          normalized: '',
+          translation,
+          translations,
+          notes: '',
+        }}
         raw={tree}
         selectedNode={{ id: 'root/left', start: 0, end: 17, code: 'first_constituent' }}
         evaluation={null}
         engineFingerprint={engine}
         onAcceptExpression={() => {}}
-        onAcceptTranslation={setTranslation}
+        onAcceptTranslation={(text, language) => {
+          const change = translationChange({ translations }, text, language);
+          if (change.translations) setTranslations(change.translations);
+          else if (typeof change.translation === 'string') setTranslation(change.translation);
+        }}
       />
     </>
   );

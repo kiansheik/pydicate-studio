@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -18,6 +19,11 @@ const requests: { method: string; params: Record<string, unknown> }[] = [];
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 
 test.beforeAll(async () => {
+  test.skip(
+    !existsSync(path.join(parent, 'oldtupicorpus/historic')) ||
+      !existsSync(path.join(parent, 'nhe-enga/pydicate/pydicate')),
+    'Selected local corpus and engine are not installed',
+  );
   temporary = await mkdtemp(path.join(tmpdir(), 'studio-learning-test-'));
   worker = new PythonWorker({
     script: path.resolve('python/worker.py'),
