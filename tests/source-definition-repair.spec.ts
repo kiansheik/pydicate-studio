@@ -64,7 +64,7 @@ test('ordinary source review explains the separated meanings before opening tech
   await expect(compound).toContainText('sacramento da ordem');
   await expect(review.locator('.source-review-technical')).not.toHaveAttribute('open');
   await expect(review.locator('pre:visible, code:visible')).toHaveCount(0);
-  await review.screenshot({ path: '/tmp/studio-source-definition-repair.png' });
+  await review.screenshot({ path: test.info().outputPath('source-definition-repair.png') });
 
   await review.getByText('Mostrar diff técnico', { exact: true }).click();
   await expect(review.locator('pre')).toContainText('+l += nhemoabare');

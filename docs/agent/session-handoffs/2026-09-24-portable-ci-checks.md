@@ -35,3 +35,14 @@
   local fixture and are not claimed by the portable suite.
 - Suggested next prompt: inspect the published release run and platform startup
   evidence, then validate installation on real Windows/Linux/Intel Mac machines.
+
+## Hosted follow-up
+
+Checks run `36064894039` at `02f4f66` passed the complete build/domain/desktop/Python
+gate. Its browser run passed 176, skipped 86 repository-dependent tests, and failed
+one test only because a review screenshot used the macOS-only `/private/tmp`
+directory. The ground-truth, canvas and definition-review screenshots now use
+Playwright's per-test output directory, preserving the artifacts on every host.
+Both affected portable review checks passed locally after the path change;
+formatting and diff checks passed. Checks also accepts `workflow_dispatch` so
+test-only follow-ups can be verified without rebuilding identical installers.

@@ -800,7 +800,7 @@ test('combination previews follow order and operator without editing until the e
   await expect(
     dialog.getByRole('button', { name: 'Combinar peças', exact: true }),
   ).toBeInViewport();
-  await page.screenshot({ path: '/private/tmp/pydicate-tree-operation-preview.png' });
+  await page.screenshot({ path: test.info().outputPath('tree-operation-preview.png') });
   expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: 'tym', canvas: initial });
   await expect(page.locator('#canvas-history')).toHaveText('0');
   const candidate = String(

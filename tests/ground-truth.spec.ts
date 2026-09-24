@@ -99,7 +99,7 @@ test('one reviewed acceptance publishes the passage and added lexicon then appro
   await expect(
     review(page).getByRole('region', { name: 'historic/araujo_catecismo_1686.tu.py', exact: true }),
   ).toContainText('alpha_revisado');
-  await review(page).screenshot({ path: '/private/tmp/pydicate-ground-truth-review.png' });
+  await review(page).screenshot({ path: test.info().outputPath('ground-truth-review.png') });
   await review(page)
     .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
     .click();
