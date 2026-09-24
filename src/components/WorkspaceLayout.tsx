@@ -22,6 +22,7 @@ import {
 } from '../domain/workspace';
 import '../workspace.css';
 import { track } from '../domain/usage';
+import { useAdvancedTools } from '../domain/preferences';
 
 const storageKey = 'pydicate-studio:workspace:v2';
 const legacyStorageKey = 'pydicate-studio:workspace:v1';
@@ -109,6 +110,9 @@ export function WorkspaceLayout({
   panes: Record<WorkspacePane, ReactNode>;
 }) {
   const { state } = layout;
+  // Pane docking, hiding and resetting recorded no use at all; the row returns with the
+  // secondary tools, and the panes themselves stay draggable and resizable either way.
+  const advanced = useAdvancedTools();
   const [dragging, setDragging] = useState<WorkspacePane | null>(null);
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const grid = useRef<HTMLDivElement>(null);
@@ -174,30 +178,32 @@ export function WorkspaceLayout({
   }
   return (
     <section className="workspace-shell" aria-label="Espaço de trabalho" style={style}>
-      <div className="workspace-toolbar" aria-label="Janelas do espaço de trabalho">
-        <span>Janelas</span>
-        {workspacePanes.map((pane) => (
+      {advanced && (
+        <div className="workspace-toolbar" aria-label="Janelas do espaço de trabalho">
+          <span>Janelas</span>
+          {workspacePanes.map((pane) => (
+            <button
+              key={pane}
+              aria-label={`${visible(pane) ? 'Ocultar' : 'Mostrar'} ${titles[pane]}`}
+              aria-pressed={visible(pane)}
+              onClick={() => {
+                if (visible(pane)) layout.toggle(pane);
+                else if (narrow || (focused && focused !== pane)) layout.maximize(pane);
+                else layout.toggle(pane);
+              }}
+            >
+              {titles[pane]}
+            </button>
+          ))}
           <button
-            key={pane}
-            aria-label={`${visible(pane) ? 'Ocultar' : 'Mostrar'} ${titles[pane]}`}
-            aria-pressed={visible(pane)}
-            onClick={() => {
-              if (visible(pane)) layout.toggle(pane);
-              else if (narrow || (focused && focused !== pane)) layout.maximize(pane);
-              else layout.toggle(pane);
-            }}
+            className="workspace-reset"
+            onClick={layout.reset}
+            title="Restaurar disposição inicial"
           >
-            {titles[pane]}
+            <RotateCcw size={13} /> Restaurar disposição
           </button>
-        ))}
-        <button
-          className="workspace-reset"
-          onClick={layout.reset}
-          title="Restaurar disposição inicial"
-        >
-          <RotateCcw size={13} /> Restaurar disposição
-        </button>
-      </div>
+        </div>
+      )}
       {layout.error && (
         <p role="status" className="workspace-storage-error">
           {layout.error}

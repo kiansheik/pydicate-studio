@@ -23,6 +23,7 @@ const UI_EVENTS = new Set([
   'pdf.action',
   'ai.action',
   'ui.theme',
+  'ui.tools',
   'ui.resize',
   'ui.error',
   'usage.export',
