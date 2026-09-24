@@ -254,6 +254,20 @@ class CorpusCopyTests(unittest.TestCase):
         self.assertNotIn('primeira nota',self.path.read_text());self.assertEqual(self.path.read_text().count('# @note segunda nota'),1)
         current=next(p for p in self.project['passages'] if p['id']==passage['id']);self.assertEqual(current['notes'],'segunda nota');self.assertEqual(current['translation'],'tradução humana')
 
+    def test_black_only_changes_keep_identity_and_editorial_fingerprint(self):
+        passage = self.passage()
+        original = passage['sourceExpression']
+        formatted = '(\n    ' + original + '\n)'
+        entry = source_entries(self.path)[passage['ordinal'] - 1]
+        text = self.path.read_text()
+        self.path.write_text(text[:entry['start']] + formatted + text[entry['end']:])
+        project = self.adapter.refresh_project()
+        current = next(row for row in project['passages'] if row['id'] == passage['id'])
+        self.assertEqual(current['sourceFingerprint'], passage['sourceFingerprint'])
+        self.assertEqual(current['expressionFingerprint'], passage['expressionFingerprint'])
+        self.assertNotEqual(current['sourceExpression'], original)
+        self.assertNotEqual(current['legacyEditorialFingerprint'], passage['legacyEditorialFingerprint'])
+
     def test_metadata_fingerprint_detects_external_human_edits_but_ignores_machine_pointer(self):
         passage=self.passage();preview=self.adapter.invoke('source_preview',{'passageId':passage['id'],'metadata':{'evidence':{'version':1,'assetId':'abc','passageId':passage['id']}}});self.project=self.adapter.invoke('source_apply',preview)
         current=next(p for p in self.project['passages'] if p['id']==passage['id']);self.assertEqual(current['sourceFingerprint'],passage['sourceFingerprint'])

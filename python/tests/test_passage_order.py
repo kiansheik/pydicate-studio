@@ -38,6 +38,25 @@ class PassageOrderTests(unittest.TestCase):
         self.approve(self.passages()[0]);self.assertEqual(set(read(self.corpus,SOURCE)),{1,3})
         self.approve(self.passages()[1]);self.assertEqual(len(records.read_bytes().splitlines()),3)
         self.assertEqual(json.loads(companion.read_bytes())['records'],[])
+    def test_reapproval_updates_only_selected_legacy_record_and_leaves_other_mismatch_visible(self):
+        for passage in self.passages(): self.approve(passage)
+        records,_=paths(self.corpus,SOURCE)
+        rows=records.read_bytes().splitlines(keepends=True)
+        for index in (0,2):
+            record=json.loads(rows[index]);record['surface']='older reviewed form'
+            rows[index]=(json.dumps(record,ensure_ascii=False)+'\n').encode()
+        records.write_bytes(b''.join(rows))
+        self.project=self.adapter.refresh_project()
+        surface=self.approve(self.passages()[2])
+        after=records.read_bytes().splitlines(keepends=True)
+        self.assertEqual(after[:2],rows[:2])
+        self.assertEqual(json.loads(after[2])['surface'],surface)
+        result=self.adapter.invoke('reference_verify',{'passageId':self.passages()[2]['id']})
+        self.assertFalse(result['ok'])
+        self.assertEqual([failure['ordinal'] for failure in result['sources'][0]['failures']],[1])
+        self.approve(self.passages()[0])
+        self.assertTrue(self.adapter.invoke('reference_verify',{'passageId':self.passages()[0]['id']})['ok'])
+
     def test_insert_before_reviewed_duplicate_preserves_identity_and_reference(self):
         self.approve(self.passages()[0]);self.approve(self.passages()[1]);self.approve(self.passages()[2])
         original=self.passages();identities=[p['id'] for p in original]

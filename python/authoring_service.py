@@ -91,7 +91,8 @@ class AuthoringService:
         context=self.structure_context(params); fingerprint=self.fresh(params)
         raw=params.get('raw')
         if not isinstance(raw,str) or len(raw)>100000: self.error('Expressão ausente ou muito grande.')
-        result=self.child({**context,'raw':raw})
+        if 'includeMorphology' in params and not isinstance(params['includeMorphology'],bool): self.error('A opção de morfologia deve ser booleana.')
+        result=self.child({**context,'raw':raw,**({'includeMorphology':True} if params.get('includeMorphology') else {})})
         self.fresh(params)
         result.pop('structure',None)
         return {'revisionId':params.get('revisionId',''),'engineFingerprint':fingerprint,'expression':raw,'origin':'engine',**result}

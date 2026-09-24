@@ -7,6 +7,11 @@ let shared;
  * The developer distribution already requires esbuild through Vite. */
 function loadSharedAuthoring() {
   if (shared) return shared;
+  const precompiled = path.join(__dirname, 'authoring', 'shared-bundle.cjs');
+  if (process.resourcesPath && !process.defaultApp && require('node:fs').existsSync(precompiled)) {
+    shared = require(precompiled);
+    return shared;
+  }
   const { buildSync } = require('esbuild');
   const filename = path.join(__dirname, 'authoring', 'shared-entry.ts');
   const result = buildSync({

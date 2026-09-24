@@ -30,6 +30,8 @@ export interface Passage {
   sourceExpression: string;
   sourceFingerprint: string;
   legacyExpressionFingerprint?: string;
+  legacyEditorialFingerprint?: string;
+  expressionFingerprint?: string;
   acceptedReference: string | null;
   referenceProvenance: 'legacy' | 'none' | 'example';
   diplomatic: string;
@@ -147,6 +149,9 @@ export interface DraftEnvelope {
   drafts: Record<string, Draft>;
 }
 export interface StudioBridge {
+  setupProject?(): Promise<StudioProject>;
+  installationStatus?(): Promise<InstallationStatus>;
+  openReleasePage?(): Promise<void>;
   copyText?(text: string): Promise<void>;
   recordUsage?(event: Record<string, unknown>): Promise<void>;
   invoke?(method: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -156,6 +161,24 @@ export interface StudioBridge {
   render(request: RenderRequest): Promise<RenderResult>;
   loadDrafts(projectId: string): Promise<DraftEnvelope | null>;
   saveDrafts(envelope: DraftEnvelope): Promise<void | { storageRevision: number }>;
+}
+export interface InstallationStatus {
+  update: {
+    phase: string;
+    currentVersion: string;
+    version?: string;
+    percent?: number;
+    message?: string;
+    canContinue: boolean;
+  };
+  workspace: {
+    directory: string;
+    ready: boolean;
+    busy: boolean;
+    warnings: string[];
+    progress: { phase: string; message: string; percent?: number; repository?: string };
+  };
+  warnings: string[];
 }
 declare global {
   interface Window {

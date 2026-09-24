@@ -163,16 +163,6 @@ const previewUnits = (part: string) =>
     : 1;
 const previewLength = (parts: string[]) => parts.reduce((sum, part) => sum + previewUnits(part), 0);
 
-function previewPrefix(parts: string[], columns: number) {
-  let used = 0;
-  let end = 0;
-  while (end < parts.length && used + previewUnits(parts[end]) <= columns) {
-    used += previewUnits(parts[end]);
-    end++;
-  }
-  return end;
-}
-
 function evaluationDisplay(node: RuntimeNode): string | undefined {
   const result = node.evaluation;
   if (!result) return undefined;
@@ -208,8 +198,8 @@ export interface TreeEvaluationPreview {
   truncated: boolean;
 }
 
-/** Inline forms are limited to two lines; the exact form remains in text for
- * the inspector and SVG title, including a genuine zero-length result. */
+/** Wrap the complete display form, preferring word boundaries and preserving
+ * grapheme clusters in long words. Exact engine whitespace remains in text. */
 export function treeEvaluationPreview(node: RuntimeNode): TreeEvaluationPreview | null {
   const result = node.evaluation;
   const display = evaluationDisplay(node);
@@ -235,37 +225,34 @@ export function treeEvaluationPreview(node: RuntimeNode): TreeEvaluationPreview 
                 ? 'Resultado final'
                 : 'Resultado';
   const columns = Math.max(1, Math.floor((treeNodeWidth(node) - 24) / 8));
-  const remaining = graphemes(display.replace(/\s+/gu, ' ').trim());
+  const parts = graphemes(display.replace(/\s+/gu, ' ').trim());
   const lines: string[] = [];
-  let truncated = false;
-  while (remaining.length && lines.length < 2) {
-    if (previewLength(remaining) <= columns) {
-      lines.push(remaining.join(''));
-      break;
+  let cursor = 0;
+  while (cursor < parts.length) {
+    let end = cursor;
+    let used = 0;
+    while (end < parts.length) {
+      const units = previewUnits(parts[end]);
+      if (end > cursor && used + units > columns) break;
+      used += units;
+      end++;
     }
-    if (lines.length === 1) {
-      lines.push(
-        remaining
-          .slice(0, previewPrefix(remaining, columns - 1))
-          .join('')
-          .trimEnd() + '…',
-      );
-      truncated = true;
-      break;
+    if (end < parts.length) {
+      const space = parts.slice(cursor, end + 1).lastIndexOf(' ');
+      if (space > 0) end = cursor + space;
     }
-    const prefix = previewPrefix(remaining, columns);
-    let end = remaining.slice(0, prefix + 1).lastIndexOf(' ');
-    if (end < 1) end = prefix;
-    lines.push(remaining.splice(0, end).join('').trimEnd());
-    while (remaining[0] === ' ') remaining.shift();
+    lines.push(parts.slice(cursor, end).join('').trimEnd());
+    cursor = end;
+    while (parts[cursor] === ' ') cursor++;
   }
-  return { status: result.status, text, label, lines, truncated };
+  return { status: result.status, text, label, lines, truncated: false };
 }
 
 export function treeNodeHeight(node: RuntimeNode): number {
-  if (!isOperationJunction(node)) return NODE_HEIGHT;
   const preview = treeEvaluationPreview(node);
-  return preview ? (preview.lines.length > 1 ? 148 : 130) : NODE_HEIGHT;
+  if (!preview) return NODE_HEIGHT;
+  const base = isOperationJunction(node) ? 130 : NODE_HEIGHT;
+  return base + Math.max(0, preview.lines.length - 1) * 18;
 }
 
 const COLUMN_GAP = 130;

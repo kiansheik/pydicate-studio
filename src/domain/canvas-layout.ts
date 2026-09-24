@@ -19,23 +19,46 @@ export function layoutCanvasTree(
   const horizontal = layoutRuntimeTree(graph, collapsed);
   if (orientation === 'horizontal') return horizontal;
   const positions = new Map<string, TreePosition>();
-  const rowHeight =
-    Math.max(
-      NODE_HEIGHT,
-      ...[...horizontal.positions.values()].map((position) => treeNodeHeight(position.node)),
-    ) + 115;
-  let cursor = 0;
-  function place(id: string, depth: number): number {
+  // A long output only enlarges its own depth band. Reserve subtree widths
+  // too: a wide operation above a narrow operand must not invade its sibling.
+  const depthHeights = new Map<number, number>();
+  for (const { depth, node } of horizontal.positions.values())
+    depthHeights.set(depth, Math.max(depthHeights.get(depth) ?? NODE_HEIGHT, treeNodeHeight(node)));
+  const depthY = new Map<number, number>([[0, 0]]);
+  for (let depth = 1; depth <= Math.max(...depthHeights.keys()); depth++)
+    depthY.set(depth, depthY.get(depth - 1)! + depthHeights.get(depth - 1)! + 115);
+  const gap = 70;
+  const widths = new Map<string, number>();
+  function measure(id: string): number {
     const original = horizontal.positions.get(id)!;
     const children = collapsed.has(id) ? [] : original.children;
-    const centers = children.map((child) => place(child, depth + 1));
-    const width = treeNodeWidth(original.node);
-    const center = centers.length ? (centers[0] + centers.at(-1)!) / 2 : cursor + width / 2;
-    if (!centers.length) cursor += width + 70;
-    positions.set(id, { ...original, x: center - width / 2, y: depth * rowHeight });
-    return center;
+    const childWidth =
+      children.reduce((sum, child) => sum + measure(child), 0) +
+      Math.max(0, children.length - 1) * gap;
+    const width = Math.max(treeNodeWidth(original.node), childWidth);
+    widths.set(id, width);
+    return width;
   }
-  place(graph.rootId, 0);
+  function place(id: string, depth: number, left: number) {
+    const original = horizontal.positions.get(id)!;
+    const children = collapsed.has(id) ? [] : original.children;
+    const width = widths.get(id)!;
+    const childWidth =
+      children.reduce((sum, child) => sum + widths.get(child)!, 0) +
+      Math.max(0, children.length - 1) * gap;
+    let childLeft = left + (width - childWidth) / 2;
+    for (const child of children) {
+      place(child, depth + 1, childLeft);
+      childLeft += widths.get(child)! + gap;
+    }
+    positions.set(id, {
+      ...original,
+      x: left + (width - treeNodeWidth(original.node)) / 2,
+      y: depthY.get(depth)!,
+    });
+  }
+  measure(graph.rootId);
+  place(graph.rootId, 0, 0);
   const minimum = Math.min(0, ...[...positions.values()].map((position) => position.x));
   for (const position of positions.values()) position.x -= minimum;
   return {

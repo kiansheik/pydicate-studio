@@ -325,3 +325,26 @@ test('request IDs survive read/export and distinguish lifecycle/error groups acr
   );
   await reopened.close();
 });
+
+// Keep literal renderer event names in sync with the privileged IPC allowlist.
+test('renderer tracking calls use accepted event names, including ground truth approval', async () => {
+  const root = path.resolve(__dirname, '../../src');
+  async function check(directory) {
+    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) await check(file);
+      else if (/\.tsx?$/.test(entry.name) && !entry.name.includes('.test.')) {
+        const source = await fs.readFile(file, 'utf8');
+        for (const match of source.matchAll(/\btrack\(\s*['"]([^'"]+)['"]/g)) {
+          assert.doesNotThrow(() => cleanEvent({ event: match[1] }, true), `${file}: ${match[1]}`);
+        }
+      }
+    }
+  }
+  await check(root);
+  const event = cleanEvent(
+    { event: 'review.status', details: { action: 'approve', source: 'source-review' } },
+    true,
+  );
+  assert.deepEqual(event.details, { action: 'approve', source: 'source-review' });
+});

@@ -220,3 +220,16 @@ gramática e altera seu significado no rascunho. **Definição compartilhada** a
 a revisão da alteração no léxico, incluindo a regressão do corpus. Para entradas
 declaradas na própria fonte, a opção existente é **Deste ponto em diante nesta
 fonte**. Confira os usos e a diferença antes de aceitar.
+
+### Acompanhar morfemas na árvore
+
+Selecione uma peça para destacar seus morfemas nos resultados já mostrados nos
+nós acima dela, até a raiz, e no **Resultado atual** ao lado da referência salva.
+Resultados longos quebram linha e a caixa cresce para mostrar o texto completo.
+Não há painel ou botão adicional; trocar a seleção
+atualiza o estilo do texto depois da preparação inicial.
+
+Ao selecionar uma negação, variante ou outra operação com uma única base, o
+realce mostra só a parte acrescentada ou alterada. Uma operação sem efeito visível
+ou que apenas retira um trecho pode não ter nada para destacar. Correspondências
+ambíguas ficam sem destaque. A análise e o texto dos resultados permanecem intactos.

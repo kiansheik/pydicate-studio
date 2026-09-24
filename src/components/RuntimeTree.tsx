@@ -18,7 +18,6 @@ import {
   initialRuntimeOverview,
   layoutRuntimeTree,
   NODE_HEIGHT,
-  NODE_WIDTH,
   runtimeHierarchy,
   searchRuntimeTree,
   runtimeProjection,
@@ -44,6 +43,7 @@ import { ExpressionCanvas } from './ExpressionCanvas';
 import type { CanvasEdit, CanvasState } from '../domain/canvas';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type { EvaluationFailure } from '../domain/authoring';
+import type { MorphemeSurfaceHighlight } from '../domain/morpheme-display';
 
 interface TreeEditingProps {
   onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
@@ -64,6 +64,7 @@ interface TreeEditingProps {
   canRedo?: boolean;
   onInspectLexeme?: (name: string) => void;
   onAskAI?: (sourceNodeId: string) => void;
+  onSurfaceHighlight?: (highlight: MorphemeSurfaceHighlight | null) => void;
 }
 
 function compact(text: string, length = 31) {
@@ -976,11 +977,14 @@ function TreeCanvas({
                     <>
                       <rect
                         className="runtime-node-body"
-                        width={NODE_WIDTH}
-                        height={NODE_HEIGHT}
+                        width={nodeWidth}
+                        height={treeNodeHeight(current)}
                         rx={12}
                       />
-                      <path className="runtime-node-accent" d={`M 1 18 L 1 ${NODE_HEIGHT - 18}`} />
+                      <path
+                        className="runtime-node-accent"
+                        d={`M 1 18 L 1 ${treeNodeHeight(current) - 18}`}
+                      />
                       <text className="runtime-node-type" x={15} y={21}>
                         {current.runtimeType.toLocaleUpperCase('pt')}
                       </text>
@@ -1001,16 +1005,20 @@ function TreeCanvas({
                         x={15}
                         y={86}
                       >
-                        {compact(
-                          evaluation
-                            ? `${evaluation.status === 'unavailable' ? '' : '→ '}${evaluation.status === 'unavailable' ? 'Avaliação indisponível' : evaluation.text || evaluation.lines.join(' ')}`
-                            : sourceTree
-                              ? current.attributes.runtimeType
-                                ? `Motor → ${current.attributes.runtimeType}`
-                                : 'Expressão preservada'
-                              : flagText(current),
-                          35,
-                        )}
+                        {evaluation
+                          ? evaluation.lines.map((line, index) => (
+                              <tspan key={index} x={15} dy={index ? 18 : 0}>
+                                {line}
+                              </tspan>
+                            ))
+                          : compact(
+                              sourceTree
+                                ? current.attributes.runtimeType
+                                  ? `Motor → ${current.attributes.runtimeType}`
+                                  : 'Expressão preservada'
+                                : flagText(current),
+                              35,
+                            )}
                       </text>
                     </>
                   )}

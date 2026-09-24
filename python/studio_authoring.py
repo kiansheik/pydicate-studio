@@ -118,6 +118,15 @@ def parse_ast(raw):
     return parsed
 
 
+def expression_fingerprint(raw):
+    """Compare syntax, not Black's layout; retain literal values and human comments."""
+    tree = parse_ast(raw)
+    comments = [token.string.rstrip() for token in tokenize.generate_tokens(io.StringIO('(' + raw + '\n)').readline)
+                if token.type == tokenize.COMMENT]
+    value = {'ast': ast.dump(tree, include_attributes=False), 'comments': comments}
+    return 'syntax-v1:' + hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+
 def expression_tree(raw, revision_id=''):
     diagnostics = []
     try:
@@ -172,7 +181,7 @@ def expression_tree(raw, revision_id=''):
             diagnostics.append({'severity': 'warning', 'message': f'{type(node).__name__}: extensão de adaptador necessária.', 'nodeId': identifier})
         return result
     root = visit(parsed, 'root')
-    return {'revisionId': revision_id, 'raw': raw, 'root': root, 'diagnostics': diagnostics, 'capabilities': {'parse': True, 'visual': not diagnostics, 'edit': not diagnostics, 'serialize': True}}
+    return {'expressionFingerprint': expression_fingerprint(raw), 'revisionId': revision_id, 'raw': raw, 'root': root, 'diagnostics': diagnostics, 'capabilities': {'parse': True, 'visual': not diagnostics, 'edit': not diagnostics, 'serialize': True}}
 
 
 def replace_node(raw, node, replacement):

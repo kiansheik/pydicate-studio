@@ -376,10 +376,89 @@ def capture_evaluation(value):
         return {'status': 'unavailable', 'message': 'Não foi possível isolar esta etapa: ' + str(error)[:240]}
 
 
-def finish_evaluation(captured):
-    if 'snapshot' not in captured: return captured
+def _morphology_segments(surface, annotated):
+    """Locate engine morphemes in the displayed form, allowing only spacing.
+
+    Some engine paths omit a word boundary only in annotated mode (for example
+    ``i[POSSESSIVE_PRONOUN:3p]îe[SUBJECT:refl]`` versus ``i îe``). Matching the
+    non-whitespace characters in order gives an exact, unambiguous coordinate
+    map without changing either engine result or guessing lexical changes.
+    Browser coordinates are UTF-16; whitespace itself has no morpheme owner.
+    """
+    tokens = []
+    parts = []
+    length = 0
+    cursor = 0
+
+    def append(text):
+        nonlocal length
+        if '[' in text or ']' in text:
+            raise ValueError('A anotação do motor contém delimitadores que não podem ser alinhados.')
+        for match in re.finditer(r'\S+', text):
+            tokens.append({'start': length + match.start(), 'end': length + match.end(), 'tags': []})
+        parts.append(text)
+        length += len(text)
+
+    for match in re.finditer(r'\[([^\[\]\r\n]+)\]', annotated):
+        append(annotated[cursor:match.start()])
+        if tokens and tokens[-1]['end'] == length:
+            tokens[-1]['tags'].append(match.group(1))
+        cursor = match.end()
+    append(annotated[cursor:])
+    stripped = ''.join(parts)
+    plain_positions = [index for index, char in enumerate(surface) if not char.isspace()]
+    annotated_positions = [index for index, char in enumerate(stripped) if not char.isspace()]
+    if ''.join(stripped[index] for index in annotated_positions) != ''.join(surface[index] for index in plain_positions):
+        raise ValueError('A forma anotada do motor difere do resultado desta etapa; o destaque não pode ser alinhado.')
+    positions = dict(zip(annotated_positions, plain_positions))
+    offsets = [0]
+    for char in surface:
+        offsets.append(offsets[-1] + (2 if ord(char) > 0xFFFF else 1))
+    segments = []
+    for token in tokens:
+        # A display-only space can split a single annotated run. Keep the exact
+        # text and coordinates of each piece instead of highlighting that gap.
+        start = previous = positions[token['start']]
+        for index in range(token['start'] + 1, token['end']):
+            position = positions[index]
+            if position != previous + 1:
+                segments.append({'text': surface[start:previous + 1], 'start': offsets[start],
+                                 'end': offsets[previous + 1], 'tags': list(token['tags'])})
+                start = position
+            previous = position
+        segments.append({'text': surface[start:previous + 1], 'start': offsets[start],
+                         'end': offsets[previous + 1], 'tags': list(token['tags'])})
+    return segments
+
+
+def morphology_evidence(surface, captured=None, annotated=None):
+    """Supplement a rendered step without inferring ownership or changing it.
+
+    The annotation snapshot is separate from the one used for the plain form.
+    Keep the original annotation verbatim, and provide offsets into the exact
+    plain form when the annotation differs only in whitespace.
+    """
     try:
-        return {'status': 'ok', 'surface': str(captured['snapshot'].eval())}
+        if annotated is None:
+            if not captured or 'snapshot' not in captured:
+                return {'morphologyDiagnostic': 'Não foi possível isolar as anotações desta etapa.'}
+            annotated = str(captured['snapshot'].eval(annotated=True))
+        return {'annotated': annotated, 'morphologySegments': _morphology_segments(surface, annotated)}
+    except ValueError as error:
+        return {'morphologyDiagnostic': str(error)[:240]}
+    except Exception as error:
+        return {'morphologyDiagnostic': 'As anotações desta etapa não estão disponíveis: ' + str(error)[:240]}
+
+
+def finish_evaluation(captured, include_morphology=False):
+    if 'snapshot' not in captured: return captured
+    # Capture before plain eval can initialize or mutate the preview's caches.
+    annotation = capture_evaluation(captured['snapshot']) if include_morphology else None
+    try:
+        result = {'status': 'ok', 'surface': str(captured['snapshot'].eval())}
+        if include_morphology:
+            result.update(morphology_evidence(result['surface'], captured=annotation))
+        return result
     except Exception as error:
         return {'status': 'unavailable', 'message': 'Esta etapa isolada não pôde ser realizada: ' + str(error)[:240]}
 
@@ -445,7 +524,7 @@ def interpret(node, namespace, cards=None, identifier='root', evaluations=None):
     return value
 
 
-def _realize_complete(raw, namespace):
+def _realize_complete(raw, namespace, include_morphology=False):
     parsed=expression_tree(raw)
     if not parsed['capabilities']['edit']: raise ValueError('Expressão inválida ou construção ainda não executável.')
     cards={}; evaluations={}; value=interpret(parse_ast(raw),namespace,cards,evaluations=evaluations)
@@ -462,7 +541,9 @@ def _realize_complete(raw, namespace):
     graph = runtime_graph(value,source_nodes=source_nodes)
     def attach(node):
         node.update(cards.get(node['id'],{}))
-        node['evaluation'] = {'status': 'ok', 'surface': surface} if node['id'] == 'root' else finish_evaluation(evaluations[node['id']])
+        node['evaluation'] = {'status': 'ok', 'surface': surface} if node['id'] == 'root' else finish_evaluation(evaluations[node['id']], include_morphology)
+        if node['id'] == 'root' and include_morphology:
+            node['evaluation'].update(morphology_evidence(surface, annotated=annotated))
         if node.get('runtimeType') and node['kind'] in ('binary','comparison','unary'):
             node['label']=f"{node['operator']} · {node['runtimeType']}"
         for child in node['children']: attach(child['node'])
@@ -470,7 +551,7 @@ def _realize_complete(raw, namespace):
     return {'surface':surface,'annotated':annotated,'morphemes':morphemes,'tree':parsed['root'],'runtimeTree':graph,'structure':structure,'structureFingerprint':'sha256:'+hashlib.sha256(json.dumps(structure,sort_keys=True,ensure_ascii=False).encode()).hexdigest(),'diagnostics':parsed['diagnostics'],'evaluationStatus':'complete','failures':[]}
 
 
-def _partial_realization(raw, namespace, original_error):
+def _partial_realization(raw, namespace, original_error, include_morphology=False):
     """Evaluate a supported source tree once, retaining independent branches.
 
     A constructed predicate can fail eval in isolation and still be a valid
@@ -565,8 +646,11 @@ def _partial_realization(raw, namespace, original_error):
         if node['id'] in captures:
             captured = captures[node['id']]
             if 'snapshot' in captured:
+                annotation = capture_evaluation(captured['snapshot']) if include_morphology else None
                 try:
                     node['evaluation'] = {'status': 'ok', 'surface': str(captured['snapshot'].eval())}
+                    if include_morphology:
+                        node['evaluation'].update(morphology_evidence(node['evaluation']['surface'], captured=annotation))
                 except Exception as error:
                     fail(node, 'error', 'evaluation', f'{type(error).__name__}: {error}'[:1200], error=error)
             else:
@@ -584,7 +668,7 @@ def _partial_realization(raw, namespace, original_error):
             'diagnostics': [*parsed['diagnostics'], *[{'severity': 'error' if not failure.get('blockedBy') else 'warning', **failure} for failure in failures]]}
 
 
-def realize(raw, namespace):
+def realize(raw, namespace, include_morphology=False):
     parsed = expression_tree(raw)
     if not parsed['capabilities']['edit']:
         raise ValueError('Expressão inválida ou construção ainda não executável.')
@@ -601,11 +685,11 @@ def realize(raw, namespace):
     except Exception:
         fallback = None
     try:
-        result = _realize_complete(raw, namespace)
+        result = _realize_complete(raw, namespace, include_morphology)
     except Exception as error:
         if fallback is None:
             raise
-        result = _partial_realization(raw, fallback, error)
+        result = _partial_realization(raw, fallback, error, include_morphology)
     try:
         result['definitionContext'] = attach_definition_context(result['tree'], namespace, result.get('runtimeTree'))
     except Exception as error:
@@ -822,7 +906,7 @@ def main():
                 elif payload.get('action') == 'dictionary_predicate':
                     result = dictionary_predicate(payload,namespace)
                 else:
-                    result=lexicon_result(payload,corpus,path,namespace) if payload.get('action') in {'lexicon','lexicon_inspect','lexicon_context'} else realize(payload['raw'],namespace)
+                    result=lexicon_result(payload,corpus,path,namespace) if payload.get('action') in {'lexicon','lexicon_inspect','lexicon_context'} else realize(payload['raw'],namespace,include_morphology=payload.get('includeMorphology') is True)
         print(json.dumps({'result':result},ensure_ascii=False))
     except Exception as error:
         print(json.dumps({'error':{'message':f'{type(error).__name__}: {error}','code':'ENGINE_CONTEXT_ERROR'}},ensure_ascii=False))

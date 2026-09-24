@@ -9,6 +9,7 @@ const {
   net,
   protocol,
   session,
+  shell,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -24,6 +25,9 @@ const { createUsageService } = require('./usage-service.cjs');
 const { installApplicationPermissions } = require('./application-permissions.cjs');
 const { createDictionarySite } = require('./dictionary-site.cjs');
 const { serviceErrorReply } = require('./service-errors.cjs');
+const { configureRuntimeEnvironment } = require('./runtime-environment.cjs');
+const { createManagedProjects } = require('./managed-projects.cjs');
+const { createUpdateService, RELEASE_URL } = require('./update-service.cjs');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'studio', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -39,6 +43,12 @@ const knownProjects = new Set(['example:araujo-0067']);
 let window;
 let worker;
 let activeProject;
+let managedProjects;
+let updates;
+let startupReady = Promise.resolve();
+let managedUpdateChecked = false;
+let managedUpdatePromise;
+let installationWarnings = [];
 const externalRequests = [];
 async function externalAnalysis(argv) {
   const option = (name) => {
@@ -51,6 +61,7 @@ async function externalAnalysis(argv) {
     externalRequests.push(argv);
     return true;
   }
+  await startupReady;
   const responsePath = option('--studio-external-response');
   // CLI responses can only enter the requesting user's private temporary directory.
   if (!responsePath || path.basename(responsePath) !== 'response.json')
@@ -234,6 +245,20 @@ async function duringProjectWrite(action) {
   }
 }
 async function openPath(parentPath, expectedProjectId) {
+  if (!activeProject && !managedUpdateChecked && (await managedProjects?.isManaged(parentPath))) {
+    managedUpdatePromise ??= (async () => {
+      try {
+        const status = await managedProjects.update();
+        installationWarnings = status.warnings;
+      } catch (error) {
+        // A failed network check must not prevent opening an existing local copy.
+        installationWarnings = [error.message];
+      }
+      managedUpdateChecked = true;
+      emit({ type: 'installation-warnings', warnings: installationWarnings });
+    })();
+    await managedUpdatePromise;
+  }
   const candidate = createWorker();
   try {
     const project = validate.project(await candidate.request('open_project', { parentPath }));
@@ -294,9 +319,7 @@ function authorizeProject(projectId) {
 }
 
 function createWorker() {
-  const directory = app.isPackaged
-    ? path.join(process.resourcesPath, 'python')
-    : path.join(applicationDirectory, 'python');
+  const directory = path.join(applicationDirectory, 'python');
   return new PythonWorker({
     script: path.join(directory, 'worker.py'),
     stateDirectory: path.join(app.getPath('userData'), 'projects'),
@@ -319,6 +342,10 @@ function installBridge() {
       verifySender(event);
       if (args.length !== arity) throw new Error('Argumentos inesperados.');
       try {
+        if (
+          !['studio:installation-status', 'studio:release-page', 'studio:usage'].includes(channel)
+        )
+          await startupReady;
         return await callback(...args);
       } catch (error) {
         if (channel !== 'studio:invoke' && channel !== 'studio:usage')
@@ -335,6 +362,24 @@ function installBridge() {
         throw error;
       }
     });
+  handle('studio:installation-status', 0, async () => ({
+    update: updates.status(),
+    workspace: await managedProjects.getStatus(),
+    warnings: installationWarnings,
+  }));
+  handle('studio:release-page', 0, () => shell.openExternal(RELEASE_URL));
+  handle('studio:setup-project', 0, () =>
+    changeProject(async () => {
+      if (nextService.hasWork())
+        throw new Error('Aguarde a tarefa em andamento antes de trocar o projeto.');
+      const status = await managedProjects.setup();
+      // setup already checked the checkout; do not perform a second network operation.
+      managedUpdateChecked = true;
+      const project = await openPath(status.directory);
+      await nextService.saveSession({ parentPath: status.directory });
+      return project;
+    }),
+  );
   handle('studio:open-project', 0, () =>
     changeProject(async () => {
       const selection = await dialog.showOpenDialog(window, {
@@ -530,6 +575,29 @@ if (!app.requestSingleInstanceLock()) {
   app
     .whenReady()
     .then(async () => {
+      const runtime = configureRuntimeEnvironment({
+        isPackaged: app.isPackaged,
+        resourcesPath: process.resourcesPath,
+      });
+      let documents;
+      try {
+        documents = app.getPath('documents');
+      } catch {
+        documents = app.getPath('userData');
+      }
+      managedProjects = createManagedProjects({
+        directory: path.join(documents, 'Pydicate Studio'),
+        gitExecutable: runtime.git,
+        env: runtime.env,
+        onProgress: (progress) => emit({ type: 'managed-project', ...progress }),
+      });
+      updates = createUpdateService({
+        app,
+        updater: app.isPackaged ? require('electron-updater').autoUpdater : undefined,
+        signedMac: require('../package.json').studioUpdate?.macSigned === true,
+        emit,
+      });
+      startupReady = updates.start();
       usage = createUsageService({
         directory: path.join(app.getPath('userData'), 'usage'),
         appVersion: app.getVersion(),
@@ -556,7 +624,15 @@ if (!app.requestSingleInstanceLock()) {
             return project;
           }),
         defaultParent:
-          process.env.PYDICATE_PROJECT_PARENT || path.resolve(applicationDirectory, '..'),
+          process.env.PYDICATE_PROJECT_PARENT ||
+          (app.isPackaged
+            ? path.join(documents, 'Pydicate Studio')
+            : path.resolve(applicationDirectory, '..')),
+        needsSetup: app.isPackaged
+          ? async (parent) =>
+              path.resolve(parent) === path.join(documents, 'Pydicate Studio') &&
+              !(await managedProjects.getStatus()).ready
+          : undefined,
         adoptProject: (project) => {
           activeProject = validate.project(project);
           watchProject(project);
@@ -590,7 +666,11 @@ if (!app.requestSingleInstanceLock()) {
 function showStartupError(error) {
   dialog.showErrorBox(
     'Pydicate Studio não conseguiu abrir',
-    `${error.message}\n\nNo checkout de desenvolvimento, execute npm run desktop; para abrir a versão compilada, execute npm run build e npm start.`,
+    `${error.message}\n\n${
+      app.isPackaged
+        ? 'Reinstale o aplicativo pela página de versões. Seus rascunhos e projetos permanecem neste computador.'
+        : 'No checkout de desenvolvimento, execute npm run desktop; para abrir a versão compilada, execute npm run build e npm start.'
+    }`,
   );
   app.quit();
 }

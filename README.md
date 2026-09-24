@@ -6,7 +6,9 @@ Version 0.2 opens the local `oldtupicorpus` project and Araújo by default. It c
 
 ## Start
 
-Use Node.js 22.12+, npm, Git and Python 3.10+. The selected real engine was tested with CPython 3.14.4; Python is not bundled.
+For the desktop distribution, use the [release page](https://github.com/kiansheik/pydicate-studio/releases/latest) and [installation guide](docs/installing.md). Installers include Python and Git for Apple Silicon/Intel Mac, Windows x64 and Linux x64. **Preparar meu espaço de trabalho** downloads managed copies of the corpus and grammar from `main`; choosing an existing workspace remains available. The initial unsigned Mac preview uses manual application updates until Developer ID signing is configured.
+
+To work on Studio itself, use Node.js 22.12+, npm, Git and Python 3.10+. The bundled distribution uses CPython 3.13.15; development checkouts can still select their own interpreter.
 
 ```sh
 npm ci
@@ -25,7 +27,7 @@ workspace/
 
 Set `PYDICATE_PROJECT_PARENT` to another parent directory and `PYDICATE_PYTHON` to a prepared interpreter if needed. **Abrir projeto** also selects a parent directory. The chosen project and passage are remembered. To run the production bundle, use `npm run build` followed by `npm start`.
 
-This milestone depends on actual uncommitted corpus/engine modifications. A HEAD alone is insufficient. The original baseline is historical; the current audit records newer daily edits. The  [dependency instructions](docs/design/dependencies.md), the [file manifest](docs/design/next-baseline.json), and [binary patches](docs/design/dependency-patches/) record the tested state. Studio reports missing dependencies and fingerprint changes; it does not silently update neighboring repositories. `npm run doctor` checks this baseline without changing those repositories.
+Earlier audits used uncommitted corpus/engine modifications. The [dependency instructions](docs/design/dependencies.md), [file manifest](docs/design/next-baseline.json), and [binary patches](docs/design/dependency-patches/) preserve that historical development baseline. Fresh remote `main` copies also pass core opening/evaluation checks with the bundled runtime. Managed workspaces update clean `main` branches at startup; existing contributor folders and edited managed repositories are preserved. `npm run doctor` checks the historical baseline without changing repositories.
 
 ## Daily workflow
 
@@ -117,4 +119,4 @@ npm run eval:authoring:build
 
 Evidence: [native workflows](docs/coverage/native-workflows.json), [actual Navarro queries](docs/coverage/navarro-queries.json), [three independent reviews](docs/reviews/), and [current verified state](docs/agent/current-state.md). Full runtime comparisons do not prove linguistic correctness; review claims use these separate measures.
 
-`npm run dev` opens the browser-only example. Local Python, corpus writes, managed PDF storage and provider connections require Electron. This is a developer-run application: no installer or bundled Python runtime is supplied. Start code exploration with [the agent guide](docs/agent/index.md), [desktop contract](electron/README.md), and [Python contract](python/README.md).
+`npm run dev` opens the browser-only example. Local Python, corpus writes, managed PDF storage and provider connections require Electron. `npm run dist` builds a native installer with its runtime into `release/`, without publishing. The release workflow builds all four targets from `main` and publishes only after all builds succeed. See the [release guide](docs/installing.md) for signing and current platform validation limits. Start code exploration with [the agent guide](docs/agent/index.md), [desktop contract](electron/README.md), and [Python contract](python/README.md).

@@ -53,7 +53,7 @@ else:
  elif payload['method']=='predicate_catalog': result=predicate_catalog(namespace)
  elif payload['method']=='predicate_create': result=predicate_create(payload,namespace)
  else:
-  realized=realize(raw,namespace) if parsed['root'] else None
+  realized=realize(raw,namespace,include_morphology=payload.get('includeMorphology') is True) if parsed['root'] else None
   result=({'raw':raw,'root':parsed['root'],'evaluatedRoot':realized['tree'] if realized else None,'failures':realized['failures'] if realized else []} if payload['method']=='fixture' else {**realized,'expression':raw,'revisionId':payload.get('revisionId','fixture'),'engineFingerprint':'canvas-fixture-engine','origin':'engine'})
 print(json.dumps(result,ensure_ascii=False))`;
 
@@ -71,6 +71,7 @@ async function openCanvas(
   raw: string,
   canvas: CanvasState = { fragments: [], positions: {} },
   dictionary = false,
+  beforeOpen?: () => Promise<void>,
 ) {
   const requests: { method: string; params: Record<string, unknown> }[] = [];
   await page.route('**/__canvas_rpc', async (route) => {
@@ -126,6 +127,7 @@ async function openCanvas(
     },
     { ...run('fixture', { raw }), canvas } as CanvasFixture,
   );
+  await beforeOpen?.();
   await page.goto('/tests/canvas-harness.html');
   await ready(page);
   return requests;
@@ -1985,4 +1987,339 @@ test('a delayed reference meaning edit cannot overwrite a different passage', as
   release!();
   await expect(page.locator('#canvas-ready')).toHaveText('ready');
   await expect(page.locator('#canvas-raw')).toHaveText('risetoheaven');
+});
+
+test('automatic morpheme tracing follows selection in existing ancestor result boxes without extra controls', async ({
+  page,
+}, testInfo) => {
+  const requests = await openCanvas(page, 'og * (emi * tym)');
+  await expect(page.getByRole('button', { name: 'Rastrear morfemas · experimental' })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole('region', { name: 'Rastreamento de morfemas' })).toHaveCount(0);
+  await page
+    .locator('.canvas-view-options')
+    .getByRole('button', { name: 'Expandir tudo', exact: true })
+    .click();
+  await node(page, 'main:root/right/right').click();
+  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText('tym');
+  await expect(card(page, 'main:root/right').locator('[data-morpheme-highlight]')).toHaveText(
+    'tym',
+  );
+  await expect(card(page, 'main:root/left').locator('[data-morpheme-highlight]')).toHaveCount(0);
+  const raw = await page.locator('#canvas-raw').textContent();
+  const evidenceRequests = requests.filter((request) => request.params.includeMorphology).length;
+  expect(evidenceRequests).toBeGreaterThan(0);
+  await node(page, 'main:root/right/left').click();
+  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText('emi');
+  await expect(card(page, 'main:root/right').locator('[data-morpheme-highlight]')).toHaveText(
+    'emi',
+  );
+  await expect(
+    card(page, 'main:root/right/right').locator('[data-morpheme-highlight]'),
+  ).toHaveCount(0);
+  expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(
+    evidenceRequests,
+  );
+  await expect(page.locator('#canvas-raw')).toHaveText(raw!);
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  await svg(page).screenshot({ path: testInfo.outputPath('morpheme-trace.png') });
+});
+
+test('selecting negation highlights only its affixes while a silent variant highlights nothing', async ({
+  page,
+}) => {
+  await openCanvas(page, '-(oré * tym)');
+  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText(['n', 'i']);
+  await expect(card(page, 'main:root/operand').locator('[data-morpheme-highlight]')).toHaveCount(0);
+  await page.evaluate(() => window.canvasReplaceRaw('(oré * tym).var(1)'));
+  await expect(page.locator('#canvas-ready')).toHaveText('ready');
+  await expect(card(page, 'main:root')).toHaveAttribute('data-morpheme-trace', 'none');
+  await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Rastreamento de morfemas' })).toHaveCount(0);
+});
+
+test('morpheme tracing clears stale highlights when the draft changes during evaluation', async ({
+  page,
+}) => {
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requested = false;
+  await openCanvas(page, 'og * (emi * tym)', undefined, false, async () => {
+    await page.route('**/__canvas_rpc', async (route) => {
+      const request = route.request().postDataJSON();
+      if (!request.params.includeMorphology || request.params.raw !== 'og * (emi * tym)')
+        return route.fallback();
+      requested = true;
+      const result = run(request.method, request.params);
+      await held;
+      await route.fulfill({ json: result });
+    });
+  });
+  await expect.poll(() => requested).toBe(true);
+  await page
+    .locator('.canvas-view-options')
+    .getByRole('button', { name: 'Expandir tudo', exact: true })
+    .click();
+  await node(page, 'main:root/right/right').click();
+  await page.evaluate(() => window.canvasReplaceRaw('(oré * tym).var(1)'));
+  await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
+  await expect(card(page, 'main:root')).toHaveAttribute('data-morpheme-trace', 'none');
+  const staleResponse = page.waitForResponse((response) => {
+    if (!response.url().endsWith('/__canvas_rpc')) return false;
+    const request = response.request().postDataJSON();
+    return request.params.includeMorphology && request.params.raw === 'og * (emi * tym)';
+  });
+  release!();
+  await staleResponse;
+  await expect(card(page, 'main:root')).toHaveAttribute('data-morpheme-trace', 'none');
+  await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
+  await expect(page.locator('#canvas-raw')).toHaveText('(oré * tym).var(1)');
+});
+
+test('variant highlighting follows only the changed surface into the containing verb and nominal form', async ({
+  page,
+}, testInfo) => {
+  await openCanvas(page, '(tym * îe.var(1)).base_nominal()');
+  await page
+    .locator('.canvas-view-options')
+    .getByRole('button', { name: 'Expandir tudo', exact: true })
+    .click();
+  await node(page, 'main:root/receiver/right').click();
+  await expect(card(page, 'main:root').locator('.runtime-result-text')).toHaveText('onhetyma');
+  for (const key of ['main:root/receiver/right', 'main:root/receiver', 'main:root'])
+    await expect(card(page, key).locator('[data-morpheme-highlight]')).toHaveText('nh');
+  await svg(page).screenshot({ path: testInfo.outputPath('variant-morpheme-tree.png') });
+});
+
+test('Araújo 60 constituent highlighting survives annotation whitespace differences in existing ancestor outputs', async ({
+  page,
+}, testInfo) => {
+  const raw = 'arobiar * ((abé.var(1) * risetoheaven) * rightsidegod)';
+  const evidence = run('evaluate_expression', { raw, includeMorphology: true });
+  expect(evidence.tree.evaluation.annotated.replace(/\[[^\]]+\]/g, '')).not.toBe(evidence.surface);
+  expect(evidence.tree.evaluation.surface).toContain('ybakype i îeupiragûera');
+  const requests = await openCanvas(page, raw);
+  await page
+    .locator('.canvas-view-options')
+    .getByRole('button', { name: 'Expandir tudo', exact: true })
+    .click();
+  await ready(page);
+  await node(page, 'main:root/right/left/right').click();
+  for (const key of [
+    'main:root/right/left/right',
+    'main:root/right/left',
+    'main:root/right',
+    'main:root',
+  ]) {
+    await expect(card(page, key)).toHaveAttribute('data-morpheme-trace', 'highlighted');
+    await expect(card(page, key).locator('[data-morpheme-highlight]')).toHaveText([
+      'ybakype',
+      'i',
+      'îeupiragûera',
+    ]);
+  }
+  await expect(
+    card(page, 'main:root/right/right').locator('[data-morpheme-highlight]'),
+  ).toHaveCount(0);
+  const evidenceRequests = requests.filter((request) => request.params.includeMorphology).length;
+  await svg(page).screenshot({ path: testInfo.outputPath('araujo60-morpheme-tree.png') });
+  await node(page, 'main:root/right/right').click();
+  for (const key of ['main:root/right/right', 'main:root/right', 'main:root'])
+    await expect(card(page, key)).toHaveAttribute('data-morpheme-trace', 'highlighted');
+  await expect(card(page, 'main:root/right/right').locator('[data-morpheme-highlight]')).toHaveText(
+    ['Tupã', 'tuba', "'ekatûaba", 'koty', 'sena'],
+  );
+  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]').first()).toHaveText(
+    'Tupã',
+  );
+  await expect(card(page, 'main:root/right/left').locator('[data-morpheme-highlight]')).toHaveCount(
+    0,
+  );
+  await node(page, 'main:root/left').click();
+  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText('arobîar');
+  await expect(card(page, 'main:root/right').locator('[data-morpheme-highlight]')).toHaveCount(0);
+  expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(
+    evidenceRequests,
+  );
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  await expect(page.getByRole('region', { name: 'Rastreamento de morfemas' })).toHaveCount(0);
+});
+
+for (const orientation of ['bottom-up', 'horizontal'] as const) {
+  test(`long root, intermediate and reference outputs wrap completely without overlap in ${orientation} layout`, async ({
+    page,
+  }, testInfo) => {
+    const raw = '(arobiar * ((abé.var(1) * risetoheaven) * rightsidegod)) + bondadenomundo';
+    const evaluated = run('fixture', { raw }).evaluatedRoot as AuthorNode;
+    await openCanvas(page, raw, { layout: orientation, fragments: [], positions: {} });
+    await page
+      .locator('.canvas-view-options')
+      .getByRole('button', { name: 'Expandir tudo', exact: true })
+      .click();
+    await ready(page);
+    for (const id of ['root', 'root/left', 'root/right']) {
+      const expected = flattenNodes(evaluated).find((item) => item.id === id)!.evaluation!;
+      expect(expected.status).toBe('ok');
+      if (expected.status !== 'ok') throw new Error('Expected complete real-engine fixture');
+      const output = card(page, `main:${id}`).locator('.runtime-result-text, .runtime-leaf-result');
+      const lines = output.locator(':scope > tspan');
+      expect((await lines.allTextContents()).join(' ')).toBe(expected.surface);
+      expect(await lines.count()).toBeGreaterThan(2);
+      expect(await output.textContent()).not.toContain('…');
+      const bounds = await card(page, `main:${id}`).evaluate((element) => {
+        const text = element
+          .querySelector<SVGGraphicsElement>('.runtime-result-text, .runtime-leaf-result')!
+          .getBBox();
+        const rect = element.querySelector<SVGGraphicsElement>(
+          '.runtime-result-background, .runtime-node-body',
+        )!;
+        const background =
+          element.querySelector<SVGGraphicsElement>('.runtime-result-background') ?? rect;
+        const box = background.getBBox();
+        return {
+          text: { x: text.x, y: text.y, right: text.x + text.width, bottom: text.y + text.height },
+          box: { x: box.x, y: box.y, right: box.x + box.width, bottom: box.y + box.height },
+        };
+      });
+      expect(bounds.text.x).toBeGreaterThanOrEqual(bounds.box.x);
+      expect(bounds.text.y).toBeGreaterThanOrEqual(bounds.box.y);
+      expect(bounds.text.right).toBeLessThanOrEqual(bounds.box.right);
+      expect(bounds.text.bottom).toBeLessThanOrEqual(bounds.box.bottom);
+    }
+    const boxes = await svg(page)
+      .locator('[data-canvas-key] > [aria-pressed]')
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            id: element.parentElement!.getAttribute('data-canvas-key'),
+            x: rect.x,
+            y: rect.y,
+            right: rect.right,
+            bottom: rect.bottom,
+          };
+        }),
+      );
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i],
+          b = boxes[j];
+        expect(
+          a.right <= b.x + 0.5 ||
+            b.right <= a.x + 0.5 ||
+            a.bottom <= b.y + 0.5 ||
+            b.bottom <= a.y + 0.5,
+          `${a.id} overlaps ${b.id}`,
+        ).toBe(true);
+      }
+    await expect(page.locator('#canvas-raw')).toHaveText(raw);
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+    await svg(page).screenshot({
+      path: testInfo.outputPath(`complete-node-results-${orientation}.png`),
+    });
+  });
+}
+
+test('the actual workspace highlights RESULTADO ATUAL from selected tree nodes without marking the saved reference', async ({
+  page,
+}, testInfo) => {
+  const raw = 'arobiar * ((abé.var(1) * risetoheaven) * rightsidegod)';
+  const snapshots = Object.fromEntries(
+    [raw, 'risetoheaven'].map((expression) => [
+      expression,
+      run('evaluate_expression', { raw: expression, includeMorphology: true }),
+    ]),
+  );
+  await page.setViewportSize({ width: 1800, height: 1200 });
+  await page.addInitScript(
+    ({ raw, snapshots }) => {
+      Object.defineProperty(window, '__nextControl', {
+        configurable: true,
+        set(control: typeof window.__nextControl) {
+          control.project.passages[0].sourceExpression = raw;
+          control.project.passages[0].acceptedReference = snapshots[raw].surface;
+          for (const [expression, result] of Object.entries(snapshots))
+            control.trees[expression] = result.tree;
+          Object.defineProperty(window, '__nextControl', { configurable: true, value: control });
+        },
+      });
+      let bridge: StudioBridge;
+      Object.defineProperty(window, 'studio', {
+        configurable: true,
+        get: () => bridge,
+        set(value: StudioBridge) {
+          bridge = {
+            ...value,
+            invoke: async (method: string, params: Record<string, unknown> = {}) => {
+              const response = await value.invoke!(method, params);
+              const snapshot = snapshots[String(params.raw)];
+              return method === 'evaluate_expression' && snapshot
+                ? {
+                    ...structuredClone(snapshot),
+                    expression: params.raw,
+                    revisionId: params.revisionId,
+                    engineFingerprint: params.engineFingerprint,
+                    origin: 'engine',
+                  }
+                : response;
+            },
+          } as StudioBridge;
+        },
+      });
+    },
+    { raw, snapshots },
+  );
+  await page.goto('/tests/next-hook-harness.html?workspace');
+  const output = page.getByTestId('generated-surface');
+  await expect(output).toHaveText(snapshots[raw].surface);
+  await page.getByRole('button', { name: 'Comparar referência', exact: true }).click();
+  await expect(page.getByTestId('reference-surface')).toHaveText(snapshots[raw].surface);
+  await page
+    .locator('.canvas-view-options')
+    .getByRole('button', { name: 'Expandir tudo', exact: true })
+    .click();
+  await page
+    .locator('.expression-canvas > .canvas-toolbar')
+    .getByRole('button', { name: 'Ajustar', exact: true })
+    .click();
+  await node(page, 'main:root/right/left/right').click();
+  await expect(output.locator('mark')).toHaveText(['ybakype', 'i', 'îeupiragûera']);
+  await expect(page.getByTestId('reference-surface').locator('mark')).toHaveCount(0);
+  const before = await page.evaluate(
+    () =>
+      window.__nextControl.requests.filter((request) => request.params.includeMorphology).length,
+  );
+  await node(page, 'main:root/right/right').click();
+  await expect(output.locator('mark')).toHaveText(['Tupã', 'tuba', "'ekatûaba", 'koty', 'sena']);
+  expect(
+    await page.evaluate(
+      () =>
+        window.__nextControl.requests.filter((request) => request.params.includeMorphology).length,
+    ),
+  ).toBe(before);
+  await expect(page.getByTestId('reference-surface').locator('mark')).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath('workspace-selected-result.png'),
+    fullPage: true,
+  });
+  await menu(page, 'main:root/right/left/right', /Duplicar trecho/);
+  const loose = svg(page).locator(
+    '[data-piece-id]:not([data-piece-id="main"]) > [aria-pressed="true"]',
+  );
+  await expect(loose).toHaveCount(1);
+  await expect(output).toHaveText(snapshots[raw].surface);
+  await expect(output.locator('mark')).toHaveCount(0);
+  await node(page, 'main:root/right/left/right').click();
+  await expect(output.locator('mark')).toHaveText(['ybakype', 'i', 'îeupiragûera']);
+  await page.getByRole('tab', { name: 'Código', exact: true }).click();
+  await expect(output.locator('mark')).toHaveCount(0);
+  await expect(page.getByLabel('Pydicate editável', { exact: true })).toHaveValue(raw);
+  await page.getByLabel('Pydicate editável', { exact: true }).fill('risetoheaven');
+  await expect(output).toHaveText(snapshots.risetoheaven.surface);
+  await expect(output.locator('mark')).toHaveCount(0);
+  await expect(page.getByTestId('reference-surface')).toHaveText(snapshots[raw].surface);
 });

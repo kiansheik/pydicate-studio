@@ -717,3 +717,49 @@ test('failed retry cannot leave a previous successful result looking current', a
   await expect(page.getByTestId('diagnostic')).toContainText('SIMULATED_ENGINE_FAILURE');
   await expect(page.getByTestId('surface')).toBeEmpty();
 });
+
+test('formatting-only refresh reconciles an older draft without changing its text or loose pieces', async ({
+  page,
+}) => {
+  await ready(page);
+  await page.evaluate(() => {
+    const invoke = window.studio!.invoke!;
+    window.studio!.invoke = async (method, params) => {
+      const result = await invoke(method, params);
+      return method === 'parse_expression'
+        ? {
+            ...(result as object),
+            expressionFingerprint: params?.raw === 'alpha' ? 'syntax-alpha' : 'different-syntax',
+          }
+        : result;
+    };
+    window.__nextStudio.edit({
+      canvas: { fragments: [{ id: 'loose', raw: 'beta', x: 50, y: 50 }], positions: {} },
+    });
+  });
+  const before = await page.evaluate(() => structuredClone(window.__nextStudio.draft!));
+  await page.evaluate(() => {
+    const next = structuredClone(window.__nextControl.project);
+    next.engineFingerprint = 'simulated-engine:formatted';
+    next.passages[0].sourceExpression = '(\n  ((alpha))\n)';
+    next.passages[0].sourceFingerprint = 'canonical-source';
+    next.passages[0].expressionFingerprint = 'syntax-alpha';
+    window.__nextControl.project = next;
+    window.__nextControl.emit({ type: 'source-change', projectId: next.id });
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__nextStudio.draft?.sourceFingerprint))
+    .toBe('canonical-source');
+  await expect(page.getByTestId('conflict')).toHaveText('false');
+  expect(await page.evaluate(() => window.__nextStudio.draft)).toEqual({
+    ...before,
+    sourceFingerprint: 'canonical-source',
+  });
+  expect(
+    await page.evaluate(() =>
+      window.__nextControl.requests.filter((item) =>
+        ['source_apply', 'reference_approve'].includes(item.method),
+      ),
+    ),
+  ).toEqual([]);
+});

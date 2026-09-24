@@ -253,6 +253,9 @@ class IdentityRegistry:
     def reconcile(self, source, fingerprints, entries):
         previous = self.sources.get(source, [])
         if not isinstance(previous, list) or not all(isinstance(item, dict) and isinstance(item.get('fingerprint'), str) and isinstance(item.get('id'), str) for item in previous): return {}
+        if previous and all(item.get('syntaxFingerprint') for item in previous):
+            fingerprints = [entry['syntaxFingerprint'] for entry in entries]
+            previous = [{**item, 'fingerprint':item['syntaxFingerprint']} for item in previous]
         old = [item['fingerprint'] for item in previous]
         # Source-only comments or lexical definitions can change without any
         # expression edit. Preserve the whole sequence, including duplicates.
@@ -388,6 +391,8 @@ class ProjectAdapter:
                 diagnostics.append(f"{path.name}: leitura indisponível ({exc}). Outros documentos continuam disponíveis.")
                 continue
             file_hash = digest(path.read_bytes())
+            from studio_authoring import expression_fingerprint
+            for entry in entries: entry['syntaxFingerprint'] = expression_fingerprint(entry['expression'])
             fingerprints = [digest(entry["expression"].encode()) for entry in entries]
             reconciled_ids = registry.reconcile(source, fingerprints, entries)
             source_identities = []
@@ -402,7 +407,7 @@ class ProjectAdapter:
                     diagnostics.append(f"{source}:{ordinal}: identidade explícita duplicada; novo vínculo provisório requer conciliação.")
                     studio_identity = None
                 identifier = studio_identity if isinstance(studio_identity, str) and studio_identity.startswith('passage:') else reconciled_ids.get(ordinal - 1) or registry.identifier(f"{source}:{fingerprint}{duplicate}")
-                source_identities.append({'fingerprint': fingerprint, 'id': identifier, 'context': entry.get('commentBlock', '')})
+                source_identities.append({'syntaxFingerprint':entry['syntaxFingerprint'], 'fingerprint': fingerprint, 'id': identifier, 'context': entry.get('commentBlock', '')})
                 record = records.get(ordinal, {})
                 if record.get("studio_passage_id", identifier) != identifier:
                     diagnostics.append(f"{source}:{ordinal}: referência de outra identidade preservada sem reassociação.")
@@ -447,10 +452,13 @@ class ProjectAdapter:
                     from studio_authoring import validate_translations
                     translations = validate_translations(translations)
                     relevant_metadata['translations'] = translations
-                editorial_fingerprint = digest(json.dumps({'expression':entry['expression'],'metadata':relevant_metadata},ensure_ascii=False,sort_keys=True).encode('utf-8'))
+                legacy_editorial_fingerprint = digest(json.dumps({'expression':entry['expression'],'metadata':relevant_metadata},ensure_ascii=False,sort_keys=True).encode('utf-8'))
+                editorial_fingerprint = digest(json.dumps({'expression':entry['syntaxFingerprint'],'metadata':relevant_metadata},ensure_ascii=False,sort_keys=True).encode('utf-8'))
                 passages.append({"id": identifier, "legacyId": f"{source}:{ordinal:04d}", "sourceId": source,
                     "ordinal": ordinal, "sourceLine": entry["statementLine"], "sourceEndLine": entry["endLine"], "sourceFileFingerprint": "sha256:" + file_hash, "sourceMetadata": source_metadata, "studioMetadata": entry.get("studio"), "title": f"{title} · {ordinal:04d}", "sourceExpression": entry["expression"],
                     "sourceFingerprint": "sha256:" + editorial_fingerprint,
+                    "legacyEditorialFingerprint": "sha256:" + legacy_editorial_fingerprint,
+                    "expressionFingerprint": entry["syntaxFingerprint"],
                     "legacyExpressionFingerprint": "sha256:" + hashlib.sha256(entry['expression'].encode()).hexdigest(), "acceptedReference": saved,
                     "referenceProvenance": "legacy" if saved is not None else "none",
                     "diplomatic": scholarly_field("diplomatic","diplomatic"), "normalized": scholarly_field("normalized_target","target"),

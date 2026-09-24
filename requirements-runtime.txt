@@ -1,0 +1,11 @@
+# The Studio worker, authoring adapter, Pydicate and Tupi morphology currently
+# use only Python's standard library. Their source remains in the selected
+# project; do not install a second engine copy into the bundled interpreter.
+#
+# Keep this build-time requirements file separate from nhe-enga's document,
+# image and notebook tools. The optional, unimplemented neural-proposer recipe
+# is not a desktop runtime dependency.
+#
+# Any future third-party requirement must pin its version and all supported
+# wheel hashes: prepare-runtime installs this file with --require-hashes and
+# --only-binary=:all:, without consulting user pip configuration.

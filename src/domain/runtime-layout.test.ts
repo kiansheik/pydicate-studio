@@ -143,7 +143,7 @@ describe('operation connection layout', () => {
     const root = graph.nodes[0];
     expect(treeNodeWidth(root)).toBe(300);
     expect(treeNodeWidth(graph.nodes[1])).toBe(230);
-    expect(treeNodeHeight(root)).toBe(148);
+    expect(treeNodeHeight(root)).toBe(166);
     expect(treeEvaluationPreview(root)).toMatchObject({
       label: 'Resultado final',
       text: root.evaluation!.status === 'ok' ? root.evaluation!.surface : '',
@@ -201,25 +201,48 @@ describe('operation connection layout', () => {
     });
   });
 
-  it('wraps long results on words, clips explicitly and preserves Unicode graphemes', () => {
+  it('wraps complete long results on words and preserves Unicode graphemes', () => {
     const operation = node('step', 'binary', '*');
     operation.evaluation = {
       status: 'ok',
       surface: 'xero pe ore pytuna Tupã potaba meenga arakatupe mundo inteiro',
     };
     const preview = treeEvaluationPreview(operation)!;
-    expect(preview.lines).toEqual(['xero pe ore pytuna Tupã', 'potaba meenga arakatupe…']);
-    expect(preview.truncated).toBe(true);
+    expect(preview.lines).toEqual([
+      'xero pe ore pytuna Tupã',
+      'potaba meenga arakatupe',
+      'mundo inteiro',
+    ]);
+    expect(preview.truncated).toBe(false);
     expect(preview.text).toBe(operation.evaluation.surface);
     operation.evaluation.surface = 'ã'.repeat(60);
     const combining = treeEvaluationPreview(operation)!;
     expect(combining.lines[0]).toBe('ã'.repeat(25));
-    expect(combining.lines[1]).toBe('ã'.repeat(24) + '…');
+    expect(combining.lines).toEqual(['ã'.repeat(25), 'ã'.repeat(25), 'ã'.repeat(10)]);
+    expect(combining.lines.join('')).toBe(operation.evaluation.surface);
     operation.evaluation.surface = '🌿'.repeat(60);
     const emoji = treeEvaluationPreview(operation)!;
     expect(emoji.lines[0]).toBe('🌿'.repeat(12));
-    expect(emoji.lines[1]).toBe('🌿'.repeat(12) + '…');
+    expect(emoji.lines).toEqual(Array(5).fill('🌿'.repeat(12)));
+    expect(emoji.lines.join('')).toBe(operation.evaluation.surface);
     expect(emoji.text).toBe(operation.evaluation.surface);
+  });
+
+  it('expands every long result, including reference leaves and a root without an operation', () => {
+    const surface = Array(12).fill('arobîar ybakype i îeupiragûera Tupã tuba').join(' ');
+    for (const kind of ['reference', 'literal', 'binary', 'method']) {
+      const item = node('step', kind);
+      item.evaluation = { status: 'ok', surface };
+      item.expression!.isRoot = true;
+      const preview = treeEvaluationPreview(item)!;
+      expect(preview.lines.length).toBeGreaterThan(10);
+      expect(preview.lines.join(' ')).toBe(surface);
+      expect(preview.truncated).toBe(false);
+      expect(treeNodeHeight(item)).toBe(
+        (isOperationJunction(item) ? 130 : NODE_HEIGHT) + (preview.lines.length - 1) * 18,
+      );
+      expect(treeNodeWidth(item)).toBeLessThanOrEqual(300);
+    }
   });
 
   it('shows the engine error at its own step and distinguishes dependent or empty steps', () => {

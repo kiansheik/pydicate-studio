@@ -7,10 +7,17 @@ import {
   isCurrentRender,
   readBrowserDrafts,
   restoreDraft,
+  samePassageReading,
   updateDraft,
   writeBrowserDrafts,
 } from './domain/model';
-import type { Draft, DraftEnvelope, RenderResult, StudioProject } from './domain/types';
+import type {
+  Draft,
+  DraftEnvelope,
+  InstallationStatus,
+  RenderResult,
+  StudioProject,
+} from './domain/types';
 import { flushEdits, setUsageContext, track, trackEdit } from './domain/usage';
 import { registerStructureContext, structureDrafts } from './domain/structure-drafts';
 import { editCanvas, emptyCanvas } from './domain/canvas';
@@ -31,6 +38,12 @@ export interface SourceApplyOutcome {
 }
 
 export function useStudio() {
+  const [installation, setInstallation] = useState<InstallationStatus | null>(null);
+  const [starting, setStarting] = useState(!!window.studio?.installationStatus);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [setupProgress, setSetupProgress] = useState<
+    InstallationStatus['workspace']['progress'] | null
+  >(null);
   const [sourceProject, setProject] = useState(createExampleProject);
   const [selectedId, setSelectedId] = useState(
     () => sourceProject.passages.find((p) => p.analysis)?.id ?? sourceProject.passages[0].id,
@@ -76,6 +89,48 @@ export function useStudio() {
   const passage = project.passages.find((p) => p.id === selectedId) ?? project.passages[0];
   const draft = envelope.drafts[passage.id];
   const conflict = !!draft && draftConflicts(draft, passage);
+  // Older drafts predate syntax fingerprints. Prove equality without evaluating
+  // the expression, retaining raw text, revision, loose pieces and human work.
+  useEffect(() => {
+    if (
+      !ready ||
+      !conflict ||
+      !draft?.raw ||
+      !passage.expressionFingerprint ||
+      !samePassageReading(draft, passage)
+    )
+      return;
+    let active = true;
+    const captured = draft;
+    void invoke<ParsedExpression>('parse_expression', {
+      raw: draft.raw,
+      revisionId: draft.revisionId,
+    })
+      .then((parsed) => {
+        const current = latest.current;
+        if (
+          !active ||
+          current.envelope.drafts[passage.id] !== captured ||
+          current.project.passages.find((item) => item.id === passage.id)?.sourceFingerprint !==
+            passage.sourceFingerprint ||
+          parsed.expressionFingerprint !== passage.expressionFingerprint
+        )
+          return;
+        replaceEnvelope({
+          ...current.envelope,
+          drafts: {
+            ...current.envelope.drafts,
+            [passage.id]: { ...captured, sourceFingerprint: passage.sourceFingerprint },
+          },
+        });
+      })
+      .catch(() => {
+        /* Unparseable work keeps the normal conflict/recovery path. */
+      });
+    return () => {
+      active = false;
+    };
+  }, [ready, conflict, draft, passage]);
   const editable = ready && !busy && envelope.projectId === project.id;
   useEffect(
     () =>
@@ -325,9 +380,12 @@ export function useStudio() {
   useEffect(() => {
     if (!window.studio?.invoke || booted.current) return;
     booted.current = true;
-    invoke<{ project: StudioProject | null; selectedPassageId?: string; error?: string }>(
-      'session_restore',
-    )
+    invoke<{
+      project: StudioProject | null;
+      selectedPassageId?: string;
+      error?: string;
+      setupRequired?: boolean;
+    }>('session_restore')
       .then((saved) => {
         if (saved.project) {
           restoredSelection.current = saved.selectedPassageId;
@@ -339,8 +397,36 @@ export function useStudio() {
             setSelectedId(saved.selectedPassageId);
         }
         if (saved.error) setError(saved.error);
+        setSetupRequired(saved.setupRequired === true);
       })
-      .catch((reason) => setError(String(reason.message ?? reason)));
+      .catch((reason) => setError(String(reason.message ?? reason)))
+      .finally(() => {
+        setStarting(false);
+        void window.studio
+          ?.installationStatus?.()
+          .then(setInstallation)
+          .catch(() => {});
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!window.studio?.installationStatus) return;
+    // Subscribe before fetching the snapshot so startup progress is visible even
+    // while the session_restore request waits for an installer to finish.
+    const unsubscribe = window.studio.onEvent?.((event) => {
+      if (event.type === 'application-update')
+        setInstallation((value) => (value ? { ...value, update: event } : value));
+      if (event.type === 'managed-project') setSetupProgress(event);
+      if (event.type === 'installation-warnings')
+        setInstallation((value) => (value ? { ...value, warnings: event.warnings } : value));
+    });
+    void window.studio
+      .installationStatus()
+      .then(setInstallation)
+      .catch((reason) => {
+        setError(String(reason.message ?? reason));
+      });
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -720,7 +806,7 @@ export function useStudio() {
           outcome.draftSaveError
             ? 'Ground truth salva no corpus. Não foi possível salvar o estado de conclusão neste dispositivo: ' +
                 outcome.draftSaveError
-            : 'Passagem e ground truth salvas. A passagem foi marcada como concluída neste dispositivo.',
+            : `Passagem e ground truth salvas: ${savedPassage.sourceId}, passagem ${savedPassage.ordinal}. A passagem foi marcada como concluída neste dispositivo.`,
         );
       } catch (reason) {
         const message = reason instanceof Error ? reason.message : String(reason);
@@ -922,6 +1008,30 @@ export function useStudio() {
     }
   }
 
+  async function setupProject() {
+    if (!window.studio?.setupProject || operation.current) return false;
+    operation.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await persist();
+      const next = await window.studio.setupProject();
+      changeProject(next);
+      setSetupRequired(false);
+      return true;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      return false;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+      void window.studio
+        ?.installationStatus?.()
+        .then(setInstallation)
+        .catch(() => {});
+    }
+  }
+
   async function openExample() {
     if (operation.current) return;
     operation.current = true;
@@ -1035,7 +1145,7 @@ export function useStudio() {
       });
       await persist();
       setVerification(
-        'Ground truth salva no corpus. A passagem foi marcada como concluída neste dispositivo.',
+        `Ground truth salva: ${selected.sourceId}, passagem ${selected.ordinal}. A passagem foi marcada como concluída neste dispositivo.`,
       );
       return response;
     } finally {
@@ -1219,6 +1329,11 @@ export function useStudio() {
     verify,
     approveGroundTruth,
     openProject,
+    setupProject,
+    starting,
+    installation,
+    setupProgress,
+    setupRequired,
     openExample,
     persist,
     acceptCandidate,

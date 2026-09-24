@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld(
       return () => ipcRenderer.removeListener('studio:event', wrapped);
     },
     openProject: () => ipcRenderer.invoke('studio:open-project'),
+    setupProject: () => ipcRenderer.invoke('studio:setup-project'),
+    installationStatus: () => ipcRenderer.invoke('studio:installation-status'),
+    openReleasePage: () => ipcRenderer.invoke('studio:release-page'),
     refreshProject: () => ipcRenderer.invoke('studio:refresh-project'),
     render: (request) => ipcRenderer.invoke('studio:render', request),
     loadDrafts: (projectId) => ipcRenderer.invoke('studio:load-drafts', projectId),

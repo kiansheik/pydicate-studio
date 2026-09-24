@@ -8,6 +8,7 @@ import {
   isCurrentRender,
   readBrowserDrafts,
   restoreDraft,
+  samePassageReading,
   updateDraft,
   validateDraftEnvelope,
   writeBrowserDrafts,
@@ -341,4 +342,31 @@ describe('independent passage translations', () => {
     expect(() => updateDraft(next, { translations: { pt: 7 } as never })).toThrow();
     expect(() => updateDraft(next, { translations: { fr: 'bonjour' } as never })).toThrow();
   });
+});
+
+it('migrates the previous editorial fingerprint without discarding unsaved work', () => {
+  const source = { ...passage(), legacyEditorialFingerprint: 'old-editorial' };
+  const draft = {
+    ...createDraft(source),
+    sourceFingerprint: 'old-editorial',
+    raw: 'other * tree',
+    notes: 'unsaved',
+    canvas: canvas(),
+  };
+  const restored = restoreDraft(draft, source);
+  expect(restored).toEqual({ ...draft, sourceFingerprint: source.sourceFingerprint });
+  expect(draftConflicts(restored, source)).toBe(false);
+});
+
+it('formatting migration requires matching human text, translations and locators', () => {
+  const source = passage();
+  const draft = createDraft(source);
+  expect(samePassageReading(draft, source)).toBe(true);
+  for (const change of [
+    { notes: 'new note' },
+    { translations: { pt: 'new' } },
+    { locators: { ...draft.locators, section: 'new section' } },
+    { diplomatic: 'new text' },
+  ])
+    expect(samePassageReading({ ...draft, ...change }, source)).toBe(false);
 });

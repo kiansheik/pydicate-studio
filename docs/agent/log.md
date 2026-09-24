@@ -1,5 +1,62 @@
 # Work log
 
+## 2026-09-24 - Installers, first-run setup and managed updates
+
+Added native runtime preparation, bundled Python/Git resolution, staged sparse
+cloning from public main, conservative repository updates, installer configuration
+and a four-platform release workflow. The first-launch dialog offers automatic
+setup with progress/retry alongside existing folder selection. A startup gate
+handles application updates before editing and preserves offline operation.
+Unsigned Mac previews clearly use manual application updates.
+
+Clean remote-main setup and dictionary access passed; bundled runtime opened 103
+passages and evaluated real morphology. The actual packaged ARM64 Mac app passed
+isolated startup, runtime, precompiled authoring and engine checks. Domain tests,
+focused desktop/browser checks, TypeScript and build passed. Public publication,
+native checks on the other three targets and Apple signing remain pending. See
+[handoff](session-handoffs/2026-09-24-installers-managed-updates.md).
+
+## 2026-09-24 - Wrapped results and live comparison highlighting
+
+Removed result truncation in operation/root/reference boxes and made geometry
+follow the full wrapped text. The existing current-result panel reuses the canvas
+selection’s main-root ranges with strict freshness guards. Saved references stay
+plain and no extra controls or evaluations are introduced. Validation: 46 domain
+tests, 9 browser checks, typecheck and build pass. See
+[handoff](session-handoffs/2026-09-24-wrapped-results-current-highlight.md).
+
+## 2026-09-24 - Inline morpheme highlighting repair
+
+Removed the tracing toggle, summary and duplicate sentence. Selection styles only
+existing result text. Engine annotations now map whitespace-only differences to
+exact display offsets; sibling context, role tags and contextual allomorphs improve
+ancestral correspondence. Actual Araújo 60 is covered through root and intermediate
+outputs. See [handoff](session-handoffs/2026-09-24-inline-morpheme-highlighting.md).
+
+## 2026-09-24 - Ground-truth save diagnosis
+
+Fixed rejected approval telemetry and made success identify the saved passage.
+Recovery evidence confirms the latest save was Araújo 60, while the reported
+mismatch is 55. No neighboring corpus files were changed. Nine logging tests,
+a disposable reapproval regression, two browser save tests and typecheck pass.
+See [handoff](session-handoffs/2026-09-24-ground-truth-save-diagnosis.md).
+
+## 2026-09-24 - Experimental upstream morpheme highlighting
+
+Added an opt-in canvas trace from selected constituents to ancestor result forms,
+with change-only highlighting for unary operations and variants. Isolated step
+annotations support conservative ordered alignment, repeated-form ambiguity,
+zero/deletion-only results and stale-response rejection. See
+[handoff](session-handoffs/2026-09-24-morpheme-tracing.md).
+
+## 2026-09-24 - Ignore Black-only changes in reconciliation
+
+Replaced raw-text editorial expression hashes with syntax fingerprints while
+retaining metadata and human-comment sensitivity. Identity reconciliation uses
+stored syntax fingerprints; old draft hashes have a guarded migration path.
+Formatting-only conflicts clear without changing draft text, revisions or pieces.
+See [handoff](session-handoffs/2026-09-24-formatting-reconciliation.md).
+
 ## 2026-09-24 - Shared reference structure and occurrence editing
 
 The canvas now shows the selected reference's object tree, source and cross-source
@@ -348,3 +405,8 @@ suggestion routing preserve both languages independently. In an isolated copy:
 TypeScript passed; 30 domain, six desktop and six Python checks passed; three
 browser checks passed on a dedicated localhost port with simulated AI responses.
 See [handoff](session-handoffs/2026-09-24-independent-translations.md).
+
+
+## 2026-09-24 — Source-region inheritance repair
+
+Changed the ordinary existing-passage path to use `guideEvidence`, keeping predecessor geometry outside owned `regions`. Added a real two-page browser regression and updated the two old inheritance expectations. No managed evidence, browser drafts, corpus sources or saved rectangles were modified. Isolated checks: 8 browser, 5 domain, 10 desktop and TypeScript pass. See `session-handoffs/2026-09-24-source-region-inheritance.md`.

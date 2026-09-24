@@ -2,6 +2,16 @@
 
 ## Contributor application
 
+- `electron/runtime-environment.cjs`, `scripts/prepare-runtime.mjs`, `requirements-runtime.txt`: verified native Python/Git staging and subprocess environment; packaged runtime ignores host interpreter overrides.
+- `electron/managed-projects.cjs`: first-run staged shallow/sparse Git clones, ownership marker, workspace lock/retry, conservative startup updates; installer IPC/UI live in `main.cjs`, `preload.cjs`, `useStudio.ts`, `App.tsx`.
+- `electron/update-service.cjs`: bounded startup-only release check/download/install, progress, offline/manual fallback and failed-install loop marker. `electron-builder.config.cjs`, `.github/workflows/release.yml`, `scripts/build-desktop.mjs`, `scripts/prepare-icon.mjs` produce native installers and architecture-aware updater metadata. `scripts/smoke-packaged.mjs` validates real packaged binaries with temporary user data and empty host PATH. See `docs/installing.md`.
+
+- `runtime-tree.ts` complete grapheme-safe result wrapping and dynamic node heights; `canvas-layout.ts` reserves subtree widths and per-depth heights for those boxes.
+
+- `src/domain/morpheme-trace.ts`: bounded annotated-surface alignment, cumulative ancestor tracing, unary operation deltas and explicit uncertainty; focused pure-domain tests.
+- `src/components/useMorphemeTrace.ts`, `MorphemeHighlight.tsx`, `src/domain/morpheme-display.ts`: revision-bound evidence request, selection-only reuse, exact display offsets and automatic HTML/SVG highlights in existing labels in `ExpressionCanvas`; context-bound `onSurfaceHighlight` carries main-root ranges through `Projections` to App’s current-result panel.
+- `authoring_runtime.morphology_evidence` and `includeMorphology` on evaluation: independently isolated per-step annotations, spacing-tolerant UTF-16 display segments and partial-tree evidence; default evaluation is unchanged.
+
 - `src/components/ReferenceInspector.tsx`: selected-reference runtime tree, source and project usage list, verified occurrence copy and local/shared meanings through the existing review callback.
 - `python/reference_expansion.py`: bounded nested compound/alias copies verified against current runtime shape, including explicit meaning-only overrides.
 - `python/reference_uses.py`: read-only AST dependency candidates across historic sources, preserving declaration identity through aliases and later name rebinding.
@@ -52,6 +62,8 @@
 - `src/components/UsagePanel.tsx`, `src/domain/usage.ts`: local activity report/export and categorical renderer event/edit-batch recording.
 
 ## Desktop and Python
+
+- `studio_authoring.expression_fingerprint`: AST plus comment identity independent of formatter layout. Adapter editorial hashes retain scholarly metadata; identity registry stores syntax keys. `restoreDraft` migrates proved legacy editorial hashes; `useStudio` can clear old formatting-only conflicts by parse-only comparison with equal human fields.
 
 - `electron/analysis-service.cjs`, `analysis-store.cjs`, `analysis-input.cjs`: immutable input snapshots, one-owner queue with up to three conversations (one repair writer per engine), attempts/checkpoints, isolated candidate revisions, scoped research projections, durable commands and acceptance receipts with current local revalidation. `draft-store.cjs` adds whole-envelope CAS and atomic project guards; `useStudio.ts` queues saves and retries explicit adoption once after a local context refresh using the same command ID.
 - `electron/scratch-service.cjs`, `shared-authoring.cjs`, `authoring/shared-entry.ts`: shared TypeScript builder transactions with actual Python parsing/evaluation, dictionary identities, evidence binding and candidate proposals.

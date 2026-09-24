@@ -110,6 +110,12 @@ test('one reviewed acceptance publishes the passage and added lexicon then appro
   const published = await page.evaluate(() => window.__nextControl.project.passages[0]);
   expect(published.sourceExpression).toBe('alpha_revisado');
   expect(published.acceptedReference).toBe('SIMULADO:alpha_revisado');
+  await expect(
+    page.getByText(
+      `Passagem e ground truth salvas: ${published.sourceId}, passagem ${published.ordinal}.`,
+      { exact: false },
+    ),
+  ).toBeVisible();
 });
 
 test('unchanged source is reviewed and approved without a redundant source write', async ({

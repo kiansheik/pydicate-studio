@@ -159,6 +159,65 @@ test('analysis preparation awaits the exact saved region and hidden tabs keep un
   }
 });
 
+test('an existing unmarked passage never adopts either page of its multipage predecessor', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-no-carryover-'));
+  try {
+    const { fixture } = await guideFixture(page, directory);
+    await page.goto('/tests/pdf-harness.html');
+    await ready(page);
+    await page.getByLabel('Zoom do PDF').selectOption('0.5');
+    await draw(page, [0.2, 0.3], [0.5, 0.45]);
+    await page.getByRole('button', { name: 'Adicionar região na próxima página' }).click();
+    await ready(page);
+    await draw(page, [0.2, 0.2], [0.5, 0.4]);
+    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
+    const donor = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(donor.passage!.regions).toHaveLength(2);
+    await page.getByRole('button', { name: 'Região 2 · PDF 2', exact: true }).click();
+    await ready(page);
+
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+    await expect(page.getByTestId('pdf-guide-region')).toBeVisible();
+    await page.getByRole('button', { name: 'Preparar evidência para análise' }).click();
+    await expect(page.locator('#prepared-evidence')).toContainText('"regionIds":[]');
+    const onlyGuide = (await fixture.service.invoke('evidence_status', {
+      ...params,
+      passageId: 'passage:b',
+    })) as EvidenceStatus;
+    expect(onlyGuide.passage!.regions).toEqual([]);
+    expect(onlyGuide.passage!.guide!.region!.id).toBe(donor.passage!.regions[1].id);
+
+    await draw(page, [0.25, 0.5], [0.6, 0.65]);
+    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
+    fixture.restart();
+    await page.reload();
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveCount(1);
+    const own = (await fixture.service.invoke('evidence_status', {
+      ...params,
+      passageId: 'passage:b',
+    })) as EvidenceStatus;
+    expect(own.passage!.regions).toHaveLength(1);
+    expect(donor.passage!.regions.map((region) => region.id)).not.toContain(
+      own.passage!.regions[0].id,
+    );
+    expect(
+      ((await fixture.service.invoke('evidence_status', params)) as EvidenceStatus).passage!
+        .regions,
+    ).toEqual(donor.passage!.regions);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('actual PDF canvas and same physical region survive zoom, resize, rotation, save, service restart and passage return', async ({
   page,
 }) => {
@@ -229,11 +288,9 @@ test('actual PDF canvas and same physical region survive zoom, resize, rotation,
     await expect(region).toHaveAttribute('data-pdf-rect', originalRect!);
     await expect(page.getByLabel('Zoom do PDF')).toHaveValue('1.5');
     await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
-    await expect(region).toHaveCount(1);
-    await expect(region).toHaveAttribute('data-pdf-rect', originalRect!);
-    await expect(
-      page.getByText('Localização herdada da passagem 1', { exact: false }),
-    ).toBeVisible();
+    await expect(region).toHaveCount(0);
+    await expect(page.getByTestId('pdf-guide-region')).toBeVisible();
+    await expect(page.getByText('Guia da passagem anterior (1).', { exact: false })).toBeVisible();
     expect(
       (
         (await service.invoke('evidence_status', {
@@ -333,10 +390,9 @@ test('PDF region moving/resizing changes native coordinates and an unsaved draft
     const resized = await region.getAttribute('data-pdf-rect');
     expect(resized).not.toEqual(moved.join(','));
     await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
-    await expect(region).toHaveAttribute('data-pdf-rect', resized!);
-    await expect(
-      page.getByText('Localização herdada da passagem 1', { exact: false }),
-    ).toBeVisible();
+    await expect(region).toHaveCount(0);
+    await expect(page.getByTestId('pdf-guide-region')).toBeVisible();
+    await expect(page.getByText('Guia da passagem anterior (1).', { exact: false })).toBeVisible();
     const inheritedCache = await page.evaluate(() =>
       localStorage.getItem(
         'pydicate-studio:evidence-draft:v1:["project:pdf-test","araujo","passage:b"]',
@@ -345,7 +401,8 @@ test('PDF region moving/resizing changes native coordinates and an unsaved draft
     await page.reload();
     await ready(page);
     await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
-    await expect(region).toHaveAttribute('data-pdf-rect', resized!);
+    await expect(region).toHaveCount(0);
+    await expect(page.getByTestId('pdf-guide-region')).toBeVisible();
     expect(
       await page.evaluate(() =>
         localStorage.getItem(
@@ -353,7 +410,6 @@ test('PDF region moving/resizing changes native coordinates and an unsaved draft
         ),
       ),
     ).toBe(inheritedCache);
-    await page.getByRole('button', { name: 'Remover região', exact: true }).click();
     await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Passagem A', exact: true }).click();

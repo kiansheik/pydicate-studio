@@ -1,4 +1,6 @@
 import { TranslationFields } from './components/TranslationFields';
+import { MorphemeText } from './components/MorphemeHighlight';
+import type { MorphemeSurfaceHighlight } from './domain/morpheme-display';
 import { sameTranslations } from './domain/translations';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
@@ -130,6 +132,7 @@ function Projections({
   askAI,
   openLaboratory,
   translate,
+  onSurfaceHighlight,
 }: {
   studio: Studio;
   tab: Tab;
@@ -141,6 +144,7 @@ function Projections({
   askAI: (id: string) => void;
   openLaboratory: () => void;
   translate: () => void;
+  onSurfaceHighlight: (highlight: MorphemeSurfaceHighlight | null) => void;
 }) {
   const { draft, passage, result } = studio;
   if (studio.project.mode === 'local' && tab === 'Árvore')
@@ -150,6 +154,7 @@ function Projections({
         failures={result?.failures}
         selectedSourceNodeId={selected}
         onSelectSourceNode={select}
+        onSurfaceHighlight={onSurfaceHighlight}
         status={studio.pending ? 'Avaliando a estrutura…' : studio.renderError || undefined}
         authoringRoot={studio.parsed?.root}
         raw={draft?.raw ?? passage.sourceExpression}
@@ -444,6 +449,47 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
       </div>
       <h2>Ler, descrever, construir.</h2>
       <p>Comece pela passagem. A estrutura pode vir depois.</p>
+      {window.studio?.setupProject && (
+        <>
+          <button
+            className="project-option actionable"
+            disabled={studio.busy}
+            onClick={() => {
+              void studio.setupProject().then((opened) => {
+                if (opened) close();
+              });
+            }}
+          >
+            <div className="project-option-icon">
+              <ArrowDownToLine />
+            </div>
+            <div>
+              <strong>
+                {studio.installation?.workspace.ready
+                  ? 'Abrir meu espaço de trabalho'
+                  : 'Preparar meu espaço de trabalho'}
+              </strong>
+              <p>
+                Baixa o corpus e a gramática para este computador. O aplicativo já inclui Python e
+                Git.
+              </p>
+              {studio.installation && (
+                <small className="workspace-directory">
+                  {studio.installation.workspace.directory}
+                </small>
+              )}
+            </div>
+            <ChevronRight size={20} />
+          </button>
+          {studio.setupProgress && (
+            <div className="setup-progress" role="status" aria-live="polite">
+              {studio.setupProgress.message}
+              {studio.busy && <progress max={100} value={studio.setupProgress.percent} />}
+            </div>
+          )}
+          {studio.error && <p role="alert">{studio.error}</p>}
+        </>
+      )}
       <button
         className="project-option"
         disabled={studio.busy}
@@ -490,6 +536,29 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
           preservadas.
         </span>
       </div>
+      {studio.installation && (
+        <div className="installation-status">
+          <p>
+            Studio {studio.installation.update.currentVersion} ·{' '}
+            {studio.installation.update.message}
+          </p>
+          {[
+            ...new Set([
+              ...studio.installation.warnings,
+              ...studio.installation.workspace.warnings,
+            ]),
+          ].map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+          <p>
+            Ao abrir, o Studio procura atualizações. Alterações locais no corpus e na gramática são
+            preservadas.
+          </p>
+          <button className="button small" onClick={() => void window.studio?.openReleasePage?.()}>
+            Página de versões
+          </button>
+        </div>
+      )}
     </dialog>
   );
 }
@@ -501,10 +570,14 @@ export default function App() {
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState<Tab>(window.studio ? 'Árvore' : 'Construção');
   const [selected, setSelected] = useState('object');
+  const [surfaceHighlight, setSurfaceHighlight] = useState<MorphemeSurfaceHighlight | null>(null);
   const [mode, setMode] = useState<'analysis' | 'reading' | 'review' | 'lexicon' | 'dictionary'>(
     'analysis',
   );
   const [projectDialog, setProjectDialog] = useState(false);
+  useEffect(() => {
+    if (studio.setupRequired) setProjectDialog(true);
+  }, [studio.setupRequired]);
   const [details, setDetails] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [learningView, setLearningView] = useState<'lessons' | 'reference' | null>(null);
@@ -590,6 +663,22 @@ export default function App() {
     result && result.evaluationStatus !== 'partial'
       ? compareReference(result.surface, passage.acceptedReference)
       : null;
+  const currentHighlight =
+    mode === 'analysis' &&
+    tab === 'Árvore' &&
+    !analysis.preview &&
+    !studio.pending &&
+    result?.origin === 'engine' &&
+    result.evaluationStatus !== 'partial' &&
+    surfaceHighlight?.passageId === passage.id &&
+    surfaceHighlight.raw === (draft?.raw ?? passage.sourceExpression) &&
+    surfaceHighlight.revisionId === draft?.revisionId &&
+    result.revisionId === draft?.revisionId &&
+    surfaceHighlight.engineFingerprint === project.engineFingerprint &&
+    result.engineFingerprint === project.engineFingerprint &&
+    surfaceHighlight.surface === result.surface
+      ? surfaceHighlight.ranges
+      : [];
   const stage = draft?.workflow?.stage ?? (passage.status === 'review' ? 'review' : 'analysis');
   const completed = project.passages.filter(
     (p) => studio.envelope.drafts[p.id]?.workflow?.stage === 'complete',
@@ -1008,16 +1097,19 @@ export default function App() {
                   {project.mode === 'local' ? 'RESULTADO ATUAL' : 'RESULTADO DO EXEMPLO'}
                 </div>
                 <p data-testid="generated-surface" lang="tpw">
-                  {studio.pending
-                    ? 'Avaliando…'
-                    : result?.evaluationStatus === 'partial'
-                      ? 'Confira as etapas destacadas na árvore'
-                      : (result?.surface ??
-                        (studio.renderError
-                          ? 'Não foi possível avaliar'
-                          : !draft?.raw?.trim()
-                            ? 'Comece pela busca de peças na árvore'
-                            : 'Sem resultado nesta revisão'))}
+                  {studio.pending ? (
+                    'Avaliando…'
+                  ) : result?.evaluationStatus === 'partial' ? (
+                    'Confira as etapas destacadas na árvore'
+                  ) : result ? (
+                    <MorphemeText text={result.surface} ranges={currentHighlight} />
+                  ) : studio.renderError ? (
+                    'Não foi possível avaliar'
+                  ) : !draft?.raw?.trim() ? (
+                    'Comece pela busca de peças na árvore'
+                  ) : (
+                    'Sem resultado nesta revisão'
+                  )}
                 </p>
                 <span className="surface-caption">
                   {result?.origin === 'engine'
@@ -1265,6 +1357,7 @@ export default function App() {
                     tab={tab}
                     selected={selected}
                     select={setSelected}
+                    onSurfaceHighlight={setSurfaceHighlight}
                     inspectLexeme={() => changeMode('lexicon')}
                     lexicalPreview={setPreview}
                     prepareDiagnostic={setGrammarReport}
@@ -1566,6 +1659,22 @@ export default function App() {
       }}
     />
   );
+  if (studio.starting)
+    return (
+      <main className="startup-screen" aria-busy="true">
+        <img src="./mark.svg" alt="" width={56} height={56} />
+        <h1>Pydicate Studio</h1>
+        <p role="status" aria-live="polite">
+          {studio.setupProgress?.message ||
+            studio.installation?.update.message ||
+            'Abrindo seu espaço de trabalho…'}
+        </p>
+        <progress
+          max={100}
+          value={studio.setupProgress?.percent ?? studio.installation?.update.percent}
+        />
+      </main>
+    );
   return (
     <div className="studio-app">
       <header className="app-header">
@@ -1760,7 +1869,7 @@ export default function App() {
                             ' Abra a revisão novamente para tentar salvar a referência.',
                         );
                       } else if (outcome?.groundTruthSaved) {
-                        track('ui.ground-truth', { via: 'source-review' });
+                        track('review.status', { action: 'approve', source: 'source-review' });
                         if (outcome.draftSaveError)
                           setGroundTruthNote(
                             'A ground truth foi salva no corpus, mas não foi possível atualizar o rascunho local: ' +

@@ -128,11 +128,30 @@ export function draftConflicts(draft: Draft, passage: Passage): boolean {
   return draft.passageId !== passage.id || draft.sourceFingerprint !== passage.sourceFingerprint;
 }
 
+/** Legacy formatting conflicts can be rebased only when every human field agrees. */
+export function samePassageReading(draft: Draft, passage: Passage): boolean {
+  const source = createDraft(passage);
+  return (
+    draft.passageId === passage.id &&
+    (['diplomatic', 'normalized', 'translation', 'notes'] as const).every(
+      (field) => draft[field] === source[field],
+    ) &&
+    sameTranslations(draft.translations, source.translations) &&
+    (['printedPage', 'folio', 'line', 'section', 'subsection'] as const).every(
+      (field) =>
+        (draft.locators?.[field] ?? source.locators?.[field] ?? '') ===
+        (source.locators?.[field] ?? ''),
+    )
+  );
+}
+
 /** Upgrade only a proved legacy source identity; preserve all human work and revisions. */
 export function restoreDraft(saved: Draft | undefined, passage: Passage): Draft {
   if (!saved) return createDraft(passage);
   const legacy = saved.sourceFingerprint === passage.legacyExpressionFingerprint;
-  const sameSource = saved.sourceFingerprint === passage.sourceFingerprint;
+  const sameSource =
+    saved.sourceFingerprint === passage.sourceFingerprint ||
+    saved.sourceFingerprint === passage.legacyEditorialFingerprint;
   if (saved.passageId !== passage.id || (!legacy && !sameSource)) return saved;
   const humanUnchanged =
     (['diplomatic', 'normalized', 'translation', 'notes'] as const).every(

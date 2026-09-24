@@ -4,7 +4,13 @@ import { serviceError, withProjectRecovery } from './project-recovery';
 /** Captured from the selected engine at this exact source step. A failed
  * standalone realization does not invalidate the surrounding expression. */
 export type NodeEvaluation =
-  | { status: 'ok'; surface: string }
+  | {
+      status: 'ok';
+      surface: string;
+      annotated?: string;
+      morphologySegments?: { text: string; start: number; end: number; tags: string[] }[];
+      morphologyDiagnostic?: string;
+    }
   | { status: 'unavailable'; message: string }
   | { status: 'error' | 'blocked' | 'missing'; message: string; causes?: string[] }
   | { status: 'value'; value: string };
@@ -53,6 +59,7 @@ export interface AuthorNode {
   capabilities?: unknown;
 }
 export interface ParsedExpression {
+  expressionFingerprint?: string;
   revisionId: string;
   raw: string;
   root: AuthorNode | null;

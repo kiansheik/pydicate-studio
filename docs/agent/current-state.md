@@ -1,5 +1,68 @@
 # Current state
 
+## Native installers, managed setup and startup updates
+
+Installers bundle SHA-256-pinned CPython 3.13.15 and Git 2.53.0, with precompiled
+shared authoring transforms and no host runtime requirement. The first-launch
+dialog can prepare `Documents/Pydicate Studio` from both public `main` branches,
+or open an existing contributor workspace. Sparse engine checkout excludes the
+multi-gigabyte scan archive; fresh remote setup occupies about 43 MB plus 4.6 MB
+for the corpus. Core evaluation and dictionary access work on clean remote main.
+
+Application updates run before editable state opens, with finite timeouts and
+offline/manual fallback. Managed repositories fast-forward only clean main
+branches without local commits. Mac previews without Developer ID use manual
+application updates. CI builds Mac ARM64/x64, Windows x64 and Linux x64, runs
+packaged startup probes, validates update checksums, then publishes a complete
+release. No release has been published in this session; signing secrets and
+non-ARM64-Mac native verification remain pending. See [installation guide](../installing.md)
+and [handoff](session-handoffs/2026-09-24-installers-managed-updates.md).
+
+## Complete wrapped results and synchronized current-result highlights
+
+All source-node result boxes show the full form with word wrapping and dynamic
+height, including root, intermediate operations and reference leaves. Bottom-up
+layout reserves subtree widths and depth heights. **Resultado atual** reuses the
+canvas's main-root morpheme ranges, guarded by passage/expression/revision/engine
+and exact surface; loose selection and stale/hidden trees clear them. The saved
+reference stays plain. See
+[handoff](session-handoffs/2026-09-24-wrapped-results-current-highlight.md).
+
+## Ground-truth save confirmation and usage logging
+
+Approval emits the allowed `review.status` event with categorical approval/source
+details. Success identifies the source and passage ordinal. A renderer-event
+contract test checks literal tracking calls against the IPC allowlist.
+Read-only diagnosis of the reported Araújo failure found the last approval was
+passage 60; passage 55 still has its older reference. Saves remain passage-specific.
+See [handoff](session-handoffs/2026-09-24-ground-truth-save-diagnosis.md).
+
+## Morphemes styled directly in existing node results
+
+Selection automatically highlights attributable morphemes through ancestor output
+labels. The experimental toggle, summary panel and duplicate sentence are removed;
+there are no new visible controls or diagnostics. Operations highlight their delta.
+Annotations retain original engine text plus exact UTF-16 display segments, so
+annotation-only whitespace differences (reported Araújo 60) no longer discard the
+whole tree. Sibling evidence supports occurrence matching. Missing or ambiguous
+parts remain ordinary text, without altering analysis or approval.
+See [contract](../design/morpheme-tracing.md) and
+[handoff](session-handoffs/2026-09-24-inline-morpheme-highlighting.md).
+
+## Prevent carried source rectangles
+
+Unmarked existing passages now receive only a separate visual guide from the preceding passage, as pending passages already do. A two-page predecessor cannot silently donate both images to its successor. Own saved and cached regions remain intact; existing bad saved copies require explicit review. Eight real PDF browser checks, five domain checks, ten evidence-service checks and TypeScript pass in an isolated copy. See [handoff](session-handoffs/2026-09-24-source-region-inheritance.md).
+
+## Formatting does not create passage conflicts
+
+Editorial fingerprints now compare Python AST structure and retained comment text,
+plus scholarly metadata, instead of raw expression layout. Black-only whitespace,
+parentheses, quote-style and trailing-comma changes retain source identity and
+leave drafts intact. Older editorial hashes migrate when proved; an existing
+formatting-only conflict can clear through a parse-only syntax comparison when
+all human fields agree. Source-file write guards remain byte-exact.
+See [handoff](session-handoffs/2026-09-24-formatting-reconciliation.md).
+
 ## Inspect and copy shared references from the canvas
 
 Selecting a named reference exposes its actual runtime object tree, declaration

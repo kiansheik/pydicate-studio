@@ -1,0 +1,211 @@
+name: Desktop release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - id: version
+        name: Allocate a monotonic version within the package major/minor line
+        env:
+          RELEASE_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.version);
+          if (!match) throw new Error('Release package.version must be a stable major.minor.patch');
+          const patch = 10000 + Number(process.env.RELEASE_RUN_NUMBER);
+          if (!Number.isSafeInteger(patch) || patch <= Number(match[3])) throw new Error('Release patch must advance package.version');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${match[1]}.${match[2]}.${patch}\n`);
+          JS
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: mac
+            arch: arm64
+          - os: macos-15-intel
+            platform: mac
+            arch: x64
+          - os: windows-2022
+            platform: win
+            arch: x64
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - name: Gate installers on domain and desktop integration checks
+        run: |
+          npm test
+          node --test electron/tests/update-service.test.cjs electron/tests/runtime-environment.test.cjs electron/tests/managed-projects.test.cjs electron/tests/release-config.test.cjs
+      - name: Set application release version without creating a commit or tag
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version
+      - run: npm run build:app
+      - run: npm run runtime:prepare
+      - name: Build native installer and update metadata without publishing
+        env:
+          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_LINK || matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --config electron-builder.config.cjs --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+      - name: Open the packaged app with isolated data and bundled runtime
+        if: matrix.platform != 'linux'
+        run: |
+          if [ '${{ matrix.platform }}' = mac ]; then
+            folder='mac'
+            if [ '${{ matrix.arch }}' = arm64 ]; then folder='mac-arm64'; fi
+            node scripts/smoke-packaged.mjs "release/$folder/Pydicate Studio.app/Contents/MacOS/Pydicate Studio"
+          else
+            node scripts/smoke-packaged.mjs 'release/win-unpacked/Pydicate Studio.exe'
+          fi
+      - name: Open the Linux packaged app in a virtual display
+        if: matrix.platform == 'linux'
+        run: xvfb-run --auto-servernum node scripts/smoke-packaged.mjs release/linux-unpacked/pydicate-studio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.blockmap
+            release/latest*.yml
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: release-input
+      - name: Verify every updater checksum and combine architecture metadata
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import { createHash } from 'node:crypto';
+          import yaml from 'js-yaml';
+          const expected = ['installer-mac-arm64', 'installer-mac-x64', 'installer-win-x64', 'installer-linux-x64'];
+          const grouped = new Map();
+          fs.mkdirSync('release-ready');
+          for (const name of expected) {
+            const directory = path.join('release-input', name);
+            const names = fs.readdirSync(directory);
+            const manifests = names.filter(file => /^latest.*\.yml$/.test(file));
+            if (manifests.length !== 1) throw new Error(`Missing unique update manifest for ${name}`);
+            const manifestName = manifests[0];
+            const manifest = yaml.load(fs.readFileSync(path.join(directory, manifestName), 'utf8'));
+            if (manifest.version !== process.env.RELEASE_VERSION || !manifest.files?.length) throw new Error(`Invalid update manifest for ${name}`);
+            for (const file of manifest.files) {
+              const filename = decodeURIComponent(file.url);
+              if (path.basename(filename) !== filename) throw new Error('Unexpected asset path');
+              const bytes = fs.readFileSync(path.join(directory, filename));
+              if (createHash('sha512').update(bytes).digest('base64') !== file.sha512) throw new Error(`Checksum mismatch: ${filename}`);
+            }
+            const existing = grouped.get(manifestName);
+            grouped.set(manifestName, existing ? { ...existing, files: [...existing.files, ...manifest.files] } : manifest);
+            for (const file of names.filter(file => !file.endsWith('.yml'))) {
+              const destination = path.join('release-ready', file);
+              if (fs.existsSync(destination)) throw new Error(`Duplicate installer artifact: ${file}`);
+              fs.copyFileSync(path.join(directory, file), destination);
+            }
+          }
+          for (const [name, manifest] of grouped) fs.writeFileSync(path.join('release-ready', name), yaml.dump(manifest));
+          JS
+      - name: Publish the complete draft after all platform builds succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          MAC_SIGNED: ${{ secrets.MAC_CSC_LINK != '' }}
+          WINDOWS_SIGNED: ${{ secrets.WIN_CSC_LINK != '' }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const guide = `https://github.com/${process.env.GH_REPO}/blob/${process.env.RELEASE_COMMIT}/docs/installing.md`;
+          const notes = [
+            `Consulte o [guia de instalação e atualização](${guide}). Python e Git já estão incluídos.`,
+            'Mac: escolha o .dmg arm64 para Apple Silicon ou x64 para Intel. Windows: use o .exe x64. Linux: use o .AppImage x64.',
+            ...(process.env.MAC_SIGNED === 'true' ? [] : ['A versão para Mac é uma prévia sem assinatura Developer ID; o Gatekeeper pode impedir sua abertura. As atualizações dessa prévia são manuais pela página de versões. Consulte o guia antes de instalar.']),
+            ...(process.env.WINDOWS_SIGNED === 'true' ? [] : ['O instalador para Windows não está assinado e pode apresentar aviso do SmartScreen.']),
+          ];
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'studio-release-notes.md'), `${notes.join('\n\n')}\n`);
+          JS
+          tag="v$RELEASE_VERSION"
+          if gh release view "$tag" --json isDraft --jq '.isDraft' > /tmp/release-draft-state; then
+            test "$(cat /tmp/release-draft-state)" = true || { echo "Release already published; preserving its assets."; exit 0; }
+          else
+            gh release create "$tag" --target "$RELEASE_COMMIT" --title "Pydicate Studio $RELEASE_VERSION" --notes-file "$RUNNER_TEMP/studio-release-notes.md" --generate-notes --draft
+          fi
+          gh release upload "$tag" release-ready/* --clobber
+          previous="$(gh release view --json tagName --jq '.tagName' 2>/dev/null || true)"
+          make_latest="$(PREVIOUS_RELEASE="$previous" node --input-type=module -e '
+            const previous = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(process.env.PREVIOUS_RELEASE || "");
+            const current = process.env.RELEASE_VERSION.split(".").map(Number);
+            let newer = !previous;
+            if (previous) for (let i = 0; i < 3; i++) {
+              if (current[i] !== Number(previous[i + 1])) { newer = current[i] > Number(previous[i + 1]); break; }
+            }
+            process.stdout.write(String(newer));
+          ')"
+          gh release edit "$tag" --draft=false --latest="$make_latest"

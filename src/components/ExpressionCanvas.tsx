@@ -41,8 +41,6 @@ import { expressionGraph, definitionBody } from '../domain/expression-tree';
 import {
   initialRuntimeOverview,
   isOperationJunction,
-  NODE_HEIGHT,
-  NODE_WIDTH,
   searchRuntimeTree,
   treeEvaluationPreview,
   treeNodeHeight,
@@ -73,6 +71,9 @@ import {
   DictionaryMeaningPicker,
   type DictionaryMeaningSelection,
 } from './DictionaryMeaningPicker';
+import { useMorphemeTrace } from './useMorphemeTrace';
+import { MorphemeText, MorphemeSpans } from './MorphemeHighlight';
+import { highlightLines, type MorphemeSurfaceHighlight } from '../domain/morpheme-display';
 import '../expression-canvas.css';
 
 export interface ExpressionCanvasProps {
@@ -88,6 +89,7 @@ export interface ExpressionCanvasProps {
   engineFingerprint?: string;
   selectedSourceNodeId?: string;
   onSelectSourceNode?: (id: string) => void;
+  onSurfaceHighlight?: (highlight: MorphemeSurfaceHighlight | null) => void;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -481,6 +483,44 @@ export function ExpressionCanvas({
     ? flattenNodes(selectedRoot).find((node) => selected === `${selectedPiece.id}:${node.id}`)
     : undefined;
   const selectedPreview = selectedNode ? treeEvaluationPreview(selectedNode) : null;
+  const morphology = useMorphemeTrace({
+    raw: selectedPiece?.raw ?? '',
+    root: selectedRoot,
+    selectedId: selectedNode?.id,
+    pieceId: selectedPiece?.id,
+    passageId: props.passageId,
+    sourceId: props.sourceId,
+    revisionId: props.revisionId,
+    engineFingerprint: props.engineFingerprint,
+  });
+  const surfaceHighlight = useMemo<MorphemeSurfaceHighlight | null>(() => {
+    if (selectedPiece?.id !== 'main' || !morphology.graph || !morphology.trace) return null;
+    const rootId = morphology.graph.rootId;
+    const evaluation = morphology.graph.nodes.find((node) => node.id === rootId)?.evaluation;
+    const ranges = morphology.trace.nodes[rootId]?.ranges;
+    if (evaluation?.status !== 'ok' || !ranges?.length) return null;
+    return {
+      passageId: props.passageId,
+      raw,
+      revisionId: props.revisionId,
+      engineFingerprint: props.engineFingerprint,
+      surface: evaluation.surface,
+      ranges,
+    };
+  }, [
+    morphology.graph,
+    morphology.trace,
+    selectedPiece?.id,
+    raw,
+    props.passageId,
+    props.revisionId,
+    props.engineFingerprint,
+  ]);
+  useEffect(() => {
+    props.onSurfaceHighlight?.(surfaceHighlight);
+  }, [props.onSurfaceHighlight, surfaceHighlight]);
+  useEffect(() => () => props.onSurfaceHighlight?.(null), [props.onSurfaceHighlight]);
+
   const matches = useMemo(
     () =>
       new Set(
@@ -1439,6 +1479,21 @@ export function ExpressionCanvas({
             const node = point.node;
             const junction = isOperationJunction(node);
             const preview = treeEvaluationPreview(node);
+            const traceEvaluation = morphology.graph?.nodes.find(
+              (value) => value.id === node.id,
+            )?.evaluation;
+            const nodeTrace =
+              point.piece.id === selectedPiece?.id &&
+              preview?.status === 'ok' &&
+              traceEvaluation?.status === 'ok' &&
+              traceEvaluation.surface === preview.text
+                ? morphology.trace?.nodes[node.id]
+                : undefined;
+            const tracedLines =
+              nodeTrace && preview?.status === 'ok'
+                ? highlightLines(preview.text, preview.lines, nodeTrace?.ranges ?? [])
+                : null;
+
             const nodeWidth = treeNodeWidth(node);
             const nodeHeight = treeNodeHeight(node);
             const operationWidth = Math.min(
@@ -1475,6 +1530,7 @@ export function ExpressionCanvas({
                 data-canvas-key={point.key}
                 data-piece-id={point.piece.id}
                 data-source-node={node.id}
+                data-morpheme-trace={nodeTrace?.status}
                 data-evaluation-state={preview?.status}
                 data-lexical-status={node.attributes.lexicalStatus}
                 className={`runtime-node canvas-node ${junction ? 'runtime-junction canvas-operation' : ''} ${hole ? 'canvas-hole' : ''} ${preview ? 'canvas-' + preview.status : ''} ${selected === point.key ? 'is-selected' : ''} ${matches.has(point.key) ? 'is-match' : ''} ${dragPreview?.target === point.key ? 'is-drop-target' : ''} ${dragPreview?.keys.includes(point.key) ? 'is-dragging' : ''}`}
@@ -1633,7 +1689,11 @@ export function ExpressionCanvas({
                           <text className="runtime-result-text" x={10} y={108}>
                             {preview.lines.map((line, index) => (
                               <tspan key={index} x={10} dy={index ? 18 : 0}>
-                                {line}
+                                {tracedLines ? (
+                                  <MorphemeSpans segments={tracedLines[index]} />
+                                ) : (
+                                  line
+                                )}
                               </tspan>
                             ))}
                           </text>
@@ -1644,11 +1704,11 @@ export function ExpressionCanvas({
                     <>
                       <rect
                         className="runtime-node-body"
-                        width={NODE_WIDTH}
-                        height={NODE_HEIGHT}
+                        width={nodeWidth}
+                        height={nodeHeight}
                         rx={12}
                       />
-                      <path className="runtime-node-accent" d={`M 1 18 L 1 ${NODE_HEIGHT - 18}`} />
+                      <path className="runtime-node-accent" d={`M 1 18 L 1 ${nodeHeight - 18}`} />
                       <text className="runtime-node-type" x={15} y={21}>
                         {hole ? 'ENCAIXE VAZIO' : node.runtimeType.toLocaleUpperCase('pt')}
                       </text>
@@ -1670,12 +1730,15 @@ export function ExpressionCanvas({
                         y={86}
                       >
                         {preview
-                          ? clip(
-                              preview.status === 'ok'
-                                ? `→ ${preview.text || '∅'}`
-                                : preview.lines.join(' '),
-                              35,
-                            )
+                          ? preview.lines.map((line, index) => (
+                              <tspan key={index} x={15} dy={index ? 18 : 0}>
+                                {tracedLines ? (
+                                  <MorphemeSpans segments={tracedLines[index]} />
+                                ) : (
+                                  line
+                                )}
+                              </tspan>
+                            ))
                           : point.piece.pending
                             ? 'Avaliando esta peça…'
                             : 'Expressão preservada'}
@@ -2289,10 +2352,17 @@ export function ExpressionCanvas({
                     : selectedNode.label}
               </strong>
               <p data-evaluation-state={selectedPreview?.status}>
-                {selectedPreview?.text ||
+                {selectedPreview?.status === 'ok' && morphology.trace ? (
+                  <MorphemeText
+                    text={selectedPreview.text}
+                    ranges={morphology.trace.nodes[selectedNode.id]?.ranges}
+                  />
+                ) : (
+                  selectedPreview?.text ||
                   selectedPreview?.lines.join(' ') ||
                   selectedPiece?.error ||
-                  'Aguardando a avaliação desta etapa.'}
+                  'Aguardando a avaliação desta etapa.'
+                )}
               </p>
             </div>
             <button aria-expanded={advanced} onClick={() => setAdvanced((value) => !value)}>

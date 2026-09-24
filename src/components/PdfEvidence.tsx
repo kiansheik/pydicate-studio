@@ -16,7 +16,6 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   pdfRect,
   viewportRect,
-  inheritEvidence,
   guideEvidence,
   validWorkingEvidence,
   type EvidencePointer,
@@ -245,15 +244,12 @@ export function PdfEvidence({
               };
             if (donor) {
               if (!newPassageGuide && previous.ordinal === undefined) continue;
-              nextWorking = newPassageGuide
-                ? guideEvidence(donor, next.revision, {
-                    passageId: previous.id,
-                    ordinal: previous.ordinal,
-                  })
-                : inheritEvidence(donor, next.revision, {
-                    passageId: previous.id,
-                    ordinal: previous.ordinal!,
-                  });
+              // A previous passage supplies a location guide, never this
+              // passage's source evidence, including when it spans pages.
+              nextWorking = guideEvidence(donor, next.revision, {
+                passageId: previous.id,
+                ordinal: previous.ordinal,
+              });
               localStorage.setItem(cacheKey, JSON.stringify(nextWorking));
               restored = true;
               break;

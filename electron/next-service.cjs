@@ -240,13 +240,19 @@ function createNextService(options) {
     if (method === 'session_restore') {
       await load();
       const parent = settings.parentPath ?? defaultParent;
+      if (!settings.parentPath && (await options.needsSetup?.(parent)))
+        return { project: null, setupRequired: true };
       try {
         const project = await openPath(parent);
         await save({ parentPath: parent });
         await analysis?.start();
         return { project, selectedPassageId: settings.selectedPassageId };
       } catch (e) {
-        return { project: null, error: `Não foi possível restaurar oldtupicorpus: ${e.message}` };
+        return {
+          project: null,
+          error: `Não foi possível restaurar oldtupicorpus: ${e.message}`,
+          ...(options.needsSetup ? { setupRequired: true } : {}),
+        };
       }
     }
     if (method === 'session_select') {

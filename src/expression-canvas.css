@@ -573,3 +573,27 @@
 .reference-inspector li {
   margin: 10px 0;
 }
+
+.expression-canvas,
+.generated-surface {
+  --morpheme-ink: #794300;
+  --morpheme-background: #ffe6a7;
+}
+[data-theme='dark'] .expression-canvas,
+[data-theme='dark'] .generated-surface {
+  --morpheme-ink: #ffe09a;
+  --morpheme-background: #65441b;
+}
+.morpheme-highlight {
+  color: var(--morpheme-ink);
+  background: var(--morpheme-background);
+  border-radius: 2px;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+.expression-canvas .morpheme-highlight-svg {
+  fill: var(--morpheme-ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}

@@ -64,6 +64,68 @@ describe('canvas construction orientation', () => {
       `, ${left.x + treeNodeWidth(left.node) / 2} ${left.y}`,
     );
   });
+  it('keeps long output boxes and wide parents apart in both orientations', () => {
+    const fixture: RuntimeGraph = {
+      ...graph,
+      nodes: [
+        node('root', 'binary'),
+        node('left', 'binary'),
+        node('right', 'binary'),
+        node('left/child', 'binary'),
+        node('right/child', 'binary'),
+        node('long-reference'),
+      ],
+      edges: [
+        ['root', 'left'],
+        ['root', 'right'],
+        ['root', 'long-reference'],
+        ['left', 'left/child'],
+        ['right', 'right/child'],
+      ].map(([source, target], index) => ({
+        ...graph.edges[0],
+        id: String(index),
+        source,
+        target,
+        index,
+      })),
+    };
+    for (const current of fixture.nodes) {
+      current.expression!.isRoot = current.id === 'root';
+      current.evaluation = {
+        status: 'ok',
+        surface: current.id.endsWith('/child')
+          ? 'a'
+          : 'arobîar ybakype i îeupiragûera '.repeat(24).trim(),
+      };
+    }
+    const before = structuredClone(fixture);
+    for (const orientation of ['horizontal', 'bottom-up'] as const) {
+      const layout = layoutCanvasTree(fixture, new Set(), orientation);
+      const positions = [...layout.positions.values()];
+      positions.forEach((first, index) => {
+        expect(first.x + treeNodeWidth(first.node)).toBeLessThanOrEqual(layout.width);
+        expect(first.y + treeNodeHeight(first.node)).toBeLessThanOrEqual(layout.height);
+        for (const second of positions.slice(index + 1)) {
+          const overlapX =
+            first.x < second.x + treeNodeWidth(second.node) &&
+            second.x < first.x + treeNodeWidth(first.node);
+          const overlapY =
+            first.y < second.y + treeNodeHeight(second.node) &&
+            second.y < first.y + treeNodeHeight(first.node);
+          expect(overlapX && overlapY).toBe(false);
+        }
+      });
+      if (orientation === 'bottom-up') {
+        for (const edge of layout.edges) {
+          const parent = layout.positions.get(edge.source)!;
+          const child = layout.positions.get(edge.target)!;
+          expect(parent.y + treeNodeHeight(parent.node)).toBeLessThan(child.y);
+        }
+      }
+    }
+    expect(fixture).toEqual(before);
+  });
+
   it('retains collapse identities and preserves the existing horizontal layout exactly', () => {
     const collapsed = layoutCanvasTree(graph, new Set(['root']), 'bottom-up');
     expect([...collapsed.positions.keys()]).toEqual(['root']);
