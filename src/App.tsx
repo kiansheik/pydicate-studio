@@ -513,7 +513,9 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
         className="project-option actionable"
         disabled={studio.busy || !window.studio}
         onClick={() => {
-          void studio.openProject().then(close);
+          void studio.openProject().then((opened) => {
+            if (opened) close();
+          });
         }}
       >
         <div className="project-option-icon">

@@ -132,7 +132,14 @@ try {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selectedPath] });
     }, projectParent);
     await picker.getByRole('button', { name: /Abrir projeto existente/ }).click();
-    await expect(picker).not.toBeVisible({ timeout: 30_000 });
+    try {
+      await expect(picker).not.toBeVisible({ timeout: 30_000 });
+    } catch (error) {
+      const messages = await picker.getByRole('alert').allTextContents();
+      throw new Error(`The packaged project did not open: ${messages.join('; ')}`, {
+        cause: error,
+      });
+    }
     const project = await page.evaluate(() => window.studio.refreshProject());
     assert.equal(project.mode, 'local');
     const passage = project.passages.find((item) => item.sourceId === 'araujo_catecismo_1686');

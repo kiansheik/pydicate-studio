@@ -991,7 +991,7 @@ export function useStudio() {
   }
 
   async function openProject() {
-    if (!window.studio || operation.current) return;
+    if (!window.studio || operation.current) return false;
     operation.current = true;
     setBusy(true);
     setError('');
@@ -999,9 +999,12 @@ export function useStudio() {
       // Finish the current project's save before the backend changes its active worker.
       await persist();
       const next = await window.studio.openProject();
-      if (next) changeProject(next);
+      if (!next) return false;
+      changeProject(next);
+      return true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
+      return false;
     } finally {
       operation.current = false;
       setBusy(false);

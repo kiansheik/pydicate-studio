@@ -122,3 +122,31 @@ test('failed preparation keeps the setup dialog open and allows retry', async ({
   await expect(dialog).toHaveCount(0);
   expect(await page.evaluate(() => (window as any).__installation.setups)).toBe(2);
 });
+
+test('failed or cancelled existing-project opening keeps the picker available for retry', async ({
+  page,
+}) => {
+  await simulatedInstaller(page);
+  await page.evaluate(() => (window as any).__installation.completeStartup());
+  const dialog = page.getByRole('dialog');
+  const open = dialog.getByRole('button', { name: /Abrir projeto existente/ });
+  await open.click();
+  await expect(dialog).toBeVisible();
+  await expect(open).toBeEnabled();
+  await page.evaluate(() => {
+    window.studio!.openProject = async () => {
+      throw new Error('Não foi possível abrir a pasta escolhida.');
+    };
+  });
+  await open.click();
+  await expect(dialog.getByRole('alert')).toHaveText('Não foi possível abrir a pasta escolhida.');
+  await expect(open).toBeEnabled();
+  await page.evaluate(() => {
+    window.studio!.openProject = async () => {
+      const modulePath = '/src/domain/example.ts';
+      return (await import(modulePath)).createExampleProject();
+    };
+  });
+  await open.click();
+  await expect(dialog).toHaveCount(0);
+});

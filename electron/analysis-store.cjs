@@ -135,12 +135,15 @@ class AnalysisStore {
           await file.close();
           file = null;
           await fs.rename(temporary, filename);
-          // Persist the directory entry as well as the file before acknowledging a command.
-          const directory = await fs.open(this.directory, 'r');
-          try {
-            await directory.sync();
-          } finally {
-            await directory.close();
+          // Persist the directory entry on POSIX. Windows does not expose
+          // directory handles via fs.open; the file itself is already flushed.
+          if (process.platform !== 'win32') {
+            const directory = await fs.open(this.directory, 'r');
+            try {
+              await directory.sync();
+            } finally {
+              await directory.close();
+            }
           }
         } finally {
           if (file) await file.close();

@@ -77,7 +77,7 @@ jobs:
       - name: Gate installers on domain and desktop integration checks
         run: |
           npm test
-          node --test electron/tests/update-service.test.cjs electron/tests/runtime-environment.test.cjs electron/tests/managed-projects.test.cjs electron/tests/release-config.test.cjs electron/tests/installation-session.test.cjs
+          node --test electron/tests/update-service.test.cjs electron/tests/runtime-environment.test.cjs electron/tests/managed-projects.test.cjs electron/tests/release-config.test.cjs electron/tests/installation-session.test.cjs electron/tests/draft-store.test.cjs electron/tests/analysis-store.test.cjs
           node --test --test-name-pattern='external stdio MCP|owner uniqueness|independent MCP clients' electron/tests/studio-mcp.test.cjs
           python -B -m unittest discover -s python/tests -p test_runtime_encoding.py -v
           python -B -m unittest discover -s python/tests -p test_publication_portability.py -v

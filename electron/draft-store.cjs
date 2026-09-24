@@ -197,11 +197,15 @@ class DraftStore {
           await handle.close();
           handle = null;
           await fs.rename(temporary, filename);
-          const directory = await fs.open(this.directory, 'r');
-          try {
-            await directory.sync();
-          } finally {
-            await directory.close();
+          // Windows cannot open directory handles through fs.open. The file
+          // has already been flushed and renamed; sync its parent on POSIX.
+          if (process.platform !== 'win32') {
+            const directory = await fs.open(this.directory, 'r');
+            try {
+              await directory.sync();
+            } finally {
+              await directory.close();
+            }
           }
           return next;
         } finally {
