@@ -52,7 +52,7 @@ class AuthoringService:
     def child(self,payload,timeout=45):
         payload={'parent':str(self.adapter.parent),**payload}
         try:
-            run=subprocess.run([sys.executable,'-I','-B',str(Path(__file__).with_name('authoring_runtime.py'))],input=json.dumps(payload),capture_output=True,text=True,timeout=timeout)
+            run=subprocess.run([sys.executable,'-I','-X','utf8','-B',str(Path(__file__).with_name('authoring_runtime.py'))],input=json.dumps(payload),capture_output=True,text=True,encoding='utf-8',timeout=timeout)
             if run.returncode: self.error(run.stderr[-2000:] or 'Processo de gramática falhou.','ENGINE_ERROR')
             response=json.loads(run.stdout)
         except (OSError,subprocess.SubprocessError,ValueError) as error: self.error(str(error),'ENGINE_ERROR')

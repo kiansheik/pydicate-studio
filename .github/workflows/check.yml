@@ -10,7 +10,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
@@ -21,10 +21,12 @@ jobs:
           cache: npm
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
       - run: npm ci
       - name: Build and focused checks
-        run: npm run check
+        # Installers ship the checked-in reference library. Regenerating it is a
+        # separate authoring task requiring the contributor's selected corpus.
+        run: npm run format:check && npm run build:app && npm test && npm run test:desktop && npm run test:python
       - name: Install the browser used by Playwright
         run: npx playwright install --with-deps chrome
       - name: Browser workflows

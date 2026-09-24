@@ -515,8 +515,8 @@ class ProjectAdapter:
         payload = {"enginePath": str(self.parent / "nhe-enga"), "definition": definition.keywords[0].value.value,
                    "analysis": analysis}
         try:
-            process = subprocess.run([sys.executable, "-I", "-B", str(Path(__file__).with_name("engine_render.py"))],
-                                     input=json.dumps(payload), capture_output=True, text=True, timeout=30)
+            process = subprocess.run([sys.executable, "-I", "-X", "utf8", "-B", str(Path(__file__).with_name("engine_render.py"))],
+                                     input=json.dumps(payload), capture_output=True, text=True, encoding="utf-8", timeout=30)
             if process.returncode:
                 raise AdapterError("A gramática local não pôde realizar esta construção: " + process.stderr.strip()[-1200:], "INCOMPATIBLE_ENGINE")
             result = json.loads(process.stdout)

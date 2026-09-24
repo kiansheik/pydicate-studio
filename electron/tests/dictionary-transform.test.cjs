@@ -57,7 +57,8 @@ test('offline style transformation removes remote fonts while retaining original
 });
 
 test('current neighboring dictionary source supports the bounded decoration without changing its files', (t) => {
-  const root = path.resolve(__dirname, '../../../nhe-enga');
+  const parent = process.env.PYDICATE_PROJECT_PARENT ?? path.resolve(__dirname, '../../..');
+  const root = path.join(parent, 'nhe-enga');
   if (!fs.existsSync(path.join(root, 'js/index.js')))
     return t.skip('Local dictionary checkout is unavailable.');
   const script = fs.readFileSync(path.join(root, 'js/index.js'), 'utf8');

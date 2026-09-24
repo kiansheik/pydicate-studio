@@ -77,7 +77,8 @@ jobs:
       - name: Gate installers on domain and desktop integration checks
         run: |
           npm test
-          node --test electron/tests/update-service.test.cjs electron/tests/runtime-environment.test.cjs electron/tests/managed-projects.test.cjs electron/tests/release-config.test.cjs
+          node --test electron/tests/update-service.test.cjs electron/tests/runtime-environment.test.cjs electron/tests/managed-projects.test.cjs electron/tests/release-config.test.cjs electron/tests/installation-session.test.cjs
+          python -B -m unittest discover -s python/tests -p test_runtime_encoding.py -v
       - name: Set application release version without creating a commit or tag
         env:
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
