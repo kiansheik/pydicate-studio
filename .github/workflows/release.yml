@@ -78,13 +78,17 @@ jobs:
         run: |
           npm test
           node --test electron/tests/update-service.test.cjs electron/tests/runtime-environment.test.cjs electron/tests/managed-projects.test.cjs electron/tests/release-config.test.cjs electron/tests/installation-session.test.cjs
+          node --test --test-name-pattern='external stdio MCP|owner uniqueness|independent MCP clients' electron/tests/studio-mcp.test.cjs
           python -B -m unittest discover -s python/tests -p test_runtime_encoding.py -v
+          python -B -m unittest discover -s python/tests -p test_publication_portability.py -v
       - name: Set application release version without creating a commit or tag
         env:
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
         run: npm version "$RELEASE_VERSION" --no-git-tag-version
       - run: npm run build:app
       - run: npm run runtime:prepare
+      - name: Prepare a clean public-main project using only bundled Git
+        run: node scripts/smoke-managed-install.mjs
       - name: Build native installer and update metadata without publishing
         env:
           CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_LINK || matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
@@ -99,13 +103,13 @@ jobs:
           if [ '${{ matrix.platform }}' = mac ]; then
             folder='mac'
             if [ '${{ matrix.arch }}' = arm64 ]; then folder='mac-arm64'; fi
-            node scripts/smoke-packaged.mjs "release/$folder/Pydicate Studio.app/Contents/MacOS/Pydicate Studio"
+            node scripts/smoke-packaged.mjs "release/$folder/Pydicate Studio.app/Contents/MacOS/Pydicate Studio" "$STUDIO_SMOKE_PROJECT"
           else
-            node scripts/smoke-packaged.mjs 'release/win-unpacked/Pydicate Studio.exe'
+            node scripts/smoke-packaged.mjs 'release/win-unpacked/Pydicate Studio.exe' "$STUDIO_SMOKE_PROJECT"
           fi
       - name: Open the Linux packaged app in a virtual display
         if: matrix.platform == 'linux'
-        run: xvfb-run --auto-servernum node scripts/smoke-packaged.mjs release/linux-unpacked/pydicate-studio
+        run: xvfb-run --auto-servernum node scripts/smoke-packaged.mjs release/linux-unpacked/pydicate-studio "$STUDIO_SMOKE_PROJECT"
       - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.platform }}-${{ matrix.arch }}

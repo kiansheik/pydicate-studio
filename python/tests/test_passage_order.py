@@ -12,6 +12,7 @@ from passage_references import read, paths
 from python.tests import test_pending_authoring as fixture
 SOURCE=fixture.SOURCE
 
+@unittest.skipUnless((fixture.REAL/'oldtupicorpus/historic'/f'{SOURCE}.tu.py').exists(),'selected corpus not installed')
 class PassageOrderTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls): fixture.PendingAuthoringTests.setUpClass.__func__(cls)

@@ -31,8 +31,8 @@ def studio_define(value, definition):
     result = value.copy(); result.definition = definition; return result
 
 
-def configure(parent):
-    corpus = parent / 'oldtupicorpus'; engine = parent / 'nhe-enga'
+def configure(parent, engine_path=None):
+    corpus = parent / 'oldtupicorpus'; engine = Path(engine_path) if engine_path is not None else parent / 'nhe-enga'
     sys.path[:0] = [str(corpus), str(engine/'pydicate'), str(engine/'tupi')]
     return corpus
 
@@ -864,7 +864,7 @@ def main():
     payload=json.load(sys.stdin)
     try:
         with redirect_stdout(sys.stderr):
-            parent=Path(payload['parent']); corpus=configure(parent)
+            parent=Path(payload['parent']); corpus=configure(parent, payload.get('enginePath'))
             path=corpus/'historic'/f"{payload.get('sourceId','araujo_catecismo_1686')}.tu.py"
             if payload.get('action') == 'learning_library':
                 from learning_library import build

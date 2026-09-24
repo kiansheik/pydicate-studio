@@ -85,25 +85,23 @@ class ApprovalSinkTests(unittest.TestCase):
         import hashlib
         with tempfile.TemporaryDirectory(prefix='studio-approval-invariant-') as temp:
             corpus=Path(temp)/'corpus';source=corpus/'historic/fixture.tu.py'
-            source.parent.mkdir(parents=True);source.write_text('fixture\n')
+            source.parent.mkdir(parents=True);source.write_text('l = [entry]\nfixture = l\n')
             target=corpus/'ground_truth/records/historic/fixture.jsonl'
             state=Path(temp)/'state'
-            service=types.SimpleNamespace(normalize_surface=lambda value:value.strip().removesuffix('.'))
-            module=types.ModuleType('authoring');module.service=service
-            class Record:
+            records=types.ModuleType('authoring.records')
+            records.normalize_surface=lambda value:value.strip().removesuffix('.')
+            class Predicate:
                 surface='different'
-                def to_dict(self):return {'surface':self.surface,'ordinal':1,'status':'approved'}
-            def commit(source_id,ordinal):
-                service.write_records(target,[Record()])
-                return {'committed_surface':Record.surface}
-            service.commit_ground_truth=commit
-            payload={'sourceId':'fixture','ordinal':1,'sourceFileFingerprint':'sha256:'+hashlib.sha256(source.read_bytes()).hexdigest(),'reviewedSurface':'reviewed.','engineFingerprint':'fixture','stateDir':str(state)}
-            with patch.dict(sys.modules,{'authoring':module}):
+                def eval(self):return self.surface
+            payload={'sourceId':'fixture','ordinal':1,'passageId':'passage:fixture','sourceFileFingerprint':'sha256:'+hashlib.sha256(source.read_bytes()).hexdigest(),'reviewedSurface':'reviewed.','engineFingerprint':'fixture','stateDir':str(state)}
+            with patch.dict(sys.modules,{'authoring.records':records}), \
+                    patch('authoring_runtime.namespace_for',return_value={'entry':Predicate()}), \
+                    patch('studio_authoring.authoritative_metadata',return_value={}):
                 with self.assertRaisesRegex(ValueError,'superfície mudou'):
                     approve_authoritatively(payload,corpus)
                 self.assertFalse(target.exists())
                 self.assertFalse((state/'recovery').exists())
-                Record.surface='reviewed'
+                Predicate.surface='reviewed'
                 approve_authoritatively(payload,corpus)
             self.assertEqual(json.loads(target.read_text())['surface'],'reviewed')
             self.assertEqual(len(list((state/'recovery').glob('*.json'))),1)

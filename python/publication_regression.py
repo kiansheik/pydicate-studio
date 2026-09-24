@@ -83,14 +83,17 @@ def check_publication(service, changes, *, recovery=False, insertion=None):
         parent=Path(temporary); corpus=parent/'oldtupicorpus'; corpus.mkdir()
         for name in ('historic','authoring','ground_truth'):
             shutil.copytree(service.corpus/name,corpus/name,ignore=shutil.ignore_patterns('__pycache__'))
-        (parent/'nhe-enga').symlink_to(service.adapter.parent/'nhe-enga',target_is_directory=True)
         for change in changes:
             relative=change['path'].resolve().relative_to(service.corpus.resolve())
             target=corpus/relative
             if not target.is_file() and not (relative.parts[:3]==('ground_truth','records','historic') and target.suffix in {'.json','.jsonl'}): raise ValueError('Arquivo fora do conjunto de publicação.')
             target.parent.mkdir(parents=True,exist_ok=True)
             target.write_bytes(change['after'])
-        after=service.child({'action':'publication_snapshot','parent':str(parent)},timeout=180)
+        # Select the same trusted engine directly. The corpus remains a private
+        # copy; Windows neither needs privileged symlinks nor copies dictionary
+        # databases and scan assets for every source review.
+        after=service.child({'action':'publication_snapshot','parent':str(parent),
+                            'enginePath':str(service.adapter.parent/'nhe-enga')},timeout=180)
     result=compare(before,after,allow_removed=recovery,insertion=insertion)
     if not result['ok']:
         service.error('A regressão bloqueou a publicação. Nenhum arquivo foi alterado: '+'; '.join(result['failures'][:5]),'REGRESSION_FAILED')

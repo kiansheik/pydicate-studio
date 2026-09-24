@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 
 
@@ -17,7 +18,14 @@ def _staged(path, content):
     descriptor, temporary = tempfile.mkstemp(prefix='.' + path.name + '.studio-', dir=path.parent)
     try:
         with os.fdopen(descriptor, 'wb') as handle:
-            os.fchmod(handle.fileno(), (path.stat().st_mode & 0o777) if path.exists() else 0o600)
+            mode = (path.stat().st_mode & 0o777) if path.exists() else 0o600
+            if callable(getattr(os, 'fchmod', None)):
+                os.fchmod(handle.fileno(), mode)
+            else:
+                # Windows exposes path chmod (the read-only flag), not fchmod.
+                # This path is our exclusively created staging file, never the
+                # source being reviewed or a caller-supplied link target.
+                os.chmod(temporary, mode)
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
@@ -28,6 +36,10 @@ def _staged(path, content):
 
 
 def _sync_parent(path):
+    # Windows cannot open a directory with os.open for fsync. File contents and
+    # the recovery journal are still flushed before each atomic replacement.
+    if sys.platform == 'win32':
+        return
     descriptor = os.open(path.parent, os.O_RDONLY)
     try:
         os.fsync(descriptor)

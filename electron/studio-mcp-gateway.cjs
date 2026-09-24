@@ -69,13 +69,19 @@ function createStudioMcpGateway({
       }
       ownerDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'pydicate-mcp-'));
       await fs.chmod(ownerDirectory, 0o700);
-      socketPath = path.join(ownerDirectory, 'owner.sock');
+      // Windows IPC endpoints are named pipes rather than filesystem sockets.
+      // The random name is only an address: every request still requires the
+      // existing per-attempt authentication token.
+      socketPath =
+        process.platform === 'win32'
+          ? `\\\\.\\pipe\\pydicate-mcp-${process.pid}-${randomBytes(16).toString('hex')}`
+          : path.join(ownerDirectory, 'owner.sock');
       server = net.createServer(onConnection);
       await new Promise((resolve, reject) => {
         server.once('error', reject);
         server.listen(socketPath, resolve);
       });
-      await fs.chmod(socketPath, 0o600);
+      if (process.platform !== 'win32') await fs.chmod(socketPath, 0o600);
       try {
         await fs.writeFile(
           discoveryPath,

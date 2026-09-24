@@ -108,9 +108,13 @@ test('external stdio MCP initializes, discovers the complete catalog/resources, 
   const resource = (await f.external.send('resources/read', { uri: 'studio://authoring/guide' }))
     .result;
   assert.match(resource.contents[0].text, /ground truth/);
-  assert.equal((await fs.stat(f.gateway.discoveryPath)).mode & 0o777, 0o600);
-  assert.equal((await fs.stat(f.descriptor.configPath)).mode & 0o777, 0o600);
-  assert.equal((await fs.stat(f.descriptor.env.STUDIO_MCP_SOCKET)).mode & 0o777, 0o600);
+  if (process.platform === 'win32') {
+    assert.ok(f.descriptor.env.STUDIO_MCP_SOCKET.startsWith('\\\\.\\pipe\\pydicate-mcp-'));
+  } else {
+    assert.equal((await fs.stat(f.gateway.discoveryPath)).mode & 0o777, 0o600);
+    assert.equal((await fs.stat(f.descriptor.configPath)).mode & 0o777, 0o600);
+    assert.equal((await fs.stat(f.descriptor.env.STUDIO_MCP_SOCKET)).mode & 0o777, 0o600);
+  }
   assert.ok(JSON.parse(await fs.readFile(f.descriptor.configPath)).mcpServers.studio_authoring);
   const forbidden = client({
     ...f.descriptor,

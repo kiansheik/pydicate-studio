@@ -59,7 +59,15 @@ function setup() {
         },
       }),
     },
-    './lexical-notes-service.cjs': { createLexicalNotesService: () => ({}) },
+    './lexical-notes-service.cjs': {
+      createLexicalNotesService: () => ({
+        invoke: async (method, params) => {
+          assert.equal(method, 'lexical_notes_list');
+          assert.equal(params.projectId, project.id);
+          return { records: [] };
+        },
+      }),
+    },
   });
   let duringWorker = () => {};
   const service = createNextService({
