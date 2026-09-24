@@ -1,5 +1,21 @@
 # Work log
 
+## 2026-09-24 - Published four-platform desktop preview
+
+Published [0.2.10006](https://github.com/kiansheik/pydicate-studio/releases/tag/v0.2.10006)
+after native Windows x64, Linux x64, Apple Silicon and Intel Mac builds passed.
+Each runner cloned the public projects with bundled Git, opened the packaged
+application with isolated data and no host runtime on PATH, and evaluated actual
+Tupi morphology. Release assembly verifies updater checksums before publication.
+
+Native validation uncovered and fixed Windows Unicode subprocesses, atomic
+storage/source-write portability and MCP transport, plus cross-platform test
+fixtures. Project-opening failure now retains the picker and error for retry.
+Full hosted Checks passed: 232 domain, 267 desktop, 161 Python and 178 browser
+tests; external-fixture skips remain explicit. Mac previews use manual updates
+until Developer ID/notarization is configured. See the
+[release handoff](session-handoffs/2026-09-24-published-desktop-release.md).
+
 ## 2026-09-24 - Installers, first-run setup and managed updates
 
 Added native runtime preparation, bundled Python/Git resolution, staged sparse

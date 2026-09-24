@@ -46,3 +46,10 @@ Playwright's per-test output directory, preserving the artifacts on every host.
 Both affected portable review checks passed locally after the path change;
 formatting and diff checks passed. Checks also accepts `workflow_dispatch` so
 test-only follow-ups can be verified without rebuilding identical installers.
+
+Final [Checks run 36066168935](https://github.com/kiansheik/pydicate-studio/actions/runs/36066168935)
+at `4abdbe7` passed formatting, production build, 232 domain tests, 267 desktop
+tests (3 repository-dependent skips), 161 Python tests (218 skips), and 178
+browser tests (86 skips). The intermediate manual run at `43fc6b8` also passed.
+The later Windows persistence repair and project-opening recovery are included
+in the final run; see the [release handoff](2026-09-24-published-desktop-release.md).

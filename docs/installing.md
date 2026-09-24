@@ -7,15 +7,15 @@ Baixe o instalador na [página de versões](https://github.com/kiansheik/pydicat
 | Mac com Apple Silicon       | `.dmg` identificado como `arm64`    |
 | Mac com Intel               | `.dmg` identificado como `x64`      |
 | Windows de 64 bits          | `.exe` identificado como `x64`      |
-| Linux de 64 bits, Intel/AMD | `.AppImage` identificado como `x64` |
+| Linux de 64 bits, Intel/AMD | `.AppImage` identificado como `x86_64` |
 
 No Mac, abra o `.dmg`, copie **Pydicate Studio** para Aplicativos e abra essa cópia. No Windows, execute o instalador; a instalação pertence ao seu usuário.
 
 No Linux, dê permissão de execução ao AppImage e abra-o. Por exemplo, substituindo `VERSAO` pelo número do arquivo baixado:
 
 ```sh
-chmod +x "Pydicate-Studio-VERSAO-linux-x64.AppImage"
-./Pydicate-Studio-VERSAO-linux-x64.AppImage
+chmod +x "Pydicate-Studio-VERSAO-linux-x86_64.AppImage"
+./Pydicate-Studio-VERSAO-linux-x86_64.AppImage
 ```
 
 O suporte a FUSE depende da distribuição. Se houver erro de montagem, consulte a [orientação oficial do AppImage](https://docs.appimage.org/user-guide/troubleshooting/fuse.html); a documentação também descreve execução por extração. A atualização automática do Studio requer executar o próprio AppImage.
@@ -69,4 +69,4 @@ Para assinar versões, configure os secrets do repositório:
 
 O workflow passa os certificados a `CSC_LINK` e `CSC_KEY_PASSWORD`, reconhecidos pelo electron-builder. Para compilações locais, use essas variáveis diretamente. Os detalhes de certificados e notarização seguem a [documentação do electron-builder](https://www.electron.build/docs/features/code-signing/). Não registre certificados, senhas ou tokens no repositório.
 
-Os testes locais não substituem a instalação em cada sistema. Antes de anunciar uma versão, confirme os quatro artefatos publicados e teste instalação, primeira preparação e reabertura com o instalador correspondente.
+A [versão 0.2.10006](https://github.com/kiansheik/pydicate-studio/releases/tag/v0.2.10006) passou pelos quatro runners nativos: cada um preparou os repositórios com o Git incluído, abriu o aplicativo empacotado em um perfil temporário e realizou uma expressão pelo Python incluído, sem Python/Git externos no PATH. A montagem da versão confere os hashes dos arquivos de atualização antes da publicação. Esses testes não substituem a instalação manual em computadores de colaboradores nem comprovam uma atualização entre duas versões publicadas.

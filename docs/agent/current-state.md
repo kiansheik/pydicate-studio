@@ -14,9 +14,14 @@ offline/manual fallback. Managed repositories fast-forward only clean main
 branches without local commits. Mac previews without Developer ID use manual
 application updates. CI builds Mac ARM64/x64, Windows x64 and Linux x64, runs
 packaged startup probes, validates update checksums, then publishes a complete
-release. No release has been published in this session; signing secrets and
-non-ARM64-Mac native verification remain pending. See [installation guide](../installing.md)
-and [handoff](session-handoffs/2026-09-24-installers-managed-updates.md).
+release. [Version 0.2.10006](https://github.com/kiansheik/pydicate-studio/releases/tag/v0.2.10006)
+is published for all four targets. Native runners prepared fresh public-main
+workspaces and opened/evaluated them in the actual packaged applications with
+host Python/Git absent from PATH. Full hosted Checks also passed. Windows
+Unicode, storage, source-publication and MCP portability fixes are included.
+Signing credentials, manual installer acceptance on users' machines and a real
+upgrade between published versions remain open. See [installation guide](../installing.md)
+and [release handoff](session-handoffs/2026-09-24-published-desktop-release.md).
 
 ## Complete wrapped results and synchronized current-result highlights
 
