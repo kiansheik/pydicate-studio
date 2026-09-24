@@ -214,6 +214,7 @@ test('updates a clean shallow main only by fast-forward and retains local uncomm
     '# newer engine',
   );
   const protectedFile = path.join(corpus.path, 'historic/__init__.py');
+  const original = await fs.readFile(protectedFile);
   await fs.writeFile(protectedFile, '# author edits');
   const updated = await value.service.update();
   assert.equal(updated.ready, true);
@@ -221,7 +222,8 @@ test('updates a clean shallow main only by fast-forward and retains local uncomm
   assert.equal(await fs.readFile(protectedFile, 'utf8'), '# author edits');
   assert.equal(updated.repositories[1].revision, engineTarget);
   assert.ok(updated.warnings.some((message) => message.includes('alterações locais')));
-  await fs.writeFile(protectedFile, '# fixture\n');
+  // Restore the actual checkout bytes, including Git's CRLF conversion on Windows.
+  await fs.writeFile(protectedFile, original);
   assert.equal((await value.service.update()).repositories[0].revision, corpusTarget);
 });
 
