@@ -104,6 +104,13 @@ export function PdfEvidence({
   const params = { projectId, sourceId, passageId, previousPassageId, newPassageGuide };
   const view = working?.view || emptyView(initialPage ?? 1);
   const regions = working?.regions || [];
+  const regionPages = [...new Set(regions.map((region) => region.pageIndex + 1))].sort(
+    (a, b) => a - b,
+  );
+  const pageRange =
+    regionPages.length > 1 && regionPages.at(-1)! - regionPages[0] === regionPages.length - 1
+      ? `${regionPages[0]}–${regionPages.at(-1)}`
+      : regionPages.join(', ');
   const assetId = status?.asset?.id;
   const available = Boolean(window.studio?.invoke);
   const preparing = useRef(false);
@@ -444,7 +451,15 @@ export function PdfEvidence({
   }
   function changeView(patch: Partial<EvidenceView>) {
     if (!working) return;
+    gesture.current = null;
     setWorking({ ...working, view: { ...working.view, ...patch } });
+    setDirty(true);
+  }
+  function reorderRegion(index: number, offset: number) {
+    if (!working || index + offset < 0 || index + offset >= regions.length) return;
+    const reordered = [...regions];
+    [reordered[index], reordered[index + offset]] = [reordered[index + offset], reordered[index]];
+    setWorking({ ...working, regions: reordered });
     setDirty(true);
   }
   function eventPoint(event: PointerEvent<HTMLDivElement>): [number, number] {
@@ -790,6 +805,18 @@ export function PdfEvidence({
               Marcar região
             </button>
             <button
+              disabled={
+                locked || rendering || !pdf || !regions.length || view.pageIndex >= pdf.numPages - 1
+              }
+              onClick={() => {
+                changeView({ pageIndex: view.pageIndex + 1 });
+                setSelection(null);
+                setDrawing(true);
+              }}
+            >
+              Adicionar região na próxima página
+            </button>
+            <button
               disabled={locked || !selection}
               onClick={() => {
                 setWorking(
@@ -824,10 +851,17 @@ export function PdfEvidence({
               quatro cantos para redimensionar.
             </p>
           )}
-          <ul className="evidence-region-list">
+          {regions.length > 0 && (
+            <p className="field-hint" aria-label="Páginas abrangidas pela passagem">
+              Páginas da passagem no PDF: {pageRange}. Recortes na ordem de leitura abaixo. Para
+              outro recorte nesta página ou em qualquer outra, use Marcar região.
+            </p>
+          )}
+          <ol className="evidence-region-list" aria-label="Recortes em ordem de leitura">
             {regions.map((region, index) => (
               <li key={region.id}>
                 <button
+                  disabled={locked || rendering}
                   aria-pressed={selection === region.id}
                   onClick={() => {
                     setSelection(region.id);
@@ -836,9 +870,23 @@ export function PdfEvidence({
                 >
                   Região {index + 1} · PDF {region.pageIndex + 1}
                 </button>
+                <button
+                  aria-label={`Mover região ${index + 1} para antes`}
+                  disabled={locked || rendering || index === 0}
+                  onClick={() => reorderRegion(index, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  aria-label={`Mover região ${index + 1} para depois`}
+                  disabled={locked || rendering || index === regions.length - 1}
+                  onClick={() => reorderRegion(index, 1)}
+                >
+                  ↓
+                </button>
               </li>
             ))}
-          </ul>
+          </ol>
           <p className="field-hint" role="status">
             {dirty
               ? 'Regiões ou visualização não salvas · rascunho local recuperável.'

@@ -25,6 +25,7 @@ from parser_lab.equivalence import acceptance_from_judgments
 from parser_lab.feedback import AttemptLog, coverage_gaps, export, summary
 from parser_lab.judgments import JudgmentLog
 from parser_lab.normalization import InputError, prepare
+from parser_lab.morphology import lexical_hints
 from parser_lab.projection import project
 from parser_lab.ranker import Ranker
 from parser_lab.search import Budget, analyze
@@ -64,6 +65,9 @@ class LabWorker:
         if not artifact_id:
             raise WorkerError('Nenhum índice compatível está ativo. Prepare a linha de base.',
                               'LAB_NO_INDEX')
+        if not self.store.compatible(artifact_id, fingerprint):
+            raise WorkerError('O índice usa outro motor, dicionário ou versão da busca. '
+                              'Prepare o índice novamente.', 'LAB_STALE_INDEX')
         if self._index_id != artifact_id:
             self._index = LabIndex(self.store.directory(artifact_id), self.store.manifest(artifact_id))
             self._index_id = artifact_id
@@ -74,6 +78,8 @@ class LabWorker:
         artifact_id = artifact_id if artifact_id is not None else self.store.active_for('ranker', fingerprint)
         if not artifact_id:
             return None, None
+        if not self.store.compatible(artifact_id, fingerprint):
+            raise WorkerError('O classificador está desatualizado. Treine novamente.', 'LAB_STALE_RANKER')
         if self._ranker_id != artifact_id:
             self._ranker = Ranker.load(self.store.directory(artifact_id) / 'ranker.json')
             self._ranker_id = artifact_id
@@ -97,6 +103,7 @@ class LabWorker:
         started = time.perf_counter()
         try:
             prepared = prepare(params.get('text'))
+            hypotheses = lexical_hints(self.engine, params.get('lexicalHints'))
         except InputError as error:
             raise WorkerError(str(error), error.code)
         index_id, index = self.index_for(params.get('indexId'))
@@ -109,13 +116,19 @@ class LabWorker:
                                                self.judgments.read(10 ** 6))
         candidates, rejections, timings, diagnostics = analyze(
             self.engine, index, prepared['normalized'],
-            budget=Budget({'maxSeconds': seconds}), ranker=ranker, acceptance=acceptance)
+            budget=Budget({'maxSeconds': seconds}), ranker=ranker, acceptance=acceptance,
+            lexical_hints=hypotheses)
         timings['request'] = round(time.perf_counter() - started, 4)
-        status = 'complete' if candidates else 'unknown'
+        status = ('complete' if any(row['completeness'] == 'complete' for row in candidates)
+                  else 'partial' if candidates else 'unknown')
         message = ''
-        if not candidates:
-            message = ('Nenhuma análise completa foi validada. A busca só combina as famílias e '
-                       'o léxico declarados neste índice; ortografia histórica não é convertida.')
+        if status == 'partial':
+            message = ('A sintaxe reproduz a forma no motor, mas depende das raízes e classes '
+                       'provisórias informadas. O significado continua não definido.')
+        elif not candidates:
+            message = ('Nenhuma análise completa foi validada nesta busca. Confira os trechos '
+                       'reconhecidos e a cobertura do índice; você pode informar uma raiz ou nome '
+                       'provisório. Ortografia histórica não é convertida.')
         artifacts = {'index': index_id, 'ranker': ranker_id, 'indexCounts': index.counts(),
                      'indexRecipe': (self.store.manifest(index_id) or {}).get('recipe', {})}
         # Every attempt is kept locally. Completed ones show what the laboratory
@@ -124,6 +137,7 @@ class LabWorker:
             'normalized': prepared['normalized'], 'rawInput': prepared['raw'], 'status': status,
             'candidateCount': len(candidates),
             'candidateSources': [row['source'] for row in candidates],
+            'lexicalHints': params.get('lexicalHints') or [],
             'artifacts': {'index': index_id, 'ranker': ranker_id},
             'context': {'sourceId': self.source_id,
                         'fingerprint': self.engine.context_fingerprint()},
@@ -135,6 +149,7 @@ class LabWorker:
             candidates=candidates, rejections=rejections, timings=timings, status=status,
             message=message, configuration={'diagnostics': diagnostics, 'ranker': bool(ranker),
                                             'seconds': seconds,
+                                            'lexicalHints': params.get('lexicalHints') or [],
                                             'acceptance': acceptance.describe()})
 
     def parse(self, params):

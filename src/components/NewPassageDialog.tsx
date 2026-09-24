@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TranslationFields } from './TranslationFields';
 import type { Studio } from '../useStudio';
 import { invoke, type SourcePreview } from '../domain/authoring';
 import { PdfEvidence } from './PdfEvidence';
@@ -43,6 +44,7 @@ export function NewPassageDialog({
           diplomatic: draft.diplomatic,
           normalized: draft.normalized,
           translation: draft.translation,
+          ...(draft.translations ? { translations: draft.translations } : {}),
           notes: draft.notes,
         },
       });
@@ -85,7 +87,7 @@ export function NewPassageDialog({
           />
         </label>
         <label>
-          Interpretação / tradução
+          Tradução sem idioma informado
           <textarea
             aria-label="Tradução da nova passagem"
             rows={2}
@@ -95,6 +97,10 @@ export function NewPassageDialog({
             }
           />
         </label>
+        <TranslationFields
+          value={draft.translations}
+          onChange={(translations) => studio.editPendingDraft(draftId, { translations })}
+        />
         <label>
           Notas e incertezas
           <textarea

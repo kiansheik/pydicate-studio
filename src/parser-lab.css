@@ -91,6 +91,41 @@
 .lab-normalized code {
   font-size: 0.95rem;
 }
+.lab-lexical-hints {
+  margin-top: 12px;
+  border: 1px solid var(--line, #2a2f3a);
+  border-radius: 8px;
+  padding: 10px;
+}
+.lab-lexical-hints summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.lab-lexical-hints .lab-note {
+  margin: 10px 0;
+}
+.lab-hint-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.lab-hint-row label {
+  flex: 1 1 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+.lab-hint-row input,
+.lab-hint-row select {
+  width: 100%;
+}
+.lab-candidates .lab-lexical-evidence {
+  overflow-wrap: anywhere;
+  opacity: 0.9;
+}
 .lab-result,
 .lab-editor {
   display: flex;
@@ -136,6 +171,14 @@
 }
 .lab-candidates li.selected button {
   outline: 2px solid var(--accent, #6ea8fe);
+}
+.lab-candidates > li > button > code {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .lab-morphemes ul {
   list-style: none;
@@ -248,7 +291,7 @@
   }
 }
 
-/* Readings the surface cannot separate: all shown, the chosen one marked. */
+/* Readings the surface cannot separate; the chosen one is marked. */
 .lab-candidates li.acceptance-not-preferred button {
   opacity: 0.82;
 }

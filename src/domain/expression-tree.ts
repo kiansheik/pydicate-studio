@@ -32,6 +32,37 @@ function slotLabel(slot: string) {
   return slot;
 }
 
+function definitionValue(node: AuthorNode): AuthorNode | undefined {
+  if (
+    node.kind !== 'call' ||
+    (node.method ?? node.lexicalReference ?? node.label) !== 'studio_define' ||
+    node.children.length !== 2
+  )
+    return;
+  const values = node.children.filter((child) => ['arg0', 'kw:value'].includes(child.slot));
+  const definitions = node.children.filter((child) =>
+    ['arg1', 'kw:definition'].includes(child.slot),
+  );
+  if (
+    values.length === 1 &&
+    definitions.length === 1 &&
+    definitions[0].node.kind === 'literal' &&
+    typeof definitions[0].node.value === 'string'
+  )
+    return values[0].node;
+}
+
+/** Literal definition wrappers annotate their value; they are not extra morphology steps. */
+export function definitionBody(node: AuthorNode): AuthorNode {
+  let body = node;
+  let value = definitionValue(body);
+  while (value) {
+    body = value;
+    value = definitionValue(body);
+  }
+  return body;
+}
+
 function sameSource(a: AuthorNode, b: AuthorNode): boolean {
   return (
     a.id === b.id &&
@@ -77,8 +108,10 @@ function validSource(root: AuthorNode, raw: string) {
   return visit(root) && surroundsRoot(root, raw);
 }
 
-/** One visible identity for every source step, including repeated references.
+/** One visible identity for every construction step, including repeated references.
  * Scalar call arguments live inline on their operation instead of child cards.
+ * Literal studio_define wrappers retain their exact edit scope on the value's
+ * existing visible node rather than adding a non-morphological operation level.
  * The source and UTF-16 spans remain the authoring authority. Runtime evidence
  * is optional and is attached only when the entire evaluated AST still matches.
  * A stale source tree yields null rather than a misleading editable projection. */
@@ -100,21 +133,38 @@ export function expressionGraph(
     diagnostics: [],
   };
   const visit = (source: AuthorNode, evaluated?: AuthorNode) => {
-    const inlineCall = inlineCallArguments(source);
+    const body = definitionBody(source);
+    const evaluatedBody = evaluated ? definitionBody(evaluated) : undefined;
+    const inherited = evaluated ? definitionValue(evaluated) : undefined;
+    const inlineCall = inlineCallArguments(body);
     const attributes: Record<string, RuntimePrimitive> = { code: source.code };
     if (evaluated) {
-      for (const key of ['runtimeType', 'category', 'verbete', 'tag', 'dispatch'] as const) {
-        if (evaluated[key] !== undefined) attributes[key] = evaluated[key]!;
+      for (const key of [
+        'runtimeType',
+        'category',
+        'verbete',
+        'tag',
+        'dispatch',
+        'lexicalStatus',
+      ] as const) {
+        const value = evaluated[key] ?? evaluatedBody?.[key];
+        if (value !== undefined) attributes[key] = value;
       }
-      if (evaluated.operandTypes?.length)
-        attributes.operandTypes = evaluated.operandTypes.join(' · ');
+      const operandTypes = evaluated.operandTypes ?? evaluatedBody?.operandTypes;
+      if (operandTypes?.length) attributes.operandTypes = operandTypes.join(' · ');
     }
     const node: RuntimeNode = {
       id: source.id,
-      label: inlineCall?.label ?? sourceLabel(source),
-      runtimeType: kindNames[source.kind] ?? 'Trecho preservado',
-      category: source.kind,
+      label: inlineCall?.label ?? sourceLabel(body),
+      runtimeType: kindNames[body.kind] ?? 'Trecho preservado',
+      category: body.kind,
       definition: evaluated?.definition ?? '',
+      baseDefinition: evaluated?.baseDefinition,
+      compositeDefinition: evaluated?.compositeDefinition,
+      inheritedDefinition:
+        inherited?.compositeDefinition ??
+        inherited?.baseDefinition ??
+        (evaluated?.baseDefinition !== undefined ? inherited?.definition : undefined),
       tag: '',
       attributes,
       morphology: {},
@@ -131,26 +181,27 @@ export function expressionGraph(
         },
       ],
       lexicalOrigins:
-        source.kind === 'reference'
-          ? [source.code]
-          : source.kind === 'call' && source.lexicalReference
-            ? [source.lexicalReference]
+        body.kind === 'reference'
+          ? [body.code]
+          : body.kind === 'call' && body.lexicalReference
+            ? [body.lexicalReference]
             : [],
       expression: {
-        kind: source.kind,
+        kind: body.kind,
         code: source.code,
-        operator: source.operator,
-        method: source.method,
+        operator: body.operator,
+        method: body.method,
         isRoot: source.id === root.id,
+        ...(body.id !== source.id ? { operationSourceNodeId: body.id } : {}),
         ...(inlineCall ? { inlineCall } : {}),
       },
     };
     graph.nodes.push(node);
-    if (source.kind === 'unsupported')
+    if (body.kind === 'unsupported')
       graph.diagnostics.push(
         `Trecho preservado sem decomposição: ${source.code}. Esta construção precisa de um adaptador.`,
       );
-    source.children.forEach((child, index) => {
+    body.children.forEach((child, index) => {
       if (inlineCall?.arguments.some((argument) => argument.sourceNodeId === child.node.id)) return;
       graph.edges.push({
         id: `${source.id}:${child.slot}:${index}`,
@@ -160,9 +211,9 @@ export function expressionGraph(
         index,
         label: slotLabel(child.slot),
         kind: 'child',
-        evidence: `${source.kind}.${child.slot}`,
+        evidence: `${body.kind}.${child.slot}`,
       });
-      visit(child.node, evaluated?.children[index].node);
+      visit(child.node, evaluatedBody?.children[index].node);
     });
   };
   visit(root, evidence);

@@ -1,5 +1,243 @@
 # Current state
 
+## Ordered evidence across PDF pages
+
+**Adicionar região na próxima página** preserves existing crops, advances the
+same passage's PDF view and enables drawing immediately. The region list shows
+physical pages covered (a range for consecutive pages), reading-order controls
+and clickable page locations. Saving, recovery and analysis preparation retain
+this explicit order; image capture already consumes the saved region array in
+order. Printed-page metadata stays independent. See
+[handoff](session-handoffs/2026-09-24-multipage-evidence.md).
+
+## Independent Portuguese and English translations
+
+Passages now retain optional `translations.pt` and `translations.en` separately
+from the existing unlabelled `translation`. Editors, draft persistence, source
+review and portable `studio:v1` comments preserve each language and exact text.
+Known-language accepted suggestions update only their recorded language. No
+existing corpus text is relabelled. See [source-text contract](../design/source-text.md)
+and [handoff](session-handoffs/2026-09-24-independent-translations.md).
+
+
+## Remove an operation and reconnect its child
+
+Right-click an operation and choose **Retirar só a operação…**. The dialog
+previews the containing tree with the chosen child in the operation's place.
+Unary operations and ordinary method chains keep their operand/base; operations
+with multiple structural branches let the contributor choose which stays
+connected. Other branches become loose pieces in the same undoable transaction.
+
+The retained child keeps its own meanings. Definitions belonging to the removed
+operation are removed with that node. Comments and unrelated source/forest work
+are preserved; stale or unsupported edits are rejected. Existing whole-subtree
+removal remains separate. Validation: 61 focused domain tests, eight browser
+checks, typecheck and production build pass. See [Canvas contract](../design/canvas-editor.md) and
+[handoff](session-handoffs/2026-09-20-remove-operation.md).
+
+## Rendered previews before tree edits
+
+Combination and operation dialogs show **Prévia do resultado** while selecting
+the operator, order, variant or argument. The imperative shortcut now opens the
+same confirmation dialog. Optional argument selection allows a complete preview;
+leaving a required operand empty retains the existing empty-connection workflow.
+Detailed scope edits preview the containing piece with the proposed change too.
+
+The shared evaluator uses the exact candidate source and selected local engine,
+with a short debounce and expression/revision/engine guards. Changed proposals
+immediately hide old results; cancellation/context changes discard delayed
+responses. Partial, empty and failed results are explicit. Previewing preserves
+the draft, loose pieces and undo history until the contributor applies the edit.
+See [Canvas contract](../design/canvas-editor.md) and
+[handoff](session-handoffs/2026-09-20-tree-operation-previews.md).
+
+**Definir significado do conjunto…** now uses the same exact-node definition
+editor as Léxico. Verified literal `studio_define` annotations occupy their
+value's existing visible node, not an additional operation level. Repeating a
+definition updates it in place. Operator/inline argument edits preserve its
+wrapper and meaning; Léxico follows the same visible inventory. The portable
+source annotation remains available in code.
+
+When the primary expression is empty (or a bare reserved slot) and only one
+nonempty loose tree remains, Canvas makes it principal within the structural
+edit. Existing saved single roots are promoted once when their source is parsed;
+undo is not immediately reversed by the promotion effect. Nonempty primary
+source, including malformed work, and multiple loose candidates are preserved.
+
+## Dictionary meanings for existing compositions
+
+**Consultar Navarro** is available inside the tree's composition definition
+dialog and Léxico's occurrence/general meaning editor. It starts with the
+rendered form and can search **Forma** or **Significado**. Choosing an exact
+sense supplies its full definition while preserving the existing tree, grammar
+and constituent meanings. Local changes enter undoable drafts; shared changes
+use the existing diff review. Publication registers the defined composition
+through the normal lexical planner.
+
+Form matches inside another entry show their excerpt and full verbete separately.
+In the current local Navarro, `tekate'yme'yma` appears in an example under
+`ekate'yma`, whose headword definition is “avareza”; the example translation
+supports the contributor's “liberalidade” interpretation. That consultation does
+not automatically copy “avareza” onto the compound. Explicit meaning searches
+allow choosing the named full sense. Row/checksum identity is validated before
+and after preparation; cancelled, unmounted or changed revision/engine contexts
+cannot receive late edits. Full definitions persist in source; row/checksum
+remain preparation-time evidence. See [dictionary contract](../design/dictionary.md)
+and [handoff](session-handoffs/2026-09-20-composite-dictionary-meanings.md).
+
+## Every tree node in Léxico, scoped definitions and AI notes
+
+Léxico now inventories each visible source node, including the whole expression,
+intermediate operations and repeated leaves, with rendered forms and separate
+occurrences. **Editar significado** can change one occurrence in the undoable
+draft, restore its inherited meaning, or open a reviewed shared/source definition
+edit. Meaning-only edits preserve engine morphology and constructor grammar;
+local senses survive reviewed publication without replacing the original entry.
+Expanded dependencies require a visible copied expansion for local editing.
+
+Every node supports general and occurrence interpretation notes. Stable subtree
+identities retain notes through formatting, unrelated sibling edits and local
+definition wrappers; genuinely changed constructions keep historical notes.
+Translation, analysis and explicit grammar-repair prompts receive only applicable
+scoped notes, original meanings and explicit overrides. Pending note edits are
+saved before capture. Resumed jobs retain their original snapshot; changed
+relevant notes invalidate translation adoption and visible prompt previews.
+
+The actual desktop/Python `obaîxûara` regression verifies a local “oposto,
+contrário” sense beside the unchanged “mão de pilão” sense, unchanged morphology,
+preserved note attachment and constituent-only context. No live inference or real
+corpus edits were made. Restart the desktop main process for the new RPC/context
+path. See [contract](../design/node-interpretations.md) and
+[handoff](session-handoffs/2026-09-20-node-interpretations.md).
+
+## One confirmation for source and ground truth
+
+**Commit to Ground Truth** opens the passage/lexicon diff review directly.
+**Salvar fonte e ground truth** accepts the displayed changes and records the
+reviewed form in one action. New passages use their returned stable identity;
+unchanged sources offer **Salvar ground truth** without another source write.
+One operation lock covers source publication and reference approval. The
+existing revision, engine, target, sequence and fresh realization guards remain.
+If source publication succeeds but reference approval fails, the app states both
+outcomes and supports reopening the review to retry only the missing reference.
+Lexicon-only edits and recovery do not approve a passage. Source/reference writes
+remain separate recoverable backend operations, not a cross-file transaction.
+See [handoff](session-handoffs/2026-09-20-combined-ground-truth.md).
+
+## Multiline source text, AI continuation and direct translation
+
+Diplomatic text, reviewed readings, translations, analysis and notes can be
+published with exact line breaks, blank lines and whitespace. Studio writes a
+content-bound JSON-string encoding in ordinary source comments and decodes it
+on import, reopen and explicit reference approval; unchanged legacy strings
+remain literal. Approval copies explicit scholarly source metadata into the
+reviewed record and preserves all other JSONL record bytes. Native corpus
+readers outside Studio do not yet decode the source extension. See the
+[source-text contract](../design/source-text.md).
+
+**Retomar** continues paused/failed/cancelled/needs-input jobs with their saved
+conversation, candidates, questions and checkpoint. Each explicit continuation
+gets fresh attempt budgets; confirmed tool receipts are reused and unconfirmed
+interrupted tool writes are not replayed. Budget stops appear as **Pausada**;
+partial text survives an owner crash. Changed project evidence requires a fresh
+submission; continuation does not silently replace the original input.
+
+**Traduzir** beside the current result and in the translation view opens a
+compact current-tree translator. The language is selectable/free text, default
+Portuguese. **Gerar prompt** and copying run locally without provider inference;
+**Traduzir** uses the same prompt and a fresh local evaluation, with no new
+analysis search or corpus MCP import. Results keep their language, scope,
+revision and engine provenance; applying a reviewed translation preserves the
+tree and rejects stale draft/grammar evidence. Constituent requests get their
+own evaluation and separately labeled whole-passage context.
+
+Prompts retain nested lexical/composite meanings, distinguish grammatical roles
+from intermediate forms, expose ambiguity and avoid copying prior translations.
+Restart the desktop main process to load the service changes. Validation and
+boundaries: [handoff](session-handoffs/2026-09-20-source-resume-translation.md).
+
+## Decomposed readings and scoped meanings
+
+Suggestions preserve direct dictionary readings and also explore bounded
+generic/reflexive/reciprocal nominalizations and causative constructions.
+`moropotara` now has a deeper `(potar * moro).var(1).base_nominal()` reading,
+wrapped with `studio_define(..., full_Navarro_definition)`. The noun conversion
+is required: the unnominalized expression gives `poropotar`. Component meanings
+and the matched dictionary sense remain separate; opaque and decomposed trees
+cannot merge merely because nominal annotations match. Both suggestion views
+label the surface-linked decomposition as a hypothesis.
+
+`python/semantic_context.py` projects base meanings and explicitly scoped
+composite meanings through the source tree, including verified shared aliases.
+The selected-node inspector and Studio translation/agent prompts receive this
+hierarchy. Nested definitions survive portable lexical publication and reload;
+publication identity checks their source scopes as well as engine evidence.
+Helpers, stale dependency histories, cycles and expansion limits are explicit
+diagnostics, never invented constituent meanings. Hidden-answer reconstruction
+withholds the new semantic context too.
+
+The selected engine gives **xe moropotara** for the derived nominal but **xe
+poropotara** for the dictionary pluriform noun. Surface linking is not proof of
+etymology or full-paradigm equivalence. Standalone Pydicate `semantic()` and
+`translation_prompt()` remain unchanged; Studio supplies the scoped context.
+Restart the desktop and rebuild its index to load the new search/runtime
+fingerprints. See [handoff](session-handoffs/2026-09-19-decomposition-meanings.md).
+
+## Manual predicates and hypothetical roots
+
+The canvas exposes **Criar peça** beside search; an empty search also offers
+manual creation. Noun/Verb forms accept an unknown meaning, explicit
+pluriformity, stative/intransitive/transitive class and **Hipotética, não
+atestada** status. Raw constructor properties and code remain available.
+
+Hypothetical status travels in the predicate's existing `tag` field, separate
+from its definition. The noun's grammar header initializes morphology while
+`studio_define(..., '')` leaves its meaning genuinely empty. Ordinary reviewed
+lexical publication preserves the constructor, definition override and status;
+the tree, reuse search, lexical panels and source review identify the hypothesis.
+Conversions that drop tags inherit private status from their operands; saved
+derived entries recover it from static source dependencies without changing
+engine output. Helper branches are treated conservatively for uncertainty.
+Saved hypotheses and adopted suggestion hints remain partial in later solver
+results, including retrieval and verbal annotations that omit custom tags.
+
+Selected-engine checks reproduce `tekata`, `xe rekata` and `tekate'yma` from
+hypothetical pluriform `ekat`; they verify grammar, not historical attestation
+or a meaning reconstructed from negation. Rebuild existing solver indices after
+updating. See [handoff](session-handoffs/2026-09-19-manual-hypothetical-roots.md).
+
+## Navarro-backed analysis suggestions
+
+**Preparar índice / Repreparar índice** now snapshots the supported Navarro
+inventory regardless of the training profile. The checked local dictionary has
+8,293 Tupi senses: 7,066 supported and 1,227 explicitly skipped for unclassified
+headers or unmatched engine verb senses. Exact definitions/sense identities and
+portable Pydicate constructors are retained. Dictionary bytes participate in
+artifact freshness; old indices require rebuilding.
+
+Query-time productive morphology uses engine-derived stems and paradigm aliases,
+including pluriform nouns, locative stem changes and opaque imperatives. The
+reported `tekate'yma` is recovered from Navarro `ekate'yma`, with the engine's
+`PLURIFORM_PREFIX:T:ABSOLUTE` annotation. Possession, nominal negation, verbal
+arguments, imperatives, selected derivations and dictionary-only postpositions
+feed the existing full-input validator. Homonymous dictionary senses remain
+separate; all search/result limits are disclosed.
+
+Both suggestion entry points offer optional root/category hypotheses for missing
+vocabulary and proper nouns. Engine-valid syntax using those leaves remains
+provisional (`partial`), with empty definitions and retained judgment evidence;
+it does not become a complete historical evaluation example. Input changes and
+delayed feedback cannot resurrect old suggestions. Rebuild polling follows the
+new job, and draft adoption respects editability.
+
+Verification includes focused Python, desktop transport, domain and browser
+checks plus an actual desktop-service/Python run in a temporary profile: the
+dictionary target, altered roots, proper-name syntax, unfamiliar verb syntax and
+unknown input pass. No providers, corpus/grammar edits or approval writes.
+Historical accuracy and unrestricted grammar coverage remain unmeasured. See
+[contract](../design/parser-lab.md) and
+[handoff](session-handoffs/2026-09-19-navarro-morphology.md) for exact results.
+
 ## Hidden Tupi → Pydicate laboratory
 
 **Sugerir** is a tab in the editor beside Árvore: a projection of the passage being worked on, prefilled with its transcription, whose proposed readings can be taken into the draft with **Usar esta análise no rascunho** — an ordinary undoable edit that touches neither source nor reference and records which reading was chosen. With no index the tab offers one **Preparar índice** button; the full laboratory (Dados, Treinar, Avaliar, Execuções) opens from it. The earlier hidden-by-default switch is gone, superseding that part of the brief; what it guarded is kept without it, since the module is a separate lazy chunk, reading state is a filesystem listing, and the Python worker starts only on the first request that needs the engine. From that tab, `asó xe rokype`, `ASOXEROKYPE`, `a so xé ró kŷ pe` and `Asó, xe rokype.` all become `asoxerokype` and compose `(+ixé * só) + (pe * (ixé * oka))` with the engine's own morpheme tags and the real editable tree. `zzzz` and `Açó xe rokîpe` return unknown rather than a fabricated parse. `ereso nde rokype`, absent from the recorded-expression index, is composed and labelled as such. Editing the possessor to `nde` gives `asó nde rokype`, and a real context-menu gesture on the same editor rewrites the laboratory source and re-evaluates it; undo and redo work in both directions. The open draft, source, human translation and reference are untouched.
@@ -83,7 +321,7 @@ Verified against the actual saved pending `dbb1dab7` draft through a fresh Pytho
 
 **Definir significado do conjunto…** on a tree node creates an explicit `studio_define(full_expression, definition)` draft wrapper. Optional checked base restoration reuses a shared predicate with identical grammar and an unambiguous meaning, or a verified exact dictionary sense when no shared base exists. Publication extracts dependencies, then names the full evaluated composition from its surface and sets that composite's definition. Shared definition edits update an existing override instead of inserting an ineffective earlier assignment. The malformed abaré example now previews `abare` with its Navarro padre meaning and `nhemoabare` with the sacrament meaning; no original profile/corpus was rewritten.
 
-Every changed source/lexicon/recovery preview runs before/after corpus evaluation against a disposable staged copy. New evaluation failures and changed surface/annotation output on unedited expressions block publication. Saved reference comparisons, existing baseline issues and intentionally edited references are reported separately; ground truth is never auto-approved. The check is bound to the complete project fingerprint and rechecked for freshness on apply. Per-keystroke work still evaluates the draft; full regression happens at publication review. Native Python bridge proof evaluated 127 rows with all 126 existing references matching and originals unchanged. See [handoff](session-handoffs/2026-09-17-composite-lexicon-regression.md).
+Every changed source/lexicon/recovery preview runs before/after corpus evaluation against a disposable staged copy. New evaluation failures and changed surface/annotation output on unedited expressions block publication. Saved reference comparisons, existing baseline issues and intentionally edited references are reported separately; preview generation never approves ground truth; accepting a passage review also requests reference approval. The check is bound to the complete project fingerprint and rechecked for freshness on apply. Per-keystroke work still evaluates the draft; full regression happens at publication review. Native Python bridge proof evaluated 127 rows with all 126 existing references matching and originals unchanged. See [handoff](session-handoffs/2026-09-17-composite-lexicon-regression.md).
 
 ## Editable AI proposal canvas and vertical defaults
 
@@ -105,7 +343,7 @@ Build/typecheck and78 focused provider/MCP regressions pass. `npm run test:codex
 
 ## Persistent AI authoring workspace
 
-Fonte and IA now share the existing support pane while the builder remains central. Workspace v1→v2 migration preserves pane arrangement; separate tentative Navarro/meaning/constraint fields never repurpose the reviewed `normalized`/@target field. Saving an analysis awaits the actual draft and own evidence revision. Conversations, queues, attempts, tool checkpoints and competing scratch candidates persist in the main-process profile. Candidate preview is read-only; explicit acceptance is a revision-checked atomic draft+receipt command with undo. Existing combined source/lexicon publication and separate ground-truth approval remain the human-only write path.
+Fonte and IA now share the existing support pane while the builder remains central. Workspace v1→v2 migration preserves pane arrangement; separate tentative Navarro/meaning/constraint fields never repurpose the reviewed `normalized`/@target field. Saving an analysis awaits the actual draft and own evidence revision. Conversations, queues, attempts, tool checkpoints and competing scratch candidates persist in the main-process profile. Candidate preview is read-only; explicit acceptance is a revision-checked atomic draft+receipt command with undo. Source/lexicon publication and ground-truth approval share one explicit human review confirmation; accepting an AI candidate alone still changes only the draft.
 
 The same TypeScript builder operations run headlessly through a strict scratch service and authenticated scoped MCP. External clients contact the same Electron owner, including via `npm run mcp:analysis -- --passage <saved-id>` without renderer navigation. Iterative Claude tool rounds and Codex app-server sessions use only registered local research tools. Saved PDF regions can supply actual bounded crop pixels; inherited positioning guides are excluded. One active attempt, durable input/tool activity and explicit retry of interrupted calls avoid silent paid replay. Stale renderer envelopes cannot overwrite newer accepted work.
 
@@ -125,7 +363,7 @@ The complete source AST still controls evaluation and validation. Build/typechec
 
 ## Direct ground-truth review
 
-**Commit to Ground Truth** now sits beside **Verificar** and **Salvar rascunho** and opens the reference dialog directly from the current workspace. Revisão opens the same dialog. The redundant confirmation checkbox is gone; **Confirmar e salvar ground truth** remains the single explicit reference write. Opening or cancelling does not apply source or approve a reference. Unpublished/changed source, unavailable evaluation/status, partial results, source conflicts, declared targets and sequential approval still gate saving.
+**Commit to Ground Truth** sits beside **Verificar** and **Salvar rascunho** and opens the passage/lexicon review from either workspace entry. **Salvar fonte e ground truth** is the single confirmation. Opening or cancelling does not apply source or approve a reference. Revision freshness, complete engine evaluation, source conflicts, declared targets and sequential approval still gate saving. The former standalone ground-truth panel remains only for legacy regression fixtures.
 
 The native modal contains Cancelar, Escape and close controls; pending saves prevent dismissal and duplicate submission. A required source review closes the reference dialog before opening the ordinary source preview. Two focused browser regressions pass with a simulated backend, including delayed status, cancellation, dirty fields, failed approval/retry and concurrent requests. The combined production build passes. Browser screenshots confirm the footer and modal layout. No provider calls or historical corpus writes. See [handoff](session-handoffs/2026-09-17-ground-truth-shortcut.md).
 
@@ -135,7 +373,7 @@ The main tree toolbar is now the add/reuse textbox. Composition-only search is s
 
 Reviewing a new or edited passage promotes its literal predicate leaves into shared `historic/lexicon.tu.py` declarations and replaces them with names in the passage. Readable headword slugs are used when free; stable identity suffixes resolve collisions. Exact equivalents reuse existing names only when the target namespace still has the same binding. Definitions, verb IDs/classes, operation order and source comments survive. An unsafe literal promotion fails clearly instead of silently publishing it inline. Existing unsaved drafts need only a fresh review, with no re-entry of their pieces.
 
-The review defaults to the current Tupi result, words/concise meanings and ordinary field changes. Long content expands separately; **Mostrar diff técnico** reveals the proposed variable names and both complete file diffs. Application checks both snapshots, journals their original bytes, writes the lexicon before the passage, and rolls back completed members if a later write fails. Recoverable interruption states and earlier single-file records share the recovery UI. The saved draft adopts the published named expression; ground truth remains a separate action. Unchanged historical passages are not bulk-refactored, and unused loose pieces stay local.
+The review defaults to the current Tupi result, words/concise meanings and ordinary field changes. Long content expands separately; **Mostrar diff técnico** reveals the proposed variable names and both complete file diffs. Application checks both snapshots, journals their original bytes, writes the lexicon before the passage, and rolls back completed members if a later write fails. Recoverable interruption states and earlier single-file records share the recovery UI. The saved draft adopts the published named expression; the same passage-review confirmation then saves its ground truth. Unchanged historical passages are not bulk-refactored, and unused loose pieces stay local.
 
 Verification: build/typecheck; 11 lexical planner tests across all 13 constructors, 32 service/source regression checks, and the canvas/passage/review browser scenarios pass. A temporary-profile production run verifies the plain-language default, optional exact diff, named publication, repeated keyboard addition and undo; original corpus/reference hashes stay unchanged. See [publication contract](../design/lexical-publication.md) and [handoff](session-handoffs/2026-09-17-named-publication-and-add-field.md).
 
@@ -215,7 +453,7 @@ The local desktop now opens Árvore as its main editor, with exact source-occurr
 
 Passagens, Editor and Fonte are movable, collapsible, resizable panes; Fonte defaults to the right. Compact headers and an expandable saved-reference comparison leave room for the tree. Retained legacy drafts moved into a searchable archive without deleting their contents. The active lexicon recursively inventories composite/helper dependencies and stores separate general and occurrence interpretations with optimistic versioning, history and project export. Conditional helper dependencies are explicitly candidates; internal nodes without exact spans cannot be silently edited.
 
-Full-passage AI scope is explicit and fresh-evaluated before provider invocation. The user's saved first-line request contained all the context but instructed translation of a selected prefix; this is repaired without rewriting the original response or making a new generation request. Earlier PDF locations now carry forward as editable drafts only when the current passage lacks its own location. A visible **Salvar como ground truth** flow separates reviewed source application from explicit reference confirmation; the final write checks the actual upstream-rendered surface against what was reviewed.
+Full-passage AI scope is explicit and fresh-evaluated before provider invocation. The user's saved first-line request contained all the context but instructed translation of a selected prefix; this is repaired without rewriting the original response or making a new generation request. Earlier PDF locations now carry forward as editable drafts only when the current passage lacks its own location. A single passage-review confirmation applies the source and records ground truth; the final write checks the actual upstream-rendered surface against what was reviewed.
 
 Current verification: build/formatter/whitespace checks pass, with 34 domain tests, 89 desktop service assertions, 62 Python tests (including all-82 runtime parity), 45 browser scenarios, 11 native production workflows, and copied-profile restart checks. Ground-truth UI confirmation was exercised only in a disposable corpus and preserved every other reference row byte-for-byte. See [workspace handoff](session-handoffs/2026-09-17-tree-workspace.md), [native report](../coverage/native-workflows.json), and [final workspace evidence](../coverage/workspace-2026-09-17/report.json). All AI generation checks for this update are simulated.
 

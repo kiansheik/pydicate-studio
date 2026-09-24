@@ -12,6 +12,49 @@ The tree exposes **Adicionar peça** as its primary toolbar search field. **⌘K
 
 Selecting a Navarro entry in either surface uses the same `dictionary_predicate` conversion and shared UI. Unambiguous supported classes create the piece directly. Missing/ambiguous class labels ask the contributor to choose; partial evaluations show diagnostics and require an explicit insertion click. A revision/context change invalidates pending insertion. An empty draft receives its main expression; existing work receives a separate loose piece, with one undo transaction. No source/reference write or AI generation happens automatically.
 
+## Meanings on an existing tree
+
+**Consultar Navarro** in **Definir significado do conjunto…** and Léxico's
+**Editar significado** consults the same local dataset for the selected rendered
+form. **Forma** preserves distinct headword senses and shows body-only matches
+as contextual citations. **Significado** searches definitions and permits an
+explicit choice of the named entry's full definition. Neither route constructs
+a replacement predicate. The contributor can edit the selected text manually,
+which clears the exact-selection binding.
+
+In the checked local dataset, `tekate'yme'yma` has no independent headword. It
+occurs under `ekate'yma` in the example translated “O oposto da avareza é a
+liberalidade.” The form consultation shows that excerpt and expandable complete
+entry, but cannot copy the headword's “avareza” definition through that citation
+result. The contributor can use the evidence to enter “liberalidade” as the
+compound's meaning, keeping the base entry's sense intact. No example translation
+is automatically treated as an isolated word gloss.
+
+`dictionary_lookup` adds `matchedField` and a bounded `matchedExcerpt`; optional
+`matchField` restricts headword/definition matching, including relaxed search.
+Existing unfiltered ranking and pagination remain. `composition_define`,
+`node_definition` and `lexicon_update` accept optional `dictionarySelection`
+containing the exact row and dataset checksum. The service reads the full
+authoritative sense rather than trusting replacement text and rechecks the
+dataset after engine work/preview preparation. Dictionary composition changes
+use the node-definition path, preserving comments, grammar and nested custom
+meanings; optional base restoration remains exclusive to the manual flow.
+
+Local edits enter ordinary undo history; general edits open the shared/source
+diff. Publication uses the existing lexical planner to register the entire
+defined construction. The saved source retains full definitions and nested
+meanings; the selected row/checksum is checked during preparation, not stored as
+a new durable provenance field. Query, mode, revision, engine and unmount changes
+invalidate pending consultations; composition results also require matching
+revision/engine evidence before application.
+
+The Canvas definition dialog now uses `node_definition`, matching Léxico, for
+manual and dictionary choices alike. It edits the selected annotation in place
+and preserves inner definitions; the old base-restoration checkbox is removed.
+`composition_define` remains available for legacy callers. Literal definition
+wrappers share their annotated value's visible node and do not introduce another
+grammatical operation level.
+
 ## Automatic refresh
 
 A `STALE_ENGINE` browse failure refreshes the local project and retries once with current fingerprints/drafts. Concurrent requests share the same reload. The desktop bridge transports bounded service codes through the message-only contextBridge error boundary; ordinary success values stay unchanged. External source notifications also refresh automatically. Query text and local draft/history stay intact, including edits made during the reload.

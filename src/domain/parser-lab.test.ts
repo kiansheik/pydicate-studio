@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeArtifact,
+  acceptanceLabel,
   artifactUsable,
+  candidateDecompositions,
+  candidateLexicalEvidence,
   describeAmbiguity,
   formatBytes,
   jobLabel,
+  lexicalEvidenceLabel,
+  lexicalHintsForRequest,
   normalizationFixtures,
   normalizeLabInput,
   previewLabInput,
   routeLabel,
+  validationLabel,
   type LabArtifact,
   type LabCandidate,
   type LabJob,
@@ -77,6 +83,120 @@ describe('candidate and artifact presentation', () => {
     expect(routeLabel(candidate({ provenance: { route: 'retrieval' } }))).toMatch(/corpus/);
     expect(routeLabel(candidate())).toMatch(/Composta/);
     expect(routeLabel(candidate({ provenance: { route: 'agent' } }))).toMatch(/assistida/);
+    expect(routeLabel(candidate({ route: 'morphology', provenance: {} }))).toMatch(/morfologia/);
+  });
+
+  it('keeps nested decomposition meanings scoped and avoids duplicate legacy evidence', () => {
+    const linked = {
+      relation: 'surface-linked' as const,
+      source: '(potar * moro).var(1).base_nominal()',
+      dictionaryHeadword: 'poropotara',
+      senseId: 'navarro:1',
+      definition: 'sentido do constituinte',
+    };
+    const component = { origin: 'shared' as const, headword: 'potar', scope: 'component' as const };
+    const unrelated = {
+      origin: 'navarro' as const,
+      headword: 'oka',
+      definition: 'casa',
+      scope: 'whole' as const,
+    };
+    const nested = candidate({
+      provenance: {
+        decompositions: [{ ...linked, span: { type: 'noun', start: 3, end: 13 } }],
+        decomposition: linked,
+        lexicalEvidence: [
+          {
+            origin: 'navarro',
+            headword: linked.dictionaryHeadword,
+            senseId: linked.senseId,
+            definition: linked.definition,
+            scope: 'whole',
+          },
+          component,
+          unrelated,
+        ],
+      },
+    });
+    expect(routeLabel(nested)).toBe('Análise decomposta');
+    expect(candidateDecompositions(nested)).toHaveLength(1);
+    expect(candidateDecompositions(nested)[0].span).toEqual({ type: 'noun', start: 3, end: 13 });
+    expect(candidateLexicalEvidence(nested)).toEqual([component, unrelated]);
+    expect(lexicalEvidenceLabel(unrelated)).toContain('Significado do constituinte');
+  });
+
+  it('keeps a matching unknown root provisional without claiming full lexical recognition', () => {
+    const hypothesis = candidate({
+      completeness: 'partial',
+      provenance: { lexicalStatus: 'provisional', acceptance: 'confirmed' },
+    });
+    expect(acceptanceLabel(hypothesis)).toMatch(/Sintaxe provisória/);
+    expect(validationLabel(hypothesis)).toMatch(/significado.*por confirmar/);
+    expect(describeAmbiguity({ candidates: [hypothesis] } as LabResult)).toMatch(
+      /Uma hipótese provisória.*léxico ainda precisa/,
+    );
+    expect(acceptanceLabel(candidate())).not.toMatch(/Única/);
+  });
+
+  it('reports omitted alternatives and search limits instead of promising exhaustive readings', () => {
+    const result = {
+      candidates: [candidate()],
+      configuration: { diagnostics: { truncated: true, candidateTotal: 12 } },
+    } as LabResult;
+    expect(describeAmbiguity(result)).toMatch(/Exibindo 1 de 12 propostas/);
+    const limited = describeAmbiguity({
+      ...result,
+      configuration: { diagnostics: { truncated: true, candidateTotal: 1 } },
+    } as LabResult);
+    expect(limited).toMatch(/outras leituras podem existir/);
+    expect(limited).not.toMatch(/1 de 1|omitidas/);
+    expect(
+      describeAmbiguity({
+        ...result,
+        configuration: { diagnostics: { budgetExhausted: 'seconds' } },
+      } as LabResult),
+    ).toMatch(/outras leituras podem existir/);
+  });
+
+  it('preserves dictionary senses and labels missing meaning without inventing a definition', () => {
+    expect(
+      lexicalEvidenceLabel({
+        origin: 'navarro',
+        headword: 'teko',
+        senseId: 'navarro:123',
+        entryIndex: 123,
+        definition: 'SIMULADO: modo de ser',
+      }),
+    ).toBe('Navarro · teko · entrada 123: SIMULADO: modo de ser');
+    expect(
+      lexicalEvidenceLabel({
+        origin: 'navarro',
+        headword: 'pe',
+        category: 'postposition',
+        senseId: 'navarro:1:secret-hash',
+        optionalNumber: 2,
+      }),
+    ).toBe('Navarro · pe (Posposição) · acepção 2: significado não informado');
+    expect(lexicalEvidenceLabel({ origin: 'user-hypothesis', headword: 'Arani' })).toBe(
+      'Hipótese informada · Arani: significado não informado',
+    );
+    expect(
+      lexicalEvidenceLabel({ origin: 'shared', headword: 'ekat', lexicalStatus: 'hypothetical' }),
+    ).toBe('Léxico compartilhado · ekat · hipótese não atestada: significado não informado');
+  });
+
+  it('sends only filled lexical hypotheses and preserves their spelling and category', () => {
+    expect(
+      lexicalHintsForRequest([
+        { root: '  Arani  ', category: 'proper_noun' },
+        { root: '', category: 'noun' },
+        { root: '   ', category: 'noun' },
+        { root: 'mombe’u', category: 'transitive_verb' },
+      ]),
+    ).toEqual([
+      { root: 'Arani', category: 'proper_noun' },
+      { root: 'mombe’u', category: 'transitive_verb' },
+    ]);
   });
 
   it('states ambiguity instead of hiding competing analyses', () => {

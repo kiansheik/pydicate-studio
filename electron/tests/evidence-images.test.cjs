@@ -133,6 +133,18 @@ test('captured pixels survive restart with original geometry and checksum; corru
   );
 });
 
+test('multi-page image capture preserves the explicit reading order', async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-image-order-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const service = createEvidenceImages(directory);
+  const images = await service.capture(fixturePdf(), [region(1), region(0)]);
+  assert.deepEqual(
+    images.map((image) => image.pageIndex),
+    [1, 0],
+  );
+  for (const image of images) assert.equal((await service.read(image)).type, 'image');
+});
+
 test('text-only capture produces no image claim or blob', async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-text-only-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));

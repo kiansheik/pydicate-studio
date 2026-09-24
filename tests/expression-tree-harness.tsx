@@ -9,6 +9,7 @@ export interface OperationFixture {
   evaluatedRoot?: AuthorNode;
   status?: string;
   retainPreviousEvaluation?: boolean;
+  engineFingerprint?: string;
 }
 
 declare global {
@@ -75,6 +76,7 @@ function Harness() {
         evaluatedRoot={evaluatedRoot}
         passageId="operation-fixture"
         revisionId={`operation-${revision}`}
+        engineFingerprint={initial.engineFingerprint}
         selectedSourceNodeId={selection}
         onSelectSourceNode={setSelection}
         status={pending ? 'Analisando esta revisão…' : initial.status}

@@ -1,4 +1,8 @@
+import { translationChange } from '../domain/translations';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushLexicalNotes } from '../domain/lexical-note-sync';
+import { analysisNoteSnapshot, submissionOperation } from '../domain/analysis-submission';
+import type { LexicalNote } from '../domain/passage-lexicon';
 import { invoke, flattenNodes, type AuthorNode } from '../domain/authoring';
 import { aiSelection, type AIStatus } from '../domain/ai';
 import {
@@ -6,6 +10,7 @@ import {
   analysisActivity,
   analysisLabels,
   analysisProgress,
+  analysisStreamText,
   analysisTasks,
   canAcceptCandidate,
   candidateTranslation,
@@ -57,34 +62,6 @@ function readableText(text: string) {
         part
       ),
     );
-}
-function submissionOperation(
-  input: {
-    submission: { passageId: string; revisionId: string; task: string; scope: string };
-    provider: unknown;
-    engine: string;
-    conversation?: string;
-  },
-  jobs: AnalysisJob[],
-) {
-  // Deduplicate a send while it is pending, not every future send of the same
-  // text. A completed result is the boundary for a new deliberate submission.
-  const previous = jobs
-    .filter(
-      (job) =>
-        job.passageId === input.submission.passageId &&
-        job.input.baseRevisionId === input.submission.revisionId &&
-        job.input.task === input.submission.task &&
-        job.input.scope === input.submission.scope &&
-        !['queued', 'running', 'cancelling'].includes(job.status),
-    )
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  const key = `pydicate-studio:submission:v1:${JSON.stringify({ ...input, ...(previous ? { afterResult: previous.id } : {}) })}`;
-  const saved = localStorage.getItem(key);
-  if (saved) return saved;
-  const id = crypto.randomUUID();
-  localStorage.setItem(key, id);
-  return id;
 }
 function mergeAnalysisDetails(
   listing: AnalysisListing,
@@ -625,11 +602,13 @@ export function AnalysisSupport({
   onPreview,
   onDictionary,
   onFocusNode,
+  translationRequest = 0,
 }: {
   studio: Studio;
   layout: WorkspaceLayoutController;
   analysis: AnalysisWorkspace;
   selectedNode?: AuthorNode;
+  translationRequest?: number;
   onEvidence: (pointer: EvidencePointer) => void;
   onPreview: () => void;
   onDictionary: (evidence: AnalysisEvidence) => void;
@@ -644,6 +623,10 @@ export function AnalysisSupport({
   const [includeImages, setIncludeImages] = useState(false);
   const [provider, setProvider] = useState<AIStatus | null>(null);
   const [showLegacy, setShowLegacy] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
+  useEffect(() => {
+    if (translationRequest > 0) setShowTranslation(true);
+  }, [translationRequest]);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batch, setBatch] = useState<string[]>([]);
   const [notice, setNotice] = useState('');
@@ -798,6 +781,21 @@ export function AnalysisSupport({
       const projectId = studio.project.id;
       const passageId = studio.passage.id;
       const revisionId = studio.draft!.revisionId;
+      await flushLexicalNotes(projectId);
+      const notebook = await invoke<{ records: LexicalNote[] }>('lexical_notes_list', {
+        projectId,
+      });
+      const noteSnapshot = await analysisNoteSnapshot(
+        notebook.records,
+        studio.passage.sourceId,
+        passageId,
+      );
+      if (
+        latest.current.project.id !== projectId ||
+        latest.current.passage.id !== passageId ||
+        latest.current.draft?.revisionId !== revisionId
+      )
+        throw new Error('A passagem ou o rascunho mudou enquanto as notas eram salvas.');
       const description = current.composer ?? '';
       const repairParent =
         jobs.find((job) => job.id === (replyJobId ?? historyJob)) ?? currentJobs[0];
@@ -821,6 +819,7 @@ export function AnalysisSupport({
               provider: 'codex',
               engine: studio.project.engineFingerprint,
               conversation: repairParent.conversationId,
+              noteSnapshot,
             },
             listing.jobs,
           ),
@@ -909,6 +908,7 @@ export function AnalysisSupport({
           provider: provider?.config,
           engine: studio.project.engineFingerprint,
           conversation: savedThread.id,
+          noteSnapshot,
         },
         listing.jobs,
       );
@@ -923,6 +923,10 @@ export function AnalysisSupport({
   async function submitBatch() {
     await operation(async () => {
       const projectId = studio.project.id;
+      await flushLexicalNotes(projectId);
+      const notebook = await invoke<{ records: LexicalNote[] }>('lexical_notes_list', {
+        projectId,
+      });
       const drafts = batch.map((id) => studio.envelope.drafts[id]).filter(Boolean);
       if (drafts.length !== batch.length || !drafts.length)
         throw new Error('Selecione passagens com entradas preparadas.');
@@ -981,6 +985,11 @@ export function AnalysisSupport({
               submission: item,
               provider: provider?.config,
               engine: studio.project.engineFingerprint,
+              noteSnapshot: await analysisNoteSnapshot(
+                notebook.records,
+                passage.sourceId,
+                draft.passageId,
+              ),
             },
             listing.jobs,
           ),
@@ -1096,7 +1105,10 @@ export function AnalysisSupport({
         latest.current.passage.id !== candidate.passageId
       )
         throw new Error('A passagem mudou. A tradução continua disponível na proposta original.');
-      currentStudio.edit({ translation: translation.text }, expectedRevision);
+      currentStudio.edit(
+        translationChange(currentStudio.draft ?? {}, translation.text, translation.language),
+        expectedRevision,
+      );
       await analysis.selectCandidate(null);
       layout.support('source');
       setNotice('Tradução copiada para o rascunho. Edite o texto em Fonte.');
@@ -1112,7 +1124,10 @@ export function AnalysisSupport({
     } else onDictionary(item);
   }
   return (
-    <section className="analysis-support" aria-label="Fonte e assistência de IA">
+    <section
+      className={`analysis-support${showTranslation ? ' is-translating' : ''}`}
+      aria-label="Fonte e assistência de IA"
+    >
       <div className="support-tabs" role="tablist" aria-label="Fonte e IA">
         <button
           role="tab"
@@ -1126,7 +1141,10 @@ export function AnalysisSupport({
           role="tab"
           aria-selected={layout.state.supportTab === 'ai'}
           aria-controls="support-ai"
-          onClick={() => layout.support('ai')}
+          onClick={() => {
+            setShowTranslation(false);
+            layout.support('ai');
+          }}
         >
           IA{' '}
           {jobs.some((job) => job.status === 'ready-for-review') && (
@@ -1134,8 +1152,19 @@ export function AnalysisSupport({
           )}
         </button>
         <button
+          className="support-translate"
+          disabled={!studio.draft}
+          onClick={() => {
+            setShowTranslation(true);
+            layout.support('ai');
+          }}
+        >
+          Traduzir árvore atual
+        </button>
+        <button
           className="support-jobs"
           onClick={() => {
+            setShowTranslation(false);
             layout.support('ai');
             setBatchOpen(!batchOpen);
           }}
@@ -1167,6 +1196,30 @@ export function AnalysisSupport({
         aria-label="IA"
         hidden={layout.state.supportTab !== 'ai'}
       >
+        {showTranslation && studio.draft && (
+          <section className="analysis-quick-translation">
+            <button className="translation-back" onClick={() => setShowTranslation(false)}>
+              Voltar à conversa
+            </button>
+            <AssistantPanel
+              translationOnly
+              projectId={studio.project.id}
+              passage={studio.passage}
+              draft={studio.draft}
+              raw={studio.draft.raw ?? studio.passage.sourceExpression}
+              selectedNode={selectedNode}
+              evaluation={studio.result}
+              engineFingerprint={studio.project.engineFingerprint}
+              onAcceptExpression={(raw) => studio.edit({ raw })}
+              onAcceptTranslation={(translation, language) =>
+                studio.edit(
+                  translationChange(studio.draft ?? {}, translation, language),
+                  studio.draft?.revisionId,
+                )
+              }
+            />
+          </section>
+        )}
         <div className="analysis-context">
           <strong>Passagem {studio.passage.ordinal}</strong>
           <p lang="tpw">{studio.draft?.diplomatic || 'Sem transcrição diplomática.'}</p>
@@ -1211,7 +1264,9 @@ export function AnalysisSupport({
               evaluation={studio.result}
               engineFingerprint={studio.project.engineFingerprint}
               onAcceptExpression={(raw) => studio.edit({ raw })}
-              onAcceptTranslation={(translation) => studio.edit({ translation })}
+              onAcceptTranslation={(translation, language) =>
+                studio.edit(translationChange(studio.draft ?? {}, translation, language))
+              }
             />
           </details>
         )}
@@ -1487,19 +1542,17 @@ export function AnalysisSupport({
                   ))}
                 </details>
               )}
-              {!job.summary &&
-                job.status === 'running' &&
-                job.events?.some((event) => event.type === 'text-delta') && (
+              {!job.summary && job.status === 'running' && !!analysisStreamText(job) && (
+                <div className="analysis-answer">
+                  <strong>IA · Respondendo…</strong>
+                  <p>{readableText(analysisStreamText(job))}</p>
+                </div>
+              )}
+              {job.partialResponse &&
+                ['blocked', 'failed', 'cancelled', 'needs-input'].includes(job.status) && (
                   <div className="analysis-answer">
-                    <strong>IA · Respondendo…</strong>
-                    <p>
-                      {readableText(
-                        job.events
-                          .filter((event) => event.type === 'text-delta')
-                          .map((event) => event.text ?? '')
-                          .join(''),
-                      )}
-                    </p>
+                    <strong>IA · Resposta parcial</strong>
+                    <p>{readableText(job.partialResponse)}</p>
                   </div>
                 )}
               {job.candidateIds.length > 0 &&
@@ -1537,22 +1590,39 @@ export function AnalysisSupport({
                   Cancelar análise
                 </button>
               )}
-              {['blocked', 'failed', 'cancelled'].includes(job.status) && (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void operation(async () => {
-                      await invoke('analysis_retry', {
-                        projectId: studio.project.id,
-                        jobId: job.id,
-                        operationId: crypto.randomUUID(),
-                      });
-                      await refresh();
-                    })
-                  }
-                >
-                  Tentar novamente · novo uso do provedor
-                </button>
+              {['blocked', 'failed', 'cancelled', 'needs-input'].includes(job.status) && (
+                <div className="analysis-resume">
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void operation(async () => {
+                        await invoke('analysis_resume', {
+                          projectId: studio.project.id,
+                          jobId: job.id,
+                          operationId: crypto.randomUUID(),
+                          ...(job.conversationId === conversation?.id && current.composer?.trim()
+                            ? { instruction: current.composer.trim() }
+                            : {}),
+                        });
+                        if (
+                          latest.current.project.id === job.projectId &&
+                          latest.current.passage.id === job.passageId
+                        ) {
+                          await analysis.openSubmittedConversation(job.conversationId);
+                          setHistoryJob(null);
+                          setShowHistory(false);
+                        }
+                        await refresh();
+                      })
+                    }
+                  >
+                    Retomar análise
+                  </button>
+                  <small>
+                    Continua esta conversa com a entrada salva e o trabalho já feito. Usa o provedor
+                    novamente.
+                  </small>
+                </div>
               )}
               {candidates
                 .filter((candidate) => candidate.jobId === job.id)
@@ -1583,8 +1653,8 @@ export function AnalysisSupport({
                         )}
                         <p className="field-hint">
                           Hipótese sobre esta proposta; você pode editar depois de usá-la.
-                          {!!studio.draft?.translation.trim() &&
-                            studio.draft.translation !== candidate.translation!.text &&
+                          {!!studio.draft?.translations?.pt?.trim() &&
+                            studio.draft.translations?.pt !== candidate.translation!.text &&
                             ' Usar esta sugestão substituirá sua tradução atual.'}
                         </p>
                         <button
@@ -1605,8 +1675,8 @@ export function AnalysisSupport({
                         >
                           {studio.draft?.raw !== candidate.raw
                             ? 'Usar proposta e tradução'
-                            : studio.draft?.translation.trim() &&
-                                studio.draft.translation !== candidate.translation!.text
+                            : studio.draft?.translations?.pt?.trim() &&
+                                studio.draft.translations?.pt !== candidate.translation!.text
                               ? 'Substituir minha tradução por esta'
                               : 'Usar tradução no rascunho'}
                         </button>

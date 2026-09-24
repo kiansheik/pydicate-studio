@@ -26,6 +26,8 @@ LIMITS = {
     'maxCandidates': 25,       # distinct analyses returned
     'maxSeconds': 6.0,
     'maxAstNodes': 40,
+    'maxLexicalRoots': 64,
+    'maxMorphologyAssemblies': 2000,
 }
 
 
@@ -38,13 +40,15 @@ class Budget:
         self.assemblies = 0
         self.exhausted = None
         self.cancelled = cancelled
+        self.truncated = set()
 
     def elapsed(self):
         return time.perf_counter() - self.started
 
     def spend_assembly(self):
-        self.assemblies += 1
-        if self.assemblies > self.limits['maxAssemblies']:
+        if self.exhausted:
+            return False
+        if self.assemblies >= self.limits['maxAssemblies']:
             self.exhausted = 'ASSEMBLIES'
             return False
         if self.elapsed() > self.limits['maxSeconds']:
@@ -53,6 +57,7 @@ class Budget:
         if self.cancelled and self.cancelled():
             self.exhausted = 'CANCELLED'
             return False
+        self.assemblies += 1
         return True
 
 
@@ -114,7 +119,10 @@ def chart(engine, index, observed, budget):
         for end in range(start + 1, length + 1):
             key = observed[start:end]
             for phrase_type in index.types():
-                rows = index.phrases(phrase_type, key, limit)
+                rows = index.phrases(phrase_type, key)
+                if len(rows) > limit:
+                    budget.truncated.add('SPAN_CANDIDATES')
+                    rows = rows[:limit]
                 if rows:
                     spans.setdefault((start, end), {})[phrase_type] = rows
     return spans
@@ -126,6 +134,7 @@ def compose(engine, index, observed, budget, rules=None):
     length = len(observed)
     rejections = {}
     accepted = {}
+    attempted = set()
     rule_ids = rules or grammar.root_rule_ids()
 
     def note(code, detail=None):
@@ -137,8 +146,9 @@ def compose(engine, index, observed, budget, rules=None):
 
     def attempt(rule_id, parts, used_spans):
         source = grammar.assemble(rule_id, [item['source'] for item in parts])
-        if source in accepted:
+        if source in attempted:
             return
+        attempted.add(source)
         if not budget.spend_assembly():
             note('BUDGET_EXHAUSTED', budget.exhausted)
             return
@@ -164,9 +174,17 @@ def compose(engine, index, observed, budget, rules=None):
             'families': [item.get('family', 'retrieval') for item in parts],
             'bindings': bindings, 'spans': list(used_spans), 'parts': len(parts),
             'ast': tree, 'ast_nodes': nodes,
+            'route': 'morphology' if any(item.get('route') == 'morphology' for item in parts) else 'composition',
+            'lexicalEvidence': _lexical_evidence(parts),
+            'decompositions': [{**item['decomposition'], 'span': used_spans[position]}
+                               for position, item in enumerate(parts) if item.get('decomposition')],
         }
+        if len(parts) == 1 and parts[0].get('decomposition'):
+            accepted[source]['decomposition'] = parts[0]['decomposition']
 
     for rule_id in rule_ids:
+        if budget.exhausted:
+            break
         rule = grammar.ROOT_RULES[rule_id]
         parts_types = rule['parts']
         if len(parts_types) == 1:
@@ -175,6 +193,8 @@ def compose(engine, index, observed, budget, rules=None):
         elif len(parts_types) == 2:
             left_type, right_type = parts_types
             for split in range(1, length):
+                if budget.exhausted:
+                    break
                 head = spans.get((0, split), {})
                 tail = spans.get((split, length), {})
                 if not head or not tail:
@@ -192,8 +212,24 @@ def compose(engine, index, observed, budget, rules=None):
     return accepted, list(rejections.values()), spans
 
 
+def _lexical_evidence(parts):
+    from parser_lab.morphology import merge_evidence
+    return merge_evidence(parts)
+
+
+def _has_hypothetical_root(node):
+    """Inspect realized source nodes, including reused aliases and corpus retrieval.
+
+    Verbal annotations can omit custom tags. The evaluated source tree retains
+    lexical status even when no morphological fragment supplied evidence.
+    """
+    return bool(node and (node.get('lexicalStatus') == 'hypothetical'
+                         or any(_has_hypothetical_root(child['node'])
+                                for child in node.get('children', []))))
+
+
 def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
-            include_retrieval=True, include_composition=True, acceptance=None):
+            include_retrieval=True, include_composition=True, acceptance=None, lexical_hints=()):
     """The bounded cascade. Returns candidates ordered by score and rejections."""
     budget = budget or Budget()
     timings = {}
@@ -215,6 +251,8 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
                 if row.get('context') and row['context'] not in occurrences:
                     occurrences.append(row['context'])
                 continue
+            if not budget.spend_assembly():
+                break
             realized, failure = validate(engine, row['source'], observed)
             if failure:
                 continue
@@ -230,17 +268,31 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
     timings['retrieval'] = round(time.perf_counter() - started, 4)
 
     spans = {}
+    morphology_diagnostics = {}
     started = time.perf_counter()
     if include_composition:
-        accepted, composition_rejections, spans = compose(engine, index, observed, budget, rules)
+        from parser_lab.morphology import AugmentedIndex, expand
+        fragments, morphology_diagnostics = expand(engine, index, observed, budget, lexical_hints)
+        timings['morphology'] = round(time.perf_counter() - started, 4)
+        started = time.perf_counter()
+        augmented = AugmentedIndex(index, fragments)
+        accepted, composition_rejections, spans = compose(engine, augmented, observed, budget, rules)
         rejections.extend(composition_rejections)
         for item in accepted.values():
             if any(row['source'] == item['source'] for row in rows):
                 continue
-            rows.append({**item, 'route': 'composition',
-                         'provenance': {'route': 'composition', 'rootRule': item['rule'],
+            evidence = item.get('lexicalEvidence', [])
+            provisional = any(row['origin'] == 'user-hypothesis'
+                              or row.get('lexicalStatus') == 'hypothetical' for row in evidence)
+            rows.append({**item,
+                         'provenance': {'route': item['route'], 'rootRule': item['rule'],
                                         'families': item['families'],
-                                        'label': 'Composição de fragmentos indexados',
+                                        'lexicalEvidence': evidence,
+                                        **({'decomposition': item['decomposition']} if item.get('decomposition') else {}),
+                                        **({'decompositions': item['decompositions']} if item.get('decompositions') else {}),
+                                        'lexicalStatus': 'provisional' if provisional else 'resolved',
+                                        'label': ('Morfologia de raízes do léxico' if item['route'] == 'morphology'
+                                                  else 'Composição de fragmentos indexados'),
                                         'measuresGeneralization': True}})
     timings['composition'] = round(time.perf_counter() - started, 4)
 
@@ -250,6 +302,8 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
     distinct = []
     by_structure = {}
     for item in rows:
+        if _has_hypothetical_root(item['realized'].get('tree')):
+            item['provenance']['lexicalStatus'] = 'provisional'
         try:
             key = json.dumps(projection.project(item['source']), sort_keys=True, ensure_ascii=False)
         except ValueError:
@@ -269,9 +323,6 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
     for item in distinct:
         item['annotated'] = item['realized'].get('annotated', '')
     rows = group_equivalent(distinct)
-    for item in rows[1:]:
-        item['provenance']['annotationDifferenceFromBest'] = annotation_difference(
-            rows[0]['annotated'], item['annotated'])
     if len(rows) > 1:
         for item in rows:
             item['provenance']['coGenerating'] = True
@@ -299,7 +350,8 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
             source=item['source'], surface=realized['surface'], normalized=observed,
             route='ranker' if ranker is not None else item['route'],
             family=item['rule'], bindings=item['bindings'], spans=item['spans'],
-            score=score, features=features, completeness='complete',
+            score=score, features=features,
+            completeness='partial' if provenance.get('lexicalStatus') == 'provisional' else 'complete',
             annotated=realized.get('annotated', ''),
             morphemes=engine.morphemes(realized['annotated']) if realized.get('annotated') else [],
             provenance=provenance, editable=True))
@@ -311,10 +363,13 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
         for candidate in candidates:
             candidate['provenance']['acceptance'] = acceptance.verdict(candidate['source'])
         order = {'confirmed': 0, 'presumed': 1, 'not-preferred': 2, 'rejected': 3}
-        candidates.sort(key=lambda row: (order[row['provenance']['acceptance']], -row['score'],
+        candidates.sort(key=lambda row: (row['completeness'] != 'complete', order[row['provenance']['acceptance']], -row['score'],
                                          len(row['source']), row['source']))
     else:
-        candidates.sort(key=lambda row: (-row['score'], len(row['source']), row['source']))
+        candidates.sort(key=lambda row: (row['completeness'] != 'complete', -row['score'], len(row['source']), row['source']))
+    for item in candidates[1:]:
+        item['provenance']['annotationDifferenceFromBest'] = annotation_difference(
+            candidates[0]['annotated'], item['annotated'])
     timings['ranking'] = round(time.perf_counter() - started, 4)
     timings['total'] = round(sum(timings.values()), 4)
     recognized = sorted(
@@ -326,5 +381,12 @@ def analyze(engine, index, observed, *, budget=None, ranker=None, rules=None,
                    'knownExpression': index.known_expression(observed),
                    # What the declared inventory did recognize. When nothing
                    # qualified, this is the actionable part of the failure.
-                   'recognizedSpans': recognized}
+                   'recognizedSpans': recognized, **morphology_diagnostics,
+                   'candidateTotal': len(candidates),
+                   'truncated': bool(budget.truncated or budget.exhausted or
+                                     len(candidates) > budget.limits['maxCandidates']),
+                   'truncationReasons': sorted(budget.truncated)}
+    if budget.exhausted and not any(row['code'] == 'BUDGET_EXHAUSTED' for row in rejections):
+        rejections.append({'code': 'BUDGET_EXHAUSTED', 'count': 1,
+                           'message': REJECTIONS['BUDGET_EXHAUSTED'], 'detail': budget.exhausted})
     return candidates[:budget.limits['maxCandidates']], rejections, timings, diagnostics

@@ -1,98 +1,348 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-test('workspace opens ground truth directly and cancelling never approves or applies source', async ({
-  page,
-}) => {
-  await page.goto('/tests/next-hook-harness.html?workspace');
-  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
-  const open = page
+const mainCommit = (page: Page) =>
+  page
     .locator('.workspace-footer')
     .getByRole('button', { name: 'Commit to Ground Truth', exact: true });
-  const dialog = page.getByRole('dialog', { name: 'Commit to Ground Truth', exact: true });
-  const save = dialog.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true });
-  await page.evaluate(() => window.__nextControl.holds.push({ method: 'reference_status' }));
-  await open.click();
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('checkbox')).toHaveCount(0);
-  await expect(save).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Montar a análise', exact: true })).toHaveClass(
-    'active',
+const review = (page: Page) => page.getByRole('dialog', { name: /^Revisar/ });
+async function workspace(page: Page) {
+  await page.goto('/tests/next-hook-harness.html?workspace&publication');
+  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
+}
+async function editRaw(page: Page, raw: string) {
+  await page.getByRole('tab', { name: 'Código', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Pydicate editável', exact: true }).fill(raw);
+  await expect(page.getByTestId('generated-surface')).toHaveText(`SIMULADO:${raw}`);
+}
+const publicationCalls = (page: Page) =>
+  page.evaluate(() =>
+    window.__nextControl.requests
+      .filter(({ method }) => ['source_apply', 'reference_approve'].includes(method))
+      .map(({ method }) => method),
   );
-  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await page.evaluate(() => window.__nextControl.release('reference_status'));
-  await open.click();
-  await expect(dialog).toBeVisible();
-  await expect(save).toBeEnabled();
-  await expect(dialog).toContainText('SIMULADO:alpha');
+
+test('main ground truth actions open the source review directly and cancelling never writes', async ({
+  page,
+}) => {
+  await workspace(page);
+  await mainCommit(page).click();
+  await expect(review(page)).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await expect(
+    page.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    review(page).getByRole('region', { name: 'Resultado atual do rascunho' }),
+  ).toContainText('SIMULADO:alpha');
+  await review(page).getByRole('button', { name: 'Voltar sem aplicar', exact: true }).click();
+  await expect(review(page)).toHaveCount(0);
+  await mainCommit(page).click();
+  await expect(review(page)).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
+  await expect(review(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Revisar', exact: true }).click();
   await page
     .locator('.review-view')
     .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
     .click();
-  await expect(dialog).toBeVisible();
+  await expect(review(page)).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(1);
-  await expect(save).toBeEnabled();
-  await dialog.getByRole('button', { name: 'Fechar ground truth', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await review(page).getByRole('button', { name: 'Voltar sem aplicar', exact: true }).click();
+  expect(await publicationCalls(page)).toEqual([]);
   expect(
     await page.evaluate(() =>
-      window.__nextControl.requests.filter(({ method }) =>
-        ['reference_approve', 'source_apply', 'source_preview', 'source_new_preview'].includes(
-          method,
-        ),
-      ),
+      window.__nextControl.requests.filter(({ method }) => method === 'source_preview'),
     ),
-  ).toEqual([]);
+  ).toHaveLength(3);
 });
 
-test('applying a reviewed source edit saves the ground truth in the same action', async ({
+test('one reviewed acceptance publishes the passage and added lexicon then approves ground truth', async ({
   page,
 }) => {
-  await page.goto('/tests/next-hook-harness.html?workspace');
-  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
-  await page.getByRole('button', { name: 'Montar a análise', exact: true }).click();
-  await page.getByRole('tab', { name: 'Código', exact: true }).click();
-  const editor = page.getByRole('textbox', { name: 'Pydicate editável', exact: true });
-  await editor.fill('alpha_revisado');
-  await expect(page.getByTestId('generated-surface')).not.toHaveText('Avaliando…');
-
-  const dialog = page.getByRole('dialog', { name: 'Commit to Ground Truth', exact: true });
-  await page
-    .locator('.workspace-footer')
-    .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
-    .click();
-  await expect(dialog).toBeVisible();
-  // With unapplied changes the reference cannot be saved yet, only reviewed.
-  await expect(
-    dialog.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true }),
-  ).toBeDisabled();
-  await dialog.getByRole('button', { name: 'Revisar edição da fonte', exact: true }).click();
-
-  const overlay = page.getByRole('dialog', { name: /Revisar/ });
-  await expect(overlay).toBeVisible();
-  await overlay.getByRole('button', { name: /Aplicar/ }).click();
-
-  // One action: the source is applied and the reference saved, with no return trip.
-  await expect(page.getByText('Ground truth salva no corpus')).toBeVisible();
-  // A refusal banner would mean it stopped; success must not raise one.
-  await expect(page.locator('.notice-banner')).toHaveCount(0);
-  await expect(overlay).toHaveCount(0);
-  await expect(dialog).toHaveCount(0);
-  const calls = await page.evaluate(() =>
-    window.__nextControl.requests
-      .filter(({ method }) => ['source_apply', 'reference_approve'].includes(method))
-      .map(({ method }) => method),
+  await workspace(page);
+  await editRaw(page, 'alpha_revisado');
+  await page.evaluate(() => {
+    window.__nextControl.publicationPreview = {
+      lexicalAdditions: [
+        {
+          name: 'ekat',
+          headword: 'ekat',
+          definition: '',
+          lexicalStatus: 'hypothetical',
+          expression: 'Noun("ekat")',
+        },
+      ],
+      files: [
+        {
+          path: 'historic/lexicon.tu.py',
+          sourceFingerprint: 'lexicon-v1',
+          diff: '+ekat = Noun("ekat")',
+        },
+        {
+          path: 'historic/araujo_catecismo_1686.tu.py',
+          sourceFingerprint: 'source-v1',
+          diff: '+alpha_revisado',
+        },
+      ],
+    };
+  });
+  await mainCommit(page).click();
+  await expect(review(page)).toHaveAttribute('aria-label', 'Revisar passagem e léxico');
+  await expect(review(page).getByRole('region', { name: 'Palavras desta revisão' })).toContainText(
+    'Raiz hipotética · não atestada',
   );
-  expect(calls).toEqual(['source_apply', 'reference_approve']);
+  await expect(review(page)).toContainText('Sem significado informado.');
+  await review(page).getByText('Mostrar diff técnico', { exact: true }).click();
+  await expect(
+    review(page).getByRole('region', { name: 'historic/lexicon.tu.py', exact: true }),
+  ).toContainText('ekat =');
+  await expect(
+    review(page).getByRole('region', { name: 'historic/araujo_catecismo_1686.tu.py', exact: true }),
+  ).toContainText('alpha_revisado');
+  await review(page).screenshot({ path: '/private/tmp/pydicate-ground-truth-review.png' });
+  await review(page)
+    .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
+    .click();
+  await expect(page.getByText('Passagem e ground truth salvas', { exact: false })).toBeVisible();
+  await expect(review(page)).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await publicationCalls(page)).toEqual(['source_apply', 'reference_approve']);
+  const published = await page.evaluate(() => window.__nextControl.project.passages[0]);
+  expect(published.sourceExpression).toBe('alpha_revisado');
+  expect(published.acceptedReference).toBe('SIMULADO:alpha_revisado');
+});
+
+test('unchanged source is reviewed and approved without a redundant source write', async ({
+  page,
+}) => {
+  await workspace(page);
+  await mainCommit(page).click();
+  await expect(review(page)).toBeVisible();
+  await review(page).getByRole('button', { name: 'Salvar ground truth', exact: true }).click();
+  await expect(page.getByText('Passagem e ground truth salvas', { exact: false })).toBeVisible();
+  expect(await publicationCalls(page)).toEqual(['reference_approve']);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('new passage acceptance approves the stable published identity in the same review', async ({
+  page,
+}) => {
+  await workspace(page);
+  await page.locator('.add-next-passage').click();
+  await editRaw(page, 'new_expression');
+  await page.getByLabel('Tradução', { exact: true }).fill('Tradução humana da nova passagem.');
+  const pendingId = await page.evaluate(
+    () => localStorage.getItem('simulated-selection:simulated:a')!,
+  );
+  expect(pendingId).toMatch(/^pending:/);
+  await mainCommit(page).click();
+  await expect(review(page)).toHaveAttribute('aria-label', 'Revisar nova passagem');
+  await review(page)
+    .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
+    .click();
+  await expect(page.getByText('Passagem e ground truth salvas', { exact: false })).toBeVisible();
+  const result = await page.evaluate(() => ({
+    approved: window.__nextControl.requests.find(({ method }) => method === 'reference_approve')!
+      .params,
+    project: window.__nextControl.project,
+    saved: window.__nextControl.saved['simulated:a'],
+  }));
+  const stableId = pendingId.replace(/^pending:/, 'passage:');
+  expect(result.approved.passageId).toBe(stableId);
+  expect(result.approved.engineFingerprint).toBe(
+    result.project.engineFingerprint.replace(/:approved$/, ''),
+  );
+  expect(result.project.passages.find((item) => item.id === stableId)).toMatchObject({
+    sourceExpression: 'new_expression',
+    acceptedReference: 'SIMULADO:new_expression',
+    translation: 'Tradução humana da nova passagem.',
+  });
+  expect(result.saved.drafts[pendingId]).toBeUndefined();
+  expect(result.saved.drafts[stableId].workflow?.stage).toBe('complete');
+  expect(result.project.passages.slice(0, 2).map((item) => item.acceptedReference)).toEqual([
+    null,
+    null,
+  ]);
+  expect(await publicationCalls(page)).toEqual(['source_apply', 'reference_approve']);
+});
+
+test('a failed source write never approves and keeps the reviewed edit available', async ({
+  page,
+}) => {
+  await workspace(page);
+  await editRaw(page, 'alpha_failed');
+  await mainCommit(page).click();
+  await page.evaluate(() => window.__nextControl.holds.push({ method: 'source_apply' }));
+  await review(page)
+    .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__nextControl.pending.some(({ method }) => method === 'source_apply'),
+      ),
+    )
+    .toBe(true);
+  await page.evaluate(() =>
+    window.__nextControl.reject('source_apply', 'SIMULATED_SOURCE_FAILURE'),
+  );
+  await expect(review(page).getByRole('alert')).toContainText('SIMULATED_SOURCE_FAILURE');
+  expect(await publicationCalls(page)).toEqual(['source_apply']);
+  expect(await page.evaluate(() => window.__nextControl.project.passages[0].sourceExpression)).toBe(
+    'alpha',
+  );
+});
+
+test('a failed approval preserves the applied source and retries approval without republishing', async ({
+  page,
+}) => {
+  await workspace(page);
+  await editRaw(page, 'alpha_retry');
+  await mainCommit(page).click();
+  await page.evaluate(() => window.__nextControl.holds.push({ method: 'reference_approve' }));
+  await review(page)
+    .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__nextControl.pending.some(({ method }) => method === 'reference_approve'),
+      ),
+    )
+    .toBe(true);
+  await page.evaluate(() =>
+    window.__nextControl.reject('reference_approve', 'SIMULATED_APPROVAL_FAILURE'),
+  );
+  await expect(review(page)).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'A fonte foi salva' })).toContainText(
+    'SIMULATED_APPROVAL_FAILURE',
+  );
+  expect(await page.evaluate(() => window.__nextControl.project.passages[0].sourceExpression)).toBe(
+    'alpha_retry',
+  );
+  expect(await publicationCalls(page)).toEqual(['source_apply', 'reference_approve']);
+  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha_retry');
+  await mainCommit(page).click();
+  await review(page).getByRole('button', { name: 'Salvar ground truth', exact: true }).click();
+  await expect(page.getByText('Passagem e ground truth salvas', { exact: false })).toBeVisible();
+  expect(await publicationCalls(page)).toEqual([
+    'source_apply',
+    'reference_approve',
+    'reference_approve',
+  ]);
+});
+
+test('the combined save stays locked through reference approval and ignores duplicate acceptance', async ({
+  page,
+}) => {
+  await workspace(page);
+  await editRaw(page, 'alpha_locked');
+  await mainCommit(page).click();
+  await page.evaluate(() => window.__nextControl.holds.push({ method: 'reference_approve' }));
+  const accept = review(page).getByRole('button', {
+    name: 'Salvar fonte e ground truth',
+    exact: true,
+  });
+  await accept.click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__nextControl.pending.some(({ method }) => method === 'reference_approve'),
+      ),
+    )
+    .toBe(true);
+  const saving = review(page).getByRole('button', { name: 'Salvando…', exact: true });
+  await expect(saving).toBeDisabled();
+  await expect(
+    review(page).getByRole('button', { name: 'Voltar sem aplicar', exact: true }),
+  ).toBeDisabled();
+  await saving.evaluate((element: HTMLButtonElement) => element.click());
+  await page
+    .getByRole('button', { name: /0002 Por transcrever/ })
+    .evaluate((element: HTMLButtonElement) => element.click());
+  expect(await page.evaluate(() => localStorage.getItem('simulated-selection:simulated:a'))).toBe(
+    'passage-a',
+  );
+  await page.keyboard.press('Escape');
+  await expect(review(page)).toBeVisible();
+  expect(await publicationCalls(page)).toEqual(['source_apply', 'reference_approve']);
+  await page.evaluate(() => window.__nextControl.release('reference_approve'));
+  await expect(page.getByText('Passagem e ground truth salvas', { exact: false })).toBeVisible();
+  await expect(review(page)).toHaveCount(0);
+});
+
+test('a draft edit while source preview is delayed cannot publish the stale proposal', async ({
+  page,
+}) => {
+  await workspace(page);
+  await page.evaluate(() => window.__nextControl.holds.push({ method: 'source_preview' }));
+  await mainCommit(page).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__nextControl.pending.some(({ method }) => method === 'source_preview'),
+      ),
+    )
+    .toBe(true);
+  await editRaw(page, 'changed_during_preview');
+  await page.evaluate(() => window.__nextControl.release('source_preview'));
+  await expect(page.getByRole('alert')).toContainText('mudou');
+  await expect(review(page)).toHaveCount(0);
+  expect(await publicationCalls(page)).toEqual([]);
+});
+
+test('stale grammar and partial reviewed results cannot start the combined publication', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?groundTruth=1&publication');
+  await expect(page.getByTestId('surface')).toHaveText('SIMULADO:alpha');
+  const errors = await page.evaluate(async () => {
+    const studio = window.__nextStudio;
+    const preview = await studio.sourcePreview();
+    const errors = [];
+    for (const result of [
+      { ...studio.result!, engineFingerprint: 'previous-engine' },
+      { ...studio.result!, evaluationStatus: 'partial' as const },
+    ]) {
+      try {
+        await studio.applySource(preview, result);
+        errors.push('UNEXPECTED_SUCCESS');
+      } catch (error) {
+        errors.push(String(error));
+      }
+    }
+    return errors;
+  });
+  expect(errors).toHaveLength(2);
+  for (const error of errors) expect(error).toContain('forma revisada não corresponde');
+  expect(await publicationCalls(page)).toEqual([]);
+});
+
+test('an existing human target is preserved when the reviewed form disagrees', async ({ page }) => {
+  await workspace(page);
+  await page.evaluate(() => {
+    window.__nextControl.responses.reference_status = {
+      record: { surface: 'human_target', normalized_target: 'human_target', status: 'approved' },
+      recordPath: 'SIMULATED/records.jsonl',
+      recordCount: 2,
+      nextOrdinal: 3,
+      canApproveSequentially: true,
+    };
+  });
+  await editRaw(page, 'alpha_target');
+  await mainCommit(page).click();
+  await review(page)
+    .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
+    .click();
+  await expect(review(page)).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'A fonte foi salva' })).toContainText(
+    'alvo humano',
+  );
+  expect(await publicationCalls(page)).toEqual(['source_apply']);
 });
 
 test('a refused reference leaves the applied source alone and says why', async ({ page }) => {
-  await page.goto('/tests/next-hook-harness.html?workspace');
-  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
-  // The corpus keeps references in sequence; this passage is not the next one.
+  await workspace(page);
   await page.evaluate(() => {
     window.__nextControl.responses.reference_status = {
       record: null,
@@ -102,32 +352,16 @@ test('a refused reference leaves the applied source alone and says why', async (
       canApproveSequentially: false,
     };
   });
-  await page.getByRole('button', { name: 'Montar a análise', exact: true }).click();
-  await page.getByRole('tab', { name: 'Código', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Pydicate editável', exact: true }).fill('alpha_2');
-  await expect(page.getByTestId('generated-surface')).not.toHaveText('Avaliando…');
-  await page
-    .locator('.workspace-footer')
-    .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
+  await editRaw(page, 'alpha_sequence');
+  await mainCommit(page).click();
+  await review(page)
+    .getByRole('button', { name: 'Salvar fonte e ground truth', exact: true })
     .click();
-  await page
-    .getByRole('dialog', { name: 'Commit to Ground Truth', exact: true })
-    .getByRole('button', { name: 'Revisar edição da fonte', exact: true })
-    .click();
-  await page
-    .getByRole('dialog', { name: /Revisar/ })
-    .getByRole('button', { name: /Aplicar/ })
-    .click();
-
-  const notice = page.getByRole('status').filter({ hasText: 'A fonte foi aplicada' });
-  await expect(notice).toBeVisible();
-  await expect(notice).toContainText('0003');
-  const calls = await page.evaluate(() =>
-    window.__nextControl.requests
-      .filter(({ method }) => ['source_apply', 'reference_approve'].includes(method))
-      .map(({ method }) => method),
+  await expect(review(page)).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'A fonte foi salva' })).toContainText(
+    '0003',
   );
-  expect(calls).toEqual(['source_apply']);
+  expect(await publicationCalls(page)).toEqual(['source_apply']);
 });
 
 // Real GroundTruthPanel + useStudio; only the backend is simulated. No corpus or provider writes.

@@ -13,6 +13,7 @@ const METHODS = new Set([
   'predicate_catalog',
   'predicate_create',
   'composition_define',
+  'node_definition',
   'source_preview',
   'source_new_preview',
   'source_apply',
@@ -43,6 +44,21 @@ function createNextService(options) {
   const lexicalNotes = createLexicalNotesService({
     stateDirectory: path.join(stateDirectory, 'lexical-notes'),
   });
+  const {
+    freezeInterpretationNotes,
+    interpretationContext,
+  } = require('./interpretation-context.cjs');
+  const readInterpretationNotes = async (projectId) =>
+    freezeInterpretationNotes(
+      (await lexicalNotes.invoke('lexical_notes_list', { projectId })).records,
+    );
+  async function projectInterpretations(records, params) {
+    if (!records?.length) return undefined;
+    if (!getWorker() || getProject()?.id !== params.projectId)
+      throw new Error('Abra o projeto destas interpretações.');
+    const inventory = await getWorker().request('passage_lexicon', params);
+    return interpretationContext(records, inventory, params);
+  }
   let settings = {},
     loaded = false,
     writes = Promise.resolve();
@@ -107,6 +123,36 @@ function createNextService(options) {
         engineFingerprint: request.context?.engineFingerprint || project.engineFingerprint,
         action: request.action,
       });
+      let selectedNode;
+      if (request.context?.scope === 'constituent') {
+        const wanted = request.context.selectedNode;
+        const pending = context.evaluation?.tree ? [context.evaluation.tree] : [];
+        while (pending.length) {
+          const node = pending.pop();
+          if (
+            node.start === wanted?.start &&
+            node.end === wanted?.end &&
+            node.code === wanted?.code
+          ) {
+            selectedNode = node;
+            break;
+          }
+          pending.push(...(node.children ?? []).map((child) => child.node));
+        }
+      }
+      const interpretations = await projectInterpretations(
+        await readInterpretationNotes(project.id),
+        {
+          projectId: project.id,
+          passageId: request.passageId,
+          sourceId,
+          raw: context.raw,
+          revisionId: request.revisionId,
+          engineFingerprint: project.engineFingerprint,
+          scope: request.context?.scope ?? 'passage',
+          selectedNode,
+        },
+      );
       if (
         getProject()?.id !== project.id ||
         getProject()?.engineFingerprint !== project.engineFingerprint
@@ -136,6 +182,7 @@ function createNextService(options) {
         repositories: project.repositories,
         engineFingerprint: project.engineFingerprint,
         evidence: pdf,
+        ...(interpretations ? { interpretationContext: interpretations } : {}),
       };
     },
   });
@@ -147,6 +194,8 @@ function createNextService(options) {
         getConfig: () => provider.getConfig(),
         getProject,
         reloadProject: options.reloadProject,
+        readInterpretationNotes,
+        projectInterpretations,
         emit,
         request: (method, params) => {
           if (!getWorker()) throw new Error('Abra o projeto local.');

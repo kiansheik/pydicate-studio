@@ -61,6 +61,37 @@ class CorpusCopyTests(unittest.TestCase):
 
     def passage(self,ordinal=67):return self.project['passages'][ordinal-1]
 
+    def test_pt_en_translations_source_roundtrip_clear_and_legacy_separation(self):
+        passage=self.passage(67); identifier=passage['id']; original=passage['sourceFingerprint']
+        values={'pt':"  primeira\n\nsegunda\u2028terceira  ", 'en':'first\nsecond'}
+        preview=self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'translation':'legacy unlabelled','translations':values}})
+        self.project=self.adapter.invoke('source_apply',preview)
+        current=self.passage(67)
+        self.assertEqual(current['translations'],values)
+        self.assertEqual(current['translation'],'legacy unlabelled')
+        self.assertNotEqual(current['sourceFingerprint'],original)
+        self.assertEqual(source_entries(self.path)[66]['studio']['translations'],values)
+        ast.parse(self.path.read_text())
+        reopened=ProjectAdapter(self.state).open_project(str(self.parent))['passages'][66]
+        self.assertEqual(reopened['translations'],values)
+        self.assertEqual(self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'translations':values}})['diff'],'')
+        kept={**values,'pt':''}
+        preview=self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'translations':kept}})
+        self.project=self.adapter.invoke('source_apply',preview)
+        self.assertEqual(self.passage(67)['translations'],kept)
+        self.assertEqual(self.passage(67)['translation'],'legacy unlabelled')
+        for invalid in ({'pt':3},{'fr':'bonjour'},None):
+            with self.assertRaises(AdapterError):self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'translations':invalid}})
+
+    def test_new_passage_pt_en_translations_have_no_legacy_language_assumption(self):
+        values={'pt':'Pessoa.','en':'Person.'}
+        preview=self.adapter.invoke('source_new_preview',{'sourceId':'araujo_catecismo_1686','raw':'apiti','metadata':{'translations':values}})
+        self.project=self.adapter.invoke('source_apply',preview)
+        current=self.project['passages'][-1]
+        self.assertEqual(current['translations'],values)
+        self.assertEqual(current['translation'],'')
+        self.assertEqual(source_entries(self.path)[-1]['studio']['translations'],values)
+
     def test_full_count_actual_inherited_metadata_and_noop_bytes(self):
         entries=source_entries(self.path);self.assertEqual(len(entries),len(self.project['passages']));self.assertEqual(self.passage(82)['witness']['printedPage'],'6')
         for passage in self.project['passages']:
@@ -150,14 +181,18 @@ class CorpusCopyTests(unittest.TestCase):
         self.assertEqual(process.stdout.strip(),'eporoapiti umẽ')
 
     def test_explicit_authoritative_approval_writes_only_next_reference(self):
-        records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';before=records.read_bytes()
-        count=len(before.splitlines());passage=self.passage(count+1)
+        records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
+        # The contributor may already have approved every source line. Leave
+        # one deliberate pending reference in this disposable fixture.
+        count=min(len(original.splitlines()),len(self.project['passages'])-1)
+        before=b''.join(original.splitlines(keepends=True)[:count]);records.write_bytes(before)
+        self.project=self.adapter.refresh_project();passage=self.passage(count+1)
         rendered=self.adapter.invoke('evaluate_expression',{'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'review','engineFingerprint':self.project['engineFingerprint']})
         try:
             approved=self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
             self.assertEqual(approved['approval']['ordinal'],count+1);self.assertEqual(records.read_bytes().splitlines()[:count],before.splitlines());self.assertEqual(len(records.read_bytes().splitlines()),count+1)
             event=json.loads(next((self.state/'recovery').glob('*.json')).read_text());self.assertEqual(event['kind'],'reference-approval');self.assertEqual(event['before'].encode('utf-8'),before)
-        finally:records.write_bytes(before)
+        finally:records.write_bytes(original)
 
     def test_reference_approval_requires_explicit_surface_and_sequential_authority(self):
         records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
@@ -173,6 +208,28 @@ class CorpusCopyTests(unittest.TestCase):
             with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':passage['id'],'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
             self.assertIn('approved in order',str(error.exception));self.assertEqual(records.read_bytes(),before)
         finally:records.write_bytes(original)
+
+    def test_reference_approval_rejects_stale_engine_after_backend_refresh_with_same_surface(self):
+        passage=self.passage();reviewed_fingerprint=self.project['engineFingerprint']
+        rendered=self.adapter.invoke('evaluate_expression',{'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'human-review','engineFingerprint':reviewed_fingerprint})
+        records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
+        lexicon=self.corpus/'historic/lexicon.tu.py'
+        try:
+            # A backend reload can arrive from another grammar conversation
+            # while the contributor's review still describes the previous state.
+            lexicon.write_bytes(self.lexicon+b'\n# Simulated external lexical revision\n')
+            self.project=self.adapter.refresh_project();current=self.passage()
+            self.assertNotEqual(self.project['engineFingerprint'],reviewed_fingerprint)
+            self.assertEqual(current['sourceFingerprint'],passage['sourceFingerprint'])
+            unchanged=self.adapter.invoke('evaluate_expression',{'passageId':current['id'],'raw':current['sourceExpression'],'revisionId':'refreshed','engineFingerprint':self.project['engineFingerprint']})
+            self.assertEqual(unchanged['surface'],rendered['surface'])
+            with self.assertRaises(AdapterError) as caught:
+                self.adapter.invoke('reference_approve',{'passageId':current['id'],'sourceFingerprint':current['sourceFingerprint'],'engineFingerprint':reviewed_fingerprint,'reviewedSurface':rendered['surface']})
+            self.assertEqual(caught.exception.code,'STALE_ENGINE')
+            self.assertEqual(records.read_bytes(),original)
+            self.assertEqual(list((self.state/'recovery').glob('*.json')),[])
+        finally:
+            lexicon.write_bytes(self.lexicon);records.write_bytes(original)
 
     def test_helpers_expose_parameters_and_actual_body_structure(self):
         for name in ('n','v','cop','credo','saguera','pyreramo'):
@@ -236,12 +293,77 @@ class CorpusCopyTests(unittest.TestCase):
             repeated=self.adapter.invoke('source_preview',{'passageId':current['id'],'metadata':{'translation':'','diplomatic':'','normalized':''}});self.assertEqual(repeated['diff'],'')
         finally:records.write_bytes(original)
 
-    def test_new_passage_multiline_scalar_metadata_preserves_draft_and_source(self):
-        for field in ('diplomatic','normalized','translation','printedPage','folio','line'):
+    def test_new_passage_multiline_locators_remain_invalid(self):
+        for field in ('printedPage','folio','line'):
             with self.assertRaises(AdapterError) as error:self.adapter.invoke('source_new_preview',{'raw':'amen','metadata':{field:'primeira linha\nsegunda linha'}})
-            self.assertIn('rascunho',str(error.exception));self.assertEqual(self.path.read_bytes(),self.original)
-        preview=self.adapter.invoke('source_new_preview',{'raw':'amen','metadata':{'notes':'nota um\nnota dois'}})
-        self.assertIn('+# @note nota um\n+# @note nota dois',preview['diff'])
+            self.assertIn('localizador',str(error.exception));self.assertEqual(self.path.read_bytes(),self.original)
+
+    def test_multiline_source_create_edit_reopen_and_clear_preserve_exact_text(self):
+        values={'diplomatic':"Nã e'i\r\n\r\n# @target texto, não diretiva\n\\n literal\n",
+                'normalized':'primeira\nsegunda', 'translation':'  primeira tradução\n\nsegunda  ',
+                'analysis':'etapa um\r\netapa dois', 'notes':'nota um\n\nnota dois\n'}
+        preview=self.adapter.invoke('source_new_preview',{'raw':'amen','metadata':values})
+        self.assertEqual(self.path.read_bytes(),self.original)
+        self.project=self.adapter.invoke('source_apply',preview)
+        identifier=preview['passageId']
+        def current():return next(p for p in self.project['passages'] if p['id']==identifier)
+        for key,value in values.items():
+            self.assertEqual(current()['sourceMetadata']['analysis'] if key=='analysis' else current()[key],value)
+        self.assertEqual(current()['sourceExpression'],'amen')
+        self.assertIn('textEncoding',current()['studioMetadata'])
+        self.assertEqual(self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':values})['diff'],'')
+        self.adapter=ProjectAdapter(self.state);self.project=self.adapter.open_project(str(self.parent))
+        self.assertEqual(current()['diplomatic'],values['diplomatic'])
+        updated={**values,'diplomatic':"Nã e'i\ncontinuação revisada"}
+        preview=self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':updated})
+        self.project=self.adapter.invoke('source_apply',preview)
+        self.assertEqual(current()['diplomatic'],updated['diplomatic'])
+        exported=self.adapter.invoke('contribution_prepare',{})['patch']
+        self.assertIn('json-string-v1',exported)
+        preview=self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{key:'' for key in values}})
+        self.project=self.adapter.invoke('source_apply',preview)
+        self.assertNotIn('textEncoding',current()['studioMetadata'])
+        for key in ('diplomatic','normalized','translation','notes'):self.assertEqual(current()[key],'')
+
+    def test_reference_approval_carries_exact_source_text_and_rejects_source_target_mismatch(self):
+        records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
+        # Blank physical lines are accepted by the upstream JSONL reader; the
+        # target's ordinal must not be mistaken for its physical file line.
+        before=b'\n'+original.replace(b'\n',b'\n\n',4);records.write_bytes(before)
+        self.project=self.adapter.refresh_project()
+        # An existing supported entry avoids assuming how many new lines the
+        # contributor has saved in their checkout since the previous test run.
+        passage=self.passage(67);identifier=passage['id']
+        values={'diplomatic':"Nã e'i\r\n\r\n# @target literal\nlinha\u0085seguinte\u2028outra\u2029última\n",'translation':'  tradução\n\nseguinte\u2028continuação  ',
+                'analysis':'análise\netapa dois','notes':'nota\n\nseguinte\u0085continuação\u2029final\n'}
+        try:
+            preview=self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':values})
+            self.project=self.adapter.invoke('source_apply',preview);passage=self.passage(67)
+            rendered=self.adapter.invoke('evaluate_expression',{'passageId':identifier,'raw':passage['sourceExpression'],'revisionId':'review','engineFingerprint':self.project['engineFingerprint']})
+            self.adapter.invoke('reference_approve',{'passageId':identifier,'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
+            after=records.read_bytes().splitlines(keepends=True);prior=before.splitlines(keepends=True)
+            def neighbors(rows):return [row for row in rows if not row.strip() or json.loads(row)['ordinal']!=67]
+            self.assertEqual(neighbors(after),neighbors(prior))
+            record=next(json.loads(row) for row in after if row.strip() and json.loads(row)['ordinal']==67)
+            for key in ('diplomatic','translation','analysis'):self.assertEqual(record[key],values[key])
+            self.assertEqual(record['notes'],[values['notes']])
+            # The native loader splits Unicode line separators too. Read in a
+            # fresh process so Studio's source codec cannot conceal bad JSONL.
+            script='import json,sys;sys.path.insert(0,sys.argv[1]);from pathlib import Path;from authoring.records import load_records;print(json.dumps(load_records(Path(sys.argv[2]),source="araujo_catecismo_1686",kind="historic")[66].to_dict(),ensure_ascii=True))'
+            reopened=subprocess.run([sys.executable,'-I','-B','-c',script,str(self.corpus),str(records)],capture_output=True,text=True)
+            self.assertEqual(reopened.returncode,0,reopened.stderr)
+            native=json.loads(reopened.stdout)
+            # Native records intentionally trim outer scholarly whitespace;
+            # every internal separator and the notes survive unchanged.
+            for key in ('diplomatic','translation','analysis'):self.assertEqual(native[key],values[key].strip())
+            self.assertEqual(native['notes'],[values['notes']])
+            self.project=self.adapter.refresh_project()
+            preview=self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'normalized':'outra\nforma'}})
+            self.project=self.adapter.invoke('source_apply',preview);passage=self.passage(67)
+            approved_bytes=records.read_bytes()
+            with self.assertRaises(AdapterError) as error:self.adapter.invoke('reference_approve',{'passageId':identifier,'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':rendered['surface']})
+            self.assertIn('@target',str(error.exception));self.assertEqual(records.read_bytes(),approved_bytes)
+        finally:records.write_bytes(original)
 
     def test_all_araujo_scope_edit_previews_preserve_unrelated_source_bytes(self):
         scratch=self.parent/'preview-araujo.tu.py';original_entries=source_entries(self.path)

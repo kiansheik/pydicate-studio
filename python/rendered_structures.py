@@ -14,8 +14,9 @@ import unicodedata
 from pathlib import Path
 
 from studio_authoring import expression_tree, parse_ast, source_entries
+from lexical_metadata import lexical_status
 
-VERSION = 2
+VERSION = 3
 
 
 def valid_index(value):
@@ -172,6 +173,8 @@ def build(payload, corpus):
             rows[identifier] = {'id': identifier, 'surface': surface, 'expression': raw,
                 'kind': kind, 'source': source, 'sources': [source], 'occurrenceCount': 1,
                 '_context': context, '_structure': structure, '_origins': [{'source': source, 'context': context}]}
+            if lexical_status(value):
+                rows[identifier]['lexicalStatus'] = lexical_status(value)
             if name:
                 rows[identifier]['name'] = name
             if definition:

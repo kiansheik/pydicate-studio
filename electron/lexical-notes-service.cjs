@@ -27,6 +27,7 @@ function validateNote(note) {
   text(note.lexicalName, 'variável');
   text(note.revisionId, 'revisão');
   text(note.expressionFingerprint, 'expressão');
+  if (note.nodeFingerprint !== undefined) text(note.nodeFingerprint, 'constituinte');
   if (
     !note.fields ||
     typeof note.fields !== 'object' ||
@@ -59,6 +60,7 @@ function validateNote(note) {
       : {}),
     revisionId: note.revisionId,
     expressionFingerprint: note.expressionFingerprint,
+    ...(note.nodeFingerprint ? { nodeFingerprint: note.nodeFingerprint } : {}),
     provenance: structuredClone(provenance),
     fields,
   };
@@ -136,6 +138,7 @@ function createLexicalNotesService({ stateDirectory }) {
               savedAt: now,
               revisionId: note.revisionId,
               expressionFingerprint: note.expressionFingerprint,
+              ...(note.nodeFingerprint ? { nodeFingerprint: note.nodeFingerprint } : {}),
               provenance: note.provenance,
               fields: note.fields,
             },

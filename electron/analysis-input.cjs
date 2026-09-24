@@ -18,6 +18,9 @@ function scopedAnalysisInput(input) {
   copy.canvas = { fragments: [], positions: {}, layout: 'bottom-up' };
   for (const key of [
     'evaluation',
+    'definitionContext',
+    'interpretationContext',
+    'interpretationNotes',
     'selectedNode',
     'feedback',
     'conversation',
@@ -31,7 +34,18 @@ function scopedAnalysisInput(input) {
   copy.context = (copy.context ?? [])
     .filter((item) => !excluded.has(item.passageId ?? item.id))
     .map((item) => {
-      const { raw, expression, sourceExpression, evaluation, tree, canvas, ...reference } = item;
+      const {
+        raw,
+        expression,
+        sourceExpression,
+        evaluation,
+        tree,
+        canvas,
+        definitionContext,
+        interpretationContext,
+        interpretationNotes,
+        ...reference
+      } = item;
       return reference;
     });
   copy.answerPolicy =

@@ -8,13 +8,37 @@ from __future__ import annotations
 import ast
 import builtins
 import inspect
+import io
 import keyword
 import re
+import tokenize
 import unicodedata
 
 from authoring_runtime import CONSTRUCTORS, evaluation_snapshot, interpret, namespace_for, shape, studio_define
+from lexical_metadata import lexical_status, restore_namespace_lexical_status
 from rendered_structures import fingerprint, isolated_namespace
-from studio_authoring import parse_ast, position
+from semantic_context import REGISTRY, declaration_current, declaration_meaning, register_declarations
+from studio_authoring import parse_ast, position, token_position
+
+
+def _source_comments(raw, start=0, end=None):
+    end = len(raw) if end is None else end
+    return [token.string for token in tokenize.generate_tokens(io.StringIO(raw).readline)
+            if token.type == tokenize.COMMENT and start <= token_position(raw, token.start)
+            and token_position(raw, token.end) <= end]
+
+
+def _named_source(raw, start, end, name):
+    """Keep occurrence comments beside the promoted reference in the passage."""
+    comments = _source_comments(raw, start, end)
+    return '(' + name + '\n' + '\n'.join(comments) + '\n)' if comments else name
+
+
+def _declaration_source(raw, node):
+    source = ast.get_source_segment(raw, node)
+    # A new reusable declaration should not silently inherit an occurrence's
+    # comments. They remain in the passage through _named_source instead.
+    return ast.unparse(node) if _source_comments(source) else source
 
 
 def _constructor(node):
@@ -66,6 +90,8 @@ def _evidence(value):
     structural = fingerprint(shape(value))
     snapshot = evaluation_snapshot(value)
     result = {'structure': structural}
+    if lexical_status(value):
+        result['lexicalStatus'] = lexical_status(value)
     stage = 'surface'
     try:
         result['surface'] = str(snapshot.eval())
@@ -169,6 +195,7 @@ def define_composition(payload, corpus):
     namespace = namespace_for(corpus, corpus/'historic'/f"{payload['sourceId']}.tu.py", payload.get('line', 10**9))
     from historic.lexicon import load_lexicon
     shared = load_lexicon(); restored = []; replacements = []
+    restore_namespace_lexical_status(shared, ast.parse((corpus/'historic/lexicon.tu.py').read_text(encoding='utf-8')).body)
     if payload.get('reuseBaseDefinitions', False):
         for node, constructor, override in _candidates(syntax):
             original = _value(node, namespace)
@@ -277,31 +304,98 @@ def _promote_composites(result, namespace, shared, published, occupied):
         wrappers = [node for node in ast.walk(parse_ast(raw)) if _defined(node)]
         if not wrappers: return
         node = wrappers[-1]
-        expression = ast.get_source_segment(raw, node.args[0])
+        expression = _declaration_source(raw, node.args[0])
         definition = node.args[1].value
         original = _value(node, published); evidence = _evidence(original)
+        status = {'lexicalStatus': lexical_status(original)} if lexical_status(original) else {}
         if evidence['evaluationStatus'] != 'complete': raise ValueError('Avalie a composição completa antes de registrá-la no léxico.')
         try: copied = studio_define(_value(node.args[0], shared), definition)
         except Exception as error: raise ValueError('A composição usa uma peça local indisponível no léxico compartilhado. Registre essa peça primeiro.') from error
         if _evidence(copied) != evidence: raise ValueError('A composição tem outro significado no léxico compartilhado.')
-        identity = fingerprint(evidence); headword = evidence['surface']; slug = lexical_slug(headword, 'composicao')
+        meaning_scope = _meaning_scope(node, published)
+        if _meaning_scope(node, shared) != meaning_scope:
+            raise ValueError('A composição tem outros significados internos no léxico compartilhado.')
+        identity = fingerprint({**evidence, 'meaningScope': meaning_scope})
+        headword = evidence['surface']; slug = lexical_slug(headword, 'composicao')
         matches = [name for name,value in shared.items() if name.isidentifier() and not name.startswith('_')
                    and name in published and type(value) is type(original)
                    and getattr(value,'definition',None)==definition
-                   and _evidence(value)==evidence and _evidence(published[name])==evidence]
+                   and _evidence(value)==evidence and _evidence(published[name])==evidence
+                   and _same_meaning_scope(name, shared, meaning_scope)
+                   and _same_meaning_scope(name, published, meaning_scope)]
         if matches:
             name = min(matches,key=lambda name:(name!=slug,len(name),name))
             if not any(item['name']==name for item in result['reused']):
-                result['reused'].append({'name':name,'headword':headword,'definition':definition,'lexicalFingerprint':identity,'kind':'composition'})
+                result['reused'].append({'name':name,'headword':headword,'definition':definition,'lexicalFingerprint':identity,'kind':'composition',**status})
         else:
             name = _available_name(slug,identity,occupied); occupied.add(name)
             result['declarations'].append({'name':name,'expression':f'({expression}).copy()',
                 'definitionOverride':definition,'definition':definition,'headword':headword,
-                'lexicalFingerprint':identity,'kind':'composition'})
+                'lexicalFingerprint':identity,'kind':'composition',**status})
             published[name] = copied; shared[name] = copied
+            _register_planned(result['declarations'][-1], shared, published)
         start=position(raw,node.lineno,node.col_offset); end=position(raw,node.end_lineno,node.end_col_offset)
-        result['raw']=raw[:start]+name+raw[end:]
+        result['raw']=raw[:start]+_named_source(raw,start,end,name)+raw[end:]
         result['replacements'].append({'start':start,'end':end,'name':name})
+
+
+def _meaning_scope(syntax, namespace):
+    """Canonical source scopes survive engine conversions that discard history.
+
+    Resolve declared aliases, copies and portable definition assignments without
+    executing source. Grammar equivalence is checked separately by _evidence.
+    This deliberately keeps differently constructed trees distinct.
+    """
+    declarations = namespace.get(REGISTRY, {})
+    visited = 0
+
+    def canonical(node, active=(), depth=0):
+        nonlocal visited
+        visited += 1
+        if visited > 4000 or depth > 64:
+            raise ValueError('A composição excede o limite de conferência dos significados internos.')
+        if isinstance(node, ast.Name) and node.id in declarations:
+            declaration = declarations[node.id]
+            if declaration['kind'] == 'expression':
+                if node.id in active:
+                    raise ValueError('A composição tem uma dependência semântica cíclica.')
+                if not declaration_current(node.id, declarations):
+                    raise ValueError('Uma peça da composição foi redefinida; os significados internos precisam de revisão.')
+                expected = declaration_meaning(node.id, declarations)
+                if expected is not None and expected != getattr(namespace.get(node.id), 'definition', None):
+                    raise ValueError('O significado de uma peça difere de sua declaração; revise a composição.')
+                expanded = parse_ast(declaration['expression'])
+                if 'definitionOverride' in declaration:
+                    expanded = ast.Call(func=ast.Name(id='studio_define', ctx=ast.Load()),
+                                        args=[expanded, ast.Constant(value=declaration['definitionOverride'])],
+                                        keywords=[])
+                return canonical(expanded, (*active, node.id), depth + 1)
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == 'copy' and not node.args and not node.keywords):
+            return canonical(node.func.value, active, depth + 1)
+        if isinstance(node, ast.AST):
+            return [type(node).__name__, *[[field, canonical(value, active, depth + 1)]
+                                          for field, value in ast.iter_fields(node) if field != 'ctx']]
+        if isinstance(node, list):
+            return [canonical(item, active, depth + 1) for item in node]
+        return node
+
+    return canonical(syntax)
+
+
+def _same_meaning_scope(name, namespace, expected):
+    try:
+        return _meaning_scope(ast.Name(id=name, ctx=ast.Load()), namespace) == expected
+    except (ValueError, SyntaxError):
+        return False
+
+
+def _register_planned(entry, *namespaces):
+    source = f"{entry['name']} = {entry['expression']}"
+    if entry.get('definitionOverride') is not None:
+        source += f"\n{entry['name']}.definition = {entry['definitionOverride']!r}"
+    for namespace in namespaces:
+        register_declarations(namespace, ast.parse(source).body, '<planned-lexicon>')
 
 
 def prepare_lexical_publication(payload, corpus):
@@ -323,13 +417,17 @@ def prepare_lexical_publication(payload, corpus):
         result['diagnostics'].append('O significado do conjunto foi separado do significado de suas peças nesta revisão.')
     from historic.lexicon import load_lexicon
     shared = load_lexicon()
+    shared_path = corpus / 'historic/lexicon.tu.py'
+    shared_statements = ast.parse(shared_path.read_text(encoding='utf-8')).body
+    restore_namespace_lexical_status(shared, shared_statements)
+    register_declarations(shared, shared_statements, shared_path)
     shared['studio_define'] = studio_define
     occupied = _occupied(corpus, namespace, shared)
     published = dict(namespace)
     planned = {}
     reused_names = set()
     for node, constructor, override in candidates:
-        expression = ast.get_source_segment(raw, constructor)
+        expression = _declaration_source(raw, constructor)
         original_expression = ast.get_source_segment(raw, node)
         try:
             original = _value(node, namespace)
@@ -351,6 +449,7 @@ def prepare_lexical_publication(payload, corpus):
         definition = getattr(original, 'definition', '')
         if not isinstance(definition, str):
             definition = ''
+        status = {'lexicalStatus': lexical_status(original)} if lexical_status(original) else {}
         slug = lexical_slug(headword, constructor.func.id)
         name = planned.get(identity)
         if name is None:
@@ -374,23 +473,28 @@ def prepare_lexical_publication(payload, corpus):
                 if name not in reused_names:
                     result['reused'].append({'name': name, 'expression': original_expression,
                                              'headword': headword, 'definition': definition,
-                                             'lexicalFingerprint': identity})
+                                             'lexicalFingerprint': identity, **status})
                     reused_names.add(name)
             else:
                 name = _available_name(slug, identity, occupied)
                 occupied.add(name)
                 published[name] = copied
                 shared[name] = copied
-                result['declarations'].append({'name': name, 'expression': expression,
+                # studio_define copies before overriding the gloss. Preserve
+                # that exact operation on reload (noun copies have different
+                # internal self-links), so later exact-identity reuse works.
+                declaration = f'({expression}).copy()' if override is not None else expression
+                result['declarations'].append({'name': name, 'expression': declaration,
                                                 'headword': headword, 'definition': definition,
-                                                'lexicalFingerprint': identity,
+                                                'lexicalFingerprint': identity, **status,
                                                 **({'definitionOverride': override} if override is not None else {})})
+                _register_planned(result['declarations'][-1], shared, published)
             planned[identity] = name
         start = position(raw, node.lineno, node.col_offset)
         end = position(raw, node.end_lineno, node.end_col_offset)
         result['replacements'].append({'start': start, 'end': end, 'name': name})
     for replacement in sorted(result['replacements'], key=lambda item: item['start'], reverse=True):
-        raw = raw[:replacement['start']] + replacement['name'] + raw[replacement['end']:]
+        raw = raw[:replacement['start']] + _named_source(raw,replacement['start'],replacement['end'],replacement['name']) + raw[replacement['end']:]
     result['raw'] = raw
     _promote_composites(result, namespace, shared, published, occupied)
     raw = result['raw']

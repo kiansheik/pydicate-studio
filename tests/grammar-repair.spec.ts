@@ -83,3 +83,58 @@ test('failed submission preserves the edited correction and can be retried', asy
   await expect(page.getByLabel('Explicação linguística')).toHaveValue('Minhas notas');
   await expect(page.getByRole('button', { name: 'Enviar ao Codex' })).toBeEnabled();
 });
+
+test('retrying an initial correction after editing saved lexical notes captures a new submission identity', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await page.evaluate(() => {
+    window.__nextControl.responses.lexical_notes_list = {
+      records: [
+        {
+          id: 'note:grammar',
+          version: 1,
+          scope: 'entry',
+          fields: { meaning: '', grammar: 'old nuance', note: '' },
+        },
+      ],
+    };
+  });
+  await page.getByRole('button', { name: 'Corrigir gramática / árvore' }).first().click();
+  await page.getByLabel('Forma pretendida', { exact: true }).fill('Minha forma');
+  await page.evaluate(() => window.__nextControl.holds.push({ method: 'analysis_submit' }));
+  await page.getByRole('button', { name: 'Enviar ao Codex' }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__nextControl.pending.some((item) => item.method === 'analysis_submit'),
+      ),
+    )
+    .toBe(true);
+  await page.evaluate(() =>
+    window.__nextControl.reject('analysis_submit', 'SIMULATED unavailable'),
+  );
+  await expect(page.getByRole('dialog').getByRole('status')).toContainText('SIMULATED unavailable');
+  await page.evaluate(() => {
+    window.__nextControl.responses.lexical_notes_list = {
+      records: [
+        {
+          id: 'note:grammar',
+          version: 2,
+          scope: 'entry',
+          fields: { meaning: '', grammar: 'corrected nuance', note: '' },
+        },
+      ],
+    };
+  });
+  await page.getByRole('button', { name: 'Enviar ao Codex' }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  const submitted = await page.evaluate(() =>
+    window.__nextControl.requests
+      .filter((item) => item.method === 'analysis_submit')
+      .map((item) => item.params),
+  );
+  expect(submitted).toHaveLength(2);
+  expect(submitted[1].operationId).not.toBe(submitted[0].operationId);
+  expect(submitted[1].revisionId).toBe(submitted[0].revisionId);
+});

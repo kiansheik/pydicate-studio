@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { flattenNodes, type AuthorNode, type ParsedExpression } from './authoring';
-import { expressionGraph } from './expression-tree';
+import { definitionBody, expressionGraph } from './expression-tree';
 import { editInlineArgument } from './inline-arguments';
 import { editableRuntimeScopes, replaceRuntimeScope, searchRuntimeTree } from './runtime-tree';
 
@@ -24,6 +24,87 @@ function parse(raw: string): AuthorNode {
 }
 
 describe('Pydicate source operation tree', () => {
+  it('keeps a composition definition on its existing visible operation and retains exact outer edit scope', () => {
+    const raw = "studio_define((potar * moro).var(1).base_nominal(), 'conjunto')";
+    const source = parse(raw);
+    const evaluated = structuredClone(source);
+    evaluated.compositeDefinition = 'conjunto';
+    evaluated.evaluation = { status: 'ok', surface: 'poropotara' };
+    const value = definitionBody(evaluated);
+    value.compositeDefinition = 'sentido anterior do conjunto';
+    const potar = flattenNodes(evaluated).find((node) => node.code === 'potar')!;
+    potar.baseDefinition = 'querer';
+    const graph = expressionGraph(source, raw, evaluated)!;
+    expect(graph.nodes.map((node) => node.label)).toEqual([
+      '.base_nominal()',
+      '.var(1)',
+      '*',
+      'potar',
+      'moro',
+    ]);
+    expect(graph.nodes[0]).toMatchObject({
+      id: 'root',
+      sourceNodeId: 'root',
+      compositeDefinition: 'conjunto',
+      inheritedDefinition: 'sentido anterior do conjunto',
+      evaluation: { status: 'ok', surface: 'poropotara' },
+      expression: {
+        kind: 'method',
+        method: 'base_nominal',
+        code: raw,
+        operationSourceNodeId: 'root/arg0',
+        isRoot: true,
+      },
+    });
+    expect(graph.edges.find((edge) => edge.source === 'root')).toMatchObject({
+      target: 'root/arg0/receiver',
+      field: 'receiver',
+    });
+    expect(graph.nodes.find((node) => node.label === 'potar')?.baseDefinition).toBe('querer');
+    expect(editableRuntimeScopes(graph.nodes[0], source, raw)).toEqual([source]);
+    expect(replaceRuntimeScope(raw, source, source.code)).toBe(raw);
+  });
+
+  it('folds positional and keyword literal definitions while preserving inline variant spans and comments', () => {
+    const raw =
+      "studio_define(\n definition='outer', # outer note\n value=studio_define((potar * moro).var(2), definition='inner')\n)";
+    const source = parse(raw);
+    const graph = expressionGraph(source, raw)!;
+    const body = definitionBody(source);
+    expect(graph.nodes.map((node) => node.label)).toEqual(['.var(2)', '*', 'potar', 'moro']);
+    expect(graph.nodes[0].expression?.operationSourceNodeId).toBe('root/kw:value/arg0');
+    expect(graph.nodes[0].expression?.inlineCall?.arguments[0]).toMatchObject({
+      slot: 'arg0',
+      sourceNodeId: 'root/kw:value/arg0/arg0',
+    });
+    const updated = editInlineArgument(raw, body, 'arg0', '3');
+    expect(updated).toBe(raw.replace('.var(2)', '.var(3)'));
+    expect(
+      searchRuntimeTree(
+        expressionGraph(
+          parse("studio_define(potar, 'sentido')"),
+          "studio_define(potar, 'sentido')",
+        )!,
+        '"potar"',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('does not conceal dynamic definitions or ordinary helper calls as annotation-only syntax', () => {
+    for (const raw of [
+      'studio_define(potar, meaning)',
+      "studio_define(potar, 'meaning', extra=True)",
+      "another_define(potar, 'meaning')",
+    ]) {
+      const source = parse(raw);
+      expect(definitionBody(source)).toBe(source);
+      const graph = expressionGraph(source, raw)!;
+      expect(graph.nodes[0].expression?.kind).toBe('call');
+      expect(graph.nodes[0].expression?.operationSourceNodeId).toBeUndefined();
+      expect(graph.nodes.length).toBeGreaterThan(1);
+    }
+  });
+
   it('keeps every compound construction step instead of replacing it with its Classifier result', () => {
     const raw = '(pûera * (og * (emi * tym))) / ypy';
     const source = parse(raw);

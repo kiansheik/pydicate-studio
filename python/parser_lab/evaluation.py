@@ -46,6 +46,15 @@ class RestrictedIndex:
         self.excluded.add(answer_source)
         self.removed = 0
 
+    @property
+    def lexical_rows(self):
+        rows = getattr(self.index, 'lexical_rows', [])
+        # A held-out shared name must not reappear through its Navarro spelling.
+        blocked = {key for row in rows if row['source'] in self.drop_lexemes
+                   for key in row['keys']}
+        return [row for row in rows if row['source'] not in self.drop_lexemes
+                and not (set(row['keys']) & blocked)]
+
     def _keep(self, row):
         if row['normalized'] == self.observed:
             return False

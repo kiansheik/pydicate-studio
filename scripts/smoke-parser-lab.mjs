@@ -348,18 +348,21 @@ if (ok)
     assert.equal(refused.status, 'failed', 'an undecided laboratory has nothing to train on');
     assert.match(refused.error, /contrastes decididos/);
 
-    // `sapépe` has two readings the surface cannot separate. Both are shown with
-    // the exact tag that differs, and the contributor chooses one.
+    // The two original `sapépe` readings remain beside additional Navarro
+    // senses. Choose by source identity, independently of the expanded order.
     const shown = await analyse('sapépe');
     assert.match(shown, /Análise completa/);
     const candidates = page.getByTestId('lab-candidates');
-    assert.equal(await candidates.locator('li').count(), 2, 'both readings are offered');
+    assert.ok((await candidates.locator('li').count()) >= 2, 'both readings are offered');
     const listed = await candidates.innerText();
     assert.match(listed, /\(pe \* apé\)/);
     assert.match(listed, /\(pe \* \(ae \* apé\)\)/);
     assert.match(listed, /PLURIFORM_PREFIX:S:ABSOLUTE/);
-    await candidates.locator('li').nth(1).locator('button').first().click();
-    await page.getByTestId('lab-choose-1').click();
+    const preferred = candidates.locator('li').filter({
+      has: page.locator('code').filter({ hasText: /^\(pe \* \(ae \* apé\)\)$/ }),
+    });
+    await preferred.locator('button').first().click();
+    await preferred.getByRole('button', { name: 'Esta é a leitura correta' }).click();
     await expect(page.getByTestId('lab-acceptance')).toContainText('Confirmada por você', {
       timeout: 60_000,
     });

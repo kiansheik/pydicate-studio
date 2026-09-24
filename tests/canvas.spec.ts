@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { StudioBridge } from '../src/domain/types';
 import type { CanvasState } from '../src/domain/canvas';
 import type { CanvasFixture } from './canvas-harness';
+import { flattenNodes, type AuthorNode } from '../src/domain/authoring';
 
 const parent = process.env.PYDICATE_PROJECT_PARENT ?? path.resolve('..');
 const hasCorpus = existsSync(
@@ -25,13 +26,27 @@ else:
  path=corpus/'historic/araujo_catecismo_1686.tu.py'
  entry=source_entries(path)[80]
  namespace=namespace_for(corpus,path,entry['statementLine'])
- if payload['method']=='dictionary_lookup': result=dictionary_lookup(Path(payload['parent'])/'nhe-enga',payload)
+ if payload['method']=='dictionary_lookup': result={**dictionary_lookup(Path(payload['parent'])/'nhe-enga',payload),'engineFingerprint':'canvas-fixture-engine'}
  elif payload['method']=='dictionary_predicate':
   descriptor,row=dictionary_entry(Path(payload['parent'])/'nhe-enga',payload)
   result={**dictionary_predicate({**payload,'entry':descriptor,'entryRecord':row},namespace),'engineFingerprint':'canvas-fixture-engine','revisionId':payload.get('revisionId','fixture')}
  elif payload['method']=='composition_define':
-  from lexical_publication import define_composition
-  result=define_composition({**payload,'sourceId':'araujo_catecismo_1686'},corpus)
+  if payload.get('dictionarySelection'):
+   from node_definitions import define_node
+   descriptor,_=dictionary_entry(Path(payload['parent'])/'nhe-enga',payload['dictionarySelection'])
+   result=define_node({**payload,'sourceId':'araujo_catecismo_1686','sourceNodeId':'root','definition':descriptor['definition']},corpus)
+  else:
+   from lexical_publication import define_composition
+   result=define_composition({**payload,'sourceId':'araujo_catecismo_1686'},corpus)
+  result.update(engineFingerprint='canvas-fixture-engine',revisionId=payload.get('revisionId','fixture'))
+ elif payload['method']=='node_definition':
+  from node_definitions import define_node
+  definition=payload.get('definition','')
+  if payload.get('dictionarySelection'):
+   descriptor,_=dictionary_entry(Path(payload['parent'])/'nhe-enga',payload['dictionarySelection'])
+   definition=descriptor['definition']
+  result=define_node({**payload,'sourceId':'araujo_catecismo_1686','definition':definition},corpus)
+  result.update(engineFingerprint='canvas-fixture-engine',revisionId=payload.get('revisionId','fixture'))
  elif payload['method']=='predicate_catalog': result=predicate_catalog(namespace)
  elif payload['method']=='predicate_create': result=predicate_create(payload,namespace)
  else:
@@ -52,6 +67,7 @@ async function openCanvas(
   page: Page,
   raw: string,
   canvas: CanvasState = { fragments: [], positions: {} },
+  dictionary = false,
 ) {
   const requests: { method: string; params: Record<string, unknown> }[] = [];
   await page.route('**/__canvas_rpc', async (route) => {
@@ -59,7 +75,8 @@ async function openCanvas(
     requests.push(request);
     const source = { sourceId: 'araujo_catecismo_1686', label: 'Léxico local' };
     let result: unknown;
-    if (request.method === 'dictionary_lookup') result = { results: [], total: 0 };
+    if (request.method === 'dictionary_lookup')
+      result = dictionary ? run(request.method, request.params) : { results: [], total: 0 };
     else if (request.method === 'structure_search')
       result = {
         results: [
@@ -163,7 +180,7 @@ test('the main add field replaces redundant buttons and repeated keyboard shortc
 }) => {
   await openCanvas(page, 'tym');
   const query = page.getByRole('combobox', { name: 'Adicionar peça: buscar em tupi', exact: true });
-  await expect(page.locator('.canvas-toolbar')).toContainText('Tipos de peça e código');
+  await expect(page.locator('.canvas-toolbar')).toContainText('Criar peça');
   await expect(page.locator('.canvas-toolbar').getByRole('combobox')).toHaveCount(1);
   await expect(page.locator('.canvas-view-options').getByLabel('Buscar na árvore')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar peça', exact: true })).toHaveCount(0);
@@ -217,6 +234,31 @@ test('the main add field replaces redundant buttons and repeated keyboard shortc
     expect(prevented).toBe(false);
     await expect(page.locator('#outside-canvas-control')).toBeFocused();
   }
+});
+
+test('an unknown search offers manual creation without changing the tree or requiring a dictionary entry', async ({
+  page,
+}) => {
+  const requests = await openCanvas(page, 'tym');
+  await page.route('**/__canvas_rpc', async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.method === 'structure_search')
+      await route.fulfill({ json: { results: [], total: 0, indexFingerprint: 'fixture' } });
+    else await route.fallback();
+  });
+  const query = page.getByRole('combobox', { name: 'Adicionar peça: buscar em tupi', exact: true });
+  await query.fill('ekat');
+  await page.getByRole('button', { name: 'Criar peça sem entrada no dicionário' }).click();
+  const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
+  await expect(palette.getByRole('tab', { name: 'Criar peça', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(palette.getByRole('button', { name: 'Nome', exact: true })).toBeVisible();
+  await expect(page.locator('#canvas-raw')).toHaveText('tym');
+  expect(requests.some((request) => request.method === 'predicate_create')).toBe(false);
+  await palette.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(query).toHaveValue('ekat');
 });
 
 test('an open inline query survives a refreshed revision without stored text or automatic insertion', async ({
@@ -337,7 +379,7 @@ test('a blank canvas drag dismisses the add panel without consuming normal panni
   page,
 }) => {
   await openCanvas(page, 'tym');
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await palette.getByRole('tab', { name: 'Criar peça', exact: true }).click();
   await palette.getByRole('button', { name: 'Nome', exact: true }).click();
@@ -408,7 +450,7 @@ test('add palette searches existing structures before Navarro senses and preserv
     if (request.method !== 'dictionary_lookup') return route.fallback();
     await route.fulfill({ json: run(request.method, request.params) });
   });
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   const query = palette.getByRole('combobox', {
@@ -420,7 +462,7 @@ test('add palette searches existing structures before Navarro senses and preserv
   await expect(palette.getByRole('option').first()).toContainText('Léxico local');
   await palette.getByRole('button', { name: 'Cancelar', exact: true }).click();
   await expect(palette).not.toBeVisible();
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await expect(query).toHaveValue('y py');
   await expect(palette.getByRole('option').first()).toContainText('Léxico local');
@@ -447,7 +489,7 @@ test('Navarro fallback preserves the selected sense and requires an explicit typ
     if (request.method === 'dictionary_predicate') conversions.push(request.params);
     await route.fulfill({ json: run(request.method, request.params) });
   });
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await palette
@@ -491,7 +533,7 @@ test('a classified Navarro sense becomes a fully evaluated lexical piece from th
       return route.fallback();
     await route.fulfill({ json: run(request.method, request.params) });
   });
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await palette.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await palette
@@ -513,7 +555,85 @@ test('a classified Navarro sense becomes a fully evaluated lexical piece from th
   expect(result.evaluation.status).toBe('ok');
 });
 
-test('secondary piece types create a real predicate in an empty canvas and persist its orientation', async ({
+for (const kind of [
+  {
+    constructor: 'Noun',
+    label: 'Nome',
+    verbClass: 'default',
+    rootParameter: 'value',
+    surface: 'tekata',
+  },
+  {
+    constructor: 'Verb',
+    label: 'Verbo',
+    verbClass: 'stative',
+    rootParameter: 'value',
+    surface: 'ekat',
+  },
+]) {
+  test(`manual ${kind.constructor} creation preserves an unknown pluriform root and its hypothetical status`, async ({
+    page,
+  }) => {
+    const requests = await openCanvas(page, '');
+    await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
+    const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
+    await palette.getByRole('button', { name: kind.label, exact: true }).click();
+    await palette.getByRole('textbox', { name: 'Palavra em tupi', exact: true }).fill('ekat');
+    await palette.getByRole('combobox', { name: 'Pluriformidade', exact: true }).selectOption('t');
+    if (kind.constructor === 'Verb')
+      await palette
+        .getByRole('combobox', { name: 'Tipo de verbo', exact: true })
+        .selectOption('stative');
+    await palette
+      .getByRole('combobox', { name: 'Situação da raiz', exact: true })
+      .selectOption('hypothetical');
+    await expect(
+      palette.getByRole('textbox', { name: 'Significado ou observações', exact: true }),
+    ).toHaveValue('');
+    await palette.getByRole('button', { name: 'Criar e adicionar peça', exact: true }).click();
+    await expect(palette).not.toBeVisible();
+    await ready(page);
+
+    const creation = requests.find((request) => request.method === 'predicate_create');
+    expect(creation?.params).toMatchObject({
+      constructor: kind.constructor,
+      values: { [kind.rootParameter]: 'ekat' },
+      lexical: { pluriform: 't', verbClass: kind.verbClass, status: 'hypothetical' },
+    });
+    expect(requests.some((request) => request.method === 'dictionary_predicate')).toBe(false);
+    const expression = (await page.locator('#canvas-raw').textContent())!;
+    expect(expression).toContain('[LEXICAL_STATUS:HYPOTHETICAL]');
+    if (kind.constructor === 'Noun') {
+      expect(expression).toMatch(/^studio_define\(Noun\(/);
+      expect(expression).toMatch(/definition=['"]\(t\)['"]/);
+    } else expect(expression).toMatch(/verb_class=['"]\(t\) adj\.['"]/);
+    const result = run('fixture', { raw: expression });
+    expect(result.failures).toEqual([]);
+    expect(result.evaluatedRoot).toMatchObject({
+      runtimeType: kind.constructor,
+      definition: '',
+      lexicalStatus: 'hypothetical',
+      evaluation: { status: 'ok', surface: kind.surface },
+    });
+    await expect(card(page, 'main:root')).toHaveAttribute('data-lexical-status', 'hypothetical');
+    await expect(card(page, 'main:root').locator('.runtime-result-caption')).toHaveText(
+      'Hipótese não atestada',
+    );
+    await expect(node(page, 'main:root')).toHaveAttribute(
+      'aria-label',
+      /Hipótese não atestada · significado desconhecido/,
+    );
+    // The portable source, rather than transient form state, retains the hypothesis.
+    await page.reload();
+    await ready(page);
+    await expect(page.locator('#canvas-raw')).toHaveText(expression);
+    await expect(card(page, 'main:root').locator('.runtime-result-caption')).toHaveText(
+      'Hipótese não atestada',
+    );
+  });
+}
+
+test('visible create action creates a real predicate in an empty canvas and persists its orientation', async ({
   page,
 }) => {
   const requests = await openCanvas(page, '', {
@@ -521,7 +641,7 @@ test('secondary piece types create a real predicate in an empty canvas and persi
     fragments: [],
     positions: {},
   });
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await expect(palette.getByRole('tab', { name: 'Criar peça', exact: true })).toHaveAttribute(
     'aria-selected',
@@ -621,6 +741,9 @@ test('context operations chain a selected variant and imperative without writing
   await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
   await ready(page);
   await menu(page, 'main:root', 'Imperativo');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Forma prevista', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
   await ready(page);
   const root = run('parse_expression', {
     raw: await page.locator('#canvas-raw').textContent(),
@@ -630,6 +753,252 @@ test('context operations chain a selected variant and imperative without writing
   expect(root.children[0].node.children[1].node.code).toBe('2');
   expect(root.children[0].node.children[0].node.code).toBe('pysyro');
 });
+
+test('combination previews follow order and operator without editing until the exact candidate is confirmed', async ({
+  page,
+}) => {
+  const initial: CanvasState = {
+    layout: 'bottom-up',
+    fragments: [{ id: 'prefix', raw: 'emi', x: 500, y: 260 }],
+    positions: {},
+  };
+  const requests = await openCanvas(page, 'tym', initial);
+  await expect(card(page, 'prefix:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await dragTo(page, 'main:root', 'prefix:root');
+  const dialog = page.getByRole('dialog', { name: 'Combinar peças', exact: true });
+  const preview = dialog.getByRole('region', { name: 'Prévia do resultado', exact: true });
+  const form = preview.getByLabel('Forma prevista', { exact: true });
+  await expect(form).toHaveText('temityma');
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: 'tym', canvas: initial });
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+
+  await dialog.getByRole('button', { name: 'Inverter ordem das peças', exact: true }).click();
+  await expect(form).toHaveText('oîotym emi');
+  await dialog.getByRole('combobox', { name: 'Operação para combinar peças' }).selectOption('+');
+  await expect(form).toHaveText('tym emi');
+  await expect(
+    dialog.getByRole('button', { name: 'Combinar peças', exact: true }),
+  ).toBeInViewport();
+  await page.screenshot({ path: '/private/tmp/pydicate-tree-operation-preview.png' });
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: 'tym', canvas: initial });
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  const candidate = String(
+    requests.filter((request) => request.method === 'evaluate_expression').at(-1)!.params.raw,
+  );
+  const parsed = run('parse_expression', { raw: candidate }).root;
+  expect(parsed.operator).toBe('+');
+  expect(parsed.children.map((child: { node: { code: string } }) => child.node.code)).toEqual([
+    'tym',
+    'emi',
+  ]);
+  expect(run('fixture', { raw: candidate }).evaluatedRoot.evaluation.surface).toBe('tym emi');
+
+  await dialog.getByRole('button', { name: 'Combinar peças', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(candidate);
+  await expect(card(page, 'main:root')).toContainText('tym emi');
+  expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
+  await expect(page.locator('#canvas-history')).toHaveText('1');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: 'tym', canvas: initial });
+});
+
+test('variant and negation previews evaluate current inputs before separate undoable confirmations', async ({
+  page,
+}) => {
+  const requests = await openCanvas(page, 'oka');
+  await menu(page, 'main:root', 'Escolher variante…');
+  const dialog = page.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  const preview = dialog.getByRole('region', { name: 'Prévia do resultado', exact: true });
+  const form = preview.getByLabel('Forma prevista', { exact: true });
+  const variant = dialog.getByRole('spinbutton', { name: 'Número da variante' });
+  await expect(form).toHaveText('toka');
+  await variant.fill('');
+  await expect(form).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Criar operação', exact: true })).toBeDisabled();
+  await variant.fill('2');
+  await expect
+    .poll(
+      () =>
+        requests.filter((request) => request.method === 'evaluate_expression').at(-1)?.params.raw,
+    )
+    .toContain('.var(2)');
+  await expect(form).toHaveText('toka');
+  const variantCandidate = String(
+    requests.filter((request) => request.method === 'evaluate_expression').at(-1)!.params.raw,
+  );
+  await expect(page.locator('#canvas-raw')).toHaveText('oka');
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(variantCandidate);
+
+  await menu(page, 'main:root', 'Adicionar operação');
+  await dialog.getByRole('combobox', { name: 'Operação na peça' }).selectOption('negate');
+  await expect(form).toHaveText("toke'yma");
+  const negatedCandidate = String(
+    requests.filter((request) => request.method === 'evaluate_expression').at(-1)!.params.raw,
+  );
+  await expect(page.locator('#canvas-raw')).toHaveText(variantCandidate);
+  await expect(page.locator('#canvas-history')).toHaveText('1');
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(negatedCandidate);
+  expect(run('fixture', { raw: negatedCandidate }).evaluatedRoot.evaluation.surface).toBe(
+    "toke'yma",
+  );
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(variantCandidate);
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('oka');
+});
+
+test('operation previews keep empty slots explicit and replace invalid operand evidence with the valid result', async ({
+  page,
+}) => {
+  await openCanvas(page, 'tym');
+  const initial = await page.evaluate(() => window.canvasSnapshot);
+  await menu(page, 'main:root', 'Adicionar operação');
+  const dialog = page.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  const preview = dialog.getByRole('region', { name: 'Prévia do resultado', exact: true });
+  const form = preview.getByLabel('Forma prevista', { exact: true });
+  await expect(preview).toContainText(/argumento|peça|encaixe/i);
+  await expect(form).toHaveCount(0);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toContainText('__studio_slot_');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+
+  await menu(page, 'main:root', 'Adicionar operação');
+  await dialog.getByText('Editar código Pydicate', { exact: true }).click();
+  const argument = dialog.getByRole('textbox', { name: 'Argumento da nova operação', exact: true });
+  await argument.fill('missing_preview_argument');
+  await expect(preview).toContainText(/incompleta|Não foi possível obter a forma/);
+  await expect(form).toHaveCount(0);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+
+  await argument.fill('emi');
+  await dialog.getByRole('combobox', { name: 'Posição do novo encaixe' }).selectOption('left');
+  await expect(form).toHaveText('temityma');
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).not.toContainText('__studio_slot_');
+  await expect(card(page, 'main:root')).toContainText('temityma');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+});
+
+test('optional operation arguments are previewed and committed as the same engine expression', async ({
+  page,
+}) => {
+  const requests = await openCanvas(page, 'potar * moro');
+  await menu(page, 'main:root', 'Adicionar operação');
+  const dialog = page.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  const form = dialog
+    .getByRole('region', { name: 'Prévia do resultado', exact: true })
+    .getByLabel('Forma prevista', { exact: true });
+  await dialog.getByRole('combobox', { name: 'Operação na peça' }).selectOption('base_nominal');
+  await expect(form).toHaveText('moropotara');
+  await dialog.getByText('Editar código Pydicate', { exact: true }).click();
+  await dialog
+    .getByRole('textbox', { name: 'Argumento da nova operação', exact: true })
+    .fill('True');
+  await expect
+    .poll(
+      () =>
+        requests.filter((request) => request.method === 'evaluate_expression').at(-1)?.params.raw,
+    )
+    .toContain('.base_nominal(True)');
+  await expect(form).toHaveText('moropotara');
+  await expect(page.locator('#canvas-raw')).toHaveText('potar * moro');
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  const candidate = String(
+    requests.filter((request) => request.method === 'evaluate_expression').at(-1)!.params.raw,
+  );
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(candidate);
+  await expect(card(page, 'main:root')).toContainText('moropotara');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('potar * moro');
+});
+
+test('a restored sole loose tree automatically becomes the principal tree', async ({ page }) => {
+  const raw = '(emi * tym)';
+  await openCanvas(page, '', {
+    layout: 'bottom-up',
+    fragments: [{ id: 'only', raw, x: 300, y: 200 }],
+    positions: {},
+  });
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  await expect.poll(() => page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
+  await expect(card(page, 'main:root')).toContainText('temityma');
+  await expect(card(page, 'only:root')).toHaveCount(0);
+  await page.reload();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
+});
+
+test('combining the final two loose trees promotes the result and undoes as one edit', async ({
+  page,
+}) => {
+  const initial: CanvasState = {
+    layout: 'bottom-up',
+    fragments: [
+      { id: 'prefix', raw: 'emi', x: 280, y: 200 },
+      { id: 'verb', raw: 'tym', x: 700, y: 300 },
+    ],
+    positions: {},
+  };
+  await openCanvas(page, '', initial);
+  await expect(card(page, 'prefix:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
+  await expect(card(page, 'verb:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: '', canvas: initial });
+  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await dragTo(page, 'verb:root', 'prefix:root');
+  const dialog = page.getByRole('dialog', { name: 'Combinar peças', exact: true });
+  await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText('temityma');
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: '', canvas: initial });
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  await dialog.getByRole('button', { name: 'Combinar peças', exact: true }).click();
+  await ready(page);
+  await expect(card(page, 'main:root')).toContainText('temityma');
+  expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
+  await expect(page.locator('#canvas-history')).toHaveText('1');
+  const result = await page.locator('#canvas-raw').textContent();
+  expect(run('fixture', { raw: result }).evaluatedRoot.evaluation.surface).toBe('temityma');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: '', canvas: initial });
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+});
+
+for (const primary of ['tym', 'helper( # unfinished']) {
+  test(`a nonempty ${primary === 'tym' ? 'valid' : 'invalid'} principal tree is never replaced by its sole loose tree`, async ({
+    page,
+  }) => {
+    const canvas: CanvasState = {
+      fragments: [{ id: 'saved', raw: 'emi', x: 500, y: 280 }],
+      positions: {},
+    };
+    await openCanvas(page, primary, canvas);
+    await expect(card(page, 'saved:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
+    expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: primary, canvas });
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+    await expect(card(page, 'main:root')).toHaveCount(1);
+  });
+}
 
 test('inline scalar arguments preserve number and text values with one source edit and undo', async ({
   page,
@@ -740,6 +1109,222 @@ test('inline scalar input is discarded when its source revision or passage chang
   await ready(page);
   await expect(page.locator('#canvas-raw')).toHaveText('pysyro.var(1)');
   await expect(page.getByRole('button', { name: 'Desfazer edição na árvore' })).toBeDisabled();
+});
+
+for (const fixture of [
+  {
+    name: 'nested variant',
+    raw: 'oka + (emi * tym).var(1)  # preserve sentence note',
+    key: 'main:root/right',
+    surface: 'toka temityma',
+    keptKind: 'binary',
+  },
+  {
+    name: 'nested negation',
+    raw: 'oka + (-oka).var(1)',
+    key: 'main:root/right/receiver',
+    surface: 'toka toka',
+    keptKind: 'method',
+  },
+]) {
+  test(`removing only a ${fixture.name} reconnects its child and preserves its parent and sibling`, async ({
+    page,
+  }) => {
+    await openCanvas(page, fixture.raw);
+    const before = await page.evaluate(() => window.canvasSnapshot);
+    await menu(page, fixture.key, 'Retirar só a operação…');
+    const dialog = page.getByRole('dialog', { name: 'Retirar operação', exact: true });
+    await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText(fixture.surface);
+    expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+    await dialog.getByRole('button', { name: 'Retirar operação', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await ready(page);
+    const raw = (await page.locator('#canvas-raw').textContent())!;
+    const root = run('parse_expression', { raw }).root;
+    expect(root.operator).toBe('+');
+    expect(root.children.find((child: { slot: string }) => child.slot === 'left').node.code).toBe(
+      'oka',
+    );
+    const retained = root.children.find((child: { slot: string }) => child.slot === 'right').node;
+    expect(retained.kind).toBe(fixture.keptKind);
+    if (fixture.keptKind === 'binary') {
+      expect(retained.operator).toBe('*');
+      expect(raw).not.toContain('.var(');
+      expect(raw).toContain('# preserve sentence note');
+    } else {
+      expect(retained.method).toBe('var');
+      expect(
+        retained.children.find((child: { slot: string }) => child.slot === 'receiver').node.code,
+      ).toBe('oka');
+    }
+    expect(raw).not.toContain('__studio_slot_');
+    expect(run('fixture', { raw }).evaluatedRoot.evaluation.surface).toBe(fixture.surface);
+    expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
+    await expect(page.locator('#canvas-history')).toHaveText('1');
+    await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+    await ready(page);
+    expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+  });
+}
+
+test('removing only a binary operation lets the chosen child reconnect and preserves the other as a loose tree', async ({
+  page,
+}) => {
+  const original = 'oka + (emi * tym)';
+  await openCanvas(page, original);
+  const before = await page.evaluate(() => window.canvasSnapshot);
+  const dialog = page.getByRole('dialog', { name: 'Retirar operação', exact: true });
+  await menu(page, 'main:root/right', 'Retirar só a operação…');
+  await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText('toka emi');
+  await dialog
+    .getByRole('combobox', { name: 'Parte que continuará ligada' })
+    .selectOption({ label: 'Lado direito · tym' });
+  await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText('toka tym');
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  await expect(
+    dialog.getByRole('button', { name: 'Retirar operação', exact: true }),
+  ).toBeInViewport();
+  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+
+  await menu(page, 'main:root/right', 'Retirar só a operação…');
+  await dialog
+    .getByRole('combobox', { name: 'Parte que continuará ligada' })
+    .selectOption({ label: 'Lado direito · tym' });
+  await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText('toka tym');
+  await dialog.getByRole('button', { name: 'Retirar operação', exact: true }).click();
+  await ready(page);
+  const state = await page.evaluate(() => window.canvasSnapshot);
+  const root = run('parse_expression', { raw: state.raw }).root;
+  expect(root.operator).toBe('+');
+  expect(root.children.map((child: { node: { code: string } }) => child.node.code)).toEqual([
+    'oka',
+    'tym',
+  ]);
+  expect(state.raw).not.toContain('__studio_slot_');
+  expect(state.canvas.fragments).toHaveLength(1);
+  expect(state.canvas.fragments[0].raw).toBe('emi');
+  await expect(card(page, `${state.canvas.fragments[0].id}:root`)).toContainText('emi');
+  await expect(page.locator('#canvas-history')).toHaveText('1');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+});
+
+test('removing only an annotated operation discards its meaning while retaining the child annotation', async ({
+  page,
+}) => {
+  const original =
+    'studio_define(studio_define(-oka, "meaning of retained child").var(1), "meaning of removed operation")';
+  await openCanvas(page, original);
+  const before = await page.evaluate(() => window.canvasSnapshot);
+  await menu(page, 'main:root', 'Retirar só a operação…');
+  const dialog = page.getByRole('dialog', { name: 'Retirar operação', exact: true });
+  await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText("toke'yma");
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+  await dialog.getByRole('button', { name: 'Retirar operação', exact: true }).click();
+  await ready(page);
+  const raw = (await page.locator('#canvas-raw').textContent())!;
+  expect(raw).not.toContain('.var(');
+  expect(raw).not.toContain('meaning of removed operation');
+  expect(raw).toContain('meaning of retained child');
+  expect(raw.match(/studio_define/g)).toHaveLength(1);
+  const result = run('fixture', { raw }).evaluatedRoot;
+  expect(result.compositeDefinition).toBe('meaning of retained child');
+  expect(result.evaluation.surface).toBe("toke'yma");
+  expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
+  await expect(page.locator('#canvas-history')).toHaveText('1');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+});
+
+test('removing only an operation from a loose tree preserves the principal and all other work', async ({
+  page,
+}) => {
+  const canvas: CanvasState = {
+    layout: 'bottom-up',
+    fragments: [{ id: 'loose', raw: '(-oka).var(1)', x: 650, y: 280 }],
+    positions: {},
+  };
+  await openCanvas(page, 'emi * tym', canvas);
+  await expect(card(page, 'loose:root').locator('[data-evaluation-state="ok"]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  const before = await page.evaluate(() => window.canvasSnapshot);
+  await menu(page, 'loose:root', 'Retirar só a operação…');
+  const dialog = page.getByRole('dialog', { name: 'Retirar operação', exact: true });
+  await expect(dialog.getByLabel('Forma prevista', { exact: true })).toHaveText("toke'yma");
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+  await dialog.getByRole('button', { name: 'Retirar operação', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.canvasSnapshot.canvas.fragments[0].raw))
+    .not.toContain('.var(');
+  const state = await page.evaluate(() => window.canvasSnapshot);
+  expect(state.raw).toBe('emi * tym');
+  expect(state.canvas.fragments).toHaveLength(1);
+  expect(state.canvas.fragments[0].id).toBe('loose');
+  expect(run('parse_expression', { raw: state.canvas.fragments[0].raw }).root.kind).toBe('unary');
+  await expect(card(page, 'loose:root')).toContainText("toke'yma");
+  await expect(page.locator('#canvas-history')).toHaveText('1');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+});
+
+test('removing only an operation cannot apply a late preview after switching passages', async ({
+  page,
+}) => {
+  const original = 'oka + (-oka).var(1)';
+  await openCanvas(page, original);
+  const before = await page.evaluate(() => window.canvasSnapshot);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let pending = false;
+  await page.route('**/__canvas_rpc', async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.method !== 'evaluate_expression' || request.params.raw === original)
+      return route.fallback();
+    const result = run(request.method, request.params);
+    pending = true;
+    await held;
+    await route.fulfill({ json: result });
+  });
+  try {
+    await menu(page, 'main:root/right/receiver', 'Retirar só a operação…');
+    const dialog = page.getByRole('dialog', { name: 'Retirar operação', exact: true });
+    await expect.poll(() => pending).toBe(true);
+    await page.evaluate(() => window.canvasSetPassageId('new-passage-during-removal'));
+    await expect(dialog).toHaveCount(0);
+    await ready(page);
+    const response = page.waitForResponse((item) => {
+      if (!item.url().endsWith('/__canvas_rpc')) return false;
+      const request = item.request().postDataJSON();
+      return request.method === 'evaluate_expression' && request.params.raw !== original;
+    });
+    release();
+    await response;
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect(dialog).toHaveCount(0);
+    expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(before);
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+    await expect(
+      page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }),
+    ).toBeDisabled();
+  } finally {
+    release();
+  }
 });
 
 test('context-menu detach persists its orphan and reconnects into the exact hole with atomic undo', async ({
@@ -890,7 +1475,7 @@ test('partial evaluation keeps working sibling results, identifies direct errors
   ).toHaveCount(1);
   await expect(card(page, 'main:root').locator('[data-evaluation-state="blocked"]')).toHaveCount(1);
   await node(page, 'main:root/right/right').click();
-  await page.getByRole('button', { name: 'Copiar diagnóstico', exact: true }).click();
+  await page.getByRole('button', { name: 'Corrigir gramática / árvore', exact: true }).click();
   const report = await page.evaluate(() => window.canvasDiagnostic);
   expect(report!.raw).toBe(raw);
   expect(report!.selectedNodeId).toBe('root/right/right');
@@ -982,7 +1567,7 @@ test('a direct engine failure retains operand results and diagnostic engine fram
   );
   await expect(card(page, 'main:root').locator('[data-evaluation-state="error"]')).toHaveCount(1);
   await node(page, 'main:root').click();
-  await page.getByRole('button', { name: 'Copiar diagnóstico', exact: true }).click();
+  await page.getByRole('button', { name: 'Corrigir gramática / árvore', exact: true }).click();
   const report = await page.evaluate(() => window.canvasDiagnostic);
   const failure = report!.failures!.find((entry) => entry.nodeId === 'root');
   expect(failure).toMatchObject({ expression: raw, stage: 'evaluation' });
@@ -1065,7 +1650,7 @@ test('a naturally selected reusable word can be added as a persistent loose piec
   page,
 }) => {
   await openCanvas(page, 'tym');
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await dialog.getByRole('tab', { name: 'Buscar palavra ou trecho', exact: true }).click();
   await dialog
@@ -1088,8 +1673,10 @@ test('whole-composition definition keeps base meanings and undo through the real
   page,
 }) => {
   const original =
-    "(nhe * (mo * Noun(value='abaré', definition='sacramento da ordem'))).var(1).base_nominal()";
+    "(nhe * (mo * Noun(value='abaré', definition='base meaning to retain'))).var(1).base_nominal()";
   await openCanvas(page, original);
+  await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
+  const visibleNodes = await svg(page).locator('[data-canvas-key]').count();
   await menu(page, 'main:root', 'Definir significado do conjunto…');
   const dialog = page.getByRole('dialog', { name: 'Definir composição', exact: true });
   await dialog.getByLabel('Definição do conjunto').fill('sacramento da ordem');
@@ -1098,10 +1685,168 @@ test('whole-composition definition keeps base meanings and undo through the real
   await ready(page);
   const raw = (await page.locator('#canvas-raw').textContent())!;
   expect(raw).toContain('studio_define');
-  expect(raw).toContain('padre');
   const result = run('fixture', { raw }).evaluatedRoot;
+  expect(raw).toContain(original);
+  expect(JSON.stringify(result.children)).toContain('base meaning to retain');
   expect(result.definition).toBe('sacramento da ordem');
   expect(result.evaluation.surface).toBe('nhemoabaré');
+  await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
+  await expect(svg(page).locator('[data-canvas-key]')).toHaveCount(visibleNodes);
   await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
   await expect(page.locator('#canvas-raw')).toHaveText(original);
+});
+
+test('redefining a visible operation adds no tree level and preserves inline variant editing', async ({
+  page,
+}) => {
+  const original = 'oka.var(1)';
+  await openCanvas(page, original);
+  const beforeCount = await svg(page).locator('[data-canvas-key]').count();
+  const dialog = page.getByRole('dialog', { name: 'Definir composição', exact: true });
+  const definitions: string[] = [];
+  for (const meaning of ['morada neste contexto', 'nova leitura da mesma morada']) {
+    await menu(page, 'main:root', 'Definir significado do conjunto…');
+    await dialog.getByLabel('Definição do conjunto').fill(meaning);
+    await dialog.getByRole('button', { name: 'Usar definição no rascunho', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await ready(page);
+    const raw = (await page.locator('#canvas-raw').textContent())!;
+    definitions.push(raw);
+    expect(raw.match(/studio_define/g)).toHaveLength(1);
+    expect(run('fixture', { raw }).evaluatedRoot.compositeDefinition).toBe(meaning);
+    await expect(svg(page).locator('[data-canvas-key]')).toHaveCount(beforeCount);
+    await expect(card(page, 'main:root')).toHaveCount(1);
+    await expect(card(page, 'main:root/arg0')).toHaveCount(0);
+  }
+  const variant = page.getByRole('button', { name: 'Editar argumento 1 de .var', exact: true });
+  await expect(variant).toHaveText('1');
+  await variant.click();
+  const input = page.getByRole('textbox', { name: 'Valor do argumento', exact: true });
+  await input.fill('2');
+  await input.press('Enter');
+  await ready(page);
+  const revised = (await page.locator('#canvas-raw').textContent())!;
+  expect(revised).toContain('.var(2)');
+  expect(revised.match(/studio_define/g)).toHaveLength(1);
+  const result = run('fixture', { raw: revised }).evaluatedRoot;
+  expect(result.compositeDefinition).toBe('nova leitura da mesma morada');
+  expect(result.evaluation.surface).toBe('toka');
+  await expect(svg(page).locator('[data-canvas-key]')).toHaveCount(beforeCount);
+  for (const previous of [definitions[1], definitions[0], original]) {
+    await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+    await ready(page);
+    await expect(page.locator('#canvas-raw')).toHaveText(previous);
+  }
+});
+
+test('Navarro supplies the whole meaning while the composed tree and undo remain intact', async ({
+  page,
+}) => {
+  const original = '(potar * moro).var(1).base_nominal()';
+  const constituentMeanings = (root: AuthorNode) =>
+    flattenNodes(root)
+      .filter((node) => ['potar', 'moro'].includes(node.lexicalReference ?? ''))
+      .map((node) => [node.lexicalReference, node.baseDefinition ?? node.definition]);
+  const beforeMeanings = constituentMeanings(run('fixture', { raw: original }).evaluatedRoot);
+  expect(beforeMeanings).toHaveLength(2);
+  const requests = await openCanvas(page, original, undefined, true);
+  await menu(page, 'main:root', 'Definir significado do conjunto…');
+  const dialog = page.getByRole('dialog', { name: 'Definir composição', exact: true });
+  await expect(dialog).toContainText('Forma do conjunto: moropotara');
+  await dialog.getByRole('button', { name: 'Consultar Navarro', exact: true }).click();
+  await expect(dialog.getByLabel('Forma ou significado a buscar')).toHaveValue('moropotara');
+  await dialog.getByLabel('Forma ou significado a buscar').fill('poropotara');
+  await dialog.getByRole('button', { name: 'Buscar no Navarro', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Usar definição de poropotara', exact: true }).click();
+  const selected = await dialog.getByLabel('Definição do conjunto').inputValue();
+  expect(selected).toContain('lascívia');
+  await expect(
+    dialog.getByLabel('Reutilizar definições das peças no léxico ou dicionário'),
+  ).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Usar definição no rascunho', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await ready(page);
+  const raw = (await page.locator('#canvas-raw').textContent())!;
+  expect(raw).toContain(original);
+  const evaluated = run('fixture', { raw }).evaluatedRoot;
+  expect(evaluated.compositeDefinition).toBe(selected);
+  expect(constituentMeanings(evaluated)).toEqual(beforeMeanings);
+  expect(evaluated.evaluation.surface).toBe('moropotara');
+  expect(requests.find((request) => request.method === 'node_definition')?.params).toMatchObject({
+    raw: original,
+    sourceNodeId: 'root',
+    action: 'set',
+    dictionarySelection: {
+      entryIndex: expect.any(Number),
+      datasetFingerprint: expect.stringMatching(/^sha256:/),
+    },
+  });
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await expect(page.locator('#canvas-raw')).toHaveText(original);
+});
+
+test('Navarro example for tekateyme yma informs the compound without copying avareza', async ({
+  page,
+}) => {
+  const original = '-ekateyma';
+  await openCanvas(page, original, undefined, true);
+  await menu(page, 'main:root', 'Definir significado do conjunto…');
+  const dialog = page.getByRole('dialog', { name: 'Definir composição', exact: true });
+  await expect(dialog).toContainText("tekate'yme'yma");
+  await expect(dialog.getByLabel('Definição do conjunto')).toHaveValue('');
+  await dialog.getByRole('button', { name: 'Consultar Navarro', exact: true }).click();
+  await expect(dialog.getByText('Forma citada nesta entrada', { exact: true })).toBeVisible();
+  await expect(dialog.locator('blockquote')).toContainText('liberalidade');
+  await expect(dialog.getByRole('button', { name: /Usar definição de/ })).toHaveCount(0);
+  await expect(dialog.getByLabel('Definição do conjunto')).toHaveValue('');
+  await dialog.getByLabel('Definição do conjunto').fill('liberalidade');
+  await dialog.getByRole('button', { name: 'Usar definição no rascunho', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await ready(page);
+  const evaluated = run('fixture', {
+    raw: await page.locator('#canvas-raw').textContent(),
+  }).evaluatedRoot;
+  expect(evaluated.compositeDefinition).toBe('liberalidade');
+  expect(JSON.stringify(evaluated.children)).toContain('avareza');
+  expect(evaluated.evaluation.surface).toBe("tekate'yme'yma");
+});
+
+test('the selected tree constituent shows its scoped whole meaning and separate lexical base meanings', async ({
+  page,
+}) => {
+  const definition = 'sentido provisório do conjunto, conservado sem substituir suas peças';
+  const raw = `studio_define((potar * moro).var(1).base_nominal(), ${JSON.stringify(definition)})`;
+  await openCanvas(page, raw);
+  const evaluated = run('fixture', { raw }).evaluatedRoot;
+  await node(page, 'main:root').click();
+  const inspector = page.getByRole('complementary', { name: 'Constituinte selecionado' });
+  await expect(inspector.getByTestId('canvas-composite-definition')).toHaveText(
+    `Significado do conjunto: ${definition}`,
+  );
+  await expect(inspector.getByTestId('canvas-base-definition')).toHaveCount(0);
+  const findReference = (value: typeof evaluated): typeof evaluated | undefined =>
+    value.code === 'potar'
+      ? value
+      : value.children
+          .map((child: { node: typeof evaluated }) => findReference(child.node))
+          .find(Boolean);
+  const base = findReference(evaluated)!;
+  expect(base.baseDefinition).toBeTruthy();
+  expect(base.baseDefinition).not.toBe(definition);
+  await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
+  await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await node(page, `main:${base.id}`).click();
+  await expect(inspector.getByTestId('canvas-base-definition')).toHaveText(
+    `Significado da peça: ${base.baseDefinition}`,
+  );
+  await expect(inspector.getByTestId('canvas-composite-definition')).toHaveCount(0);
+  const inner = evaluated.children.find((child: { slot: string }) => child.slot === 'arg0').node;
+  await expect(card(page, `main:${inner.id}`)).toHaveCount(0);
+  const intermediate = inner.children.find(
+    (child: { slot: string }) => child.slot === 'receiver',
+  ).node;
+  await node(page, `main:${intermediate.id}`).click();
+  await expect(inspector.getByTestId('canvas-base-definition')).toHaveCount(0);
+  await expect(inspector.getByTestId('canvas-composite-definition')).toHaveCount(0);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
 });

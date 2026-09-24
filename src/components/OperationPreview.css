@@ -1,0 +1,28 @@
+.operation-preview {
+  min-width: 0;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #7775);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent, #be985f) 8%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.operation-preview > strong {
+  display: block;
+  margin-bottom: 5px;
+}
+.operation-preview p {
+  margin: 4px 0;
+}
+.operation-preview-surface {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.operation-preview-diagnostic {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

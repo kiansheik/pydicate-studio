@@ -46,6 +46,7 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
       diplomatic: '',
       normalized: '',
       translation: '',
+      translations: undefined,
       notes: '',
       analysis: null,
       status: 'analysis',

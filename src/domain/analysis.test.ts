@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   analysisProgress,
+  analysisStreamText,
   canAcceptCandidate,
   candidateTranslation,
   citationDetails,
@@ -32,6 +33,23 @@ const candidate = {
   },
 } as AnalysisCandidate;
 describe('analysis review boundaries', () => {
+  it('shows only the current resumed attempt stream, including before its first token', () => {
+    const resumed = {
+      ...job,
+      currentAttemptId: 'new',
+      events: [{ type: 'text-delta', attemptId: 'old', text: 'interrupted' }],
+    };
+    expect(analysisStreamText(resumed)).toBe('');
+    expect(
+      analysisStreamText({
+        ...resumed,
+        events: [...resumed.events, { type: 'text-delta', attemptId: 'new', text: 'continued' }],
+      }),
+    ).toBe('continued');
+    expect(analysisStreamText({ ...job, events: [{ type: 'text-delta', text: 'legacy' }] })).toBe(
+      'legacy',
+    );
+  });
   it('exposes only translations bound to the complete current evaluation and preserves legacy candidates', () => {
     const translated: AnalysisCandidate = {
       ...candidate,

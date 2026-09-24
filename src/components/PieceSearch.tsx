@@ -16,6 +16,7 @@ interface Props {
   revisionId?: string;
   contextKey: string;
   onAdd: (expression: string) => boolean | void;
+  onCreate?: () => void;
   disabled?: boolean;
   autoFocus?: boolean;
   directInsert?: boolean;
@@ -33,6 +34,7 @@ export const PieceSearch = forwardRef<PieceSearchHandle, Props>(function PieceSe
     revisionId,
     contextKey,
     onAdd,
+    onCreate,
     disabled = false,
     autoFocus = false,
     directInsert = false,
@@ -159,6 +161,15 @@ export const PieceSearch = forwardRef<PieceSearchHandle, Props>(function PieceSe
         preserveQueryOnContextChange
         onActivate={activate}
         onResolved={directInsert ? (result) => add(result.expression) : undefined}
+        onCreate={
+          onCreate
+            ? () => {
+                if (live.current.disabled || !live.current.engaged) return;
+                dismiss();
+                onCreate();
+              }
+            : undefined
+        }
         placeholder={
           directInsert ? 'Adicionar peça: escreva em tupi ou pelo significado…' : undefined
         }

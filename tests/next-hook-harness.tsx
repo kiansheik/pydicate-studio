@@ -37,6 +37,7 @@ interface NextControl {
   reject: (method: string, message: string) => void;
   emit: (event: unknown) => void;
   preview?: SourcePreview;
+  publicationPreview?: Partial<SourcePreview>;
   responses: Record<string, unknown>;
   trees: Record<string, AuthorNode | null>;
   evidence: Record<string, EvidenceStatus>;
@@ -125,10 +126,18 @@ const aiConfig = {
   models: { codex: 'fixture-model', claude: 'fixture-model' },
   reasoningEffort: 'medium',
 };
+// Opt-in realistic publication state for the combined review tests. All writes
+// remain in this in-memory fixture; other race fixtures keep their exact replies.
+const publicationMode = new URLSearchParams(location.search).has('publication');
+const publicationPreviews = new Map<
+  string,
+  { params: Record<string, unknown>; targetId: string }
+>();
 function answer(method: string, params: Record<string, unknown>): unknown {
   if (Object.hasOwn(control.responses, method)) return structuredClone(control.responses[method]);
   if (method === 'refresh_project') return structuredClone(control.project);
   if (method === 'draft_save') return undefined;
+  if (method === 'lexical_notes_list') return { records: [] };
   if (method === 'analysis_list')
     return {
       ...structuredClone(analysisFixture),
@@ -388,7 +397,7 @@ function answer(method: string, params: Record<string, unknown>): unknown {
     );
     return { jobs, errors: [] };
   }
-  if (method === 'analysis_cancel' || method === 'analysis_retry') {
+  if (method === 'analysis_cancel' || method === 'analysis_retry' || method === 'analysis_resume') {
     const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
     job.status = method === 'analysis_cancel' ? 'cancelled' : 'queued';
     saveAnalysisFixture();
@@ -446,6 +455,30 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       morphemes: [],
       origin: 'engine',
     };
+  if (publicationMode && (method === 'source_preview' || method === 'source_new_preview')) {
+    const passage = control.project.passages.find((item) => item.id === params.passageId);
+    const metadata = (params.metadata ?? {}) as Record<string, unknown>;
+    const changed =
+      !passage ||
+      passage.sourceExpression !== params.raw ||
+      Object.entries(metadata).some(
+        ([key, value]) => value !== (passage as unknown as Record<string, unknown>)[key],
+      );
+    const previewId = `publication-preview:${publicationPreviews.size + 1}`;
+    const targetId = String(params.newPassageId ?? params.passageId);
+    publicationPreviews.set(previewId, { params: structuredClone(params), targetId });
+    return {
+      previewId,
+      kind: 'source',
+      passageId: params.passageId,
+      targetPassageId: targetId,
+      sourceFingerprint: passage?.sourceFingerprint ?? 'new-source',
+      newPassage: !passage,
+      raw: params.raw,
+      diff: changed ? `SIMULATED DIFF: ${params.raw}` : '',
+      ...control.publicationPreview,
+    };
+  }
   if (method === 'source_preview' || method === 'source_new_preview')
     return {
       previewId: 'simulated-preview',
@@ -455,6 +488,35 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       sourceFingerprint: 'simulated-disk-v1',
       diff: `SIMULATED DIFF: ${params.raw}`,
     };
+  if (method === 'source_apply' && publicationMode) {
+    const prepared = publicationPreviews.get(String(params.previewId));
+    if (!prepared) throw new Error('SIMULATED_UNKNOWN_PREVIEW');
+    const existing = control.project.passages.find((item) => item.id === prepared.targetId);
+    const metadata = prepared.params.metadata as Record<string, unknown>;
+    const saved = {
+      ...(existing ?? control.project.passages.at(-1)!),
+      ...Object.fromEntries(
+        Object.entries(metadata).filter(([key]) =>
+          ['diplomatic', 'normalized', 'translation', 'notes'].includes(key),
+        ),
+      ),
+      id: prepared.targetId,
+      ordinal:
+        existing?.ordinal ?? Math.max(...control.project.passages.map((item) => item.ordinal)) + 1,
+      sourceExpression: String(prepared.params.raw),
+      sourceFingerprint: `published:${params.previewId}`,
+      acceptedReference: existing?.acceptedReference ?? null,
+    };
+    control.project = {
+      ...control.project,
+      engineFingerprint: `${control.project.engineFingerprint}:published`,
+      passages: existing
+        ? control.project.passages.map((item) => (item.id === saved.id ? saved : item))
+        : [...control.project.passages, saved],
+    };
+    control.applyResult = structuredClone(control.project);
+    return control.project;
+  }
   if (method === 'source_apply') return control.applyResult;
   if (method === 'reference_status') {
     const passage = control.project.passages.find((item) => item.id === params.passageId);
@@ -469,6 +531,16 @@ function answer(method: string, params: Record<string, unknown>): unknown {
     };
   }
   if (method === 'reference_approve') {
+    if (publicationMode) {
+      const passage = control.project.passages.find((item) => item.id === params.passageId);
+      if (
+        !passage ||
+        passage.sourceFingerprint !== params.sourceFingerprint ||
+        control.project.engineFingerprint !== params.engineFingerprint ||
+        params.reviewedSurface !== `SIMULADO:${passage.sourceExpression}`
+      )
+        throw new Error('SIMULATED_STALE_APPROVAL');
+    }
     control.project = {
       ...control.project,
       engineFingerprint: `${control.project.engineFingerprint}:approved`,

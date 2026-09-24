@@ -102,7 +102,7 @@ class GrammarTests(unittest.TestCase):
     def test_families_declare_a_type_a_template_and_a_verified_example(self):
         for name, family in grammar.FAMILIES.items():
             self.assertEqual(family['id'], name)
-            self.assertIn(family['type'], {'clause', 'np', 'pp'})
+            self.assertIn(family['type'], {'clause', 'np', 'pp', 'word'})
             source = grammar.instantiate(name, family['example'])
             self.assertTrue(source.strip())
             self.assertEqual(project(source), project(source))
@@ -193,6 +193,29 @@ class EquivalenceTests(unittest.TestCase):
         self.assertEqual([row['source'] for row in rows], ['a * b', 'c * d'])
         self.assertEqual(rows[0]['provenance']['annotationIdenticalSources'], ['(a * b)'])
 
+    def test_repeated_homographs_keep_sense_order_even_when_tags_match(self):
+        evidence = [{'origin': 'navarro', 'headword': 'x', 'senseId': sense}
+                    for sense in ('meaning-a', 'meaning-b')]
+        rows = group([{'source': source, 'annotated': self.ABSOLUTE,
+                       'provenance': {'lexicalEvidence': evidence}}
+                      for source in ('a + b', 'b + a')])
+        self.assertEqual(len(rows), 2)
+
+    def test_nominalized_structure_and_scoped_meanings_survive_flat_engine_annotations(self):
+        sources = [
+            'opaque',
+            'studio_define((potar * moro).base_nominal(), "whole meaning")',
+            'studio_define((potar * moro).var(1).base_nominal(), "whole meaning")',
+            '(studio_define(potar, "whole meaning") * moro).base_nominal()',
+        ]
+        rows = group([{'source': source, 'annotated': 'moropotar[ROOT]a[NOUN]',
+                       'provenance': {}} for source in sources])
+        self.assertEqual([row['source'] for row in rows], [sources[0], sources[1], sources[3]])
+        self.assertEqual(rows[1]['provenance']['annotationIdenticalSources'], [sources[2]])
+
+    def test_unannotated_text_is_not_lost_by_the_annotation_comparator(self):
+        self.assertFalse(annotation_identical('one', 'two'))
+
     def test_co_generating_readings_are_acceptable_until_someone_decides(self):
         acceptance = AcceptanceSet('aso')
         self.assertFalse(acceptance.decided())
@@ -273,6 +296,12 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(rows[0]['reviewStatus'], 'lab-reviewed')
         self.assertFalse(rows[0]['grantsApproval'])
         self.assertEqual(rows[0]['sourceAst'], project('(ixé * oka)'))
+
+    def test_selecting_provisional_syntax_does_not_create_complete_historical_evidence(self):
+        rows = confirmed_examples([{'normalized': 'apiripok', 'verdict': 'accepted',
+                                    'candidateSource': "(+ixé * Verb('piripok', verb_class='v.intr.'))",
+                                    'candidateCompleteness': 'partial'}])
+        self.assertEqual(rows, [])
 
     def test_the_latest_verdict_for_an_observation_wins(self):
         rows = confirmed_examples([
@@ -356,6 +385,16 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(self.store.active_for('index', 'sha256:aaa'), manifest['artifactId'])
         self.assertIsNone(self.store.active_for('index', 'sha256:bbb'))
         self.assertFalse(self.store.compatible(manifest['artifactId'], 'sha256:bbb'))
+
+    def test_explicit_index_id_cannot_bypass_dictionary_or_code_freshness(self):
+        from types import SimpleNamespace
+        from parser_lab.worker import LabWorker, WorkerError
+        manifest = self.begin('sha256:old').commit(counts={})
+        worker = LabWorker('/unused', self.directory.name, 'unused')
+        worker._engine = SimpleNamespace(context_fingerprint=lambda: 'sha256:new')
+        with self.assertRaises(WorkerError) as caught:
+            worker.index_for(manifest['artifactId'])
+        self.assertEqual(caught.exception.code, 'LAB_STALE_INDEX')
 
     def test_a_damaged_file_fails_verification_instead_of_being_reused(self):
         writer = self.begin()
@@ -504,6 +543,11 @@ class EngineTests(unittest.TestCase):
     def test_an_unrealizable_expression_returns_no_surface_instead_of_raising(self):
         self.assertIsNone(self.engine.surface('nao_existe_no_lexico * oka'))
 
+    def test_morpheme_projection_terminates_on_orphan_tags_and_preserves_bare_text(self):
+        units = self.engine.morphemes('[ZERO] xe[SUBJECT][SUBJECT] bare')
+        self.assertEqual([(row['surface'], row['tags']) for row in units],
+                         [('', ['ZERO']), ('xe', ['SUBJECT', 'SUBJECT']), ('bare', ['BARE'])])
+
 
 @unittest.skipUnless(HAS_PROJECT, 'selected corpus not installed')
 class SearchTests(unittest.TestCase):
@@ -611,6 +655,9 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(self.engine._evaluate('(+nde * ikó)', annotated=True),
                          self.engine._evaluate('ikó * +endé', annotated=True))
         candidates, _rejections, _timings, _diagnostics = self.analyze('ereîkó')
+        # The expanded dictionary can supply additional lexical senses with
+        # identical morphology; the shared-lexicon spellings still merge.
+        candidates = [row for row in candidates if row['provenance']['route'] != 'morphology']
         self.assertEqual(len(candidates), 1)
         spellings = candidates[0]['provenance'].get('annotationIdenticalSources', [])
         self.assertIn(candidates[0]['source'], {'ikó * +endé', '(+nde * ikó)'})
@@ -619,6 +666,7 @@ class SearchTests(unittest.TestCase):
     def test_co_generating_readings_stay_separate_with_their_exact_difference(self):
         """`sapépe` is genuinely ambiguous: absolute versus third-person possessed."""
         candidates, _rejections, _timings, _diagnostics = self.analyze('sapépe')
+        candidates = [row for row in candidates if row['provenance']['route'] != 'morphology']
         self.assertEqual(len(candidates), 2)
         sources = {row['source'] for row in candidates}
         self.assertEqual(sources, {'(pe * apé)', '(pe * (ae * apé))'})
@@ -636,7 +684,8 @@ class SearchTests(unittest.TestCase):
                      'sourceAst': project('(pe * apé)')}]
         pairs, statistics = build_training_pairs(self.engine, self.index, examples, judgments=[])
         self.assertEqual(pairs, [])
-        self.assertEqual(statistics['coGeneratingSkipped'], 1)
+        candidates, *_ = self.analyze('sapépe')
+        self.assertEqual(statistics['coGeneratingSkipped'], len(candidates) - 1)
         self.assertEqual(statistics['undecidedObservations'], 1)
 
     def test_a_contributor_decision_creates_the_contrast_and_reorders_at_once(self):
@@ -651,7 +700,8 @@ class SearchTests(unittest.TestCase):
                                                  judgments=judgments)
         self.assertEqual(len(pairs), 1)
         self.assertEqual(pairs[0]['goldSource'], '(pe * (ae * apé))')
-        self.assertEqual(statistics['coGeneratingSkipped'], 0)
+        candidates, *_ = self.analyze('sapépe')
+        self.assertEqual(statistics['coGeneratingSkipped'], len(candidates) - 2)
         judged, judged_statistics = human_pairs(self.engine, self.index, judgments)
         self.assertEqual(len(judged), 1)
         self.assertEqual(judged_statistics['usable'], 1)

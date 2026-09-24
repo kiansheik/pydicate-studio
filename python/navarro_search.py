@@ -87,6 +87,27 @@ def _site_descriptor(row,offset,fingerprint):
             **({'suggestedConstructor':choices[0]} if len(choices)==1 else {})}
 
 
+def _matched_excerpt(value, query, relaxed=False):
+    """Keep bounded original spelling around a normalized match, not just the header."""
+    from rendered_structures import normalize
+    pieces, locations = [], []
+    start = 0
+    while start < len(value):
+        end = start + 1
+        while end < len(value) and unicodedata.combining(value[end]):
+            end += 1
+        part = normalize(value[start:end], relaxed)
+        pieces.append(part)
+        locations.extend([(start, end)] * len(part))
+        start = end
+    needle = normalize(query, relaxed)
+    found = ''.join(pieces).find(needle) if needle else -1
+    beginning = locations[found][0] if found >= 0 and locations else 0
+    start = max(0, beginning - 70)
+    end = min(len(value), start + 278)
+    return ('…' if start else '') + value[start:end] + ('…' if end < len(value) else '')
+
+
 def dictionary_lookup(engine_path,params):
     from rendered_structures import normalize
     query=params.get('query','');limit=params.get('limit',20);offset=params.get('offset',0)
@@ -94,15 +115,29 @@ def dictionary_lookup(engine_path,params):
         raise ValueError('Digite uma palavra tupi ou uma definição em português (até 200 caracteres).')
     if type(limit) is not int or not 1<=limit<=40:raise ValueError('Limite inválido (1 a 40).')
     if type(offset) is not int or not 0<=offset<=100000:raise ValueError('Página inválida.')
+    field=params.get('matchField')
+    if field not in (None,'headword','definition'):raise ValueError('Escolha busca por verbete ou por definição.')
     fingerprint,(_,index)=_site_data(engine_path)
     key=normalize(query);relaxed=normalize(query,True);ranked=[]
     labels=['exact','prefix','contains','definition','relaxed']
     for word,word_relaxed,definition,definition_relaxed,entry in index:
-        score=(0 if word==key else 1 if word.startswith(key) else 2 if key in word else
-               3 if key in definition else 4 if relaxed in word_relaxed or relaxed in definition_relaxed else None)
-        if score is not None:ranked.append((score,word,entry['entryIndex'],entry))
+        score=None;matched_field=None
+        if field!='definition':
+            score=0 if word==key else 1 if word.startswith(key) else 2 if key in word else None
+            if score is not None:matched_field='headword'
+        if score is None and field!='headword' and key in definition:
+            score=3;matched_field='definition'
+        if score is None and relaxed:
+            if field!='definition' and relaxed in word_relaxed:
+                score=4;matched_field='headword'
+            elif field!='headword' and relaxed in definition_relaxed:
+                score=4;matched_field='definition'
+        if score is not None:ranked.append((score,word,entry['entryIndex'],entry,matched_field))
     ranked.sort(key=lambda row:row[:3])
-    return {'query':query,'results':[{**entry,'match':labels[score]} for score,_,_,entry in ranked[offset:offset+limit]],
+    return {'query':query,**({'matchField':field} if field else {}),
+            'results':[{**entry,'match':labels[score],'matchedField':matched_field,
+                        'matchedExcerpt':_matched_excerpt(entry[matched_field],query,score==4)}
+                       for score,_,_,entry,matched_field in ranked[offset:offset+limit]],
             'total':len(ranked),'datasetFingerprint':fingerprint,'offset':offset,
             'nextOffset':offset+limit if offset+limit<len(ranked) else None}
 

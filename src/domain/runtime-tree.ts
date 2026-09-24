@@ -14,6 +14,9 @@ export interface RuntimeNode {
   runtimeType: string;
   category: string;
   definition: string;
+  baseDefinition?: string;
+  compositeDefinition?: string;
+  inheritedDefinition?: string;
   tag: string;
   attributes: Record<string, RuntimePrimitive>;
   morphology: Record<string, RuntimePrimitive>;
@@ -38,6 +41,8 @@ export interface RuntimeNode {
     method?: string;
     isRoot?: boolean;
     inlineCall?: InlineCallArguments;
+    /** The operation inside a transparent literal definition wrapper. */
+    operationSourceNodeId?: string;
   };
 }
 export interface RuntimeEdge {

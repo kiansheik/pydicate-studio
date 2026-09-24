@@ -23,6 +23,11 @@ function string(value, field, max = LIMITS.text, nonempty = false) {
   return value;
 }
 
+function translations(value) {
+  object(value, 'traduções por idioma', ['pt', 'en']);
+  for (const text of Object.values(value)) string(text, 'tradução');
+}
+
 function id(value, field = 'identificador') {
   return string(value, field, 256, true);
 }
@@ -141,6 +146,7 @@ function envelope(value) {
       'diplomatic',
       'normalized',
       'translation',
+      'translations',
       'notes',
       'analysis',
       'raw',
@@ -208,6 +214,7 @@ function envelope(value) {
         }
       }
     }
+    if (draft.translations !== undefined) translations(draft.translations);
     if (draft.raw !== undefined) string(draft.raw, 'código');
     if (draft.canvas !== undefined) canvas(draft.canvas);
     if (draft.pending !== undefined) {
@@ -288,6 +295,7 @@ function project(value) {
       'notes',
     ])
       string(passage[field], field);
+    if (passage.translations !== undefined) translations(passage.translations);
     if (!Number.isSafeInteger(passage.ordinal) || passage.ordinal < 1) fail('ordem da passagem');
     if (passage.acceptedReference !== null) string(passage.acceptedReference, 'referência');
     oneOf(passage.referenceProvenance, ['legacy', 'none', 'example'], 'origem da referência');

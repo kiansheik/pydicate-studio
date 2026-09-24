@@ -1,5 +1,124 @@
 # Work log
 
+## 2026-09-24 - Ordered evidence across PDF pages
+
+Made multipage region capture explicit with **Adicionar região na próxima
+página**, physical-page coverage and reading-order controls. Existing ordered
+region storage and image capture are reused; no evidence schema migration.
+See [handoff](session-handoffs/2026-09-24-multipage-evidence.md).
+
+## 2026-09-20 - Remove an operation without detaching its subtree
+
+Added **Retirar só a operação…** to the Canvas context menu. It promotes a chosen
+child directly into the parent's existing connection, with an engine preview,
+explicit branch selection and one undo transaction. Other structural branches
+remain available as loose pieces. The removed node's definition does not transfer
+to its child; the child's own meaning remains. Comments, source guards and
+surrounding work remain part of the transaction. Verified with 61 focused domain
+tests, eight browser checks, typecheck and production build. See
+[handoff](session-handoffs/2026-09-20-remove-operation.md).
+
+## 2026-09-20 - Live forms before applying tree operations
+
+Added selected-engine previews to combination/operation/variant dialogs and
+detailed scope replacement controls. Previews track order and arguments, preserve
+the whole containing expression, and use the same source transaction as apply.
+Required missing arguments remain explicit slots; complete arguments can now be
+chosen before creating the operation. Imperative joins the confirmation flow.
+Debouncing, current-expression identity and result provenance prevent old or
+foreign forms from appearing. Preview requests never write the draft or history.
+Follow-up: unified Canvas meanings with the exact-node editor and folded literal
+definition annotations into existing visible nodes, retaining source spans and
+wrapper-preserving operation edits. Added automatic sole-root promotion to
+structural transactions and existing saved forests without overwriting nonempty
+primary work or immediately reversing undo.
+See [handoff](session-handoffs/2026-09-20-tree-operation-previews.md).
+
+## 2026-09-20 - Dictionary meanings on an existing tree
+
+Added a shared Navarro meaning consultation in the composition dialog and
+Léxico. Exact sense selection applies the authoritative full definition while
+preserving the tree and its internal meanings; reviewed publication retains
+the composed lexical entry. Form citations remain contextual evidence, with
+explicit meaning search for deliberate full-sense selection. The actual
+`tekate'yme'yma` example appears under `ekate'yma`, so it informs “liberalidade”
+without automatically copying “avareza”. Added dictionary freshness checks and
+Canvas cancellation/unmount/engine guards. See
+[handoff](session-handoffs/2026-09-20-composite-dictionary-meanings.md).
+
+## 2026-09-20 - Every-node interpretations and occurrence meanings
+
+Extended Léxico to the actual source tree, including root/intermediate operations
+and repeated occurrences. Added revision-bound local meaning overrides/removal,
+reviewed shared/source meaning edits that preserve grammatical constructor data,
+and stable node notes with legacy history compatibility. Saved interpretations
+now reach scoped translation, analysis, candidate and explicit repair prompts;
+pending note edits flush before capture and paused jobs retain frozen context.
+Actual-engine tests cover the two `obaîxûara` senses, publication/reopen, sibling
+isolation and unchanged morphology. Browser checks use simulated transports;
+no live provider generation or real corpus mutation occurred. See
+[handoff](session-handoffs/2026-09-20-node-interpretations.md).
+
+## 2026-09-20 - One source and ground-truth confirmation
+
+Both ground-truth entries now open the passage/lexicon diff review directly.
+Accepting it publishes the source and approves the reviewed form under one
+operation lock, including pending passages with newly assigned corpus IDs.
+Unchanged-source approval skips rewriting source; partial save failures are
+reported accurately and can be retried through the same review. Existing fresh
+engine/source/target/sequence guards and source-only lexical recovery remain.
+See [handoff](session-handoffs/2026-09-20-combined-ground-truth.md).
+
+## 2026-09-20 - Multiline source, resumable AI and current-tree translation
+
+Removed the single-line restriction for scholarly text through reversible,
+explicitly marked source-comment encoding. Exact multiline fields survive source
+publication/reopen/export and explicit reference approval without rewriting
+neighboring references. Added durable same-job AI continuation with fresh attempt
+budgets, preserved checkpoints/tool receipts and visible paused partial output.
+Added a direct current-tree translation flow with a target language, local prompt
+preview/copy, scoped engine evidence, nested meanings and guarded human adoption.
+Provider tests use simulations; the actual desktop/Python prompt path performs
+no inference. See [handoff](session-handoffs/2026-09-20-source-resume-translation.md).
+
+## 2026-09-19 - Deeper analyses with meanings at each scope
+
+Kept the direct Navarro reading and added bounded nominal/causative
+decompositions, including `moropotara`. Exact dictionary meanings can wrap a
+productive tree while its leaves keep their own meanings. Added source-based
+semantic context, scoped inspector fields and translation/agent prompt transport;
+constituent requests receive only their selected semantic subtree. Lexical
+publication now distinguishes equal outer meanings with different inner scopes,
+including reload/reuse. Surface-linked readings remain hypotheses; the engine
+already exhibits a possession contrast between the direct and derived nouns.
+No sibling engine, corpus or generated learning file was changed by this work.
+See [handoff](session-handoffs/2026-09-19-decomposition-meanings.md).
+
+## 2026-09-19 - Manual creation and reusable hypothetical roots
+
+Promoted **Criar peça** next to canvas search and restored a clear route from
+unmatched searches. Added guided Noun/Verb morphology and a persistent
+**Hipotética, não atestada** status with optional meaning. Portable constructor
+source and ordinary reviewed lexical publication retain both grammar and the
+empty gloss. Tree/reuse/review labels expose the status, and solver matching
+cannot turn a saved hypothesis into a complete lexical analysis. No root was
+published to the user's corpus. See
+[handoff](session-handoffs/2026-09-19-manual-hypothetical-roots.md).
+
+## 2026-09-19 - Navarro vocabulary and productive morphology
+
+Expanded index preparation from a small profile inventory to the supported
+Navarro dictionary, preserving exact senses, portable constructors, coverage
+diagnostics and dictionary content freshness. Added engine-derived root aliases,
+query-time productive morphology, dictionary-only postpositions, and explicit
+undefined-root/proper-name hints whose syntax remains provisional. Both views
+show lexical evidence, rebuild progress and bounded-search limits. Fixed stale
+input/feedback/adoption races and a Studio-side annotation scan hang exposed by
+the larger vocabulary. No neighboring repositories or generated corpus files
+were edited. Focused checks and a real desktop-service run verify the reported
+`tekate'yma` and related forms; see
+[handoff](session-handoffs/2026-09-19-navarro-morphology.md).
+
 ## 2026-09-19 - The solver moved to where the work happens
 
 A contributor spent ten minutes hunting for the laboratory and could not find it. That was a design failure, not a discoverability detail: it sat behind an unlabelled icon in the project information panel, and a solver you cannot reach from the passage you are working on is a demonstration rather than a tool.
@@ -201,3 +320,14 @@ Lifted the VS Code Tupy correction prompt into the tree inspector with intended 
 ## 2026-09-18 — Grammar repair action beneath the main result
 
 Moved discovery of the grammar repair loop to the main rendered result card, retaining the tree inspector entry. The action uses the current passage, draft expression, evaluated tree and failures. Build and formatting checks pass. See [handoff](session-handoffs/2026-09-18-main-result-repair-action.md).
+
+
+## 2026-09-24 — Separate Portuguese and English translations
+
+Added optional language maps without changing legacy translation semantics or
+the native JSONL schema. Source import/publication, draft validation and editors,
+review comparisons, new-passage isolation, archive visibility and accepted
+suggestion routing preserve both languages independently. In an isolated copy:
+TypeScript passed; 30 domain, six desktop and six Python checks passed; three
+browser checks passed on a dedicated localhost port with simulated AI responses.
+See [handoff](session-handoffs/2026-09-24-independent-translations.md).

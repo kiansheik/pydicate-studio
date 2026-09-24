@@ -124,6 +124,144 @@ class LexicalPublicationTests(unittest.TestCase):
         for technical in (str(self.source), str(self.lexicon), 'Noun(', 'Verb(', 'studio:v1'):
             self.assertNotIn(technical, serialized)
 
+    def test_hypothetical_pluriform_noun_survives_review_and_shared_reuse_without_a_gloss(self):
+        created = self.adapter.invoke('predicate_create', {
+            'sourceId': SOURCE, 'constructor': 'Noun', 'values': {'value': 'ekat'},
+            'lexical': {'pluriform': 't', 'verbClass': 'default', 'status': 'hypothetical'},
+        })
+        self.assertEqual(created['evaluationStatus'], 'complete')
+        self.assertEqual(created['surface'], 'tekata')
+        self.assertEqual(created['tree']['definition'], '')
+        self.assertEqual(created['tree']['lexicalStatus'], 'hypothetical')
+        self.assert_unchanged()
+
+        raw = '-(' + created['expression'] + ')'
+        before = self.adapter.invoke('evaluate_expression', {'sourceId': SOURCE, 'raw': raw})
+        self.assertEqual(before['surface'], "tekate'yma")
+        self.assertIn('ekat[ROOT]', before['annotated'])
+        self.assertIn("e'ym[NEGATION_SUFFIX]", before['annotated'])
+        preview = self.preview(raw)
+        self.assert_unchanged()
+        addition, = [item for item in preview['lexicalAdditions'] if not item['reused']]
+        self.assertEqual(addition['headword'], 'ekat')
+        self.assertEqual(addition['definition'], '')
+        self.assertEqual(addition['lexicalStatus'], 'hypothetical')
+        self.assertIn('LEXICAL_STATUS:HYPOTHETICAL', preview['diff'])
+        self.assertTrue(preview['regression']['ok'])
+        passage = self.apply(preview)
+        name = addition['name']
+        self.assertEqual(
+            ast.dump(ast.parse(passage['sourceExpression'], mode='eval')),
+            ast.dump(ast.parse('-' + name, mode='eval')),
+        )
+        self.assert_only_insertions(self.original_lexicon, self.lexicon.read_bytes())
+
+        # A fresh adapter reads the actual published declaration and empty
+        # semantic override; no in-memory creator state supplies these facts.
+        self.adapter = ProjectAdapter(self.state)
+        self.project = self.adapter.open_project(str(self.parent))
+        entry = self.adapter.invoke('lexicon_inspect', {'sourceId': SOURCE, 'name': name})
+        self.assertEqual(entry['definition'], '')
+        self.assertEqual(entry['lexicalStatus'], 'hypothetical')
+        self.assertIn('[LEXICAL_STATUS:HYPOTHETICAL]', entry['expandedStructure']['tag'])
+        for expression, expected in [('-' + name, "tekate'yma"), ('ixé * ' + name, 'xe rekata')]:
+            with self.subTest(expression=expression):
+                result = self.adapter.invoke('evaluate_expression', {'sourceId': SOURCE, 'raw': expression})
+                self.assertEqual(result['evaluationStatus'], 'complete')
+                self.assertEqual(result['surface'], expected)
+                self.assertEqual(result['tree']['definition'], '')
+                self.assertEqual(result['tree']['lexicalStatus'], 'hypothetical')
+        repeated = self.preview(created['expression'])
+        self.assertEqual(repeated['raw'], name)
+        reused, = repeated['lexicalAdditions']
+        self.assertTrue(reused['reused'])
+        self.assertEqual(reused['definition'], '')
+        self.assertEqual(reused['lexicalStatus'], 'hypothetical')
+
+    def test_hypothetical_stative_verb_keeps_explicit_class_after_publication(self):
+        created = self.adapter.invoke('predicate_create', {
+            'sourceId': SOURCE, 'constructor': 'Verb', 'values': {'value': 'ekat'},
+            'lexical': {'pluriform': 't', 'verbClass': 'stative', 'status': 'hypothetical'},
+        })
+        self.assertEqual(created['tree']['definition'], '')
+        self.assertEqual(created['tree']['lexicalStatus'], 'hypothetical')
+        raw = '(+ixé) * (' + created['expression'] + ')'
+        expected = self.adapter.invoke('evaluate_expression', {'sourceId': SOURCE, 'raw': raw})
+        self.assertEqual(expected['evaluationStatus'], 'complete')
+        self.assertEqual(expected['surface'], 'xerekat')
+        self.assertIn('r[PLURIFORM_PREFIX:R]ekat[ROOT]', expected['annotated'])
+        preview = self.preview(raw)
+        addition, = [item for item in preview['lexicalAdditions'] if not item['reused']]
+        self.assertEqual(addition['definition'], '')
+        self.assertEqual(addition['lexicalStatus'], 'hypothetical')
+        self.assert_unchanged()
+        passage = self.apply(preview)
+        actual = self.adapter.invoke('evaluate_expression', {
+            'passageId': passage['id'], 'raw': passage['sourceExpression'],
+        })
+        self.assertEqual(actual['surface'], expected['surface'])
+        self.assertEqual(actual['annotated'], expected['annotated'])
+        self.assertEqual(actual['tree']['definition'], '')
+        self.assertEqual(actual['tree']['lexicalStatus'], 'hypothetical')
+        entry = self.adapter.invoke('lexicon_inspect', {
+            'passageId': passage['id'], 'name': addition['name'],
+        })
+        self.assertEqual(entry['definition'], '')
+        self.assertEqual(entry['lexicalStatus'], 'hypothetical')
+        self.assertIn('adj.', entry['expandedStructure']['verb']['verb_class'])
+
+    def test_hypothetical_derived_entry_retains_uncertainty_after_engine_conversion_and_reload(self):
+        created = self.adapter.invoke('predicate_create', {
+            'sourceId': SOURCE, 'constructor': 'Verb', 'values': {'value': 'ekat'},
+            'lexical': {'pluriform': 't', 'verbClass': 'stative', 'status': 'hypothetical'},
+        })
+        definition = 'sentido provisório do conjunto'
+        raw = f"studio_define(({created['expression']}).base_nominal(), {definition!r})"
+        expected = self.adapter.invoke('evaluate_expression', {'sourceId': SOURCE, 'raw': raw})
+        self.assertEqual(expected['evaluationStatus'], 'complete')
+        self.assertEqual(expected['tree']['runtimeType'], 'Noun')
+        self.assertEqual(expected['tree']['definition'], definition)
+        self.assertEqual(expected['tree']['lexicalStatus'], 'hypothetical')
+        # The engine's conversion drops the original VERB provenance tag. Its
+        # annotation remains engine evidence, while source dependencies retain
+        # our separate editorial uncertainty about the underlying root.
+        self.assertNotIn('LEXICAL_STATUS:HYPOTHETICAL', expected['annotated'])
+        preview = self.preview(raw)
+        self.assert_unchanged()
+        additions = [item for item in preview['lexicalAdditions'] if not item['reused']]
+        self.assertEqual(len(additions), 2)
+        primitive, = [item for item in additions if item.get('kind') != 'composition']
+        derived, = [item for item in additions if item.get('kind') == 'composition']
+        self.assertEqual(primitive['definition'], '')
+        self.assertEqual(derived['definition'], definition)
+        self.assertTrue(all(item['lexicalStatus'] == 'hypothetical' for item in additions))
+        self.assertIn(primitive['name'], derived['expression'])
+        passage = self.apply(preview)
+        self.assertEqual(passage['sourceExpression'], derived['name'])
+
+        self.adapter = ProjectAdapter(self.state)
+        self.project = self.adapter.open_project(str(self.parent))
+        entry = self.adapter.invoke('lexicon_inspect', {'sourceId': SOURCE, 'name': derived['name']})
+        self.assertEqual(entry['runtimeType'], 'Noun')
+        self.assertEqual(entry['definition'], definition)
+        self.assertEqual(entry['lexicalStatus'], 'hypothetical')
+        actual = self.adapter.invoke('evaluate_expression', {'sourceId': SOURCE, 'raw': derived['name']})
+        self.assertEqual(actual['evaluationStatus'], 'complete')
+        self.assertEqual(actual['surface'], expected['surface'])
+        self.assertEqual(actual['annotated'], expected['annotated'])
+        self.assertEqual(actual['tree']['lexicalStatus'], 'hypothetical')
+        repeated = self.preview(raw)
+        self.assertEqual(repeated['raw'], derived['name'])
+        self.assertTrue(all(item['reused'] for item in repeated['lexicalAdditions']))
+        self.assertTrue(all(item['lexicalStatus'] == 'hypothetical' for item in repeated['lexicalAdditions']))
+        # Omitting the declaration's uncertainty marker is not evidence of
+        # attestation. It is nevertheless a different lexical declaration and
+        # cannot silently inherit or erase the existing hypothesis's status.
+        unspecified = self.preview(raw.replace('[LEXICAL_STATUS:HYPOTHETICAL]', ''))
+        self.assertNotEqual(unspecified['raw'], derived['name'])
+        self.assertTrue(all(not item.get('lexicalStatus') for item in unspecified['lexicalAdditions']))
+        self.assertTrue(all(not item['reused'] for item in unspecified['lexicalAdditions']))
+
     def test_compound_definition_restores_base_and_publishes_whole_structure(self):
         raw="(nhe * (mo * Noun(value='abaré', definition='sacramento da ordem'))).var(1).base_nominal()"
         defined=self.adapter.invoke('composition_define',{'sourceId':SOURCE,'raw':raw,
@@ -133,21 +271,25 @@ class LexicalPublicationTests(unittest.TestCase):
         preview=self.preview(defined['raw'])
         self.assertTrue(preview['regression']['ok'])
         self.assertGreater(preview['regression']['checked'],100)
-        self.assertEqual(preview['raw'],'nhemoabare')
+        # The selected corpus may already define this surface with a different
+        # full Navarro meaning. Follow the reviewed collision-safe name rather
+        # than requiring that unrelated entry to be overwritten or reused.
+        name=preview['raw']
+        self.assertRegex(name,r'^nhemoabare(?:_[a-f0-9]+)?$')
         entries={item['name']:item for item in preview['lexicalAdditions']}
-        self.assertIn('padre',entries['abare']['definition'])
-        self.assertEqual(entries['nhemoabare']['definition'],'sacramento da ordem')
-        self.assertIn('mo * abare',entries['nhemoabare']['expression'])
-        self.assertIn("nhemoabare.definition = 'sacramento da ordem'",preview['diff'])
+        self.assertEqual(entries[name]['definition'],'sacramento da ordem')
+        self.assertIn('mo * abare',entries[name]['expression'])
+        self.assertIn(f"{name}.definition = 'sacramento da ordem'",preview['diff'])
         passage=self.apply(preview)
         base=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':'abare'})
-        changed=self.adapter.invoke('lexicon_update',{'passageId':passage['id'],'name':'nhemoabare',
+        self.assertIn('padre',base['definition'])
+        changed=self.adapter.invoke('lexicon_update',{'passageId':passage['id'],'name':name,
             'definition':'ordenação sacerdotal','scope':'shared'})
         self.apply(changed)
-        self.assertEqual(self.lexicon.read_text().count('nhemoabare.definition ='),1)
+        self.assertEqual(self.lexicon.read_text().count(name+'.definition ='),1)
         again=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':'abare'})
         self.assertEqual(base['definition'],again['definition'])
-        compound=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':'nhemoabare'})
+        compound=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':name})
         self.assertEqual(compound['definition'],'ordenação sacerdotal')
         # A second composition restores the existing base name and never writes it again.
         defined=self.adapter.invoke('composition_define',{'sourceId':SOURCE,'raw':raw,

@@ -57,6 +57,7 @@ class AttemptLog:
             'status': row.get('status', 'unknown'),
             'candidateCount': int(row.get('candidateCount', 0)),
             'candidateSources': list(row.get('candidateSources', ()))[:25],
+            'lexicalHints': list(row.get('lexicalHints') or [])[:8],
             'artifacts': row.get('artifacts', {}),
             'context': row.get('context', {}),
             'recognizedSpans': list(row.get('recognizedSpans', ()))[:50],
@@ -127,6 +128,10 @@ def confirmed_examples(judgments):
     """
     latest = {}
     for row in sorted(judgments, key=lambda item: item.get('recordedAt', '')):
+        # Selecting a provisional syntax tree is not confirmation of a missing
+        # lexical meaning. Keep that judgment without scoring it as full recall.
+        if row.get('candidateCompleteness') == 'partial':
+            continue
         verdict = row.get('verdict')
         if verdict not in ('accepted', 'corrected'):
             continue

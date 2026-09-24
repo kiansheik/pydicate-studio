@@ -114,6 +114,7 @@ class PythonWorker {
         'predicate_catalog',
         'predicate_create',
         'composition_define',
+        'node_definition',
         'source_preview',
         'source_new_preview',
         'source_apply',

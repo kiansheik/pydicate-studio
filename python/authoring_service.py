@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unicodedata
 import uuid
-from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots
+from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots, encode_source_text, validate_translations
 
 
 def digest(data): return 'sha256:' + hashlib.sha256(data).hexdigest()
@@ -74,7 +74,7 @@ class AuthoringService:
             result.update(engineFingerprint=fingerprint, documentationFingerprint=docs_fingerprint)
             self.adapter.learning_library_cache = result
             return result
-        allowed={'composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve'}
+        allowed={'node_definition','composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve'}
         if method not in allowed: self.error('Operação indisponível.','UNKNOWN_METHOD')
         if not isinstance(params,dict): self.error('Parâmetros inválidos.')
         return getattr(self,method)(params)
@@ -120,17 +120,57 @@ class AuthoringService:
             self.error('Selecione um tipo de predicado disponível.')
         if not isinstance(params.get('values'),dict) or len(params['values'])>30:
             self.error('Propriedades do predicado inválidas.')
-        result=self.child({'action':'predicate_create',**context,'constructor':params['constructor'],'values':params['values']})
+        result=self.child({'action':'predicate_create',**context,'constructor':params['constructor'],'values':params['values'],'lexical':params.get('lexical')})
         self.fresh(params)
         result.pop('structure',None)
         return {'revisionId':params.get('revisionId',''),'engineFingerprint':fingerprint,'origin':'engine',**result}
 
+    def _selected_definition(self,params):
+        if 'dictionarySelection' not in params:return params.get('definition'),None
+        from navarro_search import dictionary_entry
+        selection=params['dictionarySelection']
+        if not isinstance(selection,dict):self.error('Selecione uma acepção válida do dicionário.','DICTIONARY_SELECTION')
+        try:entry,row=dictionary_entry(self.adapter.parent/'nhe-enga',selection)
+        except ValueError as error:self.error(str(error),'DICTIONARY_SELECTION')
+        if row.get('t') not in (1,True):self.error('Selecione um verbete tupi do Navarro.','DICTIONARY_SELECTION')
+        return entry['definition'],entry
+
+    def _checked_dictionary_result(self,result,entry):
+        if entry is None:return result
+        # The website dataset is outside the grammar fingerprint. Recheck it
+        # after realization or preview preparation before exposing the edit.
+        self._selected_definition({'dictionarySelection':entry})
+        return {**result,'dictionaryEntry':entry}
+
     def composition_define(self,params):
         context=self.structure_context(params); fingerprint=self.fresh(params)
-        if not isinstance(params.get('raw'),str) or not isinstance(params.get('definition'),str):self.error('Composição e significado são necessários.')
-        result=self.child({'action':'composition_define',**context,'raw':params['raw'],'definition':params['definition'],'reuseBaseDefinitions':params.get('reuseBaseDefinitions') is True})
+        definition,entry=self._selected_definition(params)
+        if not isinstance(params.get('raw'),str) or not isinstance(definition,str):self.error('Composição e significado são necessários.')
+        if entry is not None:
+            if len(params['raw'])>100000 or len(definition)>50000:self.error('Composição ou significado muito grande.')
+            result=self.child({'action':'node_definition',**context,'raw':params['raw'],
+                'sourceNodeId':'root','definition':definition,'definitionAction':'set'})
+            result['restored']=[]
+        else:
+            result=self.child({'action':'composition_define',**context,'raw':params['raw'],'definition':definition,'reuseBaseDefinitions':params.get('reuseBaseDefinitions') is True})
         self.fresh(params)
-        return {**result,'engineFingerprint':fingerprint,'revisionId':params.get('revisionId','')}
+        return self._checked_dictionary_result({**result,'engineFingerprint':fingerprint,'revisionId':params.get('revisionId','')},entry)
+
+    def node_definition(self,params):
+        context=self.structure_context(params); fingerprint=self.fresh(params)
+        if params.get('action')=='inherit' and 'dictionarySelection' in params:
+            self.error('Remova a definição local sem selecionar outro verbete.','DICTIONARY_SELECTION')
+        definition,entry=self._selected_definition(params)
+        if (not isinstance(params.get('raw'),str) or len(params['raw'])>100000 or not isinstance(params.get('sourceNodeId'),str)
+            or params.get('action','set') not in {'set','inherit'}
+            or (params.get('action','set')=='set' and
+                (not isinstance(definition,str) or len(definition)>50_000))):
+            self.error('Selecione a parte da árvore e informe uma definição válida.')
+        result=self.child({'action':'node_definition',**context,'raw':params['raw'],
+            'sourceNodeId':params['sourceNodeId'],'definition':definition if definition is not None else '',
+            'definitionAction':params.get('action','set')})
+        self.fresh(params)
+        return self._checked_dictionary_result({**result,'engineFingerprint':fingerprint,'revisionId':params.get('revisionId','')},entry)
 
     def _preview(self,path,before,after,extra_changes=(),**details):
         # A copy with an occurrence gloss has an explicit source-local helper;
@@ -183,6 +223,7 @@ class AuthoringService:
         declarations=[]
         for item in result['declarations']:
             note={'id':'lexical:'+item['lexicalFingerprint'].removeprefix('sha256:'),'name':item['name'],'scope':'shared'}
+            if item.get('lexicalStatus'):note['lexicalStatus']=item['lexicalStatus']
             declarations.extend(['# @note studio-lexical:v1 '+json.dumps(note,ensure_ascii=False,separators=(',',':')),item['name']+' = '+item['expression']])
             if item.get('definitionOverride') is not None:declarations.append(item['name']+'.definition = '+repr(item['definitionOverride']))
             declarations.append('')
@@ -198,8 +239,9 @@ class AuthoringService:
 
     def review_fields(self,metadata,previous=None):
         previous=previous or {}
-        labels={'diplomatic':'Transcrição da fonte','normalized':'Leitura em tupi','target':'Leitura em tupi','translation':'Tradução','notes':'Notas','analysis':'Análise','uncertainty':'Incerteza','printedPage':'Página impressa','folio':'Fólio','line':'Linha','section':'Seção','subsection':'Subseção','evidence':'Trecho do PDF'}
+        labels={'diplomatic':'Transcrição da fonte','normalized':'Leitura em tupi','target':'Leitura em tupi','translation':'Tradução sem idioma informado','translations':'Traduções por idioma','notes':'Notas','analysis':'Análise','uncertainty':'Incerteza','printedPage':'Página impressa','folio':'Fólio','line':'Linha','section':'Seção','subsection':'Subseção','evidence':'Trecho do PDF'}
         def readable(key,value):
+            if key=='translations':return '\n'.join(label+': '+value.get(lang,'') for lang,label in [('pt','Português'),('en','Inglês')]) if isinstance(value,dict) else ''
             if key=='evidence':return 'Vinculado' if value else 'Sem vínculo'
             return str(value) if value is not None else ''
         fields=[]
@@ -244,8 +286,12 @@ class AuthoringService:
         if contains_slots(raw): self.error('Conecte todos os lugares vazios antes de aplicar à fonte. A construção incompleta pode continuar no rascunho.', 'UNRESOLVED_SLOTS')
         metadata=params.get('metadata') or {}
         if not isinstance(metadata,dict): self.error('Metadados inválidos.')
-        if any(key not in {'diplomatic','normalized','target','translation','notes','analysis','uncertainty','evidence','printedPage','folio','line','section','subsection'} for key in metadata): self.error('Campo de metadados desconhecido.')
+        if any(key not in {'diplomatic','normalized','target','translation','translations','notes','analysis','uncertainty','evidence','printedPage','folio','line','section','subsection'} for key in metadata): self.error('Campo de metadados desconhecido.')
+        if 'translations' in metadata:
+            try: metadata = {**metadata, 'translations': validate_translations(metadata['translations'])}
+            except ValueError as error: self.error(str(error))
         existing = {key:passage.get(key,'') for key in ('diplomatic','normalized','translation','notes')}
+        existing['translations'] = passage.get('translations', {})
         existing.update(target=passage.get('normalized',''), analysis=(passage.get('sourceMetadata') or {}).get('analysis') or '', evidence=(entry.get('studio') or {}).get('evidence'), uncertainty=(entry.get('studio') or {}).get('uncertainty',''))
         existing.update({key:passage.get('witness',{}).get(witness_key) or '' for key,witness_key in [('printedPage','printedPage'),('folio','folio'),('line','textualLine'),('section','section'),('subsection','subsection')]})
         requested_metadata=self.hierarchy_metadata(metadata,existing)
@@ -266,6 +312,7 @@ class AuthoringService:
         # A single supported upstream note stores the stable identity and the
         # versioned evidence pointer. Existing note and locators stay adjacent.
         studio=dict(entry.get('studio') or {}); studio['passageId']=passage['id']
+        if 'translations' in metadata: studio['translations']=metadata['translations']
         if 'evidence' in metadata: studio['evidence']=metadata['evidence']
         if 'uncertainty' in metadata: studio['uncertainty']=str(metadata['uncertainty'])
         # Concrete outer parentheses can start before the AST operand. A note
@@ -274,17 +321,16 @@ class AuthoringService:
         start_line=sum(len(line) for line in text.splitlines(keepends=True)[:anchor_line-1])
         indent=re.match(r'\s*',text[start_line:]).group(0).replace('\n','').replace('\r','')
         if text[start_line:entry['start']].lstrip().startswith('l +='): indent=text[start_line:entry['start']].split('l +=')[0]
-        note=indent+'# @note studio:v1 '+json.dumps(studio,ensure_ascii=False,separators=(',',':'))+newline
         directives=[]
         mapping={'normalized':'target','printedPage':'page','notes':'note'}
         for key,value in metadata.items():
-            if key in {'evidence','uncertainty'}: continue
+            if key in {'evidence','uncertainty','translations'}: continue
             if not isinstance(value,str): self.error(f'{key}: texto esperado.')
-            if '\n' in value or '\r' in value:
-                if key=='notes':
-                    directives.extend(indent+'# @note '+part+newline for part in value.splitlines()); continue
-                self.error(f'{key}: use uma única linha no comentário de origem. O texto multilinha pode continuar salvo como rascunho.')
-            directives.append(indent+'# @'+mapping.get(key,key)+' '+value+newline)
+            directive=mapping.get(key,key)
+            try: encoded=encode_source_text(directive,value,studio)
+            except ValueError as error:self.error(str(error))
+            directives.append(indent+'# @'+directive+' '+encoded+newline)
+        note=indent+'# @note studio:v1 '+json.dumps(studio,ensure_ascii=True,separators=(',',':'))+newline
         # Remove only previous machine note in this immediately adjacent block;
         # preserve all other bytes. Insert metadata immediately before expression.
         replacement_raw = '(' + raw + '\n)' if text[start_line:entry['start']].lstrip().startswith('l +=') and '\n' in raw else raw
@@ -308,7 +354,7 @@ class AuthoringService:
         # Other comments and inherited locators retain their original bytes.
         source_lines=text.splitlines(keepends=True)
         directive_aliases={'pages':'page','lines':'line','folios':'folio','sections':'section','subsections':'subsection'}
-        edited_directives={mapping.get(key,key) for key in metadata if key not in {'evidence','uncertainty'}}
+        edited_directives={mapping.get(key,key) for key in metadata if key not in {'evidence','uncertainty','translations'}}
         line_index=anchor_line-2;found=False
         while line_index>=0:
             source_line=source_lines[line_index]
@@ -347,18 +393,22 @@ class AuthoringService:
                     if passage['sourceId']==source_id and (anchor is None or passage['sourceLine']<anchor.lineno)),None)
         metadata=self.hierarchy_metadata(metadata,(prior or {}).get('witness',{}))
         studio={'passageId':passage_id}
+        if 'translations' in metadata:
+            try: studio['translations']=validate_translations(metadata['translations'])
+            except ValueError as error: self.error(str(error))
         if 'evidence' in metadata:
             evidence=metadata['evidence']
             if not isinstance(evidence,dict) or set(evidence)!={'version','assetId','passageId'} or type(evidence.get('version')) is not int or evidence['version']!=1 or evidence.get('passageId')!=passage_id or not isinstance(evidence.get('assetId'),str) or not re.fullmatch(r'[a-f0-9]{64}',evidence['assetId']):self.error('A evidência precisa ter versão 1, SHA-256 do PDF e a mesma identidade da nova passagem.')
             studio['evidence']=dict(evidence)
-        mapping={'diplomatic':'diplomatic','normalized':'target','translation':'translation','notes':'note','printedPage':'page','folio':'folio','line':'line','section':'section','subsection':'subsection'}
+        mapping={'diplomatic':'diplomatic','normalized':'target','translation':'translation','analysis':'analysis','notes':'note','printedPage':'page','folio':'folio','line':'line','section':'section','subsection':'subsection'}
         directives=[]
         for key, directive in mapping.items():
             if metadata.get(key):
                 value=metadata[key]
                 if not isinstance(value,str):self.error('Metadados precisam ser texto.')
-                if key!='notes' and ('\n' in value or '\r' in value):self.error(f'{key}: use uma única linha no comentário de origem. O texto multilinha pode continuar salvo como rascunho.')
-                for line in value.splitlines():directives.append('# @'+directive+' '+line+'\n')
+                try: encoded=encode_source_text(directive,value,studio)
+                except ValueError as error:self.error(str(error))
+                directives.append('# @'+directive+' '+encoded+'\n')
         raw,lexical_changes,lexical_additions,lexical_diagnostics,definition_repairs=self.prepare_lexical_publication(raw,{'sourceId':source_id,'line':anchor.lineno if anchor else 10**9})
         review_summary={'kind':'passage-new','passageOrdinal':(prior['ordinal'] if prior else 0)+1,'analysisChanged':True,'fields':self.review_fields(metadata)}
         expression='('+raw+'\n)' if '\n' in raw else raw
@@ -639,27 +689,29 @@ class AuthoringService:
         return self._preview(path,before,(text[:offset]+definition_text+text[offset:]).encode('utf-8'),name=name,lexicalId=identity,scope=scope,affectedUses=[],reviewSummary=review_summary)
 
     def lexicon_update(self,params):
-        self.fresh(); name=params.get('name'); definition=params.get('definition'); scope=params.get('scope','occurrence')
+        self.fresh(params); name=params.get('name'); scope=params.get('scope','occurrence')
+        definition,dictionary_entry=self._selected_definition(params)
         if not isinstance(name,str) or not name.isidentifier() or not isinstance(definition,str): self.error('Entrada e definição inválidas.')
         entry=self.lexicon_inspect(params)
         if scope=='occurrence':
             # Keep a named reference and clone its value, preserving every class,
             # argument, variant and grammatical property; only definition changes.
             raw=f"studio_define({name}, {definition!r})"
-            return {'raw':raw,'scope':scope,'name':name,'lexicalId':entry['id'],'affectedUses':[]}
+            return self._checked_dictionary_result({'raw':raw,'scope':scope,'name':name,'lexicalId':entry['id'],'affectedUses':[]},dictionary_entry)
         if scope not in {'source','shared'}: self.error('Escopo lexical desconhecido.')
-        passage=self.passage(params)
-        path=self.source(passage) if scope=='source' else self.corpus/'historic/lexicon.tu.py'
+        context=self.structure_context(params)
+        passage=next((item for item in self.adapter.project['passages'] if item['id']==params.get('passageId')),None)
+        path=self.corpus/'historic'/f"{context['sourceId']}.tu.py" if scope=='source' else self.corpus/'historic/lexicon.tu.py'
         before=path.read_bytes();text=before.decode('utf-8');tree=ast.parse(text)
         if scope=='source':
             # Place override before selected construction; it does not rewrite
             # previous entries or change the imported identifier.
-            selected=source_entries(path)[passage['ordinal']-1]
-            offset=sum(map(len,text.splitlines(keepends=True)[:selected['statementLine']-1]))
+            statement_line=source_entries(path)[passage['ordinal']-1]['statementLine'] if passage else context['line']
+            offset=sum(map(len,text.splitlines(keepends=True)[:statement_line-1]))
             # Assignments cannot be inserted inside an initial list. Place the
             # source-wide override immediately before the initial list instead.
-            initial=next(s for s in tree.body if isinstance(s,ast.Assign) and isinstance(s.value,(ast.List,ast.Tuple)) and any(isinstance(t,ast.Name) and t.id in {'l',passage['sourceId']} for t in s.targets))
-            if selected['statementLine'] <= initial.end_lineno: offset=sum(map(len,text.splitlines(keepends=True)[:initial.lineno-1]))
+            initial=next(s for s in tree.body if isinstance(s,ast.Assign) and isinstance(s.value,(ast.List,ast.Tuple)) and any(isinstance(t,ast.Name) and t.id in {'l',context['sourceId']} for t in s.targets))
+            if statement_line <= initial.end_lineno: offset=sum(map(len,text.splitlines(keepends=True)[:initial.lineno-1]))
             insertion=name+'.definition = '+repr(definition)+'\n'
             # Keep existing adjacent metadata attached to its expression.
             while offset>0:
@@ -668,23 +720,22 @@ class AuthoringService:
                 else:break
             after=(text[:offset]+insertion+text[offset:]).encode('utf-8')
         else:
-            target=next((s for s in tree.body if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in s.targets)),None)
+            target=next((s for s in reversed(tree.body) if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id==name for t in s.targets)),None)
             if target is None:self.error('A entrada é definida pelo motor; crie uma substituição nesta fonte.','LEXICAL_SCOPE')
             existing_override=next((statement for statement in reversed(tree.body)
                 if isinstance(statement,ast.Assign) and statement.lineno>target.lineno and
                 any(isinstance(t,ast.Attribute) and isinstance(t.value,ast.Name) and t.value.id==name and t.attr=='definition' for t in statement.targets)),None)
             value=target.value;keyword_node=next((k.value for k in value.keywords if k.arg=='definition'),None) if isinstance(value,ast.Call) else None
-            from studio_authoring import position
+            from node_definitions import _replace_definition
             if existing_override:
-                start=position(text,existing_override.value.lineno,existing_override.value.col_offset);end=position(text,existing_override.value.end_lineno,existing_override.value.end_col_offset)
-                after=(text[:start]+repr(definition)+text[end:]).encode('utf-8')
-            elif keyword_node:
-                start=position(text,keyword_node.lineno,keyword_node.col_offset);end=position(text,keyword_node.end_lineno,keyword_node.end_col_offset)
-                after=(text[:start]+repr(definition)+text[end:]).encode('utf-8')
+                after=_replace_definition(text,existing_override.value,definition).encode('utf-8')
+            elif keyword_node and not params.get('preserveGrammar'):
+                after=_replace_definition(text,keyword_node,definition).encode('utf-8')
             else:
                 offset=sum(map(len,text.splitlines(keepends=True)[:target.end_lineno]));after=(text[:offset]+name+'.definition = '+repr(definition)+'\n'+text[offset:]).encode('utf-8')
         review_summary={'kind':'lexicon','fields':([*([{'label':'Significado','before':entry.get('definition',''),'after':definition}] if entry.get('definition','')!=definition else []),{'label':'Onde muda','after':'Léxico compartilhado' if scope=='shared' else 'Nesta fonte'}] if before!=after else [])}
-        return self._preview(path,before,after,name=name,lexicalId=entry['id'],scope=scope,affectedUses=entry['affectedUses'],reviewSummary=review_summary)
+        result=self._preview(path,before,after,name=name,lexicalId=entry['id'],scope=scope,affectedUses=entry['affectedUses'],reviewSummary=review_summary)
+        return self._checked_dictionary_result(result,dictionary_entry)
 
     def dictionary_search(self,params):
         from navarro_search import search_dictionary
@@ -783,7 +834,7 @@ class AuthoringService:
                 'nextOrdinal':len(records)+1,'canApproveSequentially':passage['ordinal']<=len(records)+1}
 
     def reference_approve(self,params):
-        passage=self.passage(params); self.fresh()
+        passage=self.passage(params); self.fresh(params)
         if params.get('sourceFingerprint')!=passage['sourceFingerprint']: self.error('A fonte mudou desde a revisão.','STALE_SOURCE')
         rendered=self.evaluate_expression({'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'approval-review','engineFingerprint':self.adapter.project['engineFingerprint']})
         if rendered.get('evaluationStatus') == 'partial': self.error('A análise precisa ser realizada por completo antes de salvar como ground truth.', 'INCOMPLETE_EVALUATION')

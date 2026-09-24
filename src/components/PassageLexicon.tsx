@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke } from '../domain/authoring';
+import { invoke, type SourcePreview } from '../domain/authoring';
 import {
   foldLexical,
   lexicalNoteSummary,
+  lexicalOccurrenceRows,
+  occurrenceDefinition,
+  occurrenceNoteId,
+  matchesOccurrenceNote,
   type ActiveLexicalEntry,
   type LexicalNote,
   type LexicalNoteFields,
@@ -10,6 +14,11 @@ import {
   type PassageLexiconInventory,
 } from '../domain/passage-lexicon';
 import '../passage-lexicon.css';
+import { registerLexicalNoteSaver, notifyLexicalNotesChanged } from '../domain/lexical-note-sync';
+import {
+  DictionaryMeaningPicker,
+  type DictionaryMeaningSelection,
+} from './DictionaryMeaningPicker';
 
 export interface PassageLexiconProps {
   projectId: string;
@@ -21,24 +30,46 @@ export interface PassageLexiconProps {
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string) => void;
   onRevealNode?: (nodeId: string) => void;
+  disabled?: boolean;
+  onEdit?: (raw: string, expectedRevision: string) => boolean | void;
+  onPreview?: (preview: SourcePreview) => void;
 }
 const kinds = {
   predicate: 'Predicado',
   compound: 'Construção reutilizada',
   alias: 'Alias',
   helper: 'Helper',
+  construction: 'Construção',
+  unresolved: 'Etapa incompleta',
 };
 const emptyFields: LexicalNoteFields = { meaning: '', grammar: '', note: '' };
+type NoteInput = Omit<
+  LexicalNote,
+  'id' | 'version' | 'createdAt' | 'updatedAt' | 'history' | 'fields'
+>;
+type NoteWrite = {
+  version: number;
+  persisted: string;
+  latest: LexicalNoteFields;
+  saving: Promise<void> | null;
+  note: NoteInput;
+  owners: number;
+};
+// Reopening the same note shares its in-flight version and newest buffered fields.
+// Otherwise the old and new editor could race optimistic saves of the same record.
+const noteWrites = new Map<string, NoteWrite>();
 
 function NoteEditor({
   projectId,
   note,
   saved,
+  initialFields,
   onSaved,
 }: {
   projectId: string;
-  note: Omit<LexicalNote, 'id' | 'version' | 'createdAt' | 'updatedAt' | 'history' | 'fields'>;
+  note: NoteInput;
   saved?: LexicalNote;
+  initialFields?: LexicalNoteFields;
   onSaved: (record: LexicalNote) => void;
 }) {
   const key =
@@ -55,41 +86,49 @@ function NoteEditor({
     } catch {
       /* Persisted service notes remain authoritative when the buffer is unavailable. */
     }
-    return saved?.fields ?? { ...emptyFields };
+    return noteWrites.get(key)?.latest ?? saved?.fields ?? initialFields ?? { ...emptyFields };
   });
   const [status, setStatus] = useState('');
-  const version = useRef(saved?.version ?? 0);
-  const latest = useRef(fields);
-  const persisted = useRef(JSON.stringify(saved?.fields ?? emptyFields));
-  const saving = useRef(Promise.resolve());
+  const write = useRef<NoteWrite>(
+    noteWrites.get(key) ?? {
+      version: saved?.version ?? 0,
+      latest: fields,
+      persisted: JSON.stringify(saved?.fields ?? initialFields ?? emptyFields),
+      saving: null,
+      note,
+      owners: 0,
+    },
+  ).current;
+  noteWrites.set(key, write);
+  write.note = note;
   const callback = useRef(onSaved);
   callback.current = onSaved;
   const alive = useRef(true);
   const save = useRef(() => Promise.resolve());
   useEffect(() => {
-    if (saved && saved.version > version.current) {
-      version.current = saved.version;
-      persisted.current = JSON.stringify(saved.fields);
+    if (saved && saved.version > write.version) {
+      write.version = saved.version;
+      write.persisted = JSON.stringify(saved.fields);
     }
   }, [saved]);
   save.current = () => {
-    const snapshot = latest.current;
-    const serialized = JSON.stringify(snapshot);
-    if (serialized === persisted.current) return saving.current;
-    if (alive.current) setStatus('Salvando notas…');
-    const operation = saving.current
-      .catch(() => {})
-      .then(async () => {
-        if (serialized === persisted.current) return;
+    if (write.saving) return write.saving;
+    const operation = (async () => {
+      // A flush waits for edits typed during an earlier write too. Concurrent
+      // autosave, unmount and prompt requests share this single draining write.
+      while (JSON.stringify(write.latest) !== write.persisted) {
+        const snapshot = write.latest;
+        const serialized = JSON.stringify(snapshot);
+        if (alive.current) setStatus('Salvando notas…');
         try {
           const result = await invoke<LexicalNote>('lexical_notes_save', {
             projectId,
-            note: { ...note, fields: snapshot },
-            expectedVersion: version.current,
+            note: { ...write.note, fields: snapshot },
+            expectedVersion: write.version,
           });
-          version.current = result.version;
-          persisted.current = serialized;
-          if (JSON.stringify(latest.current) === serialized) {
+          write.version = result.version;
+          write.persisted = serialized;
+          if (JSON.stringify(write.latest) === serialized) {
             try {
               if (localStorage.getItem(key) === serialized) localStorage.removeItem(key);
             } catch {
@@ -97,32 +136,49 @@ function NoteEditor({
             }
           }
           callback.current(result);
+          notifyLexicalNotesChanged(projectId);
           if (alive.current) setStatus('Notas salvas neste dispositivo.');
         } catch (error) {
           if (alive.current) setStatus(String(error));
+          throw error;
         }
-      });
-    saving.current = operation;
+      }
+    })();
+    write.saving = operation;
+    const settled = () => {
+      if (write.saving === operation) write.saving = null;
+      if (
+        !write.owners &&
+        JSON.stringify(write.latest) === write.persisted &&
+        noteWrites.get(key) === write
+      )
+        noteWrites.delete(key);
+    };
+    void operation.then(settled, settled);
     return operation;
   };
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void save.current();
+      void save.current().catch(() => {});
     }, 650);
     return () => window.clearTimeout(timer);
   }, [fields]);
   useEffect(() => {
     alive.current = true;
+    write.owners++;
+    const unregister = registerLexicalNoteSaver(projectId, () => save.current(), key);
     return () => {
       alive.current = false;
-      void save.current();
+      write.owners--;
+      unregister();
     };
-  }, []);
+  }, [projectId]);
   function update(field: keyof LexicalNoteFields, value: string) {
-    const next = { ...latest.current, [field]: value };
-    latest.current = next;
+    const next = { ...write.latest, [field]: value };
+    write.latest = next;
     setFields(next);
     setStatus('Alteração pendente…');
+    notifyLexicalNotesChanged(projectId);
     try {
       localStorage.setItem(key, JSON.stringify(next));
     } catch {
@@ -170,13 +226,231 @@ function NoteEditor({
         <button
           type="button"
           onClick={() => {
-            void save.current();
+            void save.current().catch(() => {});
           }}
         >
           Salvar notas
         </button>
       </div>
     </div>
+  );
+}
+
+function DefinitionEditor({
+  entry,
+  occurrence,
+  ...props
+}: PassageLexiconProps & {
+  entry: ActiveLexicalEntry;
+  occurrence: LexicalOccurrence;
+}) {
+  const target = entry.sharedDefinitionTarget;
+  const [scope, setScope] = useState<'occurrence' | 'general'>('occurrence');
+  const [definition, setDefinition] = useState(occurrenceDefinition(entry, occurrence));
+  const [dictionarySelection, setDictionarySelection] = useState<DictionaryMeaningSelection | null>(
+    null,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const identity = JSON.stringify([
+    props.projectId,
+    props.passageId,
+    props.revisionId,
+    props.engineFingerprint,
+    props.raw,
+    entry.id,
+    occurrence.id,
+  ]);
+  const live = useRef(identity);
+  live.current = identity;
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const canEditHere = occurrence.editable === true && !!props.onEdit;
+  const canEditGeneral = !!target && !!props.onPreview;
+  async function save(action: 'set' | 'inherit') {
+    const requestIdentity = identity;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    const dictionaryIdentity =
+      action === 'set' && dictionarySelection
+        ? {
+            dictionarySelection: {
+              entryIndex: dictionarySelection.entryIndex,
+              datasetFingerprint: dictionarySelection.datasetFingerprint,
+            },
+          }
+        : {};
+    try {
+      if (scope === 'general') {
+        if (!target || !props.onPreview) return;
+        const preview = await invoke<SourcePreview>('lexicon_update', {
+          name: target.name,
+          definition,
+          scope: target.scope,
+          preserveGrammar: true,
+          ...dictionaryIdentity,
+          passageId: props.passageId,
+          sourceId: props.sourceId,
+          revisionId: props.revisionId,
+          engineFingerprint: props.engineFingerprint,
+        });
+        if (!alive.current || live.current !== requestIdentity) return;
+        props.onPreview(preview);
+      } else {
+        const result = await invoke<{ raw: string; revisionId: string; engineFingerprint: string }>(
+          'node_definition',
+          {
+            projectId: props.projectId,
+            passageId: props.passageId,
+            sourceId: props.sourceId,
+            revisionId: props.revisionId,
+            engineFingerprint: props.engineFingerprint,
+            raw: props.raw,
+            sourceNodeId: occurrence.sourceNodeId,
+            definition,
+            action,
+            ...dictionaryIdentity,
+          },
+        );
+        if (!alive.current || live.current !== requestIdentity) return;
+        if (
+          result.revisionId !== props.revisionId ||
+          result.engineFingerprint !== props.engineFingerprint
+        )
+          throw new Error('A análise mudou. Reabra o significado desta etapa.');
+        if (props.onEdit?.(result.raw, props.revisionId) === false)
+          throw new Error('O rascunho mudou. O significado não foi aplicado.');
+        setNotice(
+          action === 'inherit'
+            ? 'Significado herdado restaurado no rascunho.'
+            : 'Significado alterado no rascunho.',
+        );
+      }
+    } catch (reason) {
+      if (alive.current && live.current === requestIdentity) setError(String(reason));
+    } finally {
+      if (alive.current && live.current === requestIdentity) setBusy(false);
+    }
+  }
+  return (
+    <details className="lexical-definition-editor">
+      <summary>Editar significado</summary>
+      <label>
+        Alcance do significado
+        <select
+          aria-label="Alcance do significado"
+          value={scope}
+          disabled={busy || props.disabled}
+          onChange={(event) => {
+            const next = event.target.value as typeof scope;
+            setScope(next);
+            setDictionarySelection(null);
+            setDefinition(
+              next === 'general' ? entry.definition : occurrenceDefinition(entry, occurrence),
+            );
+            setError('');
+            setNotice('');
+          }}
+        >
+          <option value="occurrence">Nesta ocorrência</option>
+          <option value="general" disabled={!canEditGeneral}>
+            {target?.scope === 'source' ? 'Definição nesta fonte' : 'Definição compartilhada'}
+          </option>
+        </select>
+      </label>
+      <label>
+        Significado revisado
+        <textarea
+          aria-label="Significado revisado"
+          value={definition}
+          rows={4}
+          maxLength={50_000}
+          disabled={
+            busy || props.disabled || (scope === 'occurrence' ? !canEditHere : !canEditGeneral)
+          }
+          onChange={(event) => {
+            setDefinition(event.target.value);
+            setDictionarySelection(null);
+          }}
+        />
+      </label>
+      <DictionaryMeaningPicker
+        context={{
+          passageId: props.passageId,
+          sourceId: props.sourceId,
+          revisionId: props.revisionId,
+          engineFingerprint: props.engineFingerprint,
+        }}
+        contextKey={`${identity}:${scope}`}
+        initialQuery={occurrence.surface || entry.headword}
+        disabled={
+          busy || props.disabled || (scope === 'occurrence' ? !canEditHere : !canEditGeneral)
+        }
+        onSelect={(selection) => {
+          setDefinition(selection.definition);
+          setDictionarySelection(selection);
+          setError('');
+          setNotice('');
+        }}
+      />
+      {dictionarySelection && (
+        <p>
+          Definição selecionada: {dictionarySelection.headword}
+          {dictionarySelection.optionalNumber ? ` (${dictionarySelection.optionalNumber})` : ''} ·
+          Navarro.
+        </p>
+      )}
+      <p>
+        {scope === 'general'
+          ? target?.scope === 'source'
+            ? 'A revisão atualiza a definição reutilizada nesta fonte a partir desta passagem.'
+            : 'A revisão atualiza a definição usada pelas outras passagens do projeto.'
+          : canEditHere
+            ? 'Altera somente esta etapa da árvore no rascunho. Deixe vazio para registrar um significado ainda desconhecido.'
+            : !occurrence.direct
+              ? 'Esta dependência vem de uma definição reutilizada. Para mudar apenas seu uso aqui, abra e expanda a construção na árvore.'
+              : 'Esta etapa ainda não produz um predicado editável. Você pode registrar sua interpretação nas notas.'}
+      </p>
+      {!target && (
+        <p>
+          Ao salvar esta passagem pela revisão normal, uma construção com significado próprio pode
+          se tornar uma entrada reutilizável. Registre interpretações gerais nas notas abaixo.
+        </p>
+      )}
+      <div className="lexical-definition-actions">
+        <button
+          type="button"
+          disabled={
+            busy || props.disabled || (scope === 'occurrence' ? !canEditHere : !canEditGeneral)
+          }
+          onClick={() => void save('set')}
+        >
+          {busy
+            ? 'Conferindo…'
+            : scope === 'general'
+              ? 'Revisar definição geral'
+              : 'Usar significado no rascunho'}
+        </button>
+        {scope === 'occurrence' && occurrence.hasDefinitionOverride && (
+          <button
+            type="button"
+            disabled={busy || props.disabled || !canEditHere}
+            onClick={() => void save('inherit')}
+          >
+            Voltar ao significado herdado
+          </button>
+        )}
+      </div>
+      {error && <p role="alert">{error}</p>}
+      {notice && <p role="status">{notice}</p>}
+    </details>
   );
 }
 
@@ -264,35 +538,60 @@ export function PassageLexicon(props: PassageLexiconProps) {
     }
   }, [selectedNodeId, inventory]);
   const chosen =
-    inventory?.entries.find((entry) => entry.id === selection) ?? inventory?.entries[0];
+    inventory?.entries.find((entry) => entry.id === selection) ??
+    inventory?.entries.find((entry) => entry.id === inventory.occurrences[0]?.lexicalId) ??
+    inventory?.entries[0];
   const occurrences = inventory?.occurrences.filter((item) => item.lexicalId === chosen?.id) ?? [];
   const occurrence = occurrences.find((item) => item.id === occurrenceId) ?? occurrences[0];
-  const filtered =
-    inventory?.entries.filter((entry) =>
-      foldLexical(
-        entry.name + ' ' + entry.headword + ' ' + entry.definition + ' ' + entry.category,
-      ).includes(foldLexical(query)),
-    ) ?? [];
+  const filtered = lexicalOccurrenceRows(inventory, query);
   const summary = lexicalNoteSummary(records);
   const saved = records.find(
     (record) =>
       record.lexicalId === chosen?.id &&
       record.scope === scope &&
       (scope === 'entry' ||
-        (record.passageId === passageId && record.occurrenceId === occurrence?.id)),
+        (occurrence &&
+          matchesOccurrenceNote(
+            record,
+            occurrence,
+            passageId,
+            inventory?.expressionFingerprint ?? '',
+          ) &&
+          record.occurrenceId === occurrenceNoteId(occurrence))),
   );
+  const legacyNote =
+    !saved &&
+    scope === 'occurrence' &&
+    occurrence &&
+    records.find(
+      (record) =>
+        record.scope === 'occurrence' &&
+        record.lexicalId === chosen?.id &&
+        record.passageId === passageId &&
+        record.occurrenceId === occurrence.id &&
+        record.expressionFingerprint === inventory?.expressionFingerprint,
+    );
   const note =
     chosen && inventory && occurrence
       ? {
           scope,
           lexicalId: chosen.id,
-          lexicalName: chosen.name,
-          ...(scope === 'occurrence' ? { sourceId, passageId, occurrenceId: occurrence.id } : {}),
+          lexicalName: (chosen.lexicalName ?? chosen.name).slice(0, 500),
+          ...(scope === 'occurrence'
+            ? {
+                sourceId,
+                passageId,
+                occurrenceId: occurrenceNoteId(occurrence),
+                ...(occurrence.nodeFingerprint
+                  ? { nodeFingerprint: occurrence.nodeFingerprint }
+                  : {}),
+              }
+            : {}),
           revisionId,
           expressionFingerprint: inventory.expressionFingerprint,
           provenance: {
             entry: chosen.provenance,
-            definition: chosen.definition,
+            definition: occurrenceDefinition(chosen, occurrence),
             expression: chosen.expression,
             ...(scope === 'occurrence' ? { occurrence, engineFingerprint } : {}),
           },
@@ -325,14 +624,14 @@ export function PassageLexicon(props: PassageLexiconProps) {
         <div>
           <h3>Léxico desta passagem</h3>
           <p>
-            Variáveis, construções reutilizadas e seus elementos. Notas gerais e sentidos de cada
-            ocorrência ficam separados.
+            Cada etapa da árvore, da expressão inteira às suas peças. Revise significados e registre
+            notas nesta ocorrência ou sobre a construção em geral.
           </p>
         </div>
         <span>
           {inventory
-            ? `${inventory.entries.length} entradas · ${inventory.occurrences.length} usos`
-            : 'Lendo dependências…'}
+            ? `${inventory.occurrences.filter((item) => item.direct).length} etapas · ${inventory.occurrences.filter((item) => !item.direct).length} dependências`
+            : 'Lendo a árvore…'}
         </span>
       </div>
       {error && <p role="alert">{error}</p>}
@@ -348,45 +647,88 @@ export function PassageLexicon(props: PassageLexiconProps) {
         aria-label="Buscar no léxico desta passagem"
         type="search"
         value={query}
-        placeholder="Buscar variável, forma, significado ou classe…"
+        placeholder="Buscar forma, etapa, significado ou classe…"
         onChange={(event) => setQuery(event.target.value)}
       />
       {inventory && (
         <div className="lexical-workspace">
-          <div className="lexical-inventory" aria-label="Entradas usadas">
-            {filtered.map((entry) => (
+          <div className="lexical-inventory" aria-label="Etapas e dependências da árvore">
+            {filtered.map(({ entry, occurrence: item }) => (
               <button
-                key={entry.id}
+                key={item.id}
                 type="button"
-                aria-pressed={chosen?.id === entry.id}
-                onClick={() => choose(entry)}
+                aria-pressed={occurrence?.id === item.id}
+                className={item.direct ? 'lexical-tree-row' : 'lexical-dependency-row'}
+                style={{ paddingInlineStart: `${12 + Math.min(item.depth ?? 0, 6) * 10}px` }}
+                onClick={() => choose(entry, item)}
               >
                 <span>
-                  <code>{entry.name}</code>
-                  <small>{entry.headword || kinds[entry.kind]}</small>
+                  <strong>{item.surface || entry.headword || item.label || entry.name}</strong>
+                  <small>
+                    {item.isRoot
+                      ? 'Expressão inteira'
+                      : !item.direct
+                        ? `Dentro de ${item.via.join(' → ') || entry.name}`
+                        : kinds[entry.kind]}
+                  </small>
+                  {(item.expression || entry.name) !== (item.surface || entry.headword) && (
+                    <code>{item.expression || entry.name}</code>
+                  )}
                 </span>
-                <span>{entry.occurrenceIds.length}</span>
               </button>
             ))}
-            {!filtered.length && <p>Nenhuma entrada encontrada.</p>}
+            {!filtered.length && <p>Nenhuma etapa encontrada.</p>}
           </div>
           <div className="lexical-entry-detail">
             {chosen && occurrence && note ? (
               <>
                 <div className="lexical-entry-title">
                   <h4>
-                    <code>{chosen.name}</code>
+                    {occurrence.surface || chosen.headword || occurrence.label || chosen.name}
                   </h4>
                   <span>
-                    {kinds[chosen.kind]} · {chosen.category}
+                    {occurrence.isRoot ? 'Expressão inteira' : kinds[chosen.kind]}
+                    {chosen.category ? ` · ${chosen.category}` : ''}
                   </span>
                 </div>
-                <p className="lexical-engine-definition">
-                  {chosen.definition || 'Sem definição registrada no motor.'}
-                </p>
+                <div className="lexical-engine-definition">
+                  {occurrence.baseDefinition !== undefined && (
+                    <p>
+                      <strong>Significado da peça: </strong>
+                      {occurrence.baseDefinition || 'Não informado.'}
+                    </p>
+                  )}
+                  {occurrence.compositeDefinition !== undefined && (
+                    <p>
+                      <strong>Significado do conjunto: </strong>
+                      {occurrence.compositeDefinition || 'Não informado.'}
+                    </p>
+                  )}
+                  {occurrence.inheritedDefinition !== undefined && (
+                    <p>
+                      <strong>Definição herdada: </strong>
+                      {occurrence.inheritedDefinition || 'Não informada.'}
+                    </p>
+                  )}
+                  {occurrence.baseDefinition === undefined &&
+                    occurrence.compositeDefinition === undefined && (
+                      <p>
+                        {occurrenceDefinition(chosen, occurrence) ||
+                          'Sem significado próprio informado.'}
+                      </p>
+                    )}
+                </div>
+                {occurrence.evaluation && occurrence.evaluation.status !== 'ok' && (
+                  <p className="lexical-stage-note">
+                    {occurrence.evaluation.status === 'value'
+                      ? `Valor: ${occurrence.evaluation.value}`
+                      : occurrence.evaluation.message}
+                  </p>
+                )}
+                {chosen.lexicalStatus === 'hypothetical' && <p>Raiz hipotética · não atestada</p>}
                 <details>
-                  <summary>Definição e elementos no projeto</summary>
-                  <pre>{chosen.expression}</pre>
+                  <summary>Código e elementos no projeto</summary>
+                  <pre>{occurrence.expression ?? chosen.expression}</pre>
                   {chosen.elements.map((element) => (
                     <p key={element.name}>
                       <strong>{element.name}:</strong> <code>{element.code}</code>
@@ -403,24 +745,40 @@ export function PassageLexicon(props: PassageLexiconProps) {
                     </details>
                   )}
                   <small>
-                    {String(chosen.provenance.sourcePath ?? chosen.provenance.runtimeModule)}
+                    {String(chosen.provenance.sourcePath ?? chosen.provenance.runtimeModule ?? '')}
                     {chosen.provenance.line ? `:${chosen.provenance.line}` : ''}
                   </small>
                 </details>
+                {(props.onEdit || props.onPreview) && (
+                  <DefinitionEditor
+                    key={JSON.stringify([
+                      projectId,
+                      passageId,
+                      revisionId,
+                      engineFingerprint,
+                      chosen.id,
+                      occurrence.id,
+                    ])}
+                    {...props}
+                    entry={chosen}
+                    occurrence={occurrence}
+                  />
+                )}
+                <h5 className="lexical-notes-title">Anotações de leitura</h5>
                 <div className="lexical-note-scopes" aria-label="Escopo das notas">
                   <button
                     type="button"
                     aria-pressed={scope === 'occurrence'}
                     onClick={() => setScope('occurrence')}
                   >
-                    Nesta passagem
+                    Nesta ocorrência
                   </button>
                   <button
                     type="button"
                     aria-pressed={scope === 'entry'}
                     onClick={() => setScope('entry')}
                   >
-                    Sobre a entrada
+                    Sobre esta construção
                   </button>
                 </div>
                 {scope === 'occurrence' && (
@@ -440,7 +798,11 @@ export function PassageLexicon(props: PassageLexiconProps) {
                         {occurrences.map((item, index) => (
                           <option key={item.id} value={item.id}>
                             {index + 1} ·{' '}
-                            {item.via.length ? item.via.join(' → ') : 'Referência direta'}
+                            {item.isRoot
+                              ? 'Expressão inteira'
+                              : item.via.length
+                                ? item.via.join(' → ')
+                                : item.surface || item.label || 'Etapa da árvore'}
                             {item.binding ? ` · parâmetro ${item.binding.parameter}` : ''}
                           </option>
                         ))}
@@ -451,7 +813,7 @@ export function PassageLexicon(props: PassageLexiconProps) {
                         ? 'Dependência candidata em helper com fluxo de controle.'
                         : occurrence.via.length
                           ? `Expandida de ${occurrence.via.join(' → ')}.`
-                          : 'Referência escrita nesta expressão.'}{' '}
+                          : 'Etapa escrita nesta expressão.'}{' '}
                       {onSelectNode && (
                         <button
                           type="button"
@@ -475,6 +837,7 @@ export function PassageLexicon(props: PassageLexiconProps) {
                     projectId={projectId}
                     note={note}
                     saved={saved}
+                    initialFields={legacyNote ? legacyNote.fields : undefined}
                     onSaved={(record) => {
                       if (currentProject.current === projectId)
                         setRecords((previous) => [
@@ -487,8 +850,8 @@ export function PassageLexicon(props: PassageLexiconProps) {
                   <p>Carregando notas preservadas…</p>
                 )}
                 <small>
-                  Estas notas registram sua leitura. A definição do motor é editada no catálogo do
-                  projeto.
+                  As notas preservam sua interpretação e acompanham a assistência de IA. Para
+                  alterar o significado da análise, use “Editar significado”.
                 </small>
               </>
             ) : (
@@ -550,7 +913,9 @@ export function PassageLexicon(props: PassageLexiconProps) {
                 {record.sourceId} {record.passageId} · {record.updatedAt}
               </small>
               {record.scope === 'occurrence' &&
-                record.expressionFingerprint !== inventory?.expressionFingerprint && (
+                !inventory?.occurrences.some((item) =>
+                  matchesOccurrenceNote(record, item, passageId, inventory.expressionFingerprint),
+                ) && (
                   <p>Nota de outra expressão ou revisão, preservada sem associação automática.</p>
                 )}
               <details>

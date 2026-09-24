@@ -347,6 +347,7 @@ export function AuthoringEditor({
 }
 
 interface LexicalEntry {
+  lexicalStatus?: 'hypothetical';
   parameters?: { name: string; default?: unknown; required?: boolean; kind?: string }[];
   authoring?: { root: AuthorNode | null };
   template?: { root: AuthorNode | null };
@@ -535,6 +536,7 @@ export function LexiconPanel({
                 <span className="tag">{mode === 'dictionary' ? 'Navarro' : entry.kind}</span>
               </div>
               <p>{entry.definition}</p>
+              {entry.lexicalStatus === 'hypothetical' && <p>Raiz hipotética · não atestada</p>}
               <small>{entry.citation ?? entry.runtimeType ?? entry.category}</small>
               {entry.expression && <code>{entry.expression}</code>}
               {entry.uses && <small>Usos nas passagens: {entry.uses.join(', ') || 'nenhum'}</small>}

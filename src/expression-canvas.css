@@ -46,7 +46,9 @@
   pointer-events: none;
 }
 .canvas-toolbar .canvas-manual-piece {
-  font-size: 11px;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 13px;
 }
 .canvas-piece-search .rendered-lookup > input:focus {
   outline: 2px solid var(--tree-accent);

@@ -18,6 +18,8 @@ import { track } from '../domain/usage';
 import { operationTerm, treeOperationTerm } from '../domain/operation-terms';
 import '../tree-scope-editor.css';
 import { LexicalInput } from './LexicalInput';
+import { OperationPreview } from './OperationPreview';
+import { definitionBody } from '../domain/expression-tree';
 
 export interface TreeScopeEditorProps {
   node: RuntimeNode;
@@ -26,6 +28,7 @@ export interface TreeScopeEditorProps {
   revisionId?: string;
   passageId?: string;
   sourceId?: string;
+  engineFingerprint?: string;
   onChangeRaw?: (raw: string) => void;
   onSelectScope: (id: string) => void;
   selectedScopeId?: string;
@@ -42,6 +45,7 @@ export function TreeScopeEditor({
   revisionId,
   passageId,
   sourceId,
+  engineFingerprint,
   onChangeRaw,
   onSelectScope,
   selectedScopeId,
@@ -49,39 +53,53 @@ export function TreeScopeEditor({
 }: TreeScopeEditorProps) {
   const scopes = editableRuntimeScopes(node, authoringRoot, raw);
   const scope = scopes.find((item) => item.id === selectedScopeId) ?? scopes[0];
+  const operationScope = scope ? definitionBody(scope) : undefined;
   const [replacement, setReplacement] = useState(scope?.code ?? '');
   const [operation, setOperation] = useState('*');
   const [argument, setArgument] = useState('');
   const [argumentSide, setArgumentSide] = useState<'left' | 'right'>('right');
-  const [replacementOperator, setReplacementOperator] = useState(scope?.operator ?? '*');
+  const [replacementOperator, setReplacementOperator] = useState(operationScope?.operator ?? '*');
   const [error, setError] = useState('');
   const [lookup, setLookup] = useState('');
   const [expansion, setExpansion] = useState<{ name: string; code: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const identity = `${passageId}:${revisionId}:${scope?.id}:${scope?.code}`;
+  const [modifyOpen, setModifyOpen] = useState(false);
+  const [reuseOpen, setReuseOpen] = useState(false);
+  const [replacementOpen, setReplacementOpen] = useState(operationScope?.kind === 'literal');
+  const identity = JSON.stringify([
+    passageId,
+    sourceId,
+    revisionId,
+    engineFingerprint,
+    scope?.id,
+    scope?.code,
+  ]);
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
   useEffect(() => {
     setReplacement(scope?.code ?? '');
-    setReplacementOperator(scope?.operator ?? '*');
+    setReplacementOperator(operationScope?.operator ?? '*');
     setExpansion(null);
     setError('');
     setBusy(false);
     setLookup('');
     setArgument('');
-  }, [identity, scope?.code, scope?.operator]);
+    setModifyOpen(false);
+    setReuseOpen(false);
+    setReplacementOpen(operationScope?.kind === 'literal');
+  }, [identity, scope?.code, operationScope?.operator, operationScope?.kind]);
 
-  if (!scope)
+  if (!scope || !operationScope)
     return (
       <p className="runtime-edit-unmapped">
         Aguardando a árvore desta revisão para editar esta parte. O rascunho permanece salvo.
       </p>
     );
 
-  function apply(value: string, action = 'tree.replace') {
-    if (!scope || !onChangeRaw) return;
+  function apply(value: string, action = 'tree.replace', target = scope) {
+    if (!scope || !target || !onChangeRaw) return;
     try {
-      onChangeRaw(replaceRuntimeScope(raw, scope, value));
+      onChangeRaw(replaceRuntimeScope(raw, target, value));
       onSelectScope(scope.id);
       track('editor.operation', { action });
       setArgument('');
@@ -91,8 +109,34 @@ export function TreeScopeEditor({
     }
   }
 
+  function preview(value: string, action: string, target = scope) {
+    if (!target || !onChangeRaw) return null;
+    // Evaluate the exact complete expression that confirmation will put in the draft.
+    let proposedRaw = '';
+    try {
+      if (value.trim()) proposedRaw = replaceRuntimeScope(raw, target, value);
+    } catch (reason) {
+      return <p role="alert">{(reason as Error).message}</p>;
+    }
+    return (
+      <>
+        {proposedRaw && (
+          <small className="runtime-edit-hint">Forma da peça inteira após esta alteração.</small>
+        )}
+        <OperationPreview
+          raw={proposedRaw}
+          passageId={passageId}
+          sourceId={sourceId}
+          revisionId={revisionId}
+          engineFingerprint={engineFingerprint}
+          contextKey={`${identity}:${action}:${target.id}`}
+        />
+      </>
+    );
+  }
+
   async function inspectExpansion() {
-    if (!scope || !passageId) return;
+    if (!operationScope || !passageId) return;
     const requestedIdentity = currentIdentity.current;
     setBusy(true);
     setError('');
@@ -100,11 +144,13 @@ export function TreeScopeEditor({
       const result = await invoke<{ safeOccurrenceExpansion?: string | null }>('lexicon_inspect', {
         passageId,
         sourceId,
-        name: scope.code,
+        revisionId,
+        engineFingerprint,
+        name: operationScope.code,
       });
       if (requestedIdentity !== currentIdentity.current) return;
       if (result.safeOccurrenceExpansion)
-        setExpansion({ name: scope.code, code: result.safeOccurrenceExpansion });
+        setExpansion({ name: operationScope.code, code: result.safeOccurrenceExpansion });
       else
         setError(
           'Esta definição depende do contexto ou de parâmetros. Inspecione-a no Léxico antes de substituir a referência.',
@@ -123,12 +169,12 @@ export function TreeScopeEditor({
     !needsArgument || argument.trim()
       ? addTreeOperation(scope.code, operation, argument, argumentSide)
       : '';
-  const binaryChildren = binaryTreeChildren(scope);
+  const binaryChildren = binaryTreeChildren(operationScope);
   const selectedTerm = operationTerm({
-    kind: scope.kind,
-    operator: scope.operator,
-    method: scope.method,
-    label: scope.label,
+    kind: operationScope.kind,
+    operator: operationScope.operator,
+    method: operationScope.method,
+    label: operationScope.label,
     runtimeType:
       typeof node.attributes.runtimeType === 'string' ? node.attributes.runtimeType : undefined,
     dispatch: typeof node.attributes.dispatch === 'string' ? node.attributes.dispatch : undefined,
@@ -138,13 +184,14 @@ export function TreeScopeEditor({
         : undefined,
   });
   const newOperationTerm = treeOperationTerm(operation);
-  const removable = scope.children.find(
+  const removable = operationScope.children.find(
     (child) => child.slot === 'receiver' || child.slot === 'operand',
   );
   return (
     <div className="tree-scope-editor">
       <span className="tree-scope-caption">
-        Parte selecionada · {scope.kind === 'reference' ? 'referência' : selectedTerm.label}
+        Parte selecionada ·{' '}
+        {operationScope.kind === 'reference' ? 'referência' : selectedTerm.label}
       </span>
       <code className="runtime-source-preview tree-current-expression">{scope.code}</code>
       <fieldset className="tree-composer" disabled={!onChangeRaw}>
@@ -201,6 +248,7 @@ export function TreeScopeEditor({
             <code>{operationPreview}</code>
           </output>
         )}
+        {preview(operationPreview, 'add-operation')}
         <button
           className="tree-apply-operation"
           onClick={() => apply(operationPreview, 'tree.add-operation')}
@@ -211,7 +259,11 @@ export function TreeScopeEditor({
       </fieldset>
 
       {(binaryChildren || removable) && (
-        <details className="tree-modify-operation">
+        <details
+          className="tree-modify-operation"
+          open={modifyOpen}
+          onToggle={(event) => setModifyOpen(event.currentTarget.open)}
+        >
           <summary>Modificar ou retirar esta operação</summary>
           {binaryChildren ? (
             <>
@@ -234,16 +286,27 @@ export function TreeScopeEditor({
               <p className="tree-operation-help">
                 {treeOperationTerm(replacementOperator).description}
               </p>
-              {replacementOperator !== scope.operator && (
+              {replacementOperator !== operationScope.operator && (
                 <code className="runtime-source-preview">
-                  {changeTreeOperator(scope, replacementOperator)}
+                  {changeTreeOperator(operationScope, replacementOperator)}
                 </code>
               )}
+              {modifyOpen &&
+                replacementOperator !== operationScope.operator &&
+                preview(
+                  changeTreeOperator(operationScope, replacementOperator),
+                  'change-operator',
+                  operationScope,
+                )}
               <div className="tree-scope-actions">
                 <button
-                  disabled={!onChangeRaw || replacementOperator === scope.operator}
+                  disabled={!onChangeRaw || replacementOperator === operationScope.operator}
                   onClick={() =>
-                    apply(changeTreeOperator(scope, replacementOperator), 'tree.change-operator')
+                    apply(
+                      changeTreeOperator(operationScope, replacementOperator),
+                      'tree.change-operator',
+                      operationScope,
+                    )
                   }
                 >
                   Trocar operador
@@ -251,7 +314,11 @@ export function TreeScopeEditor({
                 <button
                   disabled={!onChangeRaw}
                   onClick={() =>
-                    apply(changeTreeOperator(scope, scope.operator!, true), 'tree.swap-operands')
+                    apply(
+                      changeTreeOperator(operationScope, operationScope.operator!, true),
+                      'tree.swap-operands',
+                      operationScope,
+                    )
                   }
                 >
                   Inverter lados
@@ -261,7 +328,7 @@ export function TreeScopeEditor({
               <button
                 className="tree-keep-child"
                 disabled={!onChangeRaw}
-                onClick={() => apply(binaryChildren.left.code, 'tree.keep-left')}
+                onClick={() => apply(binaryChildren.left.code, 'tree.keep-left', operationScope)}
               >
                 <span>Manter lado esquerdo</span>
                 <code>{compact(binaryChildren.left.code)}</code>
@@ -269,7 +336,7 @@ export function TreeScopeEditor({
               <button
                 className="tree-keep-child"
                 disabled={!onChangeRaw}
-                onClick={() => apply(binaryChildren.right.code, 'tree.keep-right')}
+                onClick={() => apply(binaryChildren.right.code, 'tree.keep-right', operationScope)}
               >
                 <span>Manter lado direito</span>
                 <code>{compact(binaryChildren.right.code)}</code>
@@ -281,7 +348,9 @@ export function TreeScopeEditor({
                 <code className="runtime-source-preview">{removable.node.code}</code>
                 <button
                   disabled={!onChangeRaw}
-                  onClick={() => apply(removable.node.code, 'tree.remove-operation')}
+                  onClick={() =>
+                    apply(removable.node.code, 'tree.remove-operation', operationScope)
+                  }
                 >
                   Retirar esta operação
                 </button>
@@ -291,7 +360,11 @@ export function TreeScopeEditor({
         </details>
       )}
 
-      <details className="tree-lexical-insert">
+      <details
+        className="tree-lexical-insert"
+        open={reuseOpen}
+        onToggle={(event) => setReuseOpen(event.currentTarget.open)}
+      >
         <summary>Reutilizar palavra ou trecho</summary>
         <LexicalInput
           label="Buscar léxico na árvore"
@@ -302,6 +375,7 @@ export function TreeScopeEditor({
           contextKey={identity}
           disabled={!onChangeRaw}
         />
+        {reuseOpen && lookup.trim() && preview(lookup, 'reuse-expression')}
         <div className="tree-scope-actions">
           <button
             onClick={() => setArgument(lookup)}
@@ -314,10 +388,10 @@ export function TreeScopeEditor({
           </button>
         </div>
       </details>
-      {scope.kind === 'reference' && (
+      {operationScope.kind === 'reference' && (
         <div className="tree-scope-actions">
           {onInspectLexeme && (
-            <button onClick={() => onInspectLexeme(scope.code)}>Ver no Léxico</button>
+            <button onClick={() => onInspectLexeme(operationScope.code)}>Ver no Léxico</button>
           )}
           <button
             onClick={() => void inspectExpansion()}
@@ -334,16 +408,21 @@ export function TreeScopeEditor({
             estrutura; a definição compartilhada permanece no léxico.
           </p>
           <code className="runtime-source-preview">{expansion.code}</code>
+          {preview(expansion.code, 'expand-occurrence', operationScope)}
           <button
             disabled={!onChangeRaw}
-            onClick={() => apply(expansion.code, 'tree.expand-occurrence')}
+            onClick={() => apply(expansion.code, 'tree.expand-occurrence', operationScope)}
           >
             Expandir somente esta ocorrência
           </button>
           <button onClick={() => setExpansion(null)}>Cancelar cópia</button>
         </div>
       )}
-      <details className="tree-raw-replacement" open={scope.kind === 'literal'}>
+      <details
+        className="tree-raw-replacement"
+        open={replacementOpen}
+        onToggle={(event) => setReplacementOpen(event.currentTarget.open)}
+      >
         <summary>Substituir por expressão ou valor</summary>
         <textarea
           aria-label="Expressão da parte na árvore"
@@ -352,6 +431,10 @@ export function TreeScopeEditor({
           onChange={(event) => setReplacement(event.target.value)}
           spellCheck={false}
         />
+        {replacementOpen &&
+          replacement.trim() &&
+          replacement !== scope.code &&
+          preview(replacement, 'replace-expression')}
         <button
           onClick={() => apply(replacement)}
           disabled={!onChangeRaw || !replacement.trim() || replacement === scope.code}

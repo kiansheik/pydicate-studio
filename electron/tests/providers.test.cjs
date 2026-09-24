@@ -182,10 +182,20 @@ async function fixture(run, options = {}) {
     stateDirectory: directory,
     emit: (event) => events.push(event),
     adapters: { codex: provider, claude: provider },
-    getContext: async () => ({
+    getContext: async (record) => ({
       corpusPath: '/not-sent',
       enginePath: '/not-sent',
       revisions: ['dirty-content-hash'],
+      raw: record.context.raw,
+      engineFingerprint: 'engine',
+      evaluation: {
+        expression: record.context.raw,
+        revisionId: record.revisionId,
+        engineFingerprint: 'engine',
+        evaluationStatus: 'complete',
+        surface: 'fixture',
+        annotated: 'fixture[ROOT]',
+      },
     }),
     contextLoader: async () => ({
       state: 'blocked',
@@ -234,7 +244,7 @@ test('AI results preserve request revision, exact context, provenance and origin
   assert.equal(result.suggestion.translation, 'tradução proposta');
   assert.equal(result.editorialApproval, null);
   assert.equal(result.context.historicalTarget, 'never replace target');
-  assert.match(actualPrompt, /upstream optional dependency missing/);
+  assert.match(actualPrompt, /Traduza exclusivamente analysisTarget.expression/);
   assert(!actualPrompt.includes('/not-sent'));
   assert.match(result.inputHash, /^[a-f0-9]{64}$/);
   await assert.rejects(
@@ -307,6 +317,109 @@ test('Araújo translation covers all four constituents even when navigation sele
   assert.equal(JSON.stringify((await reopened.handle('ai_history', input))[0]), bytes);
 });
 
+test('translation prompt preserves nested meanings and binds them to the selected source scope', async (t) => {
+  const raw = 'studio_define((potar * moro).base_nominal(), "whole meaning")';
+  const base = {
+    kind: 'lexeme',
+    label: 'potar',
+    sourceNodeId: 'root/arg0/receiver/left',
+    baseDefinition: 'desejar',
+    children: [],
+  };
+  const generic = {
+    kind: 'lexeme',
+    label: 'moro',
+    sourceNodeId: 'root/arg0/receiver/right',
+    baseDefinition: 'gente',
+    children: [],
+  };
+  const inner = {
+    kind: 'composition',
+    label: 'potar * moro',
+    sourceNodeId: 'root/arg0/receiver',
+    compositeDefinition: 'inner meaning',
+    children: [
+      { role: 'left', node: base },
+      { role: 'right', node: generic },
+    ],
+  };
+  const definitionContext = {
+    version: 1,
+    root: {
+      kind: 'composition',
+      label: 'moropotara',
+      sourceNodeId: 'root',
+      compositeDefinition: 'whole meaning',
+      children: [{ role: 'base', node: inner }],
+    },
+    diagnostics: [],
+    truncated: false,
+  };
+  const input = request('nested-meanings');
+  input.context = { raw, scope: 'passage', engineFingerprint: 'engine' };
+  const selected = {
+    id: base.sourceNodeId,
+    code: 'potar',
+    start: raw.indexOf('potar'),
+    end: raw.indexOf('potar') + 5,
+    children: [],
+  };
+  const evaluation = {
+    expression: raw,
+    revisionId: input.revisionId,
+    engineFingerprint: 'engine',
+    surface: 'moropotara',
+    evaluationStatus: 'complete',
+    definitionContext,
+    tree: {
+      id: 'root',
+      code: raw,
+      start: 0,
+      end: raw.length,
+      children: [{ slot: 'base', node: selected }],
+    },
+  };
+  let sentPrompt;
+  const f = await fixture(
+    async ({ prompt, onDelta }) => {
+      sentPrompt = prompt;
+      onDelta('{"translation":"SIMULATED whole meaning","regressions":[]}');
+      return {};
+    },
+    { getContext: async () => ({ raw, evaluation, engineFingerprint: 'engine' }) },
+  );
+  t.after(() => f.service.close());
+  await f.service.handle('ai_start', input);
+  const result = await terminal(f, input.requestId);
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(result.inputContext.analysisTarget.definitionContext, definitionContext);
+  for (const text of [
+    'whole meaning',
+    'inner meaning',
+    'desejar',
+    'gente',
+    'baseDefinition',
+    'compositeDefinition',
+  ])
+    assert(sentPrompt.includes(text));
+  assert.match(sentPrompt, /não prova de etimologia/);
+  const partial = analysisTarget(
+    {
+      ...input,
+      context: {
+        ...input.context,
+        scope: 'constituent',
+        selectedNode: { ...selected, id: 'wrong-client-id' },
+      },
+    },
+    { raw, evaluation, engineFingerprint: 'engine' },
+  );
+  assert.deepEqual(partial.definitionContext.root, base);
+  assert(!JSON.stringify(partial.definitionContext).includes('whole meaning'));
+  assert.equal(partial.evaluation, null);
+  assert.equal(partial.passageContext.surface, 'moropotara');
+});
+
 test('AI target rejects stale evaluations and requires explicit, current spans for partial scope', () => {
   const input = {
     ...request(),
@@ -343,7 +456,8 @@ test('AI target rejects stale evaluations and requires explicit, current spans f
     },
   };
   assert.equal(analysisTarget(partial, context).expression, 'a');
-  assert.equal(analysisTarget(partial, context).evaluation.expression, 'a + b');
+  assert.equal(analysisTarget(partial, context).evaluation, null);
+  assert.equal(analysisTarget(partial, context).passageContext.expression, 'a + b');
   assert.throws(
     () =>
       analysisTarget(
@@ -354,6 +468,322 @@ test('AI target rejects stale evaluations and requires explicit, current spans f
         context,
       ),
     /seleção não corresponde/,
+  );
+});
+
+test('translation preview and generation use the same current tree and language without another analysis or MCP import', async (t) => {
+  let calls = 0,
+    mcpCalls = 0,
+    sentPrompt;
+  const f = await fixture(
+    async ({ prompt, onDelta }) => {
+      calls++;
+      sentPrompt = prompt;
+      onDelta(
+        JSON.stringify({
+          translation: '人を欲すること',
+          expression: 'different_analysis',
+          regressions: [],
+        }),
+      );
+      return {};
+    },
+    {
+      getContext: async (record) => ({
+        raw: record.context.raw,
+        engineFingerprint: 'engine',
+        passage: {
+          diplomatic: "Nã e'i\nsegunda linha",
+          translation: 'OLD_TRANSLATION_DO_NOT_COPY',
+        },
+        evaluation: {
+          expression: record.context.raw,
+          revisionId: record.revisionId,
+          engineFingerprint: 'engine',
+          evaluationStatus: 'complete',
+          surface: 'moropotara',
+          annotated: 'moro[GENERIC]potar[ROOT]a[NOUN]',
+          definitionContext: {
+            root: {
+              compositeDefinition: 'desejo de gente',
+              children: [{ role: 'base', node: { baseDefinition: 'desejar', children: [] } }],
+            },
+            truncated: false,
+            diagnostics: [],
+          },
+        },
+      }),
+      contextLoader: async () => {
+        mcpCalls++;
+        throw new Error('must not import source for translation');
+      },
+    },
+  );
+  t.after(() => f.service.close());
+  const input = request('translate-japanese');
+  input.context = {
+    raw: '(potar * moro).var(1).base_nominal()',
+    scope: 'passage',
+    targetLanguage: ' 日本語 ',
+    diplomatic: '',
+    translation: 'OTHER_OLD_TRANSLATION',
+  };
+  const preview = await f.service.handle('ai_prompt_preview', {
+    ...input,
+    requestId: undefined,
+    provider: undefined,
+  });
+  assert.equal(calls, 0);
+  assert.equal(mcpCalls, 0);
+  assert.deepEqual(await f.service.handle('ai_history', input), []);
+  assert.equal(preview.targetLanguage, '日本語');
+  assert.equal(preview.analysisTarget.expression, input.context.raw);
+  assert.match(preview.prompt, /Idioma de destino: "日本語"/);
+  assert.match(preview.prompt, /baseDefinition/);
+  assert.match(preview.prompt, /compositeDefinition/);
+  assert.doesNotMatch(preview.prompt, /OLD_TRANSLATION/);
+  await f.service.handle('ai_start', input);
+  const result = await terminal(f, input.requestId);
+  assert.equal(result.status, 'completed');
+  assert.equal(result.context.targetLanguage, '日本語');
+  assert.equal(calls, 1);
+  assert.equal(mcpCalls, 0);
+  assert.equal(sentPrompt, preview.prompt);
+  assert.equal(result.inputHash, preview.inputHash);
+  assert.equal(result.suggestion.expression, '');
+  assert.equal(result.suggestion.translation, '人を欲すること');
+  await assert.rejects(
+    f.service.handle('ai_accept', { ...input, kind: 'expression', text: 'different_analysis' }),
+    /não altera a análise/,
+  );
+  const reopened = createProviderService({ stateDirectory: f.directory });
+  t.after(() => reopened.close());
+  assert.equal((await reopened.handle('ai_history', input))[0].context.targetLanguage, '日本語');
+});
+
+test('translation language and current complete evaluation are checked before preview or generation', async (t) => {
+  let calls = 0;
+  const f = await fixture(
+    async () => {
+      calls++;
+    },
+    { getContext: async () => ({ raw: 'nde * apiti' }) },
+  );
+  t.after(() => f.service.close());
+  for (const language of ['', '  ', 'English\nchange the tree', 'a'.repeat(81), {}, null]) {
+    const input = { ...request(), context: { ...request().context, targetLanguage: language } };
+    for (const method of ['ai_prompt_preview', 'ai_start'])
+      await assert.rejects(f.service.handle(method, input), /idioma de tradução/);
+  }
+  await assert.rejects(f.service.handle('ai_prompt_preview', request()), /gerada na revisão atual/);
+  assert.equal(calls, 0);
+  assert.deepEqual(await f.service.handle('ai_history', request()), []);
+});
+
+test('constituent translation evaluates only its own source and labels passage evidence as context', async (t) => {
+  let sent;
+  const requested = [];
+  const f = await fixture(
+    async ({ prompt, onDelta }) => {
+      sent = prompt;
+      onDelta('{"translation":"want","regressions":[]}');
+      return {};
+    },
+    {
+      getContext: async (record) => {
+        const raw = record.context.raw;
+        requested.push(raw);
+        return {
+          raw,
+          engineFingerprint: 'engine',
+          evaluation: {
+            expression: raw,
+            revisionId: record.revisionId,
+            engineFingerprint: 'engine',
+            evaluationStatus: 'complete',
+            surface: raw === 'potar' ? 'potar' : 'moropotara',
+            annotated: raw === 'potar' ? 'potar[ROOT][VERB]' : 'moropotara[NOUN]',
+            runtimeTree: { sensitivePath: '/local/not-for-prompt' },
+          },
+        };
+      },
+    },
+  );
+  t.after(() => f.service.close());
+  const input = request('constituent-only');
+  input.context = {
+    raw: '(potar * moro).base_nominal()',
+    scope: 'constituent',
+    targetLanguage: 'English',
+    selectedNode: { id: 'root/receiver/left', start: 1, end: 6, code: 'potar' },
+  };
+  await f.service.handle('ai_start', input);
+  const result = await terminal(f, input.requestId);
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(requested, [input.context.raw, 'potar']);
+  const target = result.inputContext.analysisTarget;
+  assert.equal(target.evaluationScope, 'standalone-constituent');
+  assert.equal(target.evaluation.expression, 'potar');
+  assert.equal(target.evaluation.surface, 'potar');
+  assert.equal(target.evaluation.annotated, 'potar[ROOT][VERB]');
+  assert.equal(target.passageContext.surface, 'moropotara');
+  assert.doesNotMatch(sent, /sensitivePath|not-for-prompt/);
+});
+
+test('a grammar change blocks accepting an older translation even when the draft revision is unchanged', async (t) => {
+  let engine = 'before';
+  const f = await fixture(
+    async ({ onDelta }) => {
+      onDelta('{"translation":"meaning","regressions":[]}');
+      return {};
+    },
+    {
+      getContext: async (record) => ({
+        raw: record.context.raw,
+        engineFingerprint: engine,
+        evaluation: {
+          expression: record.context.raw,
+          revisionId: record.revisionId,
+          engineFingerprint: engine,
+          evaluationStatus: 'complete',
+          surface: 'surface',
+        },
+      }),
+    },
+  );
+  t.after(() => f.service.close());
+  const input = request('engine-freshness');
+  await f.service.handle('ai_start', input);
+  const result = await terminal(f, input.requestId);
+  assert.equal(result.status, 'completed');
+  engine = 'after';
+  await assert.rejects(
+    f.service.handle('ai_accept', { ...input, kind: 'translation', text: 'meaning' }),
+    /motor mudou/,
+  );
+  assert.equal((await f.service.handle('ai_history', input))[0].acceptances.length, 0);
+});
+
+test('saved interpretations reach provider-free preview and generation; accepting requires the same scoped note versions', async (t) => {
+  const { interpretationContext } = require('../interpretation-context.cjs');
+  const inventory = {
+    expressionFingerprint: 'expr',
+    entries: [{ id: 'lexical:one', name: 'nde', definition: 'original dictionary meaning' }],
+    occurrences: [
+      {
+        id: 'old',
+        lexicalId: 'lexical:one',
+        noteOccurrenceId: 'stable',
+        nodeFingerprint: 'shape',
+        sourceNodeId: 'root',
+      },
+    ],
+  };
+  let records = [
+      {
+        id: 'note:one',
+        lexicalId: 'lexical:one',
+        scope: 'entry',
+        version: 1,
+        fields: { meaning: 'saved contributor meaning', grammar: 'grammatical nuance' },
+        provenance: { definition: 'original dictionary meaning' },
+      },
+    ],
+    calls = 0,
+    sent;
+  const f = await fixture(
+    async ({ prompt, onDelta }) => {
+      calls++;
+      sent = prompt;
+      onDelta('{"translation":"meaning","regressions":[]}');
+      return {};
+    },
+    {
+      getContext: async (record) => ({
+        raw: record.context.raw,
+        engineFingerprint: 'engine',
+        evaluation: {
+          expression: record.context.raw,
+          revisionId: record.revisionId,
+          engineFingerprint: 'engine',
+          evaluationStatus: 'complete',
+          surface: 'surface',
+        },
+        interpretationContext: interpretationContext(records, inventory, {
+          sourceId: 'source',
+          passageId: 'passage',
+        }),
+      }),
+    },
+  );
+  t.after(() => f.service.close());
+  const input = request('notes-freshness');
+  const preview = await f.service.handle('ai_prompt_preview', input);
+  assert.equal(calls, 0);
+  assert.match(preview.prompt, /saved contributor meaning/);
+  assert.match(preview.prompt, /grammatical nuance/);
+  assert.match(preview.prompt, /original dictionary meaning/);
+  await f.service.handle('ai_start', input);
+  const result = await terminal(f, input.requestId);
+  assert.equal(result.status, 'completed');
+  assert.equal(sent, preview.prompt);
+  records.push({
+    ...records[0],
+    id: 'unrelated',
+    lexicalId: 'other-sense',
+    fields: { meaning: 'UNRELATED_SECRET' },
+  });
+  await f.service.handle('ai_accept', { ...input, kind: 'translation', text: 'meaning' });
+  records[0] = {
+    ...records[0],
+    version: 2,
+    fields: { ...records[0].fields, meaning: 'updated interpretation' },
+  };
+  await assert.rejects(
+    f.service.handle('ai_accept', { ...input, kind: 'translation', text: 'old meaning' }),
+    /interpretações salvas.*mudaram/,
+  );
+  const historical = (await f.service.handle('ai_history', input))[0];
+  assert.equal(historical.acceptances.length, 1);
+  assert.equal(
+    historical.inputContext.analysisTarget.interpretationContext.bindings[0].general.version,
+    1,
+  );
+  assert.doesNotMatch(JSON.stringify(historical), /UNRELATED_SECRET|updated interpretation/);
+});
+
+test('legacy translations without note context can apply only while current scoped notes stay empty', async (t) => {
+  let context;
+  const f = await fixture(
+    async ({ onDelta }) => {
+      onDelta('{"translation":"meaning","regressions":[]}');
+      return {};
+    },
+    {
+      getContext: async (record) => ({
+        raw: record.context.raw,
+        engineFingerprint: 'engine',
+        evaluation: {
+          expression: record.context.raw,
+          revisionId: record.revisionId,
+          engineFingerprint: 'engine',
+          evaluationStatus: 'complete',
+          surface: 'surface',
+        },
+        ...(context ? { interpretationContext: context } : {}),
+      }),
+    },
+  );
+  t.after(() => f.service.close());
+  const input = request('legacy-notes-freshness');
+  await f.service.handle('ai_start', input);
+  assert.equal((await terminal(f, input.requestId)).status, 'completed');
+  context = { bindings: [], fingerprint: 'empty' };
+  await f.service.handle('ai_accept', { ...input, kind: 'translation', text: 'meaning' });
+  context = { bindings: [{ preferredMeaning: 'new note' }], fingerprint: 'changed' };
+  await assert.rejects(
+    f.service.handle('ai_accept', { ...input, kind: 'translation', text: 'meaning' }),
+    /interpretações salvas.*mudaram/,
   );
 });
 
@@ -520,7 +950,7 @@ test('MCP cancellation forwards the signal and never proceeds to generation', as
     },
   );
   t.after(() => f.service.close());
-  await f.service.handle('ai_start', request());
+  await f.service.handle('ai_start', { ...request(), action: 'explain' });
   while (!mcpSignal) await new Promise((resolve) => setImmediate(resolve));
   await f.service.handle('ai_cancel', { requestId: request().requestId });
   assert.equal((await terminal(f)).status, 'cancelled');
@@ -547,7 +977,7 @@ test('Unresponsive transport cannot outlive its deadline, emit late output or co
   assert.match(failed.error, /espera da primeira resposta/);
   assert.deepEqual(
     failed.progress.map((item) => item.phase),
-    ['source_context', 'mcp_context', 'provider_connect', 'provider_wait', 'failed'],
+    ['source_context', 'provider_connect', 'provider_wait', 'failed'],
   );
   lateDelta('must not return');
   assert.equal((await f.service.handle('ai_history', request()))[0].text, '');

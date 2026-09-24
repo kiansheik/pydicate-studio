@@ -23,6 +23,19 @@
   font-size: 11px;
   overflow-wrap: anywhere;
 }
+.assistant-provider-settings > :not(summary) {
+  margin-top: 10px;
+}
+.assistant-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.assistant-prompt {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px;
+}
 .assistant-config {
   display: grid;
   grid-template-columns: minmax(110px, 1fr) minmax(160px, 2fr);

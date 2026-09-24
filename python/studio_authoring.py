@@ -1,6 +1,7 @@
 """Concrete source spans and extensible expression cards; never a file pretty-printer."""
 from __future__ import annotations
 import ast
+import hashlib
 import io
 import json
 import re
@@ -8,6 +9,77 @@ import tokenize
 from pathlib import Path
 
 SLOT_PREFIX = '__studio_slot_'
+
+SOURCE_TEXT_FIELDS = {'diplomatic': 'diplomatic', 'target': 'normalized_target',
+                      'translation': 'translation', 'analysis': 'analysis', 'note': 'notes'}
+
+
+def validate_translations(value):
+    if not isinstance(value, dict) or any(key not in {'pt', 'en'} or not isinstance(text, str) or len(text) > 100000 for key, text in value.items()):
+        raise ValueError('Traduções precisam de campos pt/en com texto de até 100000 caracteres.')
+    return dict(value)
+
+
+def encode_source_text(directive, value, studio):
+    """One safe physical comment line, with an explicit, content-bound codec.
+
+    Unmarked source text is always literal, including quotes and backslashes.
+    The supported upstream @note keeps the extension portable as source text;
+    only Studio decodes it until the selected corpus parser supports this codec.
+    """
+    encodings = dict(studio['textEncoding']) if isinstance(studio.get('textEncoding'), dict) else {}
+    encodings.pop(directive, None)
+    encoded = value
+    multiline = any(character in value for character in '\n\r\v\f\x85\u2028\u2029')
+    if multiline or directive in SOURCE_TEXT_FIELDS and value != value.strip():
+        if directive not in SOURCE_TEXT_FIELDS:
+            raise ValueError(f'{directive}: informe um único localizador.')
+        encoded = json.dumps(value, ensure_ascii=False)
+        for character in ('\x85', '\u2028', '\u2029'):
+            encoded = encoded.replace(character, '\\u%04x' % ord(character))
+        encodings[directive] = {'format': 'json-string-v1',
+                                'sha256': hashlib.sha256(encoded.encode('utf-8')).hexdigest()}
+    if encodings: studio['textEncoding'] = encodings
+    else: studio.pop('textEncoding', None)
+    return encoded
+
+
+def decode_source_text(annotation):
+    """Decode only explicitly marked fields whose exact source bytes match."""
+    result = dict(annotation)
+    studio = None
+    for note in annotation.get('notes', ()):
+        if isinstance(note, str) and note.startswith('studio:v1 '):
+            try: value = json.loads(note[len('studio:v1 '):])
+            except ValueError: continue
+            if isinstance(value, dict): studio = value
+    encodings = (studio or {}).get('textEncoding')
+    if not isinstance(encodings, dict): return result
+    def decode(value, marker):
+        if not isinstance(value, str) or not isinstance(marker, dict) or marker.get('format') != 'json-string-v1': return value
+        if hashlib.sha256(value.encode('utf-8')).hexdigest() != marker.get('sha256'): return value
+        try: decoded = json.loads(value)
+        except ValueError: return value
+        return decoded if isinstance(decoded, str) else value
+    for directive, field in SOURCE_TEXT_FIELDS.items():
+        marker = encodings.get(directive)
+        if field == 'notes':
+            result[field] = tuple(decode(value, marker) for value in annotation.get(field, ()))
+        elif field in annotation: result[field] = decode(annotation[field], marker)
+    return result
+
+
+def source_directives(entry):
+    """Match upstream's adjacent directive block, including explicit clears."""
+    directives = []
+    for comment in reversed(entry.get('commentBlock', '').splitlines()):
+        if not comment.strip():
+            if directives: continue
+            break
+        directive = re.match(r'^\s*#\s*@([a-z][a-z0-9_-]*)\s*(.*?)\s*$', comment, re.IGNORECASE)
+        if not directive: break
+        directives.append((directive.group(1).lower(), directive.group(2)))
+    return list(reversed(directives))
 
 
 def is_slot(name):
@@ -194,6 +266,6 @@ def authoritative_metadata(corpus, path):
         module = importlib.util.module_from_spec(spec); sys.modules[spec.name] = module; spec.loader.exec_module(module)
         entries = module.source_entries(path, source_name=path.name.removesuffix('.tu.py'))
         annotations = module.waterfall_locator_annotations(entries, module.annotations_by_source_line(path, entries))
-        return {ordinal: dataclasses.asdict(annotations[entry.source_line]) for ordinal, entry in enumerate(entries, 1) if entry.source_line in annotations}
+        return {ordinal: decode_source_text(dataclasses.asdict(annotations[entry.source_line])) for ordinal, entry in enumerate(entries, 1) if entry.source_line in annotations}
     finally:
         sys.path[:] = previous

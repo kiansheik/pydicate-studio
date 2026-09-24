@@ -17,7 +17,7 @@ from parser_lab.index import LabIndex
 from parser_lab.normalization import PROFILE
 from parser_lab.projection import PROJECTION_VERSION
 
-STAGES = ('snapshot', 'fragments', 'retrieval', 'examples', 'splits', 'index')
+STAGES = ('snapshot', 'lexicon', 'fragments', 'retrieval', 'examples', 'splits', 'index')
 
 
 class Cancelled(RuntimeError):
@@ -52,6 +52,23 @@ def prepare(engine, store, profile, progress=None, cancelled=None):
     try:
         (writer.directory / 'profile.json').write_text(
             json.dumps(recipe, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+        from parser_lab.lexicon import build_lexicon
+        progress({'stage': 'lexicon', 'status': 'running'})
+        lexical_rows, lexical_report = build_lexicon(engine, progress, cancelled)
+        if cancelled():
+            raise Cancelled('Preparação cancelada.')
+        counts['lexicalEntries'] = write_jsonl(writer.path('lexicon.jsonl'), lexical_rows)
+        counts['dictionaryEntries'] = lexical_report['dictionaryEntries']
+        counts['dictionaryIndexedSenses'] = lexical_report['indexedSenses']
+        counts['dictionarySkippedSenses'] = lexical_report['skippedSenses']
+        writer.path('lexicon-report.json').write_text(
+            json.dumps(lexical_report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        writer.fields['lexicalSnapshot'].update(lexical_report)
+        writer.checkpoint({'stage': 'lexicon', 'counts': counts})
+        progress({'stage': 'lexicon', 'status': 'done', 'count': counts['lexicalEntries'],
+                  'indexedSenses': lexical_report['indexedSenses'],
+                  'skippedSenses': lexical_report['skippedSenses']})
 
         progress({'stage': 'fragments', 'status': 'running'})
         fragments = list(datasets.generate_fragments(engine, profile, progress, cancelled))

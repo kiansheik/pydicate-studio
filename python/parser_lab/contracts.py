@@ -10,7 +10,7 @@ CANDIDATE_SCHEMA = 1
 RESULT_SCHEMA = 1
 AST_SCHEMA = 1
 
-ROUTES = ('retrieval', 'composition', 'ranker', 'neural', 'agent')
+ROUTES = ('retrieval', 'composition', 'morphology', 'ranker', 'neural', 'agent')
 COMPLETENESS = ('complete', 'partial', 'unknown')
 
 REJECTIONS = {

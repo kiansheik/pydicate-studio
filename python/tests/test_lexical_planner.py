@@ -110,6 +110,50 @@ class LexicalPlannerTests(unittest.TestCase):
         self.assertRegex(names[1], r'^lexicalprobe_[a-f0-9]{8}$')
         self.assertEqual(len({entry['lexicalFingerprint'] for entry in result['declarations']}), 3)
 
+    def test_same_outer_meaning_preserves_distinct_inner_scopes_after_reload(self):
+        first = "studio_define(studio_define((potar * moro).var(1).base_nominal(), 'INNER_A'), 'OUTER')"
+        second = "studio_define(studio_define((potar * moro).var(1).base_nominal(), 'INNER_B'), 'OUTER')"
+        result = self.plan(first + ' + ' + second)
+        outer = [entry for entry in result['declarations'] if entry['definition'] == 'OUTER']
+        self.assertEqual(len(outer), 2, result)
+        self.assertEqual(len({entry['lexicalFingerprint'] for entry in outer}), 2)
+        syntax = ast.parse(result['raw'], mode='eval').body
+        self.assertNotEqual(syntax.left.id, syntax.right.id)
+
+        # Emulate the portable reviewed declaration format, solely in this
+        # disposable corpus, then load it in a fresh Python process.
+        declarations = []
+        for entry in result['declarations']:
+            declarations.append(entry['name'] + ' = ' + entry['expression'])
+            if entry.get('definitionOverride') is not None:
+                declarations.append(entry['name'] + '.definition = ' + repr(entry['definitionOverride']))
+        self.shared('\n'.join(declarations))
+        run = subprocess.run([sys.executable, '-I', '-B', str(RUNTIME)],
+                             input=json.dumps({'action': 'evaluate', 'parent': str(self.parent),
+                                               'sourceId': SOURCE, 'raw': result['raw']}),
+                             capture_output=True, text=True, check=True, timeout=20)
+        response = json.loads(run.stdout)
+        self.assertNotIn('error', response, response)
+        context = response['result']['definitionContext']
+        self.assertFalse(context['truncated'])
+        self.assertEqual(context['diagnostics'], [])
+        scopes = {child['role']: child['node'] for child in context['root']['children']}
+        def meanings(node):
+            found = {node['compositeDefinition']} if 'compositeDefinition' in node else set()
+            for child in node['children']:
+                found.update(meanings(child['node']))
+            return found
+        self.assertEqual(meanings(scopes['left']), {'OUTER', 'INNER_A'})
+        self.assertEqual(meanings(scopes['right']), {'OUTER', 'INNER_B'})
+        replanned = self.plan(first + ' + ' + second)
+        self.assertEqual(replanned['declarations'], [], replanned)
+        self.assertEqual(replanned['raw'], result['raw'])
+        repeated = self.plan(first + ' + ' + first)
+        self.assertEqual(repeated['declarations'], [])
+        duplicate = ast.parse(repeated['raw'], mode='eval').body
+        self.assertEqual(duplicate.left.id, duplicate.right.id)
+        self.assertEqual(duplicate.left.id, syntax.left.id)
+
     def test_shadowed_shared_name_and_future_other_source_names_are_not_reused(self):
         expression = 'Noun("lexicalprobe", definition="sentido certo")'
         self.shared('publication_known = ' + expression)
@@ -125,7 +169,7 @@ class LexicalPlannerTests(unittest.TestCase):
         expression = "ProperNoun('Publication Nome', definition='ignorado pelo construtor')"
         result = self.plan(f'studio_define({expression}, {definition!r}).voc()')
         entry = result['declarations'][0]
-        self.assertEqual(entry['expression'], expression)
+        self.assertEqual(entry['expression'], f'({expression}).copy()')
         self.assertEqual(entry['definitionOverride'], definition)
         self.assertEqual(entry['definition'], definition)
         self.assertEqual(result['raw'], entry['name'] + '.voc()')

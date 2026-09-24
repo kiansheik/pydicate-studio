@@ -21,19 +21,27 @@ import {
   activeArtifact,
   annotationDifference,
   artifactUsable,
+  candidateDecompositions,
+  candidateLexicalEvidence,
   describeAmbiguity,
+  DECOMPOSITION_NOTE,
   formatBytes,
   jobLabel,
+  lexicalEvidenceLabel,
+  lexicalHintsForRequest,
   previewLabInput,
   routeLabel,
+  validationLabel,
   type LabCandidate,
   type LabFeedback,
   type LabJob,
+  type LabLexicalHint,
   type LabResult,
   type LabStatus,
 } from '../domain/parser-lab';
 import type { RenderResult, StudioProject } from '../domain/types';
 import { PydicateTree } from './RuntimeTree';
+import { LabLexicalHints } from './LabLexicalHints';
 import '../parser-lab.css';
 
 type Section = 'analisar' | 'dados' | 'treinar' | 'avaliar' | 'execucoes';
@@ -167,6 +175,10 @@ function ArtifactBanner({ status }: { status: LabStatus | null }) {
         <>
           Índice ativo <code>{index.artifactId}</code> ({index.counts.fragments ?? 0} fragmentos,{' '}
           {index.counts.retrievalExpressions ?? 0} expressões registradas)
+          {index.counts.lexicalEntries !== undefined &&
+            ` · ${index.counts.lexicalEntries} entradas lexicais`}
+          {index.counts.dictionaryIndexedSenses !== undefined &&
+            ` · Navarro: ${index.counts.dictionaryIndexedSenses} acepções incluídas, ${index.counts.dictionarySkippedSenses ?? 0} não incluídas nesta versão`}
         </>
       ) : (
         'Nenhum índice ativo. Use Preparar baseline em Dados.'
@@ -211,6 +223,7 @@ function AnalyseSection({
   local: boolean;
 }) {
   const [text, setText] = useState('');
+  const [lexicalHints, setLexicalHints] = useState<LabLexicalHint[]>([]);
   const [result, setResult] = useState<LabResult | null>(null);
   const [selected, setSelected] = useState(0);
   const [error, setError] = useState('');
@@ -227,7 +240,29 @@ function AnalyseSection({
   const request = useRef(0);
   const preview = previewLabInput(text);
 
+  useEffect(
+    () => () => {
+      request.current += 1;
+      setBusy(false);
+    },
+    [project.id, setBusy],
+  );
+
+  function invalidateAnalysis() {
+    request.current += 1;
+    setBusy(false);
+    setResult(null);
+    setSelected(0);
+    setEditor(null);
+    setEvaluated(null);
+    setParsed(null);
+    setJudged('');
+    setError('');
+    setTransferOpen(false);
+  }
+
   async function analyse() {
+    if (busy || !local || preview.error) return;
     const ticket = ++request.current;
     setBusy(true);
     setError('');
@@ -239,6 +274,7 @@ function AnalyseSection({
       const value = await invoke<LabResult>('parser_lab_analyze', {
         projectId: project.id,
         text,
+        lexicalHints: lexicalHintsForRequest(lexicalHints),
       });
       // A reply for an input the contributor already changed is discarded.
       if (ticket !== request.current) return;
@@ -246,6 +282,7 @@ function AnalyseSection({
       setSelected(0);
       if (value.best) install({ raw: value.best.source, canvas: emptyCanvas() }, false);
       void onRefresh();
+      return true;
     } catch (reason) {
       if (ticket !== request.current) return;
       setError(String(reason instanceof Error ? reason.message : reason));
@@ -255,6 +292,14 @@ function AnalyseSection({
   }
 
   function install(next: LabEditorState, remember = true) {
+    if (remember) {
+      request.current += 1;
+      setJudged('');
+    }
+    if (next.raw !== editor?.raw) {
+      setParsed(null);
+      setEvaluated(null);
+    }
     if (remember && editor) {
       setUndo((values) => [...values.slice(-49), editor]);
       setRedo([]);
@@ -297,6 +342,13 @@ function AnalyseSection({
 
   async function judge(verdict: 'accepted' | 'rejected' | 'corrected' | 'uncertain') {
     if (!result) return;
+    const ticket = request.current;
+    // If a correction selects another proposed reading, retain that reading's
+    // lexical evidence, including any unresolved hypothesis.
+    const judgedCandidate =
+      (verdict === 'corrected'
+        ? result.candidates.find((item) => item.source === editor?.raw)
+        : undefined) ?? result.candidates[selected];
     try {
       await invoke('parser_lab_judgment', {
         projectId: project.id,
@@ -305,6 +357,9 @@ function AnalyseSection({
           normalized: result.input.normalized,
           rawInput: result.input.raw,
           candidateSource: result.candidates[selected]?.source ?? '',
+          candidateCompleteness: judgedCandidate?.completeness,
+          lexicalEvidence: judgedCandidate?.provenance.lexicalEvidence ?? [],
+          lexicalHints: lexicalHintsForRequest(lexicalHints),
           correctedSource: verdict === 'corrected' ? (editor?.raw ?? '') : '',
           surface: result.candidates[selected]?.surface ?? '',
           // The whole set that was on screen and which one was chosen: that is
@@ -321,19 +376,26 @@ function AnalyseSection({
           normalizerProfile: result.input.profile,
         },
       });
+      if (ticket !== request.current) return;
       // Re-analyse first, so the confirmation appears beside the reordered
       // readings instead of being cleared by the refresh behind it.
-      await analyse();
+      const refreshed = await analyse();
+      if (!refreshed || request.current !== ticket + 1) return;
       setJudged(
         'Registrado no laboratório. A próxima análise desta frase já usa a sua escolha, e o ' +
           'treino pode usá-la como contraste. Isto não publica fonte nem aprova referência.',
       );
     } catch (reason) {
-      setError(String(reason instanceof Error ? reason.message : reason));
+      if (ticket === request.current)
+        setError(String(reason instanceof Error ? reason.message : reason));
     }
   }
 
   const candidate: LabCandidate | undefined = result?.candidates[selected];
+  const displayedMorphemes =
+    (evaluated?.morphemeUnits as LabCandidate['morphemes'] | undefined) ??
+    candidate?.morphemes ??
+    [];
   return (
     <main className="lab-main" aria-label="Analisar">
       <ArtifactBanner status={status} />
@@ -349,8 +411,8 @@ function AnalyseSection({
             spellCheck={false}
             value={text}
             onChange={(event) => {
+              invalidateAnalysis();
               setText(event.target.value);
-              setJudged('');
             }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing) return;
@@ -372,6 +434,13 @@ function AnalyseSection({
           </span>
         </div>
         <p className="lab-note">{preview.note}</p>
+        <LabLexicalHints
+          value={lexicalHints}
+          onChange={(hints) => {
+            invalidateAnalysis();
+            setLexicalHints(hints);
+          }}
+        />
         {preview.error && text.length > 0 && <p role="alert">{preview.error}</p>}
       </section>
       {busy && <p role="status">Procurando análises válidas…</p>}
@@ -393,8 +462,10 @@ function AnalyseSection({
           {result.status !== 'complete' && (
             <ul className="lab-next">
               <li>
-                Amplie o inventário do perfil em <strong>Dados</strong> e prepare o índice de novo.
+                Atualize o índice em <strong>Dados</strong> para incluir o léxico compartilhado e as
+                entradas compatíveis da cópia local do Navarro.
               </li>
+              <li>Para uma raiz ausente ou um nome próprio, informe uma hipótese acima.</li>
               <li>Confira a grafia: a conversão de ortografia histórica não é aplicada aqui.</li>
               <li>Analise um trecho menor para ver quais constituintes já são reconhecidos.</li>
             </ul>
@@ -412,6 +483,8 @@ function AnalyseSection({
                 >
                   <button
                     onClick={() => {
+                      request.current += 1;
+                      setJudged('');
                       setSelected(index);
                       install({ raw: item.source, canvas: emptyCanvas() }, false);
                     }}
@@ -426,6 +499,25 @@ function AnalyseSection({
                       {item.provenance.acceptance === 'not-preferred' &&
                         ' · leitura possível que você não escolheu'}
                     </small>
+                    {item.provenance.lexicalStatus === 'provisional' && (
+                      <small>{acceptanceLabel(item)}</small>
+                    )}
+                    {candidateDecompositions(item).map((decomposition, position) => (
+                      <small className="lab-lexical-evidence" key={`decomposition-${position}`}>
+                        <strong>
+                          Significado de {decomposition.dictionaryHeadword} · Navarro:{' '}
+                        </strong>
+                        {decomposition.definition}
+                      </small>
+                    ))}
+                    {candidateDecompositions(item).length > 0 && (
+                      <small>{DECOMPOSITION_NOTE}</small>
+                    )}
+                    {candidateLexicalEvidence(item).map((evidence, position) => (
+                      <small className="lab-lexical-evidence" key={position}>
+                        {lexicalEvidenceLabel(evidence)}
+                      </small>
+                    ))}
                     {/* Two readings that realize the same form differ somewhere in
                         the grammar's own annotation. Showing exactly where turns
                         the choice into an informed one. */}
@@ -453,7 +545,10 @@ function AnalyseSection({
                       data-testid={`lab-choose-${index}`}
                       onClick={() => void judge('accepted')}
                     >
-                      <Check size={14} /> Esta é a leitura correta
+                      <Check size={14} />{' '}
+                      {item.provenance.lexicalStatus === 'provisional'
+                        ? 'Prefiro esta hipótese'
+                        : 'Esta é a leitura correta'}
                     </button>
                   )}
                 </li>
@@ -466,16 +561,16 @@ function AnalyseSection({
               <section className="lab-morphemes" aria-label="Morfemas do motor">
                 <h3>Morfemas e etiquetas do motor</h3>
                 <ul data-testid="lab-morphemes">
-                  {(
-                    (evaluated?.morphemeUnits as typeof candidate.morphemes | undefined) ??
-                    candidate.morphemes
-                  ).map((morpheme) => (
+                  {displayedMorphemes.map((morpheme) => (
                     <li key={morpheme.occurrence}>
                       <code lang="tpw">{morpheme.surface}</code>
                       <small>{morpheme.tags.join(' · ')}</small>
                     </li>
                   ))}
                 </ul>
+                {!displayedMorphemes.length && (
+                  <p className="lab-note">O motor não forneceu segmentação em morfemas.</p>
+                )}
                 <p className="lab-note">{result.alignmentNote}</p>
               </section>
               <section className="lab-coverage" aria-label="Cobertura e validação">
@@ -488,11 +583,7 @@ function AnalyseSection({
                   </div>
                   <div>
                     <dt>Validação</dt>
-                    <dd>
-                      {candidate.completeness === 'complete'
-                        ? 'Sintaxe editável, léxico resolvido, avaliação completa, forma idêntica à entrada normalizada.'
-                        : 'Incompleta.'}
-                    </dd>
+                    <dd>{validationLabel(candidate)}</dd>
                   </div>
                   <div>
                     <dt>Trechos cobertos</dt>
@@ -577,6 +668,8 @@ function AnalyseSection({
               onUndo={
                 undo.length
                   ? () => {
+                      request.current += 1;
+                      setJudged('');
                       const next = undo.at(-1)!;
                       setRedo((values) => [...values, editor]);
                       setUndo((values) => values.slice(0, -1));
@@ -587,6 +680,8 @@ function AnalyseSection({
               onRedo={
                 redo.length
                   ? () => {
+                      request.current += 1;
+                      setJudged('');
                       const next = redo.at(-1)!;
                       setUndo((values) => [...values, editor]);
                       setRedo((values) => values.slice(0, -1));
@@ -757,9 +852,11 @@ function DataSection({
     <main className="lab-main" aria-label="Dados">
       <ArtifactBanner status={status} />
       <p>
-        A preparação gera fragmentos das famílias declaradas, indexa expressões já registradas no
-        corpus, monta os exemplos com a expressão de origem e separa os conjuntos por grupo. Nada é
-        ativado sem ação explícita; o índice recém-preparado é ativado por este botão.
+        A preparação inclui as entradas compatíveis de toda a cópia local do dicionário Navarro e o
+        léxico compartilhado, inclusive no perfil mínimo. Também gera fragmentos das famílias
+        declaradas e indexa expressões já registradas no corpus. O perfil limita os exemplos de
+        treino e avaliação, que são separados por grupo. O índice recém-preparado é ativado por este
+        botão.
       </p>
       <label>
         Perfil

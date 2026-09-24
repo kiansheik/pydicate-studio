@@ -328,7 +328,7 @@ class ProjectAdapter:
     @staticmethod
     def _engine_fingerprint(snapshots: list[dict]) -> str:
         # Corpus fingerprint includes lexicon definitions; no clean-HEAD claim.
-        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'lexical_publication.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
+        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'lexical_metadata.py', 'semantic_context.py', 'node_definitions.py', 'lexical_publication.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
         implementation = digest(b"".join((Path(__file__).parent / name).read_bytes() for name in runtime_files))
         material = ADAPTER_VERSION + ":" + sys.version + ":" + implementation + ":" + ":".join(item["fingerprint"] for item in snapshots)
         return "sha256:" + digest(material.encode())
@@ -435,6 +435,11 @@ class ProjectAdapter:
                 if human_source_notes: relevant_metadata['notes'] = human_source_notes
                 cleared_fields=[directive for field,directive in [('diplomatic','diplomatic'),('normalized_target','target'),('translation','translation')] if directive in explicit_fields and source_metadata.get(field) is None]
                 if cleared_fields:relevant_metadata['clearedFields']=cleared_fields
+                translations = (entry.get('studio') or {}).get('translations')
+                if translations is not None:
+                    from studio_authoring import validate_translations
+                    translations = validate_translations(translations)
+                    relevant_metadata['translations'] = translations
                 editorial_fingerprint = digest(json.dumps({'expression':entry['expression'],'metadata':relevant_metadata},ensure_ascii=False,sort_keys=True).encode('utf-8'))
                 passages.append({"id": identifier, "legacyId": f"{source}:{ordinal:04d}", "sourceId": source,
                     "ordinal": ordinal, "sourceLine": entry["statementLine"], "sourceEndLine": entry["endLine"], "sourceFileFingerprint": "sha256:" + file_hash, "sourceMetadata": source_metadata, "studioMetadata": entry.get("studio"), "title": f"{title} · {ordinal:04d}", "sourceExpression": entry["expression"],
@@ -443,6 +448,7 @@ class ProjectAdapter:
                     "referenceProvenance": "legacy" if saved is not None else "none",
                     "diplomatic": scholarly_field("diplomatic","diplomatic"), "normalized": scholarly_field("normalized_target","target"),
                     "translation": scholarly_field("translation","translation"),
+                    **({'translations': translations} if translations is not None else {}),
                     "notes": "\n".join(str(note) for note in notes) if isinstance(notes, (list, tuple)) else "",
                     "witness": {"title": _string(location.get("witness")) or title,
                                 "year": "1686" if source == "araujo_catecismo_1686" else "",

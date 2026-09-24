@@ -218,3 +218,47 @@
     flex-direction: column;
   }
 }
+
+.lexical-inventory strong,
+.lexical-inventory code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.lexical-inventory code {
+  color: var(--muted);
+  font-size: 11px;
+}
+.lexical-inventory .lexical-dependency-row {
+  border-left: 2px dotted var(--border);
+}
+.lexical-definition-editor {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 12px;
+}
+.lexical-definition-editor > label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+.lexical-definition-editor textarea {
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lexical-definition-editor p,
+.lexical-stage-note {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.lexical-definition-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.lexical-notes-title {
+  margin: 4px 0 0;
+  font-size: 14px;
+}

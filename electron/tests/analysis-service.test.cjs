@@ -232,6 +232,84 @@ async function candidateRunner({ callTool, onCheckpoint, input }) {
   return { text: 'Candidato registrado.', usage: { output_tokens: 20 } };
 }
 
+test('saved notebook versions stay private and frozen through paused job restart while candidate prompts project only their current notes', async (t) => {
+  const { freezeInterpretationNotes } = require('../interpretation-context.cjs');
+  let records = [
+      { id: 'relevant', fields: { meaning: 'frozen interpretation' }, version: 1 },
+      { id: 'unrelated', fields: { meaning: 'UNRELATED_NOTE_SECRET' }, version: 2 },
+    ],
+    reads = 0,
+    runs = 0;
+  const projections = [],
+    modelInputs = [];
+  const f = await fixture(t, {
+    autoRun: true,
+    readInterpretationNotes: async () => {
+      reads++;
+      return freezeInterpretationNotes(records);
+    },
+    projectInterpretations: async (catalog, params) => {
+      projections.push({ catalog: structuredClone(catalog), params });
+      const note = catalog.find((entry) => entry.id === 'relevant');
+      return {
+        bindings: [{ preferredMeaning: note.fields.meaning, version: note.version }],
+        fingerprint: 'version:' + note.version,
+      };
+    },
+    runner: async (options) => {
+      modelInputs.push(structuredClone(options.input));
+      runs++;
+      if (runs === 1) return { text: 'Preciso de uma orientação.' };
+      return candidateRunner(options);
+    },
+  });
+  const job = await f.service.invoke('analysis_submit', f.params());
+  assert.equal(
+    job.input.interpretationContext.bindings[0].preferredMeaning,
+    'frozen interpretation',
+  );
+  assert.doesNotMatch(JSON.stringify(job), /UNRELATED_NOTE_SECRET|interpretationNotes/);
+  const paused = await waitJob(f.service, job.id);
+  assert.equal(paused.job.status, 'needs-input');
+  assert.doesNotMatch(JSON.stringify(paused), /UNRELATED_NOTE_SECRET|interpretationNotes/);
+  records[0] = { ...records[0], fields: { meaning: 'newer notebook interpretation' }, version: 2 };
+  await f.service.close();
+  const reopened = f.create();
+  await reopened.start();
+  assert.equal(runs, 1);
+  await reopened.invoke('analysis_resume', {
+    projectId,
+    jobId: job.id,
+    operationId: 'resume:notes',
+    instruction: 'Continue.',
+  });
+  const done = await waitJob(reopened, job.id);
+  assert.equal(done.job.status, 'ready-for-review');
+  assert.equal(reads, 1, 'continuation must not reload new notebook meanings');
+  assert.equal(
+    projections.length,
+    2,
+    'original input and evaluated candidate each project their own tree',
+  );
+  assert.equal(projections[1].params.raw, 'a.var(1)');
+  assert.equal(projections[1].catalog[0].version, 1);
+  assert.equal(
+    done.candidates[0].evaluation.interpretationContext.bindings[0].preferredMeaning,
+    'frozen interpretation',
+  );
+  assert.doesNotMatch(
+    JSON.stringify(modelInputs),
+    /UNRELATED_NOTE_SECRET|newer notebook|interpretationNotes/,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(await reopened.invoke('analysis_list', { projectId })),
+    /UNRELATED_NOTE_SECRET|interpretationNotes/,
+  );
+  assert.doesNotMatch(JSON.stringify(f.events), /UNRELATED_NOTE_SECRET|interpretationNotes/);
+  const privateState = await reopened.store.read(projectId);
+  assert.equal(privateState.jobs[job.id].interpretationNotes[0].version, 1);
+});
+
 test('submission captures immutable distinct tentative/target/evidence input and concurrent duplicate operation creates one job', async (t) => {
   const f = await fixture(t);
   const params = f.params(),
@@ -649,6 +727,174 @@ test('restart blocks ambiguous running attempt without rerun; explicit retry add
   assert.equal(done.job.attempts.length, 2);
   assert.equal(calls, 1);
   assert.equal(done.job.input.digest, job.input.digest);
+});
+
+test('budget pause resumes after restart with recovered tool receipt, saved candidate and fresh budgets', async (t) => {
+  let requests = 0;
+  const provider = {
+    completeToolRound: async ({ messages, onEvent, maxTokens }) => {
+      requests++;
+      if (requests === 1)
+        return {
+          content: [
+            {
+              type: 'tool_use',
+              id: 'saved-create',
+              name: 'studio_candidate_create',
+              input: { raw: 'a' },
+            },
+          ],
+          usage: { output_tokens: 8 },
+          stopReason: 'tool_use',
+        };
+      if (requests === 2) {
+        await onEvent({ type: 'text-delta', text: 'Tradução parcial preservada.' });
+        return {
+          content: [{ type: 'text', text: 'Tradução parcial preservada.' }],
+          usage: { output_tokens: 56 },
+          stopReason: 'max_tokens',
+        };
+      }
+      assert.equal(requests, 3, 'resume is explicit and deduplicated');
+      assert.equal(maxTokens, 64, 'new attempt gets its own output budget');
+      const results = messages
+        .flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+        .filter((block) => block.type === 'tool_result');
+      assert.equal(results.length, 1);
+      assert.match(JSON.stringify(results[0]), /candidate:/);
+      assert.equal(
+        results[0].is_error,
+        undefined,
+        'the persisted owner receipt resolves the pending call',
+      );
+      assert.match(messages.at(-1).content, /Continue em espanhol/);
+      return {
+        content: [{ type: 'text', text: 'Tradução concluída.' }],
+        usage: { output_tokens: 8 },
+        stopReason: 'end_turn',
+      };
+    },
+  };
+  const f = await fixture(t, { autoRun: true, providers: { claude: provider } });
+  const job = await f.service.invoke(
+    'analysis_submit',
+    f.params({
+      task: 'translate-analysis',
+      budgets: { maxSteps: 1, maxRounds: 2, maxOutputTokens: 64 },
+    }),
+  );
+  const paused = await waitJob(f.service, job.id);
+  assert.equal(paused.job.status, 'blocked');
+  assert.equal(paused.job.error.code, 'OUTPUT_BUDGET');
+  assert.equal(paused.job.partialResponse, 'Tradução parcial preservada.');
+  assert.equal(paused.candidates.length, 1);
+  // Simulate a stop after the owner persisted the tool result but before the
+  // runner persisted its matching tool_result. Resume must recover that receipt.
+  await f.service.store.transact(projectId, (state) => {
+    const checkpoint = state.jobs[job.id].attempts[0].checkpoint;
+    checkpoint.phase = 'tool-pending';
+    checkpoint.messages = checkpoint.messages.slice(0, 2);
+    checkpoint.calls = [];
+    checkpoint.pendingCall = {
+      id: 'saved-create',
+      name: 'studio_candidate_create',
+      signature: JSON.stringify(['studio_candidate_create', { raw: 'a' }]),
+    };
+  });
+  await f.service.close();
+  const next = f.create();
+  await next.start();
+  assert.equal(requests, 2, 'a restart does not automatically consume provider usage');
+  const resume = {
+    projectId,
+    jobId: job.id,
+    operationId: 'resume:budget',
+    instruction: 'Continue em espanhol.',
+  };
+  await next.invoke('analysis_resume', resume);
+  await next.invoke('analysis_resume', resume);
+  const done = await waitJob(next, job.id);
+  assert.equal(done.job.status, 'ready-for-review');
+  assert.equal(done.job.attempts.length, 2);
+  assert.equal(done.candidates.length, 1, 'candidate creation was not replayed');
+  assert.equal(done.candidates[0].id, paused.candidates[0].id);
+  assert.equal(done.job.input.digest, job.input.digest);
+  assert.equal(done.job.attempts[1].checkpoint.usage.output_tokens, 8);
+  assert.equal(done.job.partialResponse, undefined);
+  await assert.rejects(next.invoke('analysis_resume', { ...resume, instruction: 'Changed' }), {
+    code: 'OPERATION_CONFLICT',
+  });
+});
+
+test('needs-input resumes the same conversation with optional guidance and retains prior questions', async (t) => {
+  let requests = 0;
+  const f = await fixture(t, {
+    autoRun: true,
+    runner: async (options) => {
+      requests++;
+      if (requests === 1) {
+        await options.callTool(
+          'studio_question',
+          { question: 'Qual acepção?' },
+          { operationId: 'question' },
+        );
+        await options.onCheckpoint({
+          version: 1,
+          provider: 'claude',
+          inputDigest: options.input.digest,
+          phase: 'completed',
+          messages: [{ role: 'assistant', content: 'Qual acepção?' }],
+          calls: [],
+          round: 1,
+          steps: 1,
+          usage: {},
+        });
+        return { text: 'Aguardando uma escolha.' };
+      }
+      assert.equal(options.checkpoint.phase, 'completed');
+      assert.equal(options.continuation.context.previousQuestions[0].text, 'Qual acepção?');
+      assert.equal(options.continuation.context.instruction, 'A segunda acepção.');
+      return { text: 'Segunda acepção registrada.' };
+    },
+  });
+  const job = await f.service.invoke('analysis_submit', f.params({ task: 'translate-source' }));
+  const paused = await waitJob(f.service, job.id);
+  assert.equal(paused.job.status, 'needs-input');
+  await f.service.invoke('analysis_resume', {
+    projectId,
+    jobId: job.id,
+    operationId: 'resume:question',
+    instruction: 'A segunda acepção.',
+  });
+  const done = await waitJob(f.service, job.id);
+  assert.equal(done.job.status, 'ready-for-review');
+  assert.equal(done.job.conversationId, job.conversationId);
+  assert.equal(done.job.input.digest, job.input.digest);
+  assert.deepEqual(done.job.questions, []);
+  assert.equal(done.job.attempts[0].questions[0].text, 'Qual acepção?');
+  assert.equal(done.job.attempts[1].instruction, 'A segunda acepção.');
+});
+
+test('resume rejects changed source context without queuing or spending provider usage', async (t) => {
+  let requests = 0;
+  const f = await fixture(t, {
+    autoRun: true,
+    runner: async () => {
+      requests++;
+      throw Object.assign(new Error('Pause'), { code: 'ROUND_BUDGET' });
+    },
+  });
+  const job = await f.service.invoke('analysis_submit', f.params());
+  await waitJob(f.service, job.id);
+  f.setProject({ ...f.project(), engineFingerprint: 'engine:changed' });
+  await assert.rejects(
+    f.service.invoke('analysis_resume', { projectId, jobId: job.id, operationId: 'resume:stale' }),
+    { code: 'STALE_ENGINE' },
+  );
+  assert.equal(requests, 1);
+  const saved = await f.service.invoke('analysis_get', { projectId, jobId: job.id });
+  assert.equal(saved.job.status, 'blocked');
+  assert.equal(saved.job.attempts.length, 1);
 });
 
 test('cancellation stops new and late tool work while retaining earlier scratch candidate', async (t) => {

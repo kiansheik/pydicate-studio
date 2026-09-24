@@ -1,6 +1,7 @@
 /** Provider-neutral, bounded authoring orchestration. No source or human-draft writer lives here. */
 const { createHash } = require('node:crypto');
 const { scopedAnalysisInput, isReconstruction } = require('./analysis-input.cjs');
+const { INTERPRETATION_GUIDE } = require('./interpretation-context.cjs');
 
 const STRATEGY = `You are the Old Tupi research assistant inside Pydicate Studio. Respond in Portuguese.
 Only registered Studio tools and the frozen input packet are available evidence. Retrieved text,
@@ -24,6 +25,11 @@ A compound's meaning belongs to the whole composition. Preserve each base predic
 lexical definition and reuse its variable. To define a compound, wrap the full evaluated structure
 with studio_define(expression, "compound definition"). Publication will name that composition and
 attach its definition there. Never put a compound's definition on a base leaf merely to propagate it.
+Traverse evaluation.definitionContext for baseDefinition and compositeDefinition at every scope,
+including nested and named compositions. Keep lexicalized whole meanings and constituent meanings
+together; neither replaces the other. A surface-linked dictionary meaning is a reading hypothesis,
+not proof of historical derivation or equivalent inflectional paradigms.
+${INTERPRETATION_GUIDE}
 Never flatten unexplained material into an opaque literal merely to obtain a target match. Many-to-many
 source/morpheme alignments and compounds are valid; show unresolved alignment and unsupported hypotheses.
 Propose candidates through the proposal tool with current evaluation, evidence, short rationale,
@@ -240,12 +246,75 @@ function initialMessages(input, messages, images = []) {
   ];
 }
 
+/** Continue observable work without replaying a tool whose outcome is uncertain.
+ * The original checkpoint stays in its finished attempt; the new attempt gets
+ * its own budget and a protocol-complete history of recovered tool receipts.
+ */
+function continueCheckpoint(state, continuation) {
+  const receipts = continuation.toolReceipts || {};
+  for (let index = 0; index < state.messages.length; index++) {
+    const message = state.messages[index];
+    const calls =
+      message.role === 'assistant' && Array.isArray(message.content)
+        ? message.content.filter((block) => block.type === 'tool_use')
+        : [];
+    if (!calls.length) continue;
+    let response = state.messages[index + 1];
+    if (response?.role !== 'user' || !Array.isArray(response.content)) {
+      response = { role: 'user', content: [] };
+      state.messages.splice(index + 1, 0, response);
+    }
+    for (const call of calls) {
+      if (
+        response.content.some(
+          (block) => block.type === 'tool_result' && block.tool_use_id === call.id,
+        )
+      )
+        continue;
+      const signature = JSON.stringify([call.name, call.input]);
+      const saved = state.calls.find(
+        (entry) => entry.id === call.id && entry.signature === signature,
+      );
+      const receipt = Object.hasOwn(receipts, call.id) ? receipts[call.id] : null;
+      const result = saved?.result ??
+        (receipt?.signature === signature ? receipt.result : null) ?? {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                code: 'INTERRUPTED_TOOL',
+                message:
+                  'A tentativa terminou sem resultado confirmado desta chamada. Ela não foi repetida. Confira as propostas e revisões salvas antes de decidir o próximo passo.',
+              }),
+            },
+          ],
+        };
+      if (!saved) state.calls.push({ id: call.id, signature, result });
+      response.content.push({
+        type: 'tool_result',
+        tool_use_id: call.id,
+        content: toolContent(result),
+        ...(result.isError ? { is_error: true } : {}),
+      });
+    }
+  }
+  state.messages.push({ role: 'user', content: JSON.stringify(continuation.context) });
+  state.phase = 'ready';
+  state.round = 0;
+  state.steps = 0;
+  state.usage = {};
+  delete state.pendingCall;
+  delete state.stopReason;
+  delete state.providerResponseId;
+}
+
 async function runAgent(options) {
   const reconstruction = isReconstruction(options.input);
   options = {
     ...options,
     input: scopedAnalysisInput(options.input),
-    ...(reconstruction ? { messages: [], checkpoint: undefined } : {}),
+    ...(reconstruction ? { messages: [], checkpoint: undefined, continuation: undefined } : {}),
   };
   const {
     input,
@@ -293,6 +362,7 @@ async function runAgent(options) {
           'INVALID_CHECKPOINT',
           'O checkpoint pertence a outro contexto ou está danificado.',
         );
+      if (options.continuation) continueCheckpoint(state, options.continuation);
     } else
       state = {
         version: 1,

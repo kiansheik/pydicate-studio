@@ -13,12 +13,22 @@ const input = {
   raw: hidden,
   canvas: { fragments: [{ raw: hidden }] },
   evaluation: { expression: hidden },
+  definitionContext: { root: { compositeDefinition: hidden } },
+  interpretationContext: { bindings: [{ preferredMeaning: hidden }] },
+  interpretationNotes: [{ fields: { meaning: hidden } }],
   feedback: { candidate: { raw: hidden } },
   conversation: [{ text: hidden }],
   context: [
     { id: 'target', raw: hidden },
     { id: 'duplicate', raw: hidden },
-    { id: 'previous', surface: 'permitted', raw: hidden },
+    {
+      id: 'previous',
+      surface: 'permitted',
+      raw: hidden,
+      definitionContext: { root: { baseDefinition: hidden } },
+      interpretationContext: { bindings: [{ preferredMeaning: hidden }] },
+      interpretationNotes: [{ fields: { meaning: hidden } }],
+    },
   ],
 };
 test('one reconstruction projection removes nested answer paths while preserving original linguistic strings', () => {

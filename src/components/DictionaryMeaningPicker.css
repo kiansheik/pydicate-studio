@@ -1,0 +1,76 @@
+.dictionary-meaning-picker {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--border, #7775);
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dictionary-meaning-picker :is(input, select, button) {
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+  color: inherit;
+  background: var(--paper, #f7f8f3);
+  border: 1px solid var(--border, #7775);
+  border-radius: 6px;
+  padding: 6px 9px;
+}
+.dictionary-meaning-picker button {
+  cursor: pointer;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.dictionary-meaning-picker button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.dictionary-meaning-picker :is(input, select, button):focus-visible {
+  outline: 2px solid var(--accent, #be985f);
+  outline-offset: 2px;
+}
+.dictionary-meaning-picker > label {
+  display: grid;
+  gap: 5px;
+}
+.dictionary-meaning-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dictionary-meaning-results {
+  display: grid;
+  gap: 12px;
+}
+.dictionary-meaning-results article {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #7775);
+}
+.dictionary-meaning-results h5 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.dictionary-meaning-definition,
+.dictionary-meaning-results blockquote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 300px;
+  overflow: auto;
+}
+.dictionary-meaning-results blockquote {
+  margin: 8px 0;
+  padding-left: 9px;
+  border-left: 2px solid var(--accent, #be985f);
+}
+.dictionary-meaning-evidence {
+  font-weight: 600;
+}
+.dictionary-meaning-results button {
+  margin-top: 8px;
+}

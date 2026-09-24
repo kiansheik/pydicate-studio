@@ -24,7 +24,9 @@ function fakeChild() {
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
   child.stdin = new EventEmitter();
-  child.stdin.write = (_value, callback) => {
+  child.requests = [];
+  child.stdin.write = (value, callback) => {
+    child.requests.push(JSON.parse(value));
     if (callback) callback(null);
     return true;
   };
@@ -203,11 +205,17 @@ test('a job interrupted by a restart is recovered as interrupted and never repla
 test('the lab worker starts on the first engine request and carries the lab arguments', async (t) => {
   const { directory, service, spawned } = await harness();
   t.after(() => service.close());
-  const reply = service.invoke('parser_lab_analyze', { projectId, text: 'Asó xe rokype' });
+  const lexicalHints = [{ root: 'Araci', category: 'proper_noun' }];
+  const reply = service.invoke('parser_lab_analyze', {
+    projectId,
+    text: 'Araci osó',
+    lexicalHints,
+  });
   assert.equal(spawned.length, 1);
   assert.ok(spawned[0].args.some((value) => value.endsWith(path.join('parser_lab', 'worker.py'))));
   assert.ok(spawned[0].args.includes('--parent'));
   assert.ok(spawned[0].args.includes(path.join(directory, 'artifacts', projectId)));
+  assert.deepEqual(spawned[0].child.requests[0].params.lexicalHints, lexicalHints);
   spawned[0].child.stdout.emit(
     'data',
     Buffer.from(JSON.stringify({ id: 1, result: { status: 'complete' } }) + '\n'),

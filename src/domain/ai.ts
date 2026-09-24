@@ -2,6 +2,18 @@ export type AIAction = 'translate' | 'explain' | 'propose' | 'investigate';
 export type AIProvider = 'codex' | 'claude';
 export type AIScope = 'passage' | 'constituent';
 
+export interface AITranslationPreview {
+  prompt: string;
+  targetLanguage: string;
+  analysisTarget: Record<string, unknown>;
+  inputHash: string;
+}
+
+export function aiRecordLanguage(record: AIRecord): string {
+  const language = record.context.targetLanguage;
+  return typeof language === 'string' && language.trim() ? language.trim() : 'Português';
+}
+
 /** A selection is evidence only when its source span still matches this draft. */
 export function aiSelection(value: unknown, raw: string) {
   if (!value || typeof value !== 'object') return null;
@@ -144,8 +156,12 @@ export function canAcceptAI(
   projectId: string,
   passageId: string,
   revisionId: string,
+  engineFingerprint?: string,
 ) {
+  const target = record.inputContext?.analysisTarget as { engineFingerprint?: string } | undefined;
+  const recordedEngine = target?.engineFingerprint ?? record.context.engineFingerprint;
   return (
+    (!engineFingerprint || recordedEngine === engineFingerprint) &&
     record.status === 'completed' &&
     record.projectId === projectId &&
     record.passageId === passageId &&

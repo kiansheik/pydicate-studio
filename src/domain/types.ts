@@ -19,6 +19,8 @@ export interface Witness {
   section?: string | null;
   subsection?: string | null;
 }
+export type PassageTranslations = Partial<Record<'pt' | 'en', string>>;
+
 export interface Passage {
   id: string;
   legacyId: string;
@@ -32,7 +34,9 @@ export interface Passage {
   referenceProvenance: 'legacy' | 'none' | 'example';
   diplomatic: string;
   normalized: string;
+  /** Legacy text with no recorded language. */
   translation: string;
+  translations?: PassageTranslations;
   notes: string;
   witness: Witness;
   status: PassageStatus;
@@ -100,7 +104,9 @@ export interface Draft {
   sourceFingerprint: string;
   diplomatic: string;
   normalized: string;
+  /** Legacy text with no recorded language. */
   translation: string;
+  translations?: PassageTranslations;
   notes: string;
   analysis: ImperativeAnalysis | null;
   updatedAt: string;

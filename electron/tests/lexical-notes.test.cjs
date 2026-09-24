@@ -83,6 +83,36 @@ test('concurrent stale updates are rejected, existing notes are preserved', asyn
     1,
   );
 });
+test('stable node fingerprints survive expression revisions and restart without replacing legacy occurrence history', async (t) => {
+  const f = await fixture(t),
+    api = f.api();
+  const local = {
+    ...f.note,
+    scope: 'occurrence',
+    sourceId: 'araujo',
+    passageId: 'passage:1',
+    occurrenceId: 'legacy:one',
+  };
+  await api.invoke('lexical_notes_save', { projectId: 'p', note: local, expectedVersion: 0 });
+  const stable = { ...local, occurrenceId: 'node:one', nodeFingerprint: 'shape:one' };
+  await api.invoke('lexical_notes_save', { projectId: 'p', note: stable, expectedVersion: 0 });
+  const saved = await f.api().invoke('lexical_notes_save', {
+    projectId: 'p',
+    note: {
+      ...stable,
+      revisionId: 'revision:two',
+      expressionFingerprint: 'expression:two',
+      fields: { ...stable.fields, grammar: 'a new nuance' },
+    },
+    expectedVersion: 1,
+  });
+  assert.equal(saved.nodeFingerprint, 'shape:one');
+  assert.deepEqual(
+    saved.history.map((item) => item.nodeFingerprint),
+    ['shape:one', 'shape:one'],
+  );
+  assert.equal((await f.api().invoke('lexical_notes_list', { projectId: 'p' })).records.length, 2);
+});
 test('corrupt records and tails are never overwritten, note paths are hashed and fields bounded', async (t) => {
   const f = await fixture(t),
     api = f.api();

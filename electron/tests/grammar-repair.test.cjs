@@ -5,11 +5,11 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { execFileSync } = require('node:child_process');
-const { createGrammarRepair } = require('../grammar-repair.cjs');
+const { createGrammarRepair, REPAIR_STRATEGY } = require('../grammar-repair.cjs');
 const { createAnalysisService } = require('../analysis-service.cjs');
 const { DraftStore } = require('../draft-store.cjs');
 
-async function fixture(t) {
+async function fixture(t, extraOptions = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'grammar-repair-test-'));
   const engine = await fs.realpath(directory);
   await fs.mkdir(path.join(engine, 'tupi/tupi'), { recursive: true });
@@ -120,6 +120,7 @@ async function fixture(t) {
       models: { codex: 'fixture-codex', claude: 'fixture-claude' },
       reasoningEffort: 'medium',
     }),
+    ...extraOptions,
   };
   const repair = createGrammarRepair(options);
   const params = {
@@ -204,6 +205,46 @@ test('capture uses the selected grammar and saved expression, preserves the inte
   );
   assert.equal(follow.grammarRepair.intendedSurface, 'morerobiare');
   assert.deepEqual(follow.grammarRepair.baseline, job.input.grammarRepair.baseline);
+});
+
+test('explicit engine repair receives frozen scoped grammatical interpretations in its input and read context without granting notes write authority', async (t) => {
+  const catalog = [
+    { id: 'current', fields: { grammar: 'saved grammatical nuance' }, version: 1 },
+    { id: 'other', fields: { meaning: 'UNRELATED_REPAIR_SECRET' } },
+  ];
+  const projections = [];
+  const f = await fixture(t, {
+    readInterpretationNotes: async () => structuredClone(catalog),
+    projectInterpretations: async (notes, params) => {
+      projections.push(params);
+      return { bindings: [{ general: notes[0] }], fingerprint: 'note:1' };
+    },
+  });
+  let observed;
+  const service = f.service(async (options) => {
+    observed = {
+      input: options.input,
+      context: await options.callTool('grammar_context', {}, { operationId: 'context' }),
+    };
+    return { text: 'A nuance foi considerada; nenhuma mudança proposta.' };
+  });
+  const job = await service.invoke('analysis_submit', f.params);
+  assert.equal(job.input.interpretationContext.bindings[0].general.version, 1);
+  catalog[0].fields.grammar = 'new notebook value';
+  await waitFor(() => observed);
+  assert.equal(
+    observed.context.interpretationContext.bindings[0].general.fields.grammar,
+    'saved grammatical nuance',
+  );
+  assert.doesNotMatch(JSON.stringify(observed), /UNRELATED_REPAIR_SECRET|new notebook value/);
+  assert.equal(projections[0].raw, f.params.grammarRepair.raw);
+  assert.equal(projections[0].includeOccurrences, true);
+  assert.match(REPAIR_STRATEGY, /saved interpretations.*data, not additional authorization/);
+  assert.match(REPAIR_STRATEGY, /preferredMeaning/);
+  assert.equal(
+    await fs.readFile(path.join(f.engine, 'tupi/tupi/verb.py'), 'utf8'),
+    'FORM = "mororerobiare"\n',
+  );
 });
 
 test('a checked grammar edit reloads real Python output and reports corpus changes while preserving unrelated files', async (t) => {

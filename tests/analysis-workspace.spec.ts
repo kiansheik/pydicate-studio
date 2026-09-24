@@ -178,6 +178,74 @@ test('question replies bind the named alternative and node and refuse a later ca
   ).toBe(2);
 });
 
+test('changing only saved lexical notes creates a new submission while unchanged active sends stay idempotent', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await page.evaluate(() => {
+    window.__nextControl.responses.lexical_notes_list = {
+      records: [
+        {
+          id: 'note:shared',
+          version: 1,
+          scope: 'entry',
+          fields: { meaning: 'first reading', grammar: '', note: '' },
+        },
+      ],
+    };
+  });
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Nhemöabaré.');
+  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('simulated-analysis')!);
+    saved.jobs[0].status = 'running';
+    saved.jobs[0].updatedAt = new Date().toISOString();
+    window.__nextControl.setAnalysis(saved);
+  });
+  await expect(page.getByText('Analisando', { exact: true }).first()).toBeVisible();
+  const submit = async (count: number) => {
+    await page.getByRole('button', { name: 'Salvar e enviar', exact: true }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => window.__nextControl.requests.filter((r) => r.method === 'analysis_submit').length,
+        ),
+      )
+      .toBe(count);
+  };
+  await submit(2);
+  await page.evaluate(() => {
+    window.__nextControl.responses.lexical_notes_list = {
+      records: [
+        {
+          id: 'note:shared',
+          version: 2,
+          scope: 'entry',
+          fields: { meaning: 'corrected reading', grammar: '', note: '' },
+        },
+      ],
+    };
+  });
+  await submit(3);
+  const requests = await page.evaluate(() =>
+    window.__nextControl.requests
+      .filter((r) => r.method === 'analysis_submit')
+      .map((r) => r.params),
+  );
+  expect(requests[1].operationId).toBe(requests[0].operationId);
+  expect(requests[2].operationId).not.toBe(requests[0].operationId);
+  expect(requests[2].revisionId).toBe(requests[0].revisionId);
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('simulated-analysis')!).jobs.length),
+  ).toBe(2);
+  expect(
+    await page.evaluate(
+      () => window.__nextControl.requests.filter((r) => r.method === 'lexical_notes_list').length,
+    ),
+  ).toBe(3);
+});
+
 test('summary refresh preserves conversation turns and expands old source-only image evidence', async ({
   page,
 }) => {
@@ -457,7 +525,7 @@ test('inspection uses the current draft revision and preserves human input after
   await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   await sourceTab(page).click();
-  await page.getByLabel('Tradução em português', { exact: true }).fill('Minha tradução revisada.');
+  await page.getByLabel('Tradução', { exact: true }).fill('Minha tradução revisada.');
   await page.getByLabel('Grafia provável em Navarro').fill('Changed while agent worked');
   await page.evaluate(() =>
     window.__nextControl.emit({
@@ -497,7 +565,7 @@ test('inspection uses the current draft revision and preserves human input after
     .click();
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
   await sourceTab(page).click();
-  await expect(page.getByLabel('Tradução em português', { exact: true })).toHaveValue(
+  await expect(page.getByLabel('Tradução', { exact: true })).toHaveValue(
     'Minha tradução revisada.',
   );
   await expect(page.getByLabel('Grafia provável em Navarro')).toHaveValue(
@@ -522,9 +590,7 @@ test('a draft edit during proposal loading cancels adoption without replacing th
     )
     .toBe(true);
   await sourceTab(page).click();
-  await page
-    .getByLabel('Tradução em português', { exact: true })
-    .fill('Keep this concurrent human edit.');
+  await page.getByLabel('Tradução', { exact: true }).fill('Keep this concurrent human edit.');
   await page.evaluate(() => window.__nextControl.release('analysis_get'));
   await expect(sourceTab(page)).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
@@ -696,4 +762,71 @@ test('prepared passages queue as a batch and node assistance preserves the tree 
       ),
     ),
   ).toHaveLength(0);
+});
+
+test('paused analysis resumes the same job and conversation with partial response preserved', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Nhemöabaré.');
+  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
+  const before = await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('simulated-analysis')!);
+    saved.jobs[0].status = 'needs-input';
+    saved.jobs[0].partialResponse = 'O início da interpretação foi preservado.';
+    saved.jobs[0].updatedAt = new Date(Date.now() + 1000).toISOString();
+    saved.jobs[0].summary = '';
+    saved.jobs[0].questions = [{ text: 'Pode confirmar a interpretação?' }];
+    window.__nextControl.setAnalysis(saved);
+    return saved.jobs[0];
+  });
+  await expect(page.getByText('IA · Resposta parcial', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('O início da interpretação foi preservado.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Responder', exact: true })).toBeVisible();
+  await page.getByLabel('Mensagem para a IA').fill('Continue a análise da árvore.');
+  await page.getByRole('button', { name: 'Retomar análise', exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__nextControl.requests.filter((r) => r.method === 'analysis_resume').length,
+      ),
+    )
+    .toBe(1);
+  const resumed = await page.evaluate(() => ({
+    request: window.__nextControl.requests.find((r) => r.method === 'analysis_resume')!.params,
+    state: JSON.parse(localStorage.getItem('simulated-analysis')!),
+    submits: window.__nextControl.requests.filter((r) => r.method === 'analysis_submit').length,
+  }));
+  expect(resumed.request).toMatchObject({
+    jobId: before.id,
+    instruction: 'Continue a análise da árvore.',
+  });
+  expect(resumed.state.jobs).toHaveLength(1);
+  expect(resumed.state.jobs[0].conversationId).toBe(before.conversationId);
+  expect(resumed.state.jobs[0].input).toEqual(before.input);
+  expect(resumed.submits).toBe(1);
+});
+
+test('current tree translation opens without source transcription or a new analysis', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
+  await page.getByRole('button', { name: 'Traduzir árvore atual', exact: true }).click();
+  const translator = page.getByRole('region', { name: 'Tradução da árvore atual', exact: true });
+  await expect(translator).toBeVisible();
+  await expect(translator.getByLabel('Idioma da tradução')).toHaveValue('Português');
+  await expect(
+    translator.getByRole('button', { name: 'Gerar prompt de tradução', exact: true }),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(() =>
+      window.__nextControl.requests.filter((r) =>
+        ['analysis_submit', 'ai_start'].includes(r.method),
+      ),
+    ),
+  ).toEqual([]);
 });

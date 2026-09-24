@@ -36,6 +36,9 @@ export interface AuthorNode {
   dispatch?: string;
   operandTypes?: string[];
   definition?: string;
+  baseDefinition?: string;
+  compositeDefinition?: string;
+  lexicalStatus?: 'hypothetical';
   evaluation?: NodeEvaluation;
   engineRoles?: {
     role: string;
@@ -92,6 +95,7 @@ export interface SourcePreview {
     expression: string;
     headword?: string;
     definition?: string;
+    lexicalStatus?: 'hypothetical';
     reused?: boolean;
   }[];
   files?: { path: string; sourceFingerprint: string; diff: string }[];

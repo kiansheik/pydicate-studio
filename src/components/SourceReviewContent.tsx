@@ -22,6 +22,33 @@ export function sourceReviewTitle(preview: SourcePreview) {
   return 'Revisar alterações';
 }
 
+/** Only the evaluated draft displayed by this review may become a reference. */
+export function currentSourceReviewResult({
+  preview,
+  currentPassageId,
+  draftRevisionId,
+  draftRaw,
+  engineFingerprint,
+  result,
+}: {
+  preview: SourcePreview;
+  currentPassageId: string;
+  draftRevisionId?: string;
+  draftRaw?: string;
+  engineFingerprint: string;
+  result: RenderResult | null;
+}) {
+  return ['passage-new', 'passage-update'].includes(reviewKind(preview)) &&
+    (preview.pendingDraftId ?? preview.passageId ?? preview.targetPassageId) === currentPassageId &&
+    !!preview.draftRevisionId &&
+    preview.draftRevisionId === draftRevisionId &&
+    result?.revisionId === draftRevisionId &&
+    result?.engineFingerprint === engineFingerprint &&
+    result?.expression === draftRaw
+    ? result
+    : null;
+}
+
 function definitionExcerpt(definition: string) {
   const compact = definition.replace(/\s+/g, ' ').trim();
   if (compact.length <= 180) return compact;
@@ -55,6 +82,8 @@ export function SourceReviewContent({
   engineFingerprint,
   result,
   pending,
+  saveGroundTruth = false,
+  acceptedReference,
 }: {
   preview: SourcePreview;
   hasChanges: boolean;
@@ -64,6 +93,8 @@ export function SourceReviewContent({
   engineFingerprint: string;
   result: RenderResult | null;
   pending: boolean;
+  saveGroundTruth?: boolean;
+  acceptedReference?: string | null;
 }) {
   const kind = reviewKind(preview);
   const passageReview = kind === 'passage-new' || kind === 'passage-update';
@@ -72,13 +103,14 @@ export function SourceReviewContent({
     (preview.pendingDraftId ?? preview.passageId ?? preview.targetPassageId) === currentPassageId &&
     !!preview.draftRevisionId &&
     preview.draftRevisionId === draftRevisionId;
-  const currentResult =
-    belongsToCurrentDraft &&
-    result?.revisionId === draftRevisionId &&
-    result?.engineFingerprint === engineFingerprint &&
-    result?.expression === draftRaw
-      ? result
-      : null;
+  const currentResult = currentSourceReviewResult({
+    preview,
+    currentPassageId,
+    draftRevisionId,
+    draftRaw,
+    engineFingerprint,
+    result,
+  });
   const additions = preview.lexicalAdditions ?? [];
   const newCount = additions.filter((entry) => !entry.reused).length;
   const reusedCount = additions.length - newCount;
@@ -87,7 +119,9 @@ export function SourceReviewContent({
     <>
       <p className="source-review-intro">
         {!hasChanges
-          ? 'Nenhuma alteração para aplicar.'
+          ? saveGroundTruth
+            ? 'A fonte já acompanha o rascunho. Confirme abaixo para salvar a ground truth.'
+            : 'Nenhuma alteração para aplicar.'
           : kind === 'passage-new'
             ? 'Esta passagem será acrescentada ao texto.'
             : kind === 'passage-update'
@@ -98,6 +132,18 @@ export function SourceReviewContent({
                   ? 'Esta ação restaura o conteúdo preservado antes de uma edição anterior.'
                   : 'Confira as alterações antes de aplicar. Os detalhes técnicos estão disponíveis abaixo.'}
       </p>
+      {saveGroundTruth && (
+        <section className="source-review-notice" aria-label="Ground truth desta revisão">
+          <h3>Salvar como ground truth</h3>
+          <p>
+            Ao confirmar, a forma revisada será registrada como referência do corpus junto com as
+            alterações da passagem e do léxico.
+          </p>
+          <p>
+            Referência atual: <span lang="tpw">{acceptedReference || 'Ainda não registrada'}</span>
+          </p>
+        </section>
+      )}
       {belongsToCurrentDraft && (
         <section className="source-review-result" aria-label="Resultado atual do rascunho">
           <h3>Resultado atual do rascunho</h3>
@@ -148,6 +194,7 @@ export function SourceReviewContent({
                     <span>{entry.reused ? 'Já no léxico' : 'Adicionar ao léxico'}</span>
                   </div>
                   <p>{excerpt || 'Sem significado informado.'}</p>
+                  {entry.lexicalStatus === 'hypothetical' && <p>Raiz hipotética · não atestada</p>}
                   {definition && excerpt.endsWith('…') && (
                     <details>
                       <summary>Ler definição completa</summary>

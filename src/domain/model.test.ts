@@ -316,3 +316,29 @@ describe('browser draft persistence', () => {
     ).toBe(false);
   });
 });
+
+describe('independent passage translations', () => {
+  it('preserves both languages, clears one, roundtrips drafts, and never labels legacy text', () => {
+    const source = { ...passage(), translation: 'unlabelled earlier text' };
+    const old = createDraft(source);
+    expect(old.translations).toBeUndefined();
+    const next = updateDraft(old, {
+      translations: { pt: ' primeira\n\nsegunda ', en: 'first\nsecond' },
+    });
+    expect(next.translation).toBe(source.translation);
+    expect(old.translations).toBeUndefined();
+    const saved = {
+      version: 1 as const,
+      projectId: 'translation-test',
+      drafts: { [source.id]: next },
+    };
+    const reloaded = JSON.parse(JSON.stringify(saved));
+    expect(validateDraftEnvelope(reloaded, saved.projectId)).toBe(true);
+    expect(reloaded.drafts[source.id].translations).toEqual(next.translations);
+    const cleared = updateDraft(next, { translations: { ...next.translations, pt: '' } });
+    expect(cleared.translations).toEqual({ pt: '', en: 'first\nsecond' });
+    expect(cleared.translation).toBe(source.translation);
+    expect(() => updateDraft(next, { translations: { pt: 7 } as never })).toThrow();
+    expect(() => updateDraft(next, { translations: { fr: 'bonjour' } as never })).toThrow();
+  });
+});

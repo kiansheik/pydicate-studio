@@ -13,6 +13,27 @@
   padding: 8px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.support-tabs .support-translate {
+  border-color: var(--green);
+  color: var(--green);
+}
+.analysis-support.is-translating #support-ai > :not(.analysis-quick-translation) {
+  display: none;
+}
+.analysis-quick-translation > .translation-back {
+  margin: 12px 18px 0;
+  color: var(--green);
+}
+.analysis-resume {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+.analysis-resume small {
+  color: var(--muted);
+  line-height: 1.5;
 }
 .support-tabs button {
   color: inherit;

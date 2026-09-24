@@ -1,3 +1,4 @@
+import { sameTranslations } from '../domain/translations';
 import { useEffect, useRef, useState } from 'react';
 import { Check, ClipboardCheck, X } from 'lucide-react';
 import type { Studio } from '../useStudio';
@@ -42,6 +43,7 @@ export function GroundTruthPanel({
     reviewProposal ||
     (!!draft &&
       (draft.raw !== passage.sourceExpression ||
+        !sameTranslations(draft.translations, passage.translations) ||
         (['diplomatic', 'normalized', 'translation', 'notes'] as const).some(
           (field) => draft[field] !== passage[field],
         ) ||

@@ -1,6 +1,18 @@
 # Contribuir com o Pydicate Studio
 
-O Studio reúne a leitura do Catecismo de Araújo, o dicionário local, a árvore Pydicate e propostas de IA. O texto que você prepara, a proposta da IA, a publicação na fonte e a aprovação como ground truth são decisões separadas.
+O Studio reúne a leitura do Catecismo de Araújo, o dicionário local, a árvore Pydicate e propostas de IA. Seu rascunho e as propostas da IA ficam disponíveis para revisão. Ao aceitar a revisão da passagem, o Studio salva a fonte e registra a forma revisada como ground truth.
+
+## Passagem que continua em outra página
+
+Marque o primeiro recorte com **Marcar região**. Use **Adicionar região na próxima
+página** e arraste para marcar a continuação. O primeiro recorte permanece na
+mesma passagem. Para páginas não consecutivas, escolha **Página física do PDF**
+e use **Marcar região** novamente.
+
+A lista mostra as páginas abrangidas e os recortes na ordem de leitura. Clique
+numa região para voltar à página dela; use as setas para ajustar a ordem e depois
+**Salvar regiões**. Ao incluir imagens na análise, os recortes seguem essa ordem.
+O intervalo exibido usa páginas físicas do PDF; a página impressa é um campo separado.
 
 ## Abrir o aplicativo
 
@@ -43,11 +55,11 @@ As comparações mostram separadamente igualdade exata, igualdade sem espaços/m
 
 **Usar no rascunho** também continua disponível. Ao abrir uma proposta antiga, o Studio avalia sua árvore com a gramática atual no próprio computador. Mudanças no corpus ou no programa não exigem outra análise de IA para reutilizar essa árvore. Se o resultado mudar ou falhar, o editor mostra a avaliação atual para você corrigir e revisar.
 
-Depois de inspecionar, use **Revisar nova passagem** ou **Commit to Ground Truth** no editor. Uma árvore com um único nome é suficiente. Confira e aplique a edição da fonte e do léxico para incluí-la no corpus; confirme a referência como ground truth na revisão. Prévias salvas por versões anteriores ainda oferecem **Usar e revisar proposta** para chegar ao mesmo fluxo.
+Depois de inspecionar, use **Revisar nova passagem** ou **Commit to Ground Truth** no editor. Uma árvore com um único nome é suficiente. Confira a passagem, as entradas do léxico e o diff. **Salvar fonte e ground truth** inclui as alterações no corpus e registra a referência em uma só confirmação. Quando a fonte já está salva, **Salvar ground truth** registra apenas a referência. Se essa última etapa falhar, o aviso informa que a fonte foi salva e permite retomar a revisão. Prévias salvas por versões anteriores ainda oferecem **Usar e revisar proposta** para chegar ao mesmo fluxo.
 
 Em **Fonte → Tradução em português**, escreva sua tradução desde o início ou edite-a depois. Novas propostas completas registram também uma tradução sugerida, na mesma análise. **Usar proposta e tradução** copia ambas para o rascunho; se a expressão já foi aceita, **Usar tradução no rascunho** ou **Substituir minha tradução por esta** copia apenas a sugestão. Sua tradução atual é preservada até essa escolha. Propostas antigas sem tradução não são reenviadas automaticamente.
 
-Depois, use a revisão normal da passagem para conferir e publicar as mudanças na fonte e no léxico. O planejamento existente escolhe ou reutiliza variáveis e preserva as definições. **Commit to Ground Truth**, ao lado de Verificar e Salvar rascunho, abre a aprovação separada da referência. IA e clientes MCP não podem executar essas publicações ou aprovações.
+Depois, use a revisão normal da passagem para conferir e publicar as mudanças na fonte e no léxico. O planejamento existente escolhe ou reutiliza variáveis e preserva as definições. **Commit to Ground Truth**, ao lado de Verificar e Salvar rascunho, abre essa revisão; aceitá-la salva também a referência. IA e clientes MCP não podem executar essas publicações ou aprovações.
 
 ## Fila, interrupções e recuperação
 
@@ -89,11 +101,89 @@ Uma correção da gramática abre sua própria conversa com Codex em **IA**. O S
 
 **Detalhes e diagnóstico** conserva a cópia/exportação do prompt e as verificações manuais. Os testes do aplicativo usam respostas simuladas; a correção efetiva começa somente ao enviar sua solicitação.
 
+## Conferir a forma antes de alterar a árvore
+
+Ao combinar duas peças ou escolher uma operação ou variante, confira **Prévia do
+resultado** no próprio diálogo. Ela acompanha as mudanças de operador, ordem e
+argumentos. O atalho **Imperativo** também abre essa confirmação. Clique em
+**Combinar peças** ou **Criar operação** quando quiser aplicar a escolha;
+**Cancelar** conserva a árvore atual.
+
+Se faltar uma peça, selecione o argumento para ver a forma completa ou deixe o
+encaixe vazio para completá-lo depois. Falhas e formas vazias são mostradas na
+prévia. Em **Detalhes e edição**, as operações e substituições também mostram a
+forma da peça inteira após a mudança na parte selecionada. A consulta usa o motor
+local e não envia uma solicitação de IA.
+
+Se restar uma única peça solta e o resultado principal estiver vazio, ela se torna
+o principal automaticamente. Ao combinar as duas últimas peças soltas, o resultado
+também já fica como principal. **Desfazer** continua disponível.
+
+## Retirar uma operação e manter a árvore
+
+Para retirar uma operação sem desmontar a árvore, clique nela com o botão direito
+e escolha **Retirar só a operação…**. A base ou o operando ocupa seu lugar e
+continua ligado ao restante da árvore. Se houver mais de uma parte, escolha
+**Parte que continuará ligada**; as outras ficam como peças soltas. Confira a
+prévia e clique em **Retirar operação**. **Desfazer** restaura tudo em um passo.
+O significado da operação retirada sai com ela; cada parte mantém o próprio
+significado.
+
 ## Definir o significado de uma composição
 
-Clique com o botão direito no nó que representa o conjunto e escolha **Definir significado do conjunto…**. Informe o significado do conjunto. A opção de reutilizar as definições das peças restaura entradas equivalentes do léxico ou uma acepção inequívoca do dicionário, conservando a gramática. **Usar definição no rascunho** prepara a composição; **Revisar nova passagem** mostra as entradas que serão publicadas.
+Clique com o botão direito no nó e escolha **Definir significado do conjunto…**.
+Informe o significado dessa parte. A definição fica no próprio nó, sem criar
+outro nível na árvore, e suas peças conservam os próprios sentidos. Repetir a
+edição atualiza a mesma definição. **Usar definição no rascunho** aplica a mudança;
+a revisão da passagem mostra as entradas que serão publicadas. No código,
+`studio_define` continua guardando a definição junto da expressão.
 
 Por exemplo, `abaré` conserva “padre…” e `nhemoabare` recebe a composição completa e “sacramento da ordem”. Depois de publicada, a definição da entrada composta pode ser editada no Léxico sem alterar `abaré`.
+
+Para consultar o sentido do conjunto no dicionário, clique em **Consultar
+Navarro**. A busca começa com a forma gerada. Em **Forma**, escolha a acepção do
+verbete correspondente; em **Significado**, procure pelo sentido em português e
+escolha o verbete desejado. A definição completa é aplicada ao conjunto,
+conservando sua árvore e os significados das peças. Você pode editar o texto
+antes de usá-lo no rascunho. A revisão da passagem permite registrar a composição
+como uma entrada reutilizável do léxico.
+
+Quando a forma aparece apenas dentro de outra entrada, a consulta mostra
+**Forma citada nesta entrada** e o contexto. Por exemplo, `tekate'yme'yma`
+aparece na entrada `ekate'yma`, na frase traduzida como “O oposto da avareza é a
+liberalidade”. Esse contexto permite informar “liberalidade” para o conjunto;
+a definição “avareza” do verbete não é copiada automaticamente.
+
+## Rever significados e notas no Léxico
+
+**Léxico** mostra cada etapa da árvore: a expressão inteira, suas construções e
+cada ocorrência das palavras. Selecione a etapa desejada e abra **Editar
+significado**. Em **Nesta ocorrência**, informe o sentido usado nessa passagem e
+clique em **Usar significado no rascunho**. Por exemplo, `obaîxûara` pode receber
+“oposto, contrário” nessa ocorrência enquanto outra conserva “mão de pilão”.
+A forma gerada e os significados das peças internas são preservados. Deixar vazio
+registra um significado desconhecido; **Voltar ao significado herdado** remove a
+alteração local. A definição herdada continua disponível para comparação.
+
+O mesmo botão **Consultar Navarro** está disponível nesse editor, tanto para
+**Nesta ocorrência** quanto para uma definição compartilhada ou desta fonte.
+As acepções homógrafas aparecem separadas para você escolher o sentido desejado.
+
+Para mudar uma entrada reutilizada, escolha **Definição compartilhada** ou
+**Definição nesta fonte**, conforme sua origem, e **Revisar definição geral**.
+Confira o diff e os usos afetados antes de salvar. Construções ainda sem uma
+declaração podem receber anotações gerais; dependências internas precisam ser
+expandidas na árvore antes de uma alteração local.
+
+Em **Anotações de leitura**, registre significado, gramática e outras observações
+**Nesta ocorrência** ou **Sobre esta construção**. As notas são salvas no caderno
+local e incluídas nas próximas solicitações de tradução e análise quando o nó
+correspondente estiver presente. A leitura da ocorrência tem precedência; uma
+definição explícita no código precede uma nota geral. O prompt conserva as fontes
+e divergências. Ao enviar, o Studio espera as notas pendentes serem salvas.
+**Retomar** conserva o contexto original do trabalho pausado; uma nova solicitação
+usa suas novas notas. As definições entram na fonte pela revisão da passagem;
+o caderno de notas continua salvo neste dispositivo e pode ser exportado.
 
 Toda revisão para publicar uma edição, nova passagem ou mudança lexical executa a regressão do corpus em uma cópia temporária. Novas falhas e mudanças nas passagens preservadas bloqueiam a publicação. O diálogo mostra quantas passagens e referências foram conferidas; problemas anteriores e referências de passagens intencionalmente editadas aparecem separadamente. A avaliação durante a digitação continua automática. Esses controles não usam IA e não aprovam ground truth.
 

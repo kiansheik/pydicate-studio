@@ -3,6 +3,7 @@ import { BookOpen, FileImage, Minus, Plus, ScanLine, X } from 'lucide-react';
 import { PdfEvidence, type EvidencePreparation } from './PdfEvidence';
 import type { EvidencePointer } from '../domain/evidence';
 import type { Studio } from '../useStudio';
+import { TranslationFields } from './TranslationFields';
 
 export function SourcePane({
   studio,
@@ -338,9 +339,9 @@ export function SourcePane({
           />
         </label>
         <label>
-          <span>Tradução em português</span>
+          <span>Tradução sem idioma informado</span>
           <textarea
-            aria-label="Tradução em português"
+            aria-label="Tradução"
             rows={3}
             value={draft?.translation ?? ''}
             disabled={disabled}
@@ -351,6 +352,11 @@ export function SourcePane({
             Você pode escrever e editar antes ou depois da análise.
           </span>
         </label>
+        <TranslationFields
+          value={draft?.translations}
+          disabled={disabled}
+          onChange={(translations) => edit({ translations })}
+        />
         <details>
           <summary>Orientações para a análise e leitura revisada</summary>
           <label>

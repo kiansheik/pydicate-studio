@@ -20,9 +20,19 @@ class LabIndex:
         self.fragments = []
         self.retrieval = {}
         self.full_expressions = set()
+        self.lexical_rows = []
+        self.lexical_by_category = {}
+        self.lexical_by_key = {}
         self.load()
 
     def load(self):
+        lexical = self.directory / 'lexicon.jsonl'
+        if lexical.is_file():
+            for row in read_jsonl(lexical):
+                self.lexical_rows.append(row)
+                self.lexical_by_category.setdefault(row['category'], []).append(row)
+                for key in row['keys']:
+                    self.lexical_by_key.setdefault(key, []).append(row)
         fragments = self.directory / 'fragments.jsonl'
         if fragments.is_file():
             for row in read_jsonl(fragments):
@@ -61,7 +71,10 @@ class LabIndex:
         return rows
 
     def counts(self):
-        return {'fragments': len(self.fragments),
+        return {'lexicalEntries': len(self.lexical_rows),
+                'lexicalKeys': len(self.lexical_by_key),
+                'lexicalByCategory': {key: len(rows) for key, rows in self.lexical_by_category.items()},
+                'fragments': len(self.fragments),
                 'fragmentKeys': sum(len(table) for table in self.by_type.values()),
                 'retrieval': sum(len(rows) for rows in self.retrieval.values()),
                 'fullExpressions': len(self.full_expressions),

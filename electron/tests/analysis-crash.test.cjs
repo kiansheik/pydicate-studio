@@ -80,8 +80,9 @@ test(
     const options = (${serviceOptions.toString()})(directory, draftStore);
     let started;
     const ready = new Promise(resolve => { started = resolve; });
-    const service = createAnalysisService({ ...options, runner: async ({ callTool, onCheckpoint, signal }) => {
+    const service = createAnalysisService({ ...options, runner: async ({ callTool, onCheckpoint, onEvent, signal }) => {
       const candidate = await callTool('studio_candidate_create', { raw: '' }, { operationId: 'create-before-kill' });
+      await onEvent({ type: 'text-delta', text: 'Resposta parcial antes da interrupção.' });
       await onCheckpoint({ version: 1, phase: 'fixture-provider-inflight', candidateId: candidate.id });
       started(candidate);
       await new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
@@ -137,6 +138,7 @@ test(
     const interrupted = await get(saved.first.id);
     assert.equal(interrupted.job.status, 'blocked');
     assert.equal(interrupted.job.error.code, 'INTERRUPTED');
+    assert.equal(interrupted.job.partialResponse, 'Resposta parcial antes da interrupção.');
     assert.deepEqual(interrupted.job.input, saved.first.input);
     assert.deepEqual(interrupted.candidates[0], saved.candidate);
     assert.equal(interrupted.job.attempts[0].checkpoint.phase, 'fixture-provider-inflight');

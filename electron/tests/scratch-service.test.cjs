@@ -20,7 +20,7 @@ function parse(raw, revisionId) {
     ),
   );
 }
-function fixture() {
+function fixture(options = {}) {
   const project = {
     id: 'project',
     engineFingerprint: 'engine',
@@ -90,6 +90,7 @@ function fixture() {
     getEvidence: async () => ({ regions: [] }),
     askQuestion: async (_, question) => question,
     recordTool: async (_, event) => events.push(event),
+    ...options,
   });
   let operation = 0;
   return {
@@ -102,6 +103,43 @@ function fixture() {
     call: (name, args) => service.call('job', name, args, { operationId: 'op-' + ++operation }),
   };
 }
+test('candidate evaluation projects frozen notebook onto each current tree, excluding local occurrence notes on loose pieces and all notes during reconstruction', async () => {
+  const calls = [];
+  const f = fixture({
+    projectInterpretations: async (notes, params) => {
+      calls.push({ notes: structuredClone(notes), params });
+      return { bindings: [{ preferredMeaning: 'scoped saved meaning' }], fingerprint: params.raw };
+    },
+  });
+  f.job.interpretationNotes = [{ id: 'private-catalog', fields: { meaning: 'frozen' } }];
+  f.job.input.canvas = {
+    fragments: [{ id: 'loose', raw: 'b', x: 0, y: 0 }],
+    positions: {},
+    layout: 'bottom-up',
+  };
+  let candidate = await f.call('studio_candidate_create', {
+    useInput: true,
+  });
+  candidate = await f.call('studio_candidate_evaluate', {
+    candidateId: candidate.id,
+    expectedRevision: candidate.revisionId,
+  });
+  assert.equal(
+    candidate.evaluation.interpretationContext.bindings[0].preferredMeaning,
+    'scoped saved meaning',
+  );
+  assert.equal(calls[0].notes[0].fields.meaning, 'frozen');
+  assert.equal(calls[0].params.includeOccurrences, true);
+  assert.equal(calls[1].params.includeOccurrences, false);
+  assert.equal(calls[1].params.raw, 'b');
+  assert.equal(calls[1].params.passageId, 'passage');
+  f.job.input.manifest = { mode: 'reconstruction' };
+  await f.call('studio_candidate_evaluate', {
+    candidateId: candidate.id,
+    expectedRevision: candidate.revisionId,
+  });
+  assert.equal(calls.length, 2);
+});
 test('shared canvas edits round-trip raw, operations, scalar arguments, loose pieces, holes and stale nodes', async () => {
   const f = fixture();
   let c = await f.call('studio_candidate_create', { raw: 'a * b' });

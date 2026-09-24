@@ -7,6 +7,7 @@ const { createStudioMcpGateway } = require('./studio-mcp-gateway.cjs');
 const { createEvidenceImages } = require('./evidence-images.cjs');
 const { createExternalAnalysisRunner } = require('./analysis-external.cjs');
 const { runAgent, normalizeBudgets } = require('./agent-runner.cjs');
+const { isReconstruction } = require('./analysis-input.cjs');
 const { createGrammarRepair, REPAIR_TOOLS, REPAIR_STRATEGY } = require('./grammar-repair.cjs');
 const validate = require('./validation.cjs');
 const clone = (value) => structuredClone(value);
@@ -22,6 +23,14 @@ const own = (object, key) => (Object.hasOwn(object, key) ? object[key] : undefin
 const canonicalPassage = (id) => id?.replace(/^pending:/, 'passage:');
 const samePassage = (left, right) => canonicalPassage(left) === canonicalPassage(right);
 const terminal = new Set(['ready-for-review', 'needs-input', 'blocked', 'failed', 'cancelled']);
+function preserveInterruptedResponse(job, attempt) {
+  attempt.usage = clone(attempt.checkpoint?.usage ?? {});
+  const partial = (job.events ?? [])
+    .filter((event) => event.attemptId === attempt.id && event.type === 'text-delta')
+    .map((event) => event.text ?? '')
+    .join('');
+  if (partial) job.partialResponse = attempt.summary = partial;
+}
 function text(value, limit = 100000) {
   if (typeof value !== 'string' || value.length > limit)
     throw error('INVALID_INPUT', 'Texto ausente ou excessivamente grande.');
@@ -68,6 +77,8 @@ function createAnalysisService({
   emit = () => {},
   runner = runAgent,
   providers,
+  readInterpretationNotes = async () => [],
+  projectInterpretations = async () => undefined,
   store = new AnalysisStore(path.join(stateDirectory, 'records')),
   autoRun = true,
 }) {
@@ -80,6 +91,7 @@ function createAnalysisService({
     request,
     reloadProject,
     getConfig,
+    projectInterpretations,
     stateDirectory: path.join(stateDirectory, 'grammar-edits'),
   });
   const initialized = new Map(),
@@ -99,6 +111,8 @@ function createAnalysisService({
   // Publication changes the UI identity, never the immutable job input or audit trail.
   function present(record) {
     if (!record) return record;
+    const { interpretationNotes: _privateNotes, ...publicRecord } = record;
+    record = publicRecord;
     const project = getProject();
     const published = canonicalPassage(record.passageId);
     return record.projectId === project?.id && project.passages.some((p) => p.id === published)
@@ -135,13 +149,14 @@ function createAnalysisService({
                   job.error = {
                     code: 'INTERRUPTED',
                     message:
-                      'O aplicativo foi interrompido. A resposta pode ter sido cobrada; revise o trabalho salvo e escolha Tentar novamente explicitamente.',
+                      'O aplicativo foi interrompido. O trabalho salvo pode ser retomado; continuar faz uma nova solicitação ao provedor.',
                   };
                   const attempt = job.attempts.at(-1);
                   if (attempt) {
                     attempt.status = job.status;
                     attempt.finishedAt = now();
                     attempt.error = job.error;
+                    preserveInterruptedResponse(job, attempt);
                   }
                   delete job.lease;
                 }
@@ -215,6 +230,7 @@ function createAnalysisService({
     getJob: jobById,
     getCandidate: candidateById,
     getProject,
+    projectInterpretations,
     request,
     saveCandidate: async (jobId, next, { expectedRevision, operationId }) => {
       const running = active.get(jobId);
@@ -427,7 +443,7 @@ function createAnalysisService({
       return job.candidateIds.map((id) => state.candidates[id]);
     },
   });
-  async function capture(params) {
+  async function capture(params, interpretationNotes) {
     const project = currentProject(params.projectId);
     const envelope = await draftStore.load(project.id),
       draft = own(envelope?.drafts ?? {}, params.passageId);
@@ -531,6 +547,13 @@ function createAnalysisService({
           'Conclua a análise antes de traduzi-la. Para interpretar a fonte, use Interpretar a fonte.',
         );
     }
+    const interpretations = await projectInterpretations(interpretationNotes, {
+      ...scopeContext,
+      raw: draft.raw ?? '',
+      revisionId: draft.revisionId,
+      scope: params.scope,
+      selectedNode,
+    });
     const dictionary = await request('dictionary_lookup', {
       ...scopeContext,
       query: 'a',
@@ -635,6 +658,7 @@ function createAnalysisService({
       scope: params.scope,
       ...(selectedNode ? { selectedNode } : {}),
       ...(evaluation ? { evaluation } : {}),
+      ...(interpretations ? { interpretationContext: interpretations } : {}),
       ...(feedback ? { feedback } : {}),
       conversation: previous.turns.slice(-12),
       description: text(params.description ?? '', 10000),
@@ -682,10 +706,11 @@ function createAnalysisService({
       (!parent?.input.grammarRepair || !samePassage(parent.passageId, params.passageId))
     )
       throw error('INVALID_FEEDBACK', 'A correção anterior pertence a outra conversa.');
+    const interpretationNotes = await readInterpretationNotes(params.projectId);
     const input =
       params.task === 'grammar-repair'
-        ? await grammar.capture(params, parent)
-        : await capture(params);
+        ? await grammar.capture(params, parent, interpretationNotes)
+        : await capture(params, interpretationNotes);
     if (input.grammarRepair) {
       input.budgets = normalizeBudgets(params.budgets);
       input.conversation = parent
@@ -725,6 +750,7 @@ function createAnalysisService({
         passageId: params.passageId,
         conversationId: thread.id,
         input,
+        ...(interpretationNotes.length && !isReconstruction(input) ? { interpretationNotes } : {}),
         status: 'queued',
         phase: 'queued',
         attempts: [],
@@ -771,10 +797,19 @@ function createAnalysisService({
         if (value.status !== 'queued') throw error('STALE_ATTEMPT', 'A análise saiu da fila.');
         assertFresh(value);
         value.status = 'running';
+        value.currentAttemptId = attemptId;
         value.phase = 'input';
         delete value.error;
         value.lease = { ownerId, attemptId, startedAt: now() };
-        value.attempts.push({ id: attemptId, status: 'running', startedAt: now(), steps: 0 });
+        value.attempts.push({
+          id: attemptId,
+          status: 'running',
+          startedAt: now(),
+          steps: 0,
+          ...(value.resumption
+            ? { resumedFrom: value.resumption.attemptId, instruction: value.resumption.instruction }
+            : {}),
+        });
       });
       handle.conversationId = job.conversationId;
       handle.enginePath = job.input.grammarRepair?.enginePath;
@@ -791,13 +826,17 @@ function createAnalysisService({
         attemptId,
         expiresInMs: job.input.budgets.timeoutMs + 10000,
       });
-      // A retry is explicit and may bill again. Reconstruct observable completed
-      // work instead of blindly replaying a possibly in-flight provider/tool call.
+      const previousAttempt = job.attempts.at(-2);
+      // Resume only observable work. A pending tool is recovered from a durable
+      // receipt or reported as interrupted; changing attempts must not replay it.
       const priorWork =
         job.attempts.length > 1
           ? {
               warning:
-                'Tentativa anterior interrompida ou falhou. Consulte as propostas salvas antes de repetir trabalho; não há garantia de cobrança única.',
+                'Continue a conversa a partir do trabalho salvo. A entrada original permanece a mesma. Consulte as propostas e suas revisões antes de editar. Chamadas interrompidas sem resultado confirmado não foram repetidas.',
+              instruction:
+                job.resumption?.instruction ||
+                'Continue de onde parou; preserve as leituras e propostas já construídas.',
               candidates: job.candidateIds
                 .map((id) => previousState.candidates[id])
                 .map((candidate) => ({
@@ -810,10 +849,32 @@ function createAnalysisService({
                   rationale: candidate.rationale,
                   translation: candidate.translation,
                 })),
-              lastCheckpoint: job.attempts.at(-2)?.checkpoint?.phase,
-              previousError: job.attempts.at(-2)?.error,
+              lastCheckpoint: previousAttempt?.checkpoint?.phase,
+              previousError: previousAttempt?.error,
+              previousResponse: previousAttempt?.summary,
+              previousQuestions: previousAttempt?.questions,
             }
           : null;
+      const checkpoint =
+        previousAttempt?.checkpoint?.version === 1 ? previousAttempt.checkpoint : null;
+      const toolReceipts = {};
+      for (const message of checkpoint?.messages || []) {
+        if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
+        for (const call of message.content.filter((block) => block.type === 'tool_use')) {
+          const operationId = `agent:${job.input.digest.slice(0, 24)}:${call.id}`;
+          const receipt = own(
+            previousState.operations,
+            `tool:${previousAttempt.id}:${operationId}`,
+          );
+          if (receipt?.digest !== digest({ name: call.name, args: call.input })) continue;
+          toolReceipts[call.id] = {
+            signature: JSON.stringify([call.name, call.input]),
+            result: receipt.error
+              ? { isError: true, content: [{ type: 'text', text: JSON.stringify(receipt.error) }] }
+              : receipt.result,
+          };
+        }
+      }
       const result = await (job.execution === 'external' ? externalRunner : runner)({
         provider: job.input.provider,
         providers,
@@ -823,7 +884,11 @@ function createAnalysisService({
         input: job.input,
         grammarRepair: Boolean(job.input.grammarRepair),
         externalBaseline,
-        ...(priorWork ? { messages: [{ role: 'user', content: JSON.stringify(priorWork) }] } : {}),
+        ...(checkpoint && priorWork
+          ? { checkpoint, continuation: { context: priorWork, toolReceipts } }
+          : priorWork
+            ? { messages: [{ role: 'user', content: JSON.stringify(priorWork) }] }
+            : {}),
         images: await Promise.all(job.input.evidence.images.map((image) => images.read(image))),
         tools: job.input.grammarRepair ? REPAIR_TOOLS : scratch.tools,
         callTool: (name, args, opts) => callTool(jobId, name, args, { ...opts, attemptId }),
@@ -834,7 +899,7 @@ function createAnalysisService({
           await mutateJob(
             jobId,
             (value) => {
-              value.events.push({ ...event, at: now() });
+              value.events.push({ ...event, attemptId, at: now() });
               value.phase = event.tool ?? event.phase ?? event.type ?? 'working';
             },
             { attemptId },
@@ -901,6 +966,8 @@ function createAnalysisService({
           attempt.status = value.status;
           attempt.finishedAt = now();
           attempt.usage = value.usage;
+          attempt.summary = value.summary;
+          attempt.questions = clone(value.questions);
           attempt.checkpoint = result.checkpoint ?? attempt.checkpoint;
           const thread =
             Object.values(state.conversations).find(
@@ -926,7 +993,7 @@ function createAnalysisService({
             controller.signal.aborted && controller.signal.reason?.code === 'CANCELLED';
           value.status = cancelled
             ? 'cancelled'
-            : /AUTH|BILL|UNAVAILABLE|STALE|CONFLICT|INTERRUPTED|DEADLINE|TIMEOUT|LIMIT/.test(
+            : /AUTH|BILL|UNAVAILABLE|STALE|CONFLICT|INTERRUPTED|DEADLINE|TIMEOUT|LIMIT|BUDGET/.test(
                   reason?.code ?? '',
                 )
               ? 'blocked'
@@ -941,6 +1008,7 @@ function createAnalysisService({
             attempt.status = value.status;
             attempt.finishedAt = now();
             attempt.error = value.error;
+            preserveInterruptedResponse(value, attempt);
           }
         });
     } finally {
@@ -997,7 +1065,7 @@ function createAnalysisService({
   async function invoke(method, params = {}) {
     currentProject(params.projectId);
     await initialize(params.projectId);
-    if (method === 'analysis_submit') return submit(params);
+    if (method === 'analysis_submit') return present(await submit(params));
     if (method === 'analysis_external_start') {
       const draft = (await draftStore.load(params.projectId))?.drafts[params.passageId];
       if (!draft)
@@ -1038,7 +1106,7 @@ function createAnalysisService({
         errors = [];
       for (const item of params.items) {
         try {
-          jobs.push(await submit({ ...item, projectId: params.projectId }));
+          jobs.push(present(await submit({ ...item, projectId: params.projectId })));
         } catch (reason) {
           errors.push({ passageId: item.passageId, message: reason.message, code: reason.code });
         }
@@ -1338,31 +1406,58 @@ function createAnalysisService({
       }
       return present(result.job);
     }
-    if (method === 'analysis_retry') {
+    if (method === 'analysis_retry' || method === 'analysis_resume') {
       requireId(params.operationId, 'operação');
-      assertFresh(job);
-      const key = 'retry:' + params.operationId;
+      const instruction = text(params.instruction ?? '', 10000).trim();
+      const key = (method === 'analysis_resume' ? 'resume:' : 'retry:') + params.operationId;
+      const signature = digest({ jobId: job.id, instruction });
       const changed = await store.transact(params.projectId, (state) => {
         const prior = own(state.operations, key);
         if (prior) {
-          if (prior.jobId !== job.id)
+          if (prior.jobId !== job.id || (prior.digest && prior.digest !== signature))
             throw error('OPERATION_CONFLICT', 'Operação de outra análise.');
           return state.jobs[job.id];
         }
         const value = state.jobs[job.id];
-        if (!['blocked', 'failed', 'cancelled'].includes(value.status))
-          throw error('JOB_ACTIVE', 'Esta análise não precisa de uma nova tentativa.');
+        assertFresh(value);
+        if (!['blocked', 'failed', 'cancelled', 'needs-input'].includes(value.status))
+          throw error('JOB_ACTIVE', 'Esta análise não está pausada para retomada.');
+        const previousAttempt = value.attempts.at(-1);
+        if (previousAttempt) {
+          previousAttempt.summary =
+            value.summary || value.partialResponse || previousAttempt.summary;
+          previousAttempt.questions = clone(value.questions);
+        }
+        value.resumption = { attemptId: previousAttempt?.id, instruction, requestedAt: now() };
         value.status = 'queued';
         value.phase = 'queued';
         value.updatedAt = now();
+        value.questions = [];
+        delete value.summary;
+        delete value.partialResponse;
         delete value.error;
         delete value.lease;
-        state.operations[key] = { jobId: job.id };
+        delete value.currentAttemptId;
+        state.operations[key] = { jobId: job.id, digest: signature };
+        const thread = Object.values(state.conversations).find(
+          (entry) => entry.id === value.conversationId,
+        );
+        if (thread) {
+          thread.turns.push({
+            id: randomUUID(),
+            role: 'user',
+            text: instruction || 'Retomar o trabalho salvo.',
+            jobId: value.id,
+            inputRevisionId: value.input.baseRevisionId,
+            at: now(),
+          });
+          thread.revision++;
+        }
         return value;
       });
       notify(changed);
       kick();
-      return changed;
+      return present(changed);
     }
     throw error('UNKNOWN_METHOD', 'Operação de análise indisponível.');
   }

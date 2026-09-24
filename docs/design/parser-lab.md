@@ -19,8 +19,10 @@ rascunho**, which takes it into the draft as an ordinary, undoable edit — the
 source and the reference are untouched — and records which reading was chosen,
 so the laboratory learns from real work instead of a separate exercise.
 
-With no index, the tab offers one button, **Preparar índice**: the smoke profile,
-locally, in a couple of seconds. The full laboratory — Dados, Treinar, Avaliar,
+With no index, the tab offers **Preparar índice**; an existing index offers
+**Repreparar índice**. Every profile includes the supported full Navarro lexical
+snapshot; `smoke` only keeps generated training fixtures small. Preparation runs
+locally with visible progress. The full laboratory — Dados, Treinar, Avaliar,
 Execuções — opens from **Laboratório** in the same tab.
 
 This supersedes the original brief's hidden-by-default switch. Ten minutes of
@@ -70,13 +72,85 @@ Historical orthography conversion and OCR repair are **not** applied. They are
 later, separately versioned proposal stages that must be able to keep several
 readings alive.
 
+## Dictionary roots and provisional vocabulary (2026-09-19)
+
+`lexicon.py` snapshots shared predicates and the selected checkout's Navarro
+dictionary using its actual Pydicate constructors. The upstream bulk predicate
+iterator loses sense IDs and can classify words from labels inside examples;
+Studio instead preserves exact dictionary rows and pins verb senses to matching
+engine IDs. Portable constructor expressions contain the full definition, so a
+chosen reading works in the ordinary authoring namespace without importing a
+laboratory alias. Unclassified entries and unmatched verb senses are counted as
+skipped rather than assigned a guessed class.
+
+`lexicon.jsonl` and `lexicon-report.json` are checksummed artifact members. The
+context includes dictionary data content hashes as well as engine and Studio
+code. Changing these requires rebuilding; even an explicit index ID cannot
+bypass compatibility. At the checked local snapshot, 7,066 of 8,293 dictionary
+senses are supported; 1,227 are skipped. These are lexical coverage counts, not
+sentence recognition accuracy.
+
+Root aliases come from the engine's nominal stems and small paradigms: finite
+and imperative verbs, possession, locative and nominal past. For example,
+Navarro's `ekate'yma` with `(t)` yields `tekate'yma`; `só` supplies the imperative
+root `kûãî`, and `angaîpaba` supplies the locative `angaîpápe`. No handwritten
+spelling replacement decides validity. `morphology.py` selects matching roots,
+proposes productive nominal/verbal/postpositional constructions on demand, and
+adds only matching engine realizations to the request's chart. The dictionary
+is not multiplied into a precomputed Cartesian product of sentences.
+
+Productive search also tests bound generic/reflexive/reciprocal objects, their
+nominal bases, and selected causative → reflexive → nominal paths. For example,
+`(potar * moro).var(1)` gives `poropotar`; adding `.base_nominal()` gives
+`moropotara`. If a productive noun's actual engine surface matches an indexed
+Navarro noun's actual surface, a separate proposal wraps the tree in
+`studio_define(tree, exact_dictionary_definition)`. This internal lexical link
+preserves accents (unlike the relaxed observation comparator), keeps every
+matching sense separate and consumes the same bounded assembly budget.
+The direct dictionary entry remains available. Evidence distinguishes component
+meanings from whole-node meanings and labels the link `surface-linked`.
+Equal form is not etymological proof or full-paradigm equivalence: the derived
+nominal realizes `xe moropotara`, the dictionary pluriform noun `xe poropotara`.
+
+On adoption, source-owned `definitionContext` retains lexical base definitions
+and explicit whole-node definitions at every nested scope, even when the engine
+conversion discards its construction history. The inspector and Studio prompts
+consume this hierarchy. Verified shared declarations expand with provenance;
+helpers, cycles, stale dependencies and budget exhaustion remain explicit gaps.
+Shared lexical publication includes canonical meaning scopes in composite
+identity, so equal outer definitions cannot merge distinct inner definitions.
+Standalone Pydicate semantic APIs are unchanged.
+
+**Raízes e nomes não cadastrados** accepts up to eight explicit root/category
+hypotheses (noun, proper noun, intransitive/transitive/second-class verb), with
+no invented definition. These are additional contributor assumptions, separate
+from the normalized observation; capitals alone never imply a proper noun.
+Existing dictionary nouns/verbs cannot be silently reclassified through hints.
+Any candidate using a hypothesis is `partial` with provisional lexical evidence,
+even when its syntax fully evaluates and reproduces the whole input. Selecting
+it keeps that evidence in the judgment and does not create a complete historical
+evaluation example. Hints are not permanent lexical declarations.
+
+Dictionary senses remain distinct when morphology alone cannot distinguish
+their meanings. Repeated homographs with multiple senses conservatively retain
+their structures so sense order is not lost. Empty-surface annotation tags and
+bare text are scanned with a finite Studio parser, preserving emitted evidence
+without the upstream parser's orphan-tag loop.
+
+Root, argument, span, assembly, result and time limits are reported as truncation;
+the UI never promises every possible reading. Productive templates remain
+bounded, chart composition still assumes constituent surface concatenation,
+and unrestricted historical language recognition is unmeasured. Unknown roots
+require explicit hints; there is no automatic catch-all literal analysis.
+
 ## Inference cascade
 
 1. **Retrieve** — exact normalized matches in the index of recorded corpus
    expressions and subexpressions. Labelled `measuresGeneralization: false`:
    useful, but it does not measure generalization, and reconstruction evaluation
    excludes the answer-bearing rows.
-2. **Compose** — a chart over typed spans of the observation, assembled under a
+2. **Expand roots and compose** — query-directed dictionary morphology augments
+   the indexed fragments, then a chart over typed spans is assembled under a
    declared root rule. Both surface orders are tried, because the engine (not the
    search) decides whether a constituent is realized before or after another.
 3. **Rank** — deterministic coverage/simplicity/provenance ordering, or a locally
@@ -86,7 +160,17 @@ readings alive.
    milestone, and both report their real state rather than a placeholder.
 5. **Validate** — editable syntax, resolvable lexical identities, a complete
    evaluation, and a realized form whose normalization equals the *whole*
-   observation. Anything else is `partial` or `unknown`, with observed reasons.
+   observation. Explicit unresolved lexical hypotheses remain `partial` despite
+   complete engine evaluation. Failed matches are `unknown`, with observed reasons.
+
+The ordinary canvas **Criar peça** form also accepts explicit noun/verb grammar
+and hypothetical roots with an empty meaning. Reviewed shared roots retain
+`lexicalStatus: hypothetical`; rebuilding the index makes their other engine
+forms available without upgrading lexical uncertainty. Status is checked in
+the realized source tree as well as fragment evidence, because verbal
+annotations may omit custom tags. Suggestion hints carry the same persistent
+status when adopted into a draft. Identical output cannot merge a provisional
+root with an otherwise unmarked one.
 
 Soundness comes from the engine, so the chart's concatenation assumption can
 only cost recall, never validity. Nothing is passed through a literal or a
@@ -99,13 +183,22 @@ separates nothing. Two finer notions decide, and the engine supplies both:
 
 - **Annotation-identical** — the engine emits byte-identical annotated output,
   so the grammar makes the same morphological claim about every surface unit.
-  These are one answer written twice and are merged, with the other spelling kept
+  When lexical sense identities and scoped construction signatures also agree,
+  these are one answer written twice
+  and are merged, with the other spelling kept
   under `annotationIdenticalSources`. `(+nde * ikó)` and `ikó * +endé` merge.
 - **Co-generating** — both realize the observation but annotate differently, so
   the surface genuinely does not decide. `(pe * apé)` and `(pe * (ae * apé))`
   differ by exactly `PLURIFORM_PREFIX:S:ABSOLUTE` versus `PLURIFORM_PREFIX:S`:
   unpossessed against third-person possessed. Both are shown, each with the
   precise tag difference from the first reading, and the contributor picks.
+
+Distinct dictionary meanings are also separate choices even when their
+annotations agree; their lexical evidence names the relevant Navarro senses.
+Nominalized source structures and nested `studio_define` scopes are retained
+even when the engine flattens them into identical nominal annotations. Only
+annotation-neutral `.var(integer)` alternatives may collapse within the same
+scoped structure; their source spellings remain available.
 
 Co-generating readings are **presumed mutually acceptable**: never scored as an
 error against each other, never used as a training contrast. Only a contributor

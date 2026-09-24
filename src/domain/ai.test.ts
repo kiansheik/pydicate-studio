@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { aiSelection, aiRecordScope, canAcceptAI, mergeAIRecords, type AIRecord } from './ai';
+import {
+  aiSelection,
+  aiRecordScope,
+  aiRecordLanguage,
+  canAcceptAI,
+  mergeAIRecords,
+  type AIRecord,
+} from './ai';
 
 const record: AIRecord = {
   version: 1,
@@ -23,6 +30,22 @@ const record: AIRecord = {
   editorialApproval: null,
 };
 describe('AI result binding', () => {
+  it('retains the requested language while old requests default to Portuguese', () => {
+    expect(aiRecordLanguage(record)).toBe('Português');
+    expect(aiRecordLanguage({ ...record, context: { targetLanguage: '  English  ' } })).toBe(
+      'English',
+    );
+  });
+  it('checks the evaluated engine before adopting a translation', () => {
+    const evaluated = {
+      ...record,
+      context: { engineFingerprint: 'old' },
+      inputContext: { analysisTarget: { engineFingerprint: 'current' } },
+    };
+    expect(canAcceptAI(evaluated, 'p', 'line', 'r1', 'current')).toBe(true);
+    expect(canAcceptAI(evaluated, 'p', 'line', 'r1', 'changed')).toBe(false);
+    expect(canAcceptAI(record, 'p', 'line', 'r1', 'current')).toBe(false);
+  });
   it('preserves historical partial selections and prevents replacing a full translation with them', () => {
     const historical = {
       ...record,

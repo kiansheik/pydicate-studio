@@ -1,3 +1,5 @@
+import { TranslationFields } from './components/TranslationFields';
+import { sameTranslations } from './domain/translations';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   ArrowDownToLine,
@@ -24,9 +26,13 @@ import {
   X,
 } from 'lucide-react';
 import { compareReference, expressionFor } from './domain/model';
+import { flushLexicalNotes } from './domain/lexical-note-sync';
+import { analysisNoteSnapshot } from './domain/analysis-submission';
+import type { LexicalNote } from './domain/passage-lexicon';
 import { SourceRecovery } from './components/SourceRecovery';
 import {
   SourceReviewContent,
+  currentSourceReviewResult,
   reviewKind,
   sourceReviewTitle,
 } from './components/SourceReviewContent';
@@ -42,9 +48,7 @@ import { PydicateTree } from './components/RuntimeTree';
 import { UsagePanel } from './components/UsagePanel';
 import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
 import { PassageLexicon } from './components/PassageLexicon';
-import { GroundTruthDialog } from './components/GroundTruthPanel';
 import { PassageSolver } from './components/PassageSolver';
-import { approvalState, type ReferenceStatus } from './domain/ground-truth';
 import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
 import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
 import { DraftArchive } from './components/DraftArchive';
@@ -124,6 +128,7 @@ function Projections({
   prepareDiagnostic,
   askAI,
   openLaboratory,
+  translate,
 }: {
   studio: Studio;
   tab: Tab;
@@ -133,6 +138,7 @@ function Projections({
   prepareDiagnostic: (report: CanvasDiagnostic) => void;
   askAI: (id: string) => void;
   openLaboratory: () => void;
+  translate: () => void;
 }) {
   const { draft, passage, result } = studio;
   if (studio.project.mode === 'local' && tab === 'Árvore')
@@ -290,13 +296,21 @@ function Projections({
       <div className="projection">
         <div className="section-intro">
           <div>
-            <h2>Uma interpretação em português</h2>
+            <h2>Tradução da passagem</h2>
             <p>Registre sua tradução e preserve dúvidas para a revisão.</p>
           </div>
-          <span className="tag">Proposta humana</span>
+          {studio.project.mode === 'local' && (
+            <button
+              className="button small"
+              disabled={!studio.ready || !draft?.raw?.trim() || studio.pending}
+              onClick={translate}
+            >
+              Traduzir árvore atual
+            </button>
+          )}
         </div>
         <label className="editor-label">
-          Tradução proposta
+          Tradução sem idioma informado
           <textarea
             rows={7}
             disabled={!studio.ready}
@@ -305,6 +319,11 @@ function Projections({
             placeholder="Como você interpreta esta passagem?"
           />
         </label>
+        <TranslationFields
+          value={draft?.translations}
+          disabled={!studio.ready}
+          onChange={(translations) => studio.edit({ translations })}
+        />
         <div className="teaching-note">
           <MessageSquareText size={18} />
           <p>
@@ -489,14 +508,29 @@ export default function App() {
   const [labOpen, setLabOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
-  const [groundTruthOpen, setGroundTruthOpen] = useState(false);
+  const [translationRequest, setTranslationRequest] = useState(0);
   const layout = useWorkspaceLayout();
+  const openTranslation = () => {
+    layout.support('ai');
+    setTranslationRequest((value) => value + 1);
+  };
   const analysis = useAnalysisWorkspace(studio);
   const [dictionaryEvidence, setDictionaryEvidence] = useState<AnalysisEvidence | null>(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('studio-theme') || 'dark');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
-  const publishesLexicon = preview?.lexicalAdditions?.some((entry) => !entry.reused) ?? false;
+  const passageReview =
+    !!preview && ['passage-update', 'passage-new'].includes(reviewKind(preview));
   const previewHasChanges = Boolean(preview?.diff || preview?.files?.some((file) => file.diff));
+  const reviewedResult = preview
+    ? currentSourceReviewResult({
+        preview,
+        currentPassageId: passage.id,
+        draftRevisionId: draft?.revisionId,
+        draftRaw: draft?.raw ?? passage.sourceExpression,
+        engineFingerprint: project.engineFingerprint,
+        result,
+      })
+    : null;
   const [grammarReport, setGrammarReport] = useState<CanvasDiagnostic | null>(null);
   const restoredPendingProject = useRef('');
   useEffect(() => {
@@ -511,6 +545,17 @@ export default function App() {
     localStorage.removeItem('studio-pending:' + project.id);
   }, [studio.ready, project.id, studio.envelope]);
   const [reviewBusy, setReviewBusy] = useState(false);
+  useEffect(() => {
+    if (!preview) return;
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (!reviewBusy) setPreview(null);
+      }
+    };
+    window.addEventListener('keydown', cancel);
+    return () => window.removeEventListener('keydown', cancel);
+  }, [preview, reviewBusy]);
   const [evidencePointer, setEvidencePointer] = useState<Record<string, unknown> | null>(null);
   const [reviewError, setReviewError] = useState('');
   const [groundTruthNote, setGroundTruthNote] = useState('');
@@ -525,7 +570,6 @@ export default function App() {
     setReviewError('');
     setSelected('root');
     setGrammarReport(null);
-    setGroundTruthOpen(false);
   }, [project.id, passage.id]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -603,69 +647,13 @@ export default function App() {
       studio.setError(String(e));
     }
   }
-  /** Save the reference right after the reviewed source edit lands.
-   *
-   * The contributor already reviewed this exact form, so a second trip through
-   * the dialog adds nothing. Every guard the dialog applies is checked here
-   * first, against a freshly read record: if any of them blocks, the source
-   * edit still stands and the reason is shown rather than swallowed.
-   */
-  async function saveGroundTruthAfterApply(applied: SourcePreview, reviewed: typeof result) {
-    // Only a passage review approves a reference. A lexicon entry or a recovery
-    // also goes through this overlay, and neither is a statement about this
-    // passage's reference.
-    const kind = reviewKind(applied);
-    if (kind !== 'passage-update' && kind !== 'passage-new') return;
-    const current = studio.passage;
-    if (!current) return;
-    if (current.id.startsWith('pending:')) {
-      // A new passage only gets its corpus identity from this apply, and
-      // approving it needs that identity plus a fresh evaluation under it.
-      // Say so rather than appear to have saved nothing for no reason.
-      setGroundTruthNote(
-        'A nova passagem foi acrescentada à fonte. Abra “Commit to Ground Truth” para registrar a referência dela.',
-      );
-      return;
-    }
-    let status: ReferenceStatus | undefined;
-    try {
-      status = await invoke<ReferenceStatus>('reference_status', { passageId: current.id });
-    } catch (reason) {
-      setGroundTruthNote(
-        'A fonte foi aplicada. Não foi possível ler o registro atual para salvar a ground truth: ' +
-          (reason instanceof Error ? reason.message : String(reason)),
-      );
-      return;
-    }
-    const approval = approvalState({
-      isNewPassage: false,
-      status,
-      changed: false,
-      conflict: studio.conflict,
-      result: reviewed,
-      ready: studio.ready,
-    });
-    if (!approval.ready) {
-      setGroundTruthNote('A fonte foi aplicada. A ground truth não foi salva: ' + approval.reason);
-      return;
-    }
-    try {
-      await studio.approveGroundTruth(approval.surface);
-      // Success already has its own notice from the save itself; this banner
-      // exists for the case that was previously silent, a refusal.
-      track('ui.ground-truth', { via: 'source-apply' });
-    } catch (reason) {
-      setGroundTruthNote(
-        'A fonte foi aplicada. A ground truth não foi salva: ' +
-          (reason instanceof Error ? reason.message : String(reason)),
-      );
-    }
-  }
-
   async function reviewSource(useProposal = false) {
     if (!draft || reviewBusy) return;
     setReviewBusy(true);
+    setReviewError('');
     const metadata: Record<string, unknown> = {};
+    if (!sameTranslations(draft.translations, passage.translations))
+      metadata.translations = draft.translations ?? {};
     for (const key of ['diplomatic', 'normalized', 'translation', 'notes'] as const)
       if (draft[key] !== passage[key]) metadata[key] = draft[key];
     const locators: Record<string, string> = {
@@ -998,6 +986,13 @@ export default function App() {
                   <div className="surface-repair-action">
                     <button
                       className="button small"
+                      disabled={!studio.ready || studio.pending || !draft?.raw?.trim()}
+                      onClick={openTranslation}
+                    >
+                      <MessageSquareText size={13} /> Traduzir
+                    </button>
+                    <button
+                      className="button small"
                       disabled={
                         !studio.ready || studio.pending || !(result?.tree ?? studio.parsed?.root)
                       }
@@ -1118,6 +1113,18 @@ export default function App() {
                         <td>{draft?.[key] || '—'}</td>
                       </tr>
                     ))}
+                    {(
+                      [
+                        ['pt', 'Tradução em português'],
+                        ['en', 'Tradução em inglês'],
+                      ] as const
+                    ).map(([language, label]) => (
+                      <tr key={language}>
+                        <th>{label}</th>
+                        <td>{passage.translations?.[language] || '—'}</td>
+                        <td>{draft?.translations?.[language] || '—'}</td>
+                      </tr>
+                    ))}
                     <tr>
                       <th>Página / fólio / linhas</th>
                       <td>
@@ -1215,6 +1222,7 @@ export default function App() {
                     inspectLexeme={() => changeMode('lexicon')}
                     prepareDiagnostic={setGrammarReport}
                     openLaboratory={() => setLabOpen(true)}
+                    translate={openTranslation}
                     askAI={(id) => {
                       setSelected(id);
                       layout.support('ai');
@@ -1254,6 +1262,11 @@ export default function App() {
                 raw={draft?.raw ?? passage.sourceExpression}
                 engineFingerprint={project.engineFingerprint}
                 selectedNodeId={selected}
+                disabled={!studio.ready || studio.pending || studio.conflict}
+                onEdit={(raw, expectedRevision) => {
+                  studio.edit({ raw }, expectedRevision);
+                }}
+                onPreview={setPreview}
                 onSelectNode={setSelected}
                 onRevealNode={(id) => {
                   setSelected(id);
@@ -1276,7 +1289,7 @@ export default function App() {
                 outra pessoa a entender sua escolha.
               </p>
               <label className="editor-label">
-                Tradução proposta
+                Tradução sem idioma informado
                 <textarea
                   rows={3}
                   value={draft?.translation ?? ''}
@@ -1285,6 +1298,11 @@ export default function App() {
                   onChange={(e) => studio.edit({ translation: e.target.value })}
                 />
               </label>
+              <TranslationFields
+                value={draft?.translations}
+                disabled={!studio.ready}
+                onChange={(translations) => studio.edit({ translations })}
+              />
               <label className="editor-label">
                 Nota de leitura
                 <textarea
@@ -1310,8 +1328,8 @@ export default function App() {
               {project.mode === 'local' && (
                 <button
                   className="button"
-                  disabled={!draft || !studio.ready}
-                  onClick={() => setGroundTruthOpen(true)}
+                  disabled={!draft || !studio.ready || reviewBusy}
+                  onClick={() => void reviewSource(!!analysis.preview)}
                 >
                   <ClipboardCheck size={15} /> Commit to Ground Truth
                 </button>
@@ -1332,6 +1350,17 @@ export default function App() {
                 <span>Tradução proposta</span>
                 <p>{draft?.translation || 'Ainda não informada.'}</p>
               </div>
+              {(
+                [
+                  ['pt', 'Tradução em português'],
+                  ['en', 'Tradução em inglês'],
+                ] as const
+              ).map(([language, label]) => (
+                <div className="review-item" key={language}>
+                  <span>{label}</span>
+                  <p>{draft?.translations?.[language] || 'Ainda não informada.'}</p>
+                </div>
+              ))}
               <div className="review-item">
                 <span>Nota de leitura</span>
                 <p>{draft?.notes || 'Nenhuma nota adicionada.'}</p>
@@ -1443,8 +1472,8 @@ export default function App() {
               {project.mode === 'local' && (
                 <button
                   className="button"
-                  disabled={!draft || !studio.ready}
-                  onClick={() => setGroundTruthOpen(true)}
+                  disabled={!draft || !studio.ready || reviewBusy}
+                  onClick={() => void reviewSource(!!analysis.preview)}
                 >
                   <ClipboardCheck size={15} /> Commit to Ground Truth
                 </button>
@@ -1465,6 +1494,7 @@ export default function App() {
       studio={studio}
       layout={layout}
       analysis={analysis}
+      translationRequest={translationRequest}
       selectedNode={flattenNodes(studio.parsed?.root ?? null).find((node) => node.id === selected)}
       onEvidence={(value) => setEvidencePointer(value as unknown as Record<string, unknown>)}
       onPreview={() => {
@@ -1615,17 +1645,6 @@ export default function App() {
       </footer>
       {usageOpen && <UsagePanel onClose={() => setUsageOpen(false)} />}
       {archiveOpen && <DraftArchive studio={studio} onClose={() => setArchiveOpen(false)} />}
-      {groundTruthOpen && (
-        <GroundTruthDialog
-          studio={studio}
-          reviewProposal={!!analysis.preview}
-          onClose={() => setGroundTruthOpen(false)}
-          onReviewSource={() => {
-            setGroundTruthOpen(false);
-            void reviewSource(!!analysis.preview);
-          }}
-        />
-      )}
       {preview && (
         <div
           className="review-overlay"
@@ -1645,6 +1664,8 @@ export default function App() {
               engineFingerprint={project.engineFingerprint}
               result={result}
               pending={studio.pending}
+              saveGroundTruth={passageReview}
+              acceptedReference={passage.acceptedReference}
             />
             <div>
               <button className="button" onClick={() => setPreview(null)} disabled={reviewBusy}>
@@ -1652,23 +1673,51 @@ export default function App() {
               </button>
               <button
                 className="button primary"
-                disabled={reviewBusy || !previewHasChanges}
+                disabled={
+                  reviewBusy ||
+                  !studio.ready ||
+                  (passageReview
+                    ? studio.pending ||
+                      !reviewedResult ||
+                      reviewedResult.evaluationStatus === 'partial'
+                    : !previewHasChanges)
+                }
                 onClick={() => {
                   setReviewBusy(true);
                   setGroundTruthNote('');
                   void studio
-                    .applySource(preview)
-                    .then(async () => {
+                    .applySource(preview, passageReview ? reviewedResult! : undefined)
+                    .then((outcome) => {
                       setPreview(null);
                       setEvidencePointer(null);
                       setReviewError('');
-                      await saveGroundTruthAfterApply(preview, result);
+                      if (outcome?.approvalError) {
+                        setGroundTruthNote(
+                          (outcome.sourceApplied ? 'A fonte foi salva. ' : '') +
+                            'A ground truth não foi salva: ' +
+                            outcome.approvalError +
+                            ' Abra a revisão novamente para tentar salvar a referência.',
+                        );
+                      } else if (outcome?.groundTruthSaved) {
+                        track('ui.ground-truth', { via: 'source-review' });
+                        if (outcome.draftSaveError)
+                          setGroundTruthNote(
+                            'A ground truth foi salva no corpus, mas não foi possível atualizar o rascunho local: ' +
+                              outcome.draftSaveError,
+                          );
+                      }
                     })
                     .catch((e) => setReviewError(e.message))
                     .finally(() => setReviewBusy(false));
                 }}
               >
-                {publishesLexicon ? 'Aplicar passagem e léxico' : 'Aplicar edição revisada'}
+                {reviewBusy
+                  ? 'Salvando…'
+                  : passageReview
+                    ? previewHasChanges
+                      ? 'Salvar fonte e ground truth'
+                      : 'Salvar ground truth'
+                    : 'Aplicar edição revisada'}
               </button>
             </div>
           </section>
@@ -1728,12 +1777,21 @@ export default function App() {
           onClose={() => setGrammarReport(null)}
           onRefresh={studio.refresh}
           onSubmit={async (request) => {
+            await flushLexicalNotes(project.id);
+            const notebook = await invoke<{ records: LexicalNote[] }>('lexical_notes_list', {
+              projectId: project.id,
+            });
+            const noteSnapshot = await analysisNoteSnapshot(
+              notebook.records,
+              passage.sourceId,
+              passage.id,
+            );
             await studio.persist();
             await invoke('analysis_submit', {
               projectId: project.id,
               passageId: passage.id,
               revisionId: grammarReport.revisionId,
-              operationId: request.operationId,
+              operationId: `${request.operationId}:${noteSnapshot}`,
               task: request.mode === 'engine' ? 'grammar-repair' : 'analyze',
               scope: 'passage',
               newConversation: true,

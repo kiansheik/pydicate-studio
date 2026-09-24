@@ -1,5 +1,6 @@
 import type { Draft, DraftEnvelope, ImperativeAnalysis, Passage, RenderResult } from './types';
 import { clearCanvasPositions, isCanvasState } from './canvas';
+import { isPassageTranslations, sameTranslations } from './translations';
 
 type DraftChanges = Partial<
   Pick<
@@ -7,6 +8,7 @@ type DraftChanges = Partial<
     | 'diplomatic'
     | 'normalized'
     | 'translation'
+    | 'translations'
     | 'notes'
     | 'analysis'
     | 'raw'
@@ -75,6 +77,7 @@ export function createDraft(passage: Passage): Draft {
     diplomatic: passage.diplomatic,
     normalized: passage.normalized,
     translation: passage.translation,
+    ...(passage.translations ? { translations: { ...passage.translations } } : {}),
     notes: passage.notes,
     analysis: passage.analysis ? { ...passage.analysis } : null,
     updatedAt: new Date().toISOString(),
@@ -83,6 +86,8 @@ export function createDraft(passage: Passage): Draft {
 
 /** Baselines, source identity and approval are deliberately outside a draft's editable fields. */
 export function updateDraft(draft: Draft, changes: DraftChanges): Draft {
+  if (changes.translations !== undefined && !isPassageTranslations(changes.translations))
+    throw new Error('Traduções por idioma inválidas.');
   if (changes.canvas !== undefined && !isCanvasState(changes.canvas))
     throw new Error('A área de trabalho contém dados inválidos.');
   const raw =
@@ -104,6 +109,7 @@ export function updateDraft(draft: Draft, changes: DraftChanges): Draft {
     diplomatic: changes.diplomatic ?? draft.diplomatic,
     normalized: changes.normalized ?? draft.normalized,
     translation: changes.translation ?? draft.translation,
+    ...(changes.translations !== undefined ? { translations: { ...changes.translations } } : {}),
     notes: changes.notes ?? draft.notes,
     analysis:
       changes.raw !== undefined
@@ -128,9 +134,10 @@ export function restoreDraft(saved: Draft | undefined, passage: Passage): Draft 
   const legacy = saved.sourceFingerprint === passage.legacyExpressionFingerprint;
   const sameSource = saved.sourceFingerprint === passage.sourceFingerprint;
   if (saved.passageId !== passage.id || (!legacy && !sameSource)) return saved;
-  const humanUnchanged = (['diplomatic', 'normalized', 'translation', 'notes'] as const).every(
-    (field) => saved[field] === passage[field],
-  );
+  const humanUnchanged =
+    (['diplomatic', 'normalized', 'translation', 'notes'] as const).every(
+      (field) => saved[field] === passage[field],
+    ) && sameTranslations(saved.translations, passage.translations);
   return {
     ...saved,
     raw: saved.raw ?? (saved.analysis ? expressionFor(saved.analysis) : passage.sourceExpression),
@@ -212,6 +219,7 @@ function isDraft(value: unknown, passageId: string): value is Draft {
     ['diplomatic', 'normalized', 'translation', 'notes'].every(
       (key) => typeof value[key] === 'string',
     ) &&
+    (value.translations === undefined || isPassageTranslations(value.translations)) &&
     typeof value.updatedAt === 'string' &&
     Number.isFinite(Date.parse(value.updatedAt)) &&
     (value.raw === undefined || (typeof value.raw === 'string' && value.raw.length <= 100000)) &&
@@ -272,6 +280,7 @@ function isDraft(value: unknown, passageId: string): value is Draft {
       'diplomatic',
       'normalized',
       'translation',
+      'translations',
       'notes',
       'analysis',
       'raw',

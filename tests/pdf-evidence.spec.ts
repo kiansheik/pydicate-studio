@@ -24,7 +24,8 @@ async function ready(page: Page) {
 }
 async function draw(page: Page, start: [number, number], end: [number, number]) {
   await ready(page);
-  await page.getByRole('button', { name: 'Marcar região', exact: true }).click();
+  const marking = page.getByRole('button', { name: 'Marcar região', exact: true });
+  if ((await marking.getAttribute('aria-pressed')) !== 'true') await marking.click();
   const box = (await page.getByTestId('pdf-canvas').boundingBox())!;
   await page.mouse.move(box.x + box.width * start[0], box.y + box.height * start[1]);
   await page.mouse.down();
@@ -70,6 +71,60 @@ async function guideFixture(page: Page, directory: string) {
   });
   return { fixture, assetId: attached.asset!.id, revision: attached.revision };
 }
+
+test('a passage continues onto another page with ordered crops preserved through restart and preparation', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-multipage-'));
+  try {
+    const { fixture } = await guideFixture(page, directory);
+    await page.goto('/tests/pdf-harness.html?guide');
+    await ready(page);
+    await page.getByLabel('Zoom do PDF').selectOption('0.5');
+    await draw(page, [0.2, 0.3], [0.5, 0.45]);
+    const firstRect = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+    await page.getByRole('button', { name: 'Adicionar região na próxima página' }).click();
+    await ready(page);
+    await expect(page.getByLabel('Página física do PDF', { exact: true })).toHaveValue('2');
+    await expect(page.getByRole('button', { name: 'Marcar região', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await draw(page, [0.2, 0.2], [0.5, 0.4]);
+    const secondRect = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+    await expect(page.getByLabel('Páginas abrangidas pela passagem')).toContainText('1–2');
+    await expect(
+      page.getByRole('button', { name: 'Adicionar região na próxima página' }),
+    ).toBeDisabled();
+    await page.getByRole('button', { name: 'Mover região 2 para antes' }).click();
+    await expect(page.getByRole('button', { name: 'Região 1 · PDF 2', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
+    fixture.restart();
+    await page.reload();
+    await ready(page);
+    await expect(page.getByRole('button', { name: 'Região 1 · PDF 2', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Mover região 1 para depois' }).click();
+    await page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', firstRect!);
+    await page.getByRole('button', { name: 'Região 2 · PDF 2', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', secondRect!);
+    await page.getByRole('button', { name: 'Preparar evidência para análise' }).click();
+    await expect(page.locator('#prepared-evidence')).toContainText('regionIds');
+    const prepared = JSON.parse(await page.locator('#prepared-evidence').innerText());
+    const saved = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(saved.passage!.regions.map((region) => region.pageIndex)).toEqual([0, 1]);
+    expect(prepared.regionIds).toEqual(saved.passage!.regions.map((region) => region.id));
+    expect(saved.passage!.regions.map((region) => region.rect.join(','))).toEqual([
+      firstRect,
+      secondRect,
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('analysis preparation awaits the exact saved region and hidden tabs keep unsaved PDF edits', async ({
   page,

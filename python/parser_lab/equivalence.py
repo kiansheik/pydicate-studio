@@ -25,16 +25,23 @@ disagree so that decision is an informed one.
 from __future__ import annotations
 
 import re
+import ast
 
-EQUIVALENCE_VERSION = 1
-UNIT = re.compile(r'([^\[\]]+)((?:\[[^\[\]]+\])+)')
+EQUIVALENCE_VERSION = 3
+UNIT = re.compile(r'([^\[\]]*)((?:\[[^\[\]]*\])+)|([^\[\]]+)')
 
 
 def units(annotated):
     """Engine surface units with their tag bundles, in emission order."""
     rows = []
-    for surface, tags in UNIT.findall(annotated or ''):
-        rows.append((surface, tuple(re.findall(r'\[([^\[\]]+)\]', tags))))
+    # A finite scanner also retains zero-surface tags and unannotated text.
+    # Some selected engines loop forever on a leading/orphan tag. No grammar
+    # is inferred here: the exact emitted text remains the evidence.
+    for surface, tags, bare in UNIT.findall(annotated or ''):
+        surface = (surface or bare).strip()
+        parsed = tuple(re.findall(r'\[([^\[\]]*)\]', tags))
+        if surface or parsed:
+            rows.append((surface, parsed or ('BARE',)))
     return rows
 
 
@@ -76,6 +83,35 @@ def classify(left, right):
     return 'annotation-identical' if annotation_identical(left, right) else 'co-generating'
 
 
+def definition_structure(source):
+    """Keep semantic scope and derivations that nominal annotations flatten.
+
+    Variants producing identical annotations may share one displayed reading,
+    but a nominalized tree or a scoped meaning cannot collapse into an opaque
+    lexical atom. Ordinary finite-clause spelling equivalence stays unchanged.
+    """
+    try:
+        tree = ast.parse(source, mode='eval')
+    except (SyntaxError, TypeError):
+        return None
+    if not any(isinstance(node, ast.Call) and (
+            isinstance(node.func, ast.Name) and node.func.id == 'studio_define'
+            or isinstance(node.func, ast.Attribute) and node.func.attr == 'base_nominal')
+            for node in ast.walk(tree)):
+        return None
+
+    class NeutralVariants(ast.NodeTransformer):
+        def visit_Call(self, node):
+            node = self.generic_visit(node)
+            if (isinstance(node.func, ast.Attribute) and node.func.attr == 'var'
+                    and len(node.args) == 1 and not node.keywords
+                    and isinstance(node.args[0], ast.Constant) and type(node.args[0].value) is int):
+                return node.func.value
+            return node
+
+    return ast.dump(NeutralVariants().visit(tree), include_attributes=False)
+
+
 def group(candidates):
     """Collapse annotation-identical candidates; keep co-generating ones apart.
 
@@ -85,7 +121,21 @@ def group(candidates):
     groups = []
     seen = {}
     for candidate in candidates:
-        key = annotation_signature(candidate.get('annotated', ''))
+        # Morpheme tags cannot distinguish homonymous dictionary meanings.
+        # Preserve exact sense identities even when their morphology is equal.
+        lexical = candidate.get('provenance', {}).get('lexicalEvidence', [])
+        senses = tuple(sorted((row.get('origin', ''), row.get('senseId', ''),
+                               row.get('headword', ''), row.get('definition', ''),
+                               row.get('category', ''), row.get('scope', '')) for row in lexical
+                              if row.get('origin') != 'shared'))
+        headwords = [row[2] for row in senses]
+        # A bag of senses loses their locations when one homograph occurs
+        # twice. Conservatively retain each structure in that case: A then B
+        # must not collapse into B then A just because their tags agree.
+        occurrence_guard = candidate['source'] if len(set(headwords)) < len(headwords) else None
+        status = candidate.get('provenance', {}).get('lexicalStatus', 'resolved')
+        key = (annotation_signature(candidate.get('annotated', '')), senses, occurrence_guard,
+               status, definition_structure(candidate['source']))
         if key in seen:
             head = seen[key]
             spellings = head['provenance'].setdefault('annotationIdenticalSources', [])

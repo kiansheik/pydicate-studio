@@ -8,6 +8,45 @@ Events contain public text, request/response lifecycle, usage and validated tool
 
 The built-in strategy inspects guide/context, searches full dictionary senses and constructions, builds and evaluates constituents, compares preserved source/targets and proposes supported alternatives or asks a focused question. It treats source translation as independent interpretation and generated-analysis translation as an explanation of that expression, not proof of source fit. String equality never establishes linguistic correctness. Unsupported assertions remain hypotheses. Model rationale must stay short and evidence-based.
 
+## Explicit continuation
+
+`analysis_resume` (with the compatible `analysis_retry` alias) accepts paused,
+failed, cancelled and needs-input jobs. It preserves the frozen input and the
+same job/conversation/candidates, accepts optional guidance, and starts a fresh
+attempt budget. Saved protocol messages and completed tool receipts continue
+the research; an interrupted tool without a confirmed receipt is reported as
+uncertain instead of replayed. Restart recovery preserves visible partial text.
+Revision-bound duplicate commands are idempotent; changed engine/source evidence
+rejects continuation. Replying with new source material still creates a new
+frozen-input submission. No continuation happens automatically.
+
+## Translate the existing tree
+
+The direct translator uses `ai_start(action: "translate")` with
+`context.targetLanguage` (default `Português`, at most 80 characters).
+`ai_prompt_preview` accepts the same current expression/scope/revision and
+returns `{prompt, targetLanguage, analysisTarget, inputHash}` without inference
+or a request-history write. Both paths freshly evaluate the source as supplied;
+they do not start the iterative analysis tools or import upstream corpus MCP
+context. Prompts project the target, nested meaning hierarchy and relevant human
+context without old translations or duplicate runtime trees.
+
+Whole-tree scope ignores a navigation selection. Constituent scope evaluates
+that exact source separately and labels whole-passage morphology as contextual
+evidence, so the two cannot be mistaken for the same target. The response
+translation uses the requested language; rationale/ambiguity explanations remain
+Portuguese. Translation responses cannot apply an expression edit. Human review
+must explicitly adopt a translation, bound to current draft revision and a
+freshly checked engine fingerprint; stale results remain readable/copyable.
+
+Saved general/occurrence notes are projected onto current source nodes, with
+original definitions, explicit overrides and versioned contributor provenance.
+Pending edits are saved before capture; changed relevant notes block translation
+adoption. Analysis and explicit repair jobs freeze a private notebook snapshot,
+reuse it on resume and reproject it onto candidates. Reconstruction withholds this
+evidence. See [node interpretation contract](node-interpretations.md) for identity,
+meaning precedence, privacy and size limits.
+
 ## Claude
 
 The main process uses the existing `ANTHROPIC_API_KEY` / optional workspace configuration and official Messages endpoint. This is API-key authentication, not Claude Code login. Streamed content blocks and fragmented JSON arguments are assembled before tools run. Each tool result is placed immediately after its assistant call in the next request. Malformed arguments and unknown tools return structured errors; identical repeated call IDs reuse the saved result, while conflicting IDs stop the attempt. Truncated streams never execute incomplete arguments. Cancellation stops pending reads/new rounds and suppresses late results.

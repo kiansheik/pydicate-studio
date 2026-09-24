@@ -18,6 +18,7 @@ export interface StructureCandidate {
   expression: string;
   name?: string;
   definition?: string;
+  lexicalStatus?: 'hypothetical';
   kind: 'reference' | 'expression';
   source: StructureSource;
   match: 'exact' | 'prefix' | 'contains' | 'name' | 'definition' | 'relaxed' | 'segment';
@@ -105,6 +106,7 @@ export const LexicalInput = forwardRef<
     interactionActive?: boolean;
     onActivate?: () => void;
     onResolved?: (result: ResolvedStructure) => void;
+    onCreate?: () => void;
     placeholder?: string;
     preserveQueryOnContextChange?: boolean;
   }
@@ -126,6 +128,7 @@ export const LexicalInput = forwardRef<
     interactionActive = true,
     onActivate,
     onResolved,
+    onCreate,
     placeholder = 'Escreva como se lê em tupi…',
     preserveQueryOnContextChange = false,
   },
@@ -534,6 +537,9 @@ export const LexicalInput = forwardRef<
                       {candidate.definition}
                     </span>
                   )}
+                  {candidate.lexicalStatus === 'hypothetical' && (
+                    <span>Raiz hipotética · não atestada</span>
+                  )}
                   <small>{sourceLabel(candidate.source)}</small>
                   <code title={candidate.expression}>{candidate.name ?? candidate.expression}</code>
                 </button>
@@ -571,11 +577,18 @@ export const LexicalInput = forwardRef<
           </div>
         )}
         {interactionActive && open && response && !candidates.length && !dictionarySearching && (
-          <p role="status">
-            {dictionary
-              ? 'Nenhuma estrutura ou entrada encontrada. Tente uma parte menor ou o significado.'
-              : 'Nenhuma estrutura encontrada. Tente uma parte menor ou o significado.'}
-          </p>
+          <div>
+            <p role="status">
+              {dictionary
+                ? 'Nenhuma estrutura ou entrada encontrada. Tente uma parte menor ou o significado.'
+                : 'Nenhuma estrutura encontrada. Tente uma parte menor ou o significado.'}
+            </p>
+            {onCreate && (
+              <button type="button" disabled={disabled} onClick={onCreate}>
+                Criar peça sem entrada no dicionário
+              </button>
+            )}
+          </div>
         )}
         {interactionActive && open && dictionarySearching && (
           <p role="status">Consultando o dicionário Navarro…</p>

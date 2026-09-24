@@ -16,6 +16,15 @@ import { registerStructureContext, structureDrafts } from './domain/structure-dr
 import { editCanvas, emptyCanvas } from './domain/canvas';
 import { nextPassageLocators, projectWithPending } from './domain/next-page';
 import { registerProjectRecovery } from './domain/project-recovery';
+import { approvalState, type ReferenceStatus } from './domain/ground-truth';
+
+export interface SourceApplyOutcome {
+  sourceApplied: boolean;
+  groundTruthSaved: boolean;
+  passageId?: string;
+  approvalError?: string;
+  draftSaveError?: string;
+}
 
 export function useStudio() {
   const [sourceProject, setProject] = useState(createExampleProject);
@@ -515,6 +524,7 @@ export function useStudio() {
               diplomatic: active.diplomatic,
               normalized: active.normalized,
               translation: active.translation,
+              ...(active.translations ? { translations: active.translations } : {}),
               notes: active.notes,
               ...metadata,
             }
@@ -528,30 +538,72 @@ export function useStudio() {
       ...(pendingId ? { pendingDraftId: pendingId } : {}),
     };
   }
-  async function applySource(preview: SourcePreview) {
+  async function applySource(
+    preview: SourcePreview,
+    reviewed?: RenderResult,
+  ): Promise<SourceApplyOutcome> {
     if (operation.current)
       throw new Error(
         'Aguarde a atualização ou operação atual antes de aplicar a edição revisada.',
       );
-    if (
-      preview.draftRevisionId &&
-      latest.current.envelope.drafts[
-        preview.pendingDraftId ?? preview.targetPassageId ?? preview.passageId ?? ''
-      ]?.revisionId !== preview.draftRevisionId
-    )
+    const before = latest.current;
+    const targetId = preview.targetPassageId ?? preview.passageId;
+    const draftId = preview.pendingDraftId ?? targetId ?? '';
+    const selected = before.project.passages.find((item) => item.id === before.selectedId);
+    const active = before.envelope.drafts[draftId];
+    if (preview.draftRevisionId && active?.revisionId !== preview.draftRevisionId)
       throw new Error(
         'O rascunho mudou depois desta prévia. Gere outra diferença antes de aplicar.',
       );
+    const assertReviewed = () => {
+      if (!reviewed) return;
+      const current = latest.current;
+      if (
+        !before.ready ||
+        !selected ||
+        !active ||
+        !targetId ||
+        ['lexicon', 'recovery'].includes(preview.kind ?? '') ||
+        ['lexicon', 'recovery'].includes(preview.reviewSummary?.kind ?? '') ||
+        draftId !== before.selectedId ||
+        !preview.draftRevisionId ||
+        preview.draftRevisionId !== active.revisionId ||
+        reviewed.revisionId !== active.revisionId ||
+        reviewed.expression !== active.raw ||
+        reviewed.engineFingerprint !== before.project.engineFingerprint ||
+        reviewed.origin !== 'engine' ||
+        reviewed.evaluationStatus === 'partial' ||
+        draftConflicts(active, selected) ||
+        current.project.id !== before.project.id ||
+        current.project.engineFingerprint !== before.project.engineFingerprint ||
+        current.selectedId !== before.selectedId ||
+        current.envelope.drafts[draftId]?.revisionId !== active.revisionId
+      )
+        throw new Error(
+          'A forma revisada não corresponde à passagem, ao rascunho ou ao motor atual. Gere outra revisão antes de salvar ground truth.',
+        );
+    };
+    assertReviewed();
+    const outcome: SourceApplyOutcome = {
+      sourceApplied: false,
+      groundTruthSaved: false,
+      ...(targetId ? { passageId: targetId } : {}),
+    };
     operation.current = true;
     setBusy(true);
     try {
       await persist();
-      const next = await invoke<StudioProject>('source_apply', {
-        previewId: preview.previewId,
-        sourceFingerprint: preview.sourceFingerprint,
-      });
+      assertReviewed();
+      const hasChanges = !!preview.diff.trim() || !!preview.files?.some((file) => file.diff.trim());
+      const next =
+        reviewed && !hasChanges
+          ? latest.current.project
+          : await invoke<StudioProject>('source_apply', {
+              previewId: preview.previewId,
+              sourceFingerprint: preview.sourceFingerprint,
+            });
+      outcome.sourceApplied = hasChanges;
       const current = latest.current;
-      const targetId = preview.targetPassageId ?? preview.passageId;
       const savedPassage = next.passages.find((p) => p.id === targetId);
       const previousDraft = preview.pendingDraftId
         ? current.envelope.drafts[preview.pendingDraftId]
@@ -575,7 +627,99 @@ export function useStudio() {
         latest.current.selectedId = savedPassage.id;
         setSelectedId(savedPassage.id);
       }
-      setVerification('Edição aplicada na fonte. A referência histórica foi preservada.');
+      setVerification(
+        reviewed
+          ? outcome.sourceApplied
+            ? 'Fonte salva. Salvando ground truth…'
+            : 'Salvando ground truth…'
+          : 'Edição aplicada na fonte. A referência histórica foi preservada.',
+      );
+      if (!reviewed) return outcome;
+      // Publication may replace literals with shared names and a pending ID
+      // with its stable corpus ID. Approve that returned passage under the
+      // same lock, never the pre-publication React closure's selection.
+      try {
+        if (!savedPassage || savedPassage.id.startsWith('pending:'))
+          throw new Error(
+            'A passagem publicada não foi encontrada. Atualize o projeto antes de retomar a aprovação.',
+          );
+        await persist();
+        const status = await invoke<ReferenceStatus>('reference_status', {
+          passageId: savedPassage.id,
+        });
+        const snapshot = latest.current;
+        const savedDraft = snapshot.envelope.drafts[savedPassage.id];
+        if (
+          snapshot.project.id !== next.id ||
+          snapshot.project.engineFingerprint !== next.engineFingerprint ||
+          snapshot.selectedId !== savedPassage.id ||
+          !savedDraft ||
+          savedDraft.revisionId !== preview.draftRevisionId
+        )
+          throw new Error(
+            'A passagem mudou durante a publicação. Revise o estado atual antes de retomar a aprovação.',
+          );
+        const approval = approvalState({
+          isNewPassage: false,
+          status,
+          changed: savedDraft.raw !== savedPassage.sourceExpression,
+          conflict: draftConflicts(savedDraft, savedPassage),
+          result: reviewed,
+          ready: snapshot.ready,
+        });
+        if (!approval.ready) throw new Error(approval.reason);
+        // The backend re-evaluates the published expression and checks this
+        // exact human-reviewed surface, source bytes and sequential record.
+        const response = await invoke<{ project: StudioProject; approval: unknown }>(
+          'reference_approve',
+          {
+            passageId: savedPassage.id,
+            sourceFingerprint: savedPassage.sourceFingerprint,
+            engineFingerprint: next.engineFingerprint,
+            reviewedSurface: approval.surface,
+          },
+        );
+        outcome.groundTruthSaved = true;
+        changeProject(response.project);
+        const latestDraft = latest.current.envelope.drafts[savedPassage.id];
+        replaceEnvelope({
+          ...latest.current.envelope,
+          drafts: {
+            ...latest.current.envelope.drafts,
+            [savedPassage.id]: {
+              ...latestDraft,
+              workflow: { stage: 'complete', updatedAt: new Date().toISOString() },
+            },
+          },
+        });
+        try {
+          await persist();
+        } catch (reason) {
+          outcome.draftSaveError = reason instanceof Error ? reason.message : String(reason);
+        }
+        setVerification(
+          outcome.draftSaveError
+            ? 'Ground truth salva no corpus. Não foi possível salvar o estado de conclusão neste dispositivo: ' +
+                outcome.draftSaveError
+            : 'Passagem e ground truth salvas. A passagem foi marcada como concluída neste dispositivo.',
+        );
+      } catch (reason) {
+        const message = reason instanceof Error ? reason.message : String(reason);
+        if (outcome.groundTruthSaved) {
+          outcome.draftSaveError = message;
+          setVerification(
+            'Ground truth salva no corpus. Não foi possível atualizar o estado local: ' + message,
+          );
+        } else {
+          outcome.approvalError = message;
+          setVerification(
+            (outcome.sourceApplied ? 'A fonte foi aplicada. ' : '') +
+              'A ground truth não foi salva: ' +
+              message,
+          );
+        }
+      }
+      return outcome;
     } finally {
       operation.current = false;
       setBusy(false);
@@ -621,6 +765,7 @@ export function useStudio() {
       diplomatic: '',
       normalized: '',
       translation: '',
+      translations: undefined,
       notes: '',
       analysis: null,
     });
@@ -842,6 +987,7 @@ export function useStudio() {
         {
           passageId: selected.id,
           sourceFingerprint: selected.sourceFingerprint,
+          engineFingerprint: current.project.engineFingerprint,
           reviewedSurface,
         },
       );

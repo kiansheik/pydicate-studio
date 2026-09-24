@@ -629,6 +629,7 @@ function createParserLabService(options) {
           rankerId: params.rankerId,
           seconds: params.seconds,
           useRanker: params.useRanker,
+          lexicalHints: params.lexicalHints,
         },
         180_000,
       ],

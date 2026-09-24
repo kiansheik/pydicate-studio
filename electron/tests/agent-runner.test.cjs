@@ -350,6 +350,101 @@ test('budgets stop loops and unresponsive transport without automatic billed ret
   assert.equal(saved.messages.at(-1).content[0].text, 'limit');
 });
 
+test('explicit continuation resumes a terminal response with fresh attempt budgets and preserved history', async () => {
+  const original = claudeFixture([[answer('Qual sentido você pretende?')]]);
+  const first = await runClaude(original, { budgets: { maxRounds: 1, maxOutputTokens: 64 } });
+  first.checkpoint.steps = 1;
+  first.checkpoint.usage.output_tokens = 64;
+  const resumed = claudeFixture([
+    [call('continued', 'dictionary_search')],
+    [answer('Sentido retomado.')],
+  ]);
+  const calls = [];
+  const result = await runClaude(resumed, {
+    checkpoint: first.checkpoint,
+    continuation: { context: { instruction: 'Use o segundo sentido.' } },
+    budgets: { maxRounds: 2, maxSteps: 1, maxOutputTokens: 64 },
+    callTool: async (name) => {
+      calls.push(name);
+      return { meaning: 'second sense' };
+    },
+  });
+  assert.equal(result.text, 'Sentido retomado.');
+  assert.deepEqual(calls, ['dictionary_search']);
+  assert.match(JSON.stringify(resumed.requests[0].messages), /Qual sentido/);
+  assert.match(resumed.requests[0].messages.at(-1).content, /Use o segundo sentido/);
+  assert.equal(result.usage.output_tokens, 16, 'usage belongs to the new attempt');
+  assert.equal(first.checkpoint.phase, 'completed', 'previous checkpoint is immutable');
+  assert.equal(first.checkpoint.usage.output_tokens, 64);
+});
+
+test('continuation recovers committed pending tool receipts and closes unknown calls without replaying writes', async () => {
+  const pending = [call('saved', 'scratch_create'), call('unknown', 'scratch_edit')];
+  const signature = JSON.stringify(['scratch_create', pending[0].input]);
+  const resumed = claudeFixture([[answer('Propostas existentes conferidas.')]]);
+  const result = await runClaude(resumed, {
+    checkpoint: {
+      version: 1,
+      provider: 'claude',
+      inputDigest: input.digest,
+      phase: 'tool-pending',
+      messages: [{ role: 'assistant', content: pending }],
+      calls: [],
+      round: 10,
+      steps: 10,
+      usage: { output_tokens: 8000 },
+      pendingCall: { id: 'unknown' },
+    },
+    continuation: {
+      context: { instruction: 'Continue.' },
+      toolReceipts: { saved: { signature, result: { id: 'candidate:already-committed' } } },
+    },
+    callTool: async () => {
+      assert.fail('an interrupted write must not be replayed');
+    },
+  });
+  const responses = resumed.requests[0].messages[1].content;
+  assert.equal(responses.length, 2);
+  assert.match(JSON.stringify(responses[0]), /candidate:already-committed/);
+  assert.equal(responses[0].is_error, undefined);
+  assert.equal(responses[1].is_error, true);
+  assert.match(JSON.stringify(responses[1]), /INTERRUPTED_TOOL/);
+  assert.equal(result.checkpoint.pendingCall, undefined);
+});
+
+test('Codex continuation retains observable tool evidence and resets its attempt budget', async () => {
+  const provider = {
+    id: 'codex',
+    runAgent: async ({ checkpoint, messages }) => {
+      assert.equal(checkpoint.steps, 0);
+      assert.equal(checkpoint.round, 0);
+      assert.deepEqual(checkpoint.usage, {});
+      assert.equal(checkpoint.toolEvents[0].callId, 'prior-call');
+      assert.match(messages.at(-1).content, /Continue a tradução/);
+      return { text: 'Resumed.' };
+    },
+  };
+  const result = await runAgent({
+    provider,
+    input,
+    tools,
+    checkpoint: {
+      version: 1,
+      provider: 'codex',
+      inputDigest: input.digest,
+      phase: 'completed',
+      messages: [{ role: 'assistant', content: 'Saved response' }],
+      calls: [],
+      steps: 20,
+      round: 1,
+      usage: { output_tokens: 8000 },
+      toolEvents: [{ type: 'tool-result', callId: 'prior-call' }],
+    },
+    continuation: { context: { instruction: 'Continue a tradução.' } },
+  });
+  assert.equal(result.text, 'Resumed.');
+});
+
 class CodexRpc {
   constructor(rounds) {
     this.rounds = rounds;

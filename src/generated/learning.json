@@ -701,7 +701,7 @@
       "sourceRaw": "(arobiar * espirito_santo)",
       "sourceLine": 113,
       "recordId": "araujo_catecismo_1686:0038",
-      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
+      "sourceHash": "6dba18503b6c7b22f88317040c0fad6dd12a2a3b50e06fb754475590d857305c"
     },
     {
       "id": "posse-modo",
@@ -2212,7 +2212,7 @@
       "sourceRaw": "(ur * (nde * reino)).perm()",
       "sourceLine": 19,
       "recordId": "araujo_catecismo_1686:0005",
-      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
+      "sourceHash": "6dba18503b6c7b22f88317040c0fad6dd12a2a3b50e06fb754475590d857305c"
     },
     {
       "id": "omitir-negar",
@@ -3861,7 +3861,7 @@
       "sourceRaw": "-(+nde * mondarõ).imp()",
       "sourceLine": 213,
       "recordId": "araujo_catecismo_1686:0069",
-      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
+      "sourceHash": "6dba18503b6c7b22f88317040c0fad6dd12a2a3b50e06fb754475590d857305c"
     },
     {
       "id": "variante-nominal",
@@ -4999,7 +4999,7 @@
       "sourceRaw": "(((((((((mombeu)) * ((nhe)))).var(1)))))).base_nominal()",
       "sourceLine": 266,
       "recordId": "araujo_catecismo_1686:0085",
-      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
+      "sourceHash": "6dba18503b6c7b22f88317040c0fad6dd12a2a3b50e06fb754475590d857305c"
     },
     {
       "id": "reunir",
@@ -8080,7 +8080,7 @@
       "sourceRaw": "((ianonde) * ((asé) * (eo))) + (\n    ((((((nhandy) / (karaiba)) * (îar)).var(1)).base_nominal()))\n)",
       "sourceLine": 274,
       "recordId": "araujo_catecismo_1686:0086",
-      "sourceHash": "a707191018995dad7aac4dc78048d60b64f636d9f3d5acc350c457950437908f"
+      "sourceHash": "6dba18503b6c7b22f88317040c0fad6dd12a2a3b50e06fb754475590d857305c"
     }
   ],
   "guides": [
@@ -12131,7 +12131,7 @@
       "sourceId": "araujo_catecismo_1686",
       "ordinal": 89,
       "line": 300,
-      "raw": "(sete) * (\n    (opakatu) + (((saba) * ((((nhe)) * (((angaipaba)) * (monhang))))) / (ypy))\n)",
+      "raw": "(sete) * ((opakatu) + (((saba) * ((((nhe)) * (((angaipaba)) * (monhang))))) / (ypy)))",
       "surface": "sete opakatu angaîpaba nhemonhangabypy",
       "reference": "sete opakatu angaîpaba nhemonhangabypy",
       "status": "verified",
@@ -12140,6 +12140,22 @@
         "*",
         "+",
         "/"
+      ]
+    },
+    {
+      "sourceId": "araujo_catecismo_1686",
+      "ordinal": 90,
+      "line": 308,
+      "raw": "(((-((((((moro).var(1))) * (erobîar)).var(1)).base_nominal()))))",
+      "surface": "morerobîare'yma",
+      "reference": "morerobîare'yma",
+      "status": "verified",
+      "error": null,
+      "features": [
+        "*",
+        ".base_nominal",
+        ".var",
+        "unário -"
       ]
     },
     {
@@ -12781,6 +12797,6 @@
     "araujo_catecismo_1686",
     "bettendorff_compendio"
   ],
-  "verifiedCount": 129,
-  "contentId": "e5c9809dc1dff9362f5904a15b1bb515a760713bd32fc4227f698d52c44b8732"
+  "verifiedCount": 130,
+  "contentId": "44bfaf952066a072ef14ea75cef7299cce1b2d15d3b2494d63dce62bcfcefc4e"
 }

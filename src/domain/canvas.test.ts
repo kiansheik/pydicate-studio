@@ -10,6 +10,8 @@ import {
   emptyCanvas,
   isCanvasHole,
   isCanvasState,
+  operationRemovalChoices,
+  promoteSoleCanvasRoot,
   type CanvasDocument,
   type CanvasState,
 } from './canvas';
@@ -45,7 +47,331 @@ const sample = (): CanvasState => ({
   positions: { 'main:root': { x: 10, y: 20 }, 'saved:root': { x: 500, y: 20 } },
 });
 
+describe('removing only a source-bound operation', () => {
+  it('splices a unary child into its parent without a hole or changing the sibling', () => {
+    const doc = document('og * -(abá)', sample());
+    const before = structuredClone(doc);
+    const result = editCanvas(doc, {
+      type: 'unwrap',
+      source: bindCanvasAddress(doc, source('root/right')),
+      keepChildId: 'root/right/operand',
+    });
+    expect(result.raw).toBe('og * (abá)');
+    expect(result.canvas.fragments).toEqual(sample().fragments);
+    expect(result.canvas.positions).toEqual({ 'saved:root': sample().positions['saved:root'] });
+    expect(doc).toEqual(before);
+    expect(parse(result.raw).children.map(({ node }) => node.code)).toEqual(['og', 'abá']);
+  });
+
+  it('preserves the other binary branch as a loose piece in the same immutable transaction', () => {
+    const doc = document('og * (emi + tym)', sample());
+    const before = structuredClone(doc);
+    const result = editCanvas(doc, {
+      type: 'unwrap',
+      source: bindCanvasAddress(doc, source('root/right')),
+      keepChildId: 'root/right/right',
+      fragmentIds: { 'root/right/left': 'other-branch', 'root/right/right': 'unused-selected' },
+      position: { x: 120, y: 80 },
+    });
+    expect(result.raw).toBe('og * ((tym))');
+    expect(result.canvas.fragments).toEqual([
+      ...sample().fragments,
+      { id: 'other-branch', raw: 'emi', x: 120, y: 80 },
+    ]);
+    expect(result.raw).not.toContain('__studio_slot_');
+    expect(doc).toEqual(before);
+  });
+
+  it('offers comparison sides and compose receiver or predicate modifier', () => {
+    for (const [raw, slots] of [
+      ['emi == tym', ['left', 'right']],
+      ['emi.compose(tym)', ['receiver', 'arg0']],
+      ['emi.compose(modifier=tym)', ['receiver', 'kw:modifier']],
+    ] as const) {
+      const doc = document(raw);
+      const choices = operationRemovalChoices(doc.roots.main!);
+      expect(choices.map((choice) => choice.slot)).toEqual(slots);
+      const result = editCanvas(doc, {
+        type: 'unwrap',
+        source: source(),
+        keepChildId: choices[1].node.id,
+        fragmentIds: { [choices[0].node.id]: 'receiver' },
+      });
+      expect(parse(result.raw).code).toBe('tym');
+      expect(result.canvas.fragments[0].raw).toBe('emi');
+    }
+  });
+
+  it('removes scalar method settings without inventing loose predicate branches', () => {
+    for (const raw of [
+      'abá.var(-1)',
+      'abá.var(setter="îe#literal")',
+      'abá.circ(False)',
+      'abá.inflection(setter=None)',
+      'abá.base_nominal(annotated=True)',
+      'abá.copy()',
+    ]) {
+      const doc = document(raw);
+      expect(operationRemovalChoices(doc.roots.main!).map((choice) => choice.slot)).toEqual([
+        'receiver',
+      ]);
+      const result = editCanvas(doc, {
+        type: 'unwrap',
+        source: source(),
+        keepChildId: 'root/receiver',
+      });
+      expect(parse(result.raw).code).toBe('abá');
+      expect(result.canvas.fragments).toEqual([]);
+    }
+  });
+
+  it('drops the deleted node meaning and keeps each child own annotated meaning', () => {
+    const kept = 'studio_define(abá, "sentido da base")';
+    const other = 'studio_define(tym, "sentido do outro ramo")';
+    const doc = document(`og * studio_define(${kept} + ${other}, "sentido removido")`);
+    const choices = operationRemovalChoices(doc.roots.main!.children[1].node);
+    expect(choices.map((choice) => choice.node.code)).toEqual([kept, other]);
+    const result = editCanvas(doc, {
+      type: 'unwrap',
+      source: source('root/right'),
+      keepChildId: choices[0].node.id,
+      fragmentIds: { [choices[1].node.id]: 'other' },
+    });
+    expect(result.raw).toBe(`og * (${kept})`);
+    expect(result.raw).not.toContain('sentido removido');
+    expect(result.canvas.fragments[0].raw).toBe(other);
+    expect(parse(result.raw).children[1].node.method).toBe('studio_define');
+  });
+
+  it('preserves Unicode and comments once across retained and detached child source', () => {
+    const raw = `# fora 🦜\n(og * studio_define( # anotação\n  (\n    Noun("abá#literal", definition="""linha\n# dentro de texto""") # lado esquerdo\n    + (emi # interior do outro ramo\n       * tym) # lado direito\n  ), # significado\n  "removido # não comentário"\n)) # final\n`;
+    const doc = document(raw);
+    const choices = operationRemovalChoices(doc.roots.main!.children[1].node);
+    const result = editCanvas(doc, {
+      type: 'unwrap',
+      source: source('root/right'),
+      keepChildId: choices[0].node.id,
+      fragmentIds: { [choices[1].node.id]: 'other' },
+    });
+    const combined = [result.raw, ...result.canvas.fragments.map((fragment) => fragment.raw)].join(
+      '\n',
+    );
+    for (const comment of [
+      '# fora 🦜',
+      '# anotação',
+      '# lado esquerdo',
+      '# interior do outro ramo',
+      '# lado direito',
+      '# significado',
+      '# final',
+    ])
+      expect(combined.split(comment)).toHaveLength(2);
+    expect(result.raw).toContain('Noun("abá#literal", definition="""linha\n# dentro de texto""")');
+    expect(result.raw).not.toContain('removido # não comentário');
+    expect(result.raw).toMatch(/^# fora 🦜\n/);
+    expect(result.raw).toMatch(/# final\n$/);
+    expect(parse(result.raw).operator).toBe('*');
+    expect(parse(result.canvas.fragments[0].raw).operator).toBe('*');
+    expect(result.canvas.fragments[0].raw).toContain('# interior do outro ramo');
+  });
+
+  it('keeps comments around a removed method argument but removes its setting', () => {
+    const doc = document('og * abá.var( # escolher\n -1 # variante\n)');
+    const result = editCanvas(doc, {
+      type: 'unwrap',
+      source: source('root/right'),
+      keepChildId: 'root/right/receiver',
+    });
+    expect(result.raw).toContain('# escolher');
+    expect(result.raw).toContain('# variante');
+    expect(result.raw).not.toContain('-1');
+    expect(parse(result.raw).children[1].node.code).toBe('abá');
+    expect(result.canvas.fragments).toEqual([]);
+  });
+
+  it('preserves CR and CRLF comments without swallowing an operand into a comment', () => {
+    for (const newline of ['\r', '\r\n']) {
+      const doc = document(`(emi # entre${newline} * (tym # ramo${newline} + og))`);
+      const result = editCanvas(doc, {
+        type: 'unwrap',
+        source: source(),
+        keepChildId: 'root/left',
+        fragmentIds: { 'root/right': 'other' },
+      });
+      expect(parse(result.raw).code).toBe('emi');
+      expect(parse(result.canvas.fragments[0].raw).operator).toBe('+');
+      expect(result.raw.split('# entre')).toHaveLength(2);
+      expect(result.raw).not.toContain('tym');
+      expect(result.canvas.fragments[0].raw).toContain(`# ramo${newline}`);
+    }
+  });
+
+  it('edits whole and nested loose operations without changing the primary result', () => {
+    for (const [raw, nodeId, childId] of [
+      ['abá.var(1)', 'root', 'root/receiver'],
+      ['og * -(abá)', 'root/right', 'root/right/operand'],
+    ]) {
+      const canvas = sample();
+      canvas.fragments[0].raw = raw;
+      const doc = document('ypy', canvas);
+      const before = structuredClone(doc);
+      const result = editCanvas(doc, {
+        type: 'unwrap',
+        source: source(nodeId, 'saved'),
+        keepChildId: childId,
+      });
+      expect(result.raw).toBe('ypy');
+      expect(result.canvas.fragments[0].raw).not.toContain('.var');
+      expect(result.canvas.fragments[0].raw).not.toContain('-');
+      expect(parse(result.canvas.fragments[0].raw)).toBeTruthy();
+      expect(result.canvas.positions).toEqual({ 'main:root': canvas.positions['main:root'] });
+      expect(doc).toEqual(before);
+    }
+  });
+
+  it('promotes an unwrapped sole loose tree but retains an ambiguous forest', () => {
+    const canvas = sample();
+    canvas.fragments[0].raw = '-(abá)';
+    const unary = editCanvas(document('', canvas), {
+      type: 'unwrap',
+      source: source('root', 'saved'),
+      keepChildId: 'root/operand',
+    });
+    expect(parse(unary.raw).code).toBe('abá');
+    expect(unary.canvas.fragments).toEqual([]);
+    canvas.fragments[0].raw = 'abá * tym';
+    const binary = editCanvas(document('', canvas), {
+      type: 'unwrap',
+      source: source('root', 'saved'),
+      keepChildId: 'root/left',
+      fragmentIds: { 'root/right': 'other' },
+    });
+    expect(binary.raw).toBe('');
+    expect(binary.canvas.fragments.map((fragment) => parse(fragment.raw).code)).toEqual([
+      'abá',
+      'tym',
+    ]);
+  });
+
+  it('rejects stale source and foreign or deeper child choices without changing the forest', () => {
+    const doc = document('og * -(abá)', sample());
+    const address = bindCanvasAddress(doc, source());
+    const changed = document('tym * -(abá)', sample());
+    expect(() =>
+      editCanvas(changed, { type: 'unwrap', source: address, keepChildId: 'root/right' }),
+    ).toThrow(/mudou/);
+    const before = structuredClone(doc);
+    for (const keepChildId of ['root', 'root/right/operand', 'foreign'])
+      expect(() => editCanvas(doc, { type: 'unwrap', source: source(), keepChildId })).toThrow(
+        /parte direta/,
+      );
+    expect(doc).toEqual(before);
+  });
+
+  it('does not infer removal roles for primitives, opaque syntax or ambiguous method settings', () => {
+    for (const raw of [
+      'abá',
+      '1',
+      '-1',
+      'abá + 1',
+      'abá == "literal"',
+      'Noun("abá")',
+      'helper(abá)',
+      'abá.unknown(tym)',
+      'abá.var(setting)',
+      'abá.circ(val=setting)',
+      'abá.copy(tym)',
+      'abá.compose(tym, other)',
+      'abá.compose(*items)',
+      'abá.compose(tym, **opts)',
+      'studio_define(-(abá), "sentido", **opts)',
+      'studio_define(studio_define(-(abá), "inner", **opts), "outer")',
+      'abá < tym < og',
+    ]) {
+      const doc = document(raw);
+      expect(operationRemovalChoices(doc.roots.main!), raw).toEqual([]);
+      expect(() =>
+        editCanvas(doc, { type: 'unwrap', source: source(), keepChildId: 'root/receiver' }),
+      ).toThrow(/parte direta/);
+    }
+  });
+
+  it('rejects an added branch ID collision atomically', () => {
+    const doc = document('abá * tym', sample());
+    const before = structuredClone(doc);
+    expect(() =>
+      editCanvas(doc, {
+        type: 'unwrap',
+        source: source(),
+        keepChildId: 'root/left',
+        fragmentIds: { 'root/right': 'saved' },
+      }),
+    ).toThrow(/identificador/);
+    expect(doc).toEqual(before);
+  });
+});
+
 describe('source-bound draft canvas edits', () => {
+  it('promotes the sole remaining tree without changing its source or the previous forest', () => {
+    const only = {
+      raw: '',
+      canvas: {
+        ...sample(),
+        layout: 'horizontal' as const,
+        fragments: [{ ...sample().fragments[0], raw: '(emi * tym) # conservar 🦜\n' }],
+      },
+    };
+    const before = structuredClone(only);
+    const result = promoteSoleCanvasRoot(only);
+    expect(result.raw).toBe(only.canvas.fragments[0].raw);
+    expect(result.canvas).toEqual({
+      layout: 'horizontal',
+      fragments: [],
+      positions: { 'main:root': { x: 500, y: 20 } },
+    });
+    expect(only).toEqual(before);
+    expect(promoteSoleCanvasRoot(result)).toBe(result);
+    expect(promoteSoleCanvasRoot({ ...only, raw: '__studio_slot_abc' })).toEqual(result);
+    for (const raw of ['tym', 'helper( # continuar', '# nota a conservar'])
+      expect(promoteSoleCanvasRoot({ ...only, raw }).raw).toBe(raw);
+    const multiple = {
+      raw: '',
+      canvas: {
+        ...sample(),
+        fragments: [...sample().fragments, { id: 'other', raw: 'emi', x: 0, y: 0 }],
+      },
+    };
+    expect(promoteSoleCanvasRoot(multiple)).toBe(multiple);
+    const hole = {
+      raw: '',
+      canvas: { ...sample(), fragments: [{ ...sample().fragments[0], raw: '__studio_slot_abc' }] },
+    };
+    expect(promoteSoleCanvasRoot(hole)).toBe(hole);
+  });
+
+  it('combines two loose roots into the primary expression in one transaction', () => {
+    const canvas: CanvasState = {
+      layout: 'bottom-up',
+      positions: {},
+      fragments: [
+        { id: 'a', raw: 'emi', x: 0, y: 0 },
+        { id: 'b', raw: 'tym', x: 200, y: 0 },
+      ],
+    };
+    const doc = document('', canvas);
+    const before = structuredClone(doc);
+    const result = editCanvas(doc, {
+      type: 'combine',
+      source: source('root', 'a'),
+      target: source('root', 'b'),
+      operator: '*',
+      order: 'source-first',
+    });
+    expect(result.raw).toBe('(emi) * (tym)');
+    expect(result.canvas).toEqual({ layout: 'bottom-up', fragments: [], positions: {} });
+    expect(doc).toEqual(before);
+  });
+
   it('edits inline arguments as one exact revision-bound transaction without extra grouping', () => {
     const raw = '# 🌿\n((tym.var(((1)))) / ypy) # keep\n';
     const doc = document(raw, sample());
@@ -201,8 +527,8 @@ describe('source-bound draft canvas edits', () => {
     const raw = '(\n  emi * tym\n) # guardar 🦜\n';
     const doc = document(raw);
     const detached = editCanvas(doc, { type: 'detach', source: source(), fragmentId: 'whole' });
-    expect(detached.raw).toBe('');
-    expect(detached.canvas.fragments[0].raw).toBe(raw);
+    expect(detached.raw).toBe(raw);
+    expect(detached.canvas.fragments).toEqual([]);
     const duplicate = editCanvas(doc, { type: 'duplicate', source: source(), fragmentId: 'copy' });
     expect(duplicate.raw).toBe(raw);
     expect(duplicate.canvas.fragments[0].raw).toBe(raw);
@@ -438,8 +764,8 @@ describe('incomplete orphan recovery', () => {
       canvas: { ...sample(), positions: { 'saved:root': sample().positions['saved:root'] } },
     });
     expect(editCanvas(doc, { type: 'remove', source: bound })).toEqual({
-      raw: '',
-      canvas: { ...sample(), positions: { 'saved:root': sample().positions['saved:root'] } },
+      raw: 'ypy',
+      canvas: { fragments: [], positions: { 'main:root': sample().positions['saved:root'] } },
     });
     expect(() => editCanvas(doc, { type: 'replace', source: source('root'), raw: 'tym' })).toThrow(
       /mudou/,

@@ -27,6 +27,8 @@ import {
   emptyCanvas,
   isCanvasHole,
   isCanvasState,
+  promoteSoleCanvasRoot,
+  operationRemovalChoices,
   type CanvasAction,
   type CanvasAddress,
   type CanvasDocument,
@@ -53,6 +55,7 @@ import {
   addTreeOperation,
   argumentTreeOperations,
   binaryTreeOperations,
+  optionalArgumentTreeOperations,
   treeOperations,
 } from '../domain/tree-operations';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
@@ -62,7 +65,13 @@ import { PredicatePalette } from './PredicatePalette';
 import { PieceSearch, type PieceSearchHandle } from './PieceSearch';
 import { canvasEdgePath, layoutCanvasTree } from '../domain/canvas-layout';
 import { TreeScopeEditor } from './TreeScopeEditor';
+import { LexicalInput } from './LexicalInput';
+import { OperationPreview } from './OperationPreview';
 import { InlineCallLabel } from './InlineCallLabel';
+import {
+  DictionaryMeaningPicker,
+  type DictionaryMeaningSelection,
+} from './DictionaryMeaningPicker';
 import '../expression-canvas.css';
 
 export interface ExpressionCanvasProps {
@@ -281,7 +290,12 @@ export function ExpressionCanvas({
   };
   const live = useRef(documentModel);
   live.current = documentModel;
-  const session = `${props.passageId}:${props.revisionId}`;
+  const session = JSON.stringify([
+    props.passageId,
+    props.sourceId,
+    props.revisionId,
+    props.engineFingerprint,
+  ]);
   const liveSession = useRef(session);
   liveSession.current = session;
   const [selected, setSelected] = useState('main:root');
@@ -297,15 +311,34 @@ export function ExpressionCanvas({
   const [combineOperator, setCombineOperator] = useState('*');
   const [combineOrder, setCombineOrder] = useState<'source-first' | 'target-first'>('target-first');
   const [operationArgument, setOperationArgument] = useState('1');
+  const [operationOperand, setOperationOperand] = useState('');
   const [operationPanel, setOperationPanel] = useState<CanvasAddress | null>(null);
+  const [removalPanel, setRemovalPanel] = useState<{
+    address: CanvasAddress;
+    session: string;
+    fragmentIds: Record<string, string>;
+    position: CanvasPoint;
+  } | null>(null);
+  const [keptChildId, setKeptChildId] = useState('');
   const [definitionPanel, setDefinitionPanel] = useState<CanvasAddress | null>(null);
   const [compositionDefinition, setCompositionDefinition] = useState('');
-  const [reuseBaseDefinitions, setReuseBaseDefinitions] = useState(true);
+  const [compositionDictionary, setCompositionDictionary] =
+    useState<DictionaryMeaningSelection | null>(null);
   const [defining, setDefining] = useState(false);
   const definitionRequest = useRef(0);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      definitionRequest.current++;
+    };
+  }, []);
   function closeDefinition() {
     definitionRequest.current++;
     setDefinitionPanel(null);
+    setCompositionDictionary(null);
+    setDefining(false);
   }
   const [operation, setOperation] = useState('*');
   const [operationSide, setOperationSide] = useState<'left' | 'right'>('right');
@@ -346,6 +379,30 @@ export function ExpressionCanvas({
   const knownFragments = useRef(new Set(saved.fragments.map((fragment) => fragment.id)));
   const [focusPiece, setFocusPiece] = useState<string | null>(null);
   const [focusSelection, setFocusSelection] = useState<string | null>(null);
+  const promotedRoots = useRef(new Set<string>());
+  useEffect(() => {
+    const next = promoteSoleCanvasRoot({ raw, canvas: saved });
+    if (next.raw === raw) return;
+    const fragment = saved.fragments[0];
+    const piece = pieces.find((item) => item.id === fragment.id);
+    if (!piece?.root || piece.pending || isCanvasHole(piece.root)) return;
+    const identity = JSON.stringify([
+      props.passageId,
+      props.sourceId,
+      raw,
+      fragment.id,
+      fragment.raw,
+    ]);
+    // An explicit undo of an initial promotion must remain undoable. Later
+    // structural edits normalize within their own transaction instead.
+    if (promotedRoots.current.has(identity)) return;
+    promotedRoots.current.add(identity);
+    if (promotedRoots.current.size > 64)
+      promotedRoots.current.delete(promotedRoots.current.values().next().value!);
+    props.onChangeCanvas(next);
+    setSelected('main:root');
+    setFocusPiece('main');
+  }, [raw, saved, pieces, props.passageId, props.sourceId, props.onChangeCanvas]);
 
   const layout = useMemo(() => {
     const positions = new Map<string, Positioned>();
@@ -547,6 +604,7 @@ export function ExpressionCanvas({
   useEffect(() => {
     setMenu(null);
     setOperationPanel(null);
+    setRemovalPanel(null);
     closeDefinition();
     setPalette(null);
     setCombination(null);
@@ -565,6 +623,7 @@ export function ExpressionCanvas({
       setMenu(null);
       setPalette(null);
       setOperationPanel(null);
+      setRemovalPanel(null);
       closeDefinition();
       setCombination(null);
     };
@@ -598,6 +657,7 @@ export function ExpressionCanvas({
       setMenu(null);
       setPalette(null);
       setOperationPanel(null);
+      setRemovalPanel(null);
       closeDefinition();
       setCombination(null);
       setStaged(null);
@@ -749,16 +809,40 @@ export function ExpressionCanvas({
     if (!scope) return;
     setDefining(true);
     try {
-      const result = await invoke<{ raw: string }>('composition_define', {
+      const result = await invoke<{
+        raw: string;
+        revisionId?: string;
+        engineFingerprint?: string;
+      }>('node_definition', {
         passageId: props.passageId,
         sourceId: props.sourceId,
         revisionId: props.revisionId,
         engineFingerprint: props.engineFingerprint,
         raw: scope.code,
+        sourceNodeId: 'root',
+        action: 'set',
         definition: compositionDefinition,
-        reuseBaseDefinitions,
+        ...(compositionDictionary
+          ? {
+              dictionarySelection: {
+                entryIndex: compositionDictionary.entryIndex,
+                datasetFingerprint: compositionDictionary.datasetFingerprint,
+              },
+            }
+          : {}),
       });
-      if (ticket !== liveSession.current || request !== definitionRequest.current) return;
+      if (
+        !mounted.current ||
+        ticket !== liveSession.current ||
+        request !== definitionRequest.current
+      )
+        return;
+      if (
+        (props.revisionId !== undefined && result.revisionId !== props.revisionId) ||
+        (props.engineFingerprint !== undefined &&
+          result.engineFingerprint !== props.engineFingerprint)
+      )
+        throw new Error('A composição mudou durante a consulta. Abra novamente sua definição.');
       if (commit({ type: 'replace', source: address, raw: result.raw })) {
         closeDefinition();
         setNotice(
@@ -766,10 +850,14 @@ export function ExpressionCanvas({
         );
       }
     } catch (error) {
-      if (ticket === liveSession.current && request === definitionRequest.current)
+      if (
+        mounted.current &&
+        ticket === liveSession.current &&
+        request === definitionRequest.current
+      )
         setNotice(error instanceof Error ? error.message : String(error));
     } finally {
-      setDefining(false);
+      if (mounted.current && request === definitionRequest.current) setDefining(false);
     }
   }
 
@@ -801,16 +889,17 @@ export function ExpressionCanvas({
     if (!operationPanel) return;
     const { node } = getScope(operationPanel);
     if (!node) return;
-    const argument = argumentTreeOperations.has(operation)
-      ? operation === 'var'
-        ? operationArgument || '1'
-        : createCanvasHole()
-      : '';
+    const nextRaw =
+      operationCode ||
+      (argumentTreeOperations.has(operation) && operation !== 'var' && !operationOperand.trim()
+        ? addTreeOperation(node.code, operation, createCanvasHole(), operationSide)
+        : '');
+    if (!nextRaw) return;
     if (
       commit({
         type: 'replace',
         source: operationPanel,
-        raw: addTreeOperation(node.code, operation, argument, operationSide),
+        raw: nextRaw,
       })
     )
       setOperationPanel(null);
@@ -938,6 +1027,106 @@ export function ExpressionCanvas({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   const menuPosition = menu ? layout.positions.get(canvasPositionKey(menu.address)) : undefined;
+  const menuScope = menu ? getScope(menu.address).node : undefined;
+  const menuRemovalChoices = menuScope ? operationRemovalChoices(menuScope) : [];
+  const removalScope = removalPanel ? getScope(removalPanel.address) : undefined;
+  const removalChoices = removalScope?.node ? operationRemovalChoices(removalScope.node) : [];
+  const removalAction: CanvasAction | null =
+    removalPanel && removalChoices.some((choice) => choice.node.id === keptChildId)
+      ? {
+          type: 'unwrap',
+          source: removalPanel.address,
+          keepChildId: keptChildId,
+          fragmentIds: removalPanel.fragmentIds,
+          position: removalPanel.position,
+        }
+      : null;
+  const removalPreview = removalAction
+    ? previewAction(removalAction, removalPanel?.address.fragmentId)
+    : { raw: '', message: 'Escolha a parte que continuará ligada.' };
+  const removalPartLabel = (choice: { node: AuthorNode; slot: string }) => {
+    const side =
+      (
+        {
+          receiver: 'Base',
+          operand: 'Operando',
+          left: 'Lado esquerdo',
+          right: 'Lado direito',
+        } as Record<string, string>
+      )[choice.slot] ??
+      (choice.slot.startsWith('arg')
+        ? `Argumento ${Number(choice.slot.slice(3)) + 1}`
+        : choice.slot.replace(/^kw:/, ''));
+    const evidence = removalScope?.piece?.graph?.nodes.find((node) => node.id === choice.node.id);
+    const surface =
+      evidence?.evaluation?.status === 'ok' ? evidence.evaluation.surface : choice.node.code;
+    return `${side} · ${clip(surface || '∅', 80)}`;
+  };
+  const definitionScope = definitionPanel ? getScope(definitionPanel) : null;
+  const definitionEvidence = definitionScope?.piece?.graph?.nodes.find(
+    (node) => node.id === definitionPanel?.nodeId,
+  );
+  const definitionSurface =
+    definitionEvidence?.evaluation?.status === 'ok' ? definitionEvidence.evaluation.surface : '';
+  function previewAction(action: CanvasAction, fragmentId?: string) {
+    try {
+      const next = editCanvas(documentModel, action);
+      return {
+        raw: fragmentId
+          ? (next.canvas.fragments.find((fragment) => fragment.id === fragmentId)?.raw ?? next.raw)
+          : next.raw,
+        message: '',
+      };
+    } catch (reason) {
+      return { raw: '', message: reason instanceof Error ? reason.message : String(reason) };
+    }
+  }
+  let operationCode = '';
+  let operationPreview = { raw: '', message: '' };
+  if (operationPanel) {
+    const scope = getScope(operationPanel).node;
+    const argument = operation === 'var' ? operationArgument : operationOperand;
+    if (!scope) operationPreview.message = 'Aguarde a árvore atual para preparar esta operação.';
+    else if (argumentTreeOperations.has(operation) && !argument.trim())
+      operationPreview.message =
+        operation === 'var'
+          ? 'Informe o número da variante para ver sua forma.'
+          : 'Escolha um argumento para ver a forma. Sem ele, será criado um encaixe vazio.';
+    else {
+      try {
+        operationCode = addTreeOperation(scope.code, operation, argument, operationSide);
+        operationPreview = previewAction(
+          {
+            type: 'replace',
+            source: operationPanel,
+            raw: operationCode,
+          },
+          operationPanel.fragmentId,
+        );
+      } catch (reason) {
+        operationPreview.message = reason instanceof Error ? reason.message : String(reason);
+      }
+    }
+  }
+  const combinationDestination =
+    combination &&
+    (combination.source.fragmentId &&
+    combination.target.fragmentId &&
+    !((!raw.trim() || isCanvasHole(raw.trim())) && saved.fragments.length === 2)
+      ? combination.target.fragmentId
+      : undefined);
+  const combinationAction: CanvasAction | null = combination
+    ? {
+        type: 'combine',
+        source: combination.source,
+        target: combination.target,
+        operator: combineOperator,
+        order: combineOrder,
+      }
+    : null;
+  const combinationPreview = combinationAction
+    ? previewAction(combinationAction, combinationDestination ?? undefined)
+    : { raw: '', message: '' };
   const viewWidth = dimensions.width / camera.zoom;
   const viewHeight = dimensions.height / camera.zoom;
   const menuAction = (type: 'detach' | 'duplicate' | 'remove' | 'make-main') => {
@@ -958,10 +1147,20 @@ export function ExpressionCanvas({
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
-          if (menu || palette || operationPanel || combination || staged || drag.current) {
+          if (
+            menu ||
+            palette ||
+            operationPanel ||
+            removalPanel ||
+            definitionPanel ||
+            combination ||
+            staged ||
+            drag.current
+          ) {
             setMenu(null);
             setPalette(null);
             setOperationPanel(null);
+            setRemovalPanel(null);
             closeDefinition();
             setCombination(null);
             setStaged(null);
@@ -981,7 +1180,8 @@ export function ExpressionCanvas({
           else props.onUndo?.();
           return;
         }
-        if (!selectedPosition || menu || palette || operationPanel || combination) return;
+        if (!selectedPosition || menu || palette || operationPanel || removalPanel || combination)
+          return;
         if (event.key === 'Delete' || event.key === 'Backspace') {
           event.preventDefault();
           commit({ type: 'remove', source: bound(selectedPosition.address) });
@@ -1022,6 +1222,7 @@ export function ExpressionCanvas({
             revisionId={props.revisionId}
             contextKey={session}
             onAdd={(expression) => addPiece(expression)}
+            onCreate={() => setPalette({ x: camera.x, y: camera.y, initialMode: 'types' })}
           />
           <kbd className="canvas-search-shortcut" aria-hidden="true">
             {/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'}
@@ -1029,11 +1230,14 @@ export function ExpressionCanvas({
         </div>
         <button
           className="canvas-manual-piece"
+          title="Definir um predicado, mesmo sem entrada no léxico ou dicionário"
           onClick={() => {
+            pieceSearch.current?.dismiss();
             setPalette({ x: camera.x, y: camera.y, initialMode: 'types' });
           }}
         >
-          Tipos de peça e código
+          <Plus size={15} />
+          Criar peça
         </button>
         <div className="runtime-tools">
           <button
@@ -1240,6 +1444,10 @@ export function ExpressionCanvas({
               Math.max(66, [...node.label].length * 8 + 24),
             );
             const hole = isCanvasHole(node.expression?.code ?? '');
+            const hypothesisDetails =
+              node.attributes.lexicalStatus === 'hypothetical'
+                ? `Hipótese não atestada · ${node.definition || 'significado desconhecido'}`
+                : undefined;
             const meaning = junction
               ? operationTerm({
                   ...node.expression!,
@@ -1266,6 +1474,7 @@ export function ExpressionCanvas({
                 data-piece-id={point.piece.id}
                 data-source-node={node.id}
                 data-evaluation-state={preview?.status}
+                data-lexical-status={node.attributes.lexicalStatus}
                 className={`runtime-node canvas-node ${junction ? 'runtime-junction canvas-operation' : ''} ${hole ? 'canvas-hole' : ''} ${preview ? 'canvas-' + preview.status : ''} ${selected === point.key ? 'is-selected' : ''} ${matches.has(point.key) ? 'is-match' : ''} ${dragPreview?.target === point.key ? 'is-drop-target' : ''} ${dragPreview?.keys.includes(point.key) ? 'is-dragging' : ''}`}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -1283,7 +1492,7 @@ export function ExpressionCanvas({
                   tabIndex={0}
                   aria-pressed={selected === point.key}
                   onFocus={() => select(point)}
-                  aria-label={`${hole ? 'Encaixe vazio' : (meaning?.label ?? node.label)}, ${point.piece.id === 'main' ? 'árvore principal' : 'peça solta'}`}
+                  aria-label={`${hole ? 'Encaixe vazio' : (meaning?.label ?? node.label)}, ${point.piece.id === 'main' ? 'árvore principal' : 'peça solta'}${hypothesisDetails ? `, ${hypothesisDetails}` : ''}`}
                   onPointerDown={(event) => startDrag(point, event)}
                   onClick={() => {
                     if (suppressClick.current) return;
@@ -1337,6 +1546,7 @@ export function ExpressionCanvas({
                 >
                   <title>
                     {node.expression?.code}
+                    {hypothesisDetails ? `\n${hypothesisDetails}` : ''}
                     {preview ? `\n${preview.label}: ${preview.text}` : ''}
                   </title>
                   {junction ? (
@@ -1375,7 +1585,12 @@ export function ExpressionCanvas({
                             return commit(
                               {
                                 type: 'argument',
-                                source: { ...point.address, expectedRaw: point.piece.raw },
+                                source: {
+                                  ...point.address,
+                                  nodeId:
+                                    node.expression?.operationSourceNodeId ?? point.address.nodeId,
+                                  expectedRaw: point.piece.raw,
+                                },
                                 slot,
                                 text,
                               },
@@ -1407,9 +1622,11 @@ export function ExpressionCanvas({
                             rx={7}
                           />
                           <text className="runtime-result-caption" x={10} y={89}>
-                            {node.id === 'root' && point.piece.id !== 'main'
-                              ? 'Resultado da peça'
-                              : preview.label}
+                            {hypothesisDetails
+                              ? 'Hipótese não atestada'
+                              : node.id === 'root' && point.piece.id !== 'main'
+                                ? 'Resultado da peça'
+                                : preview.label}
                           </text>
                           <text className="runtime-result-text" x={10} y={108}>
                             {preview.lines.map((line, index) => (
@@ -1440,7 +1657,7 @@ export function ExpressionCanvas({
                         {clip(
                           hole
                             ? 'Arraste ou conecte uma peça aqui'
-                            : node.definition || node.expression?.code || '',
+                            : hypothesisDetails || node.definition || node.expression?.code || '',
                           36,
                         )}
                       </text>
@@ -1580,6 +1797,7 @@ export function ExpressionCanvas({
                 setOperationPanel(menu.address);
                 setOperation('*');
                 setOperationArgument('1');
+                setOperationOperand('');
                 setOperationSide('right');
                 setMenu(null);
               }}
@@ -1593,6 +1811,7 @@ export function ExpressionCanvas({
                 setOperationPanel(menu.address);
                 setOperation('var');
                 setOperationArgument('1');
+                setOperationOperand('');
                 setMenu(null);
               }}
             >
@@ -1602,13 +1821,10 @@ export function ExpressionCanvas({
               role="menuitem"
               disabled={!menuPosition?.piece.root}
               onClick={() => {
-                const scope = getScope(menu.address).node;
-                if (scope)
-                  commit({
-                    type: 'replace',
-                    source: menu.address,
-                    raw: addTreeOperation(scope.code, 'imp'),
-                  });
+                setOperationPanel(menu.address);
+                setOperation('imp');
+                setOperationOperand('');
+                setMenu(null);
               }}
             >
               Imperativo
@@ -1619,11 +1835,9 @@ export function ExpressionCanvas({
               onClick={() => {
                 setDefinitionPanel(menu.address);
                 setCompositionDefinition(
-                  getScope(menu.address).node?.definition ??
-                    (menu.address.nodeId === 'root' ? evaluatedRoot?.definition : '') ??
-                    '',
+                  menuPosition?.node.compositeDefinition ?? menuPosition?.node.baseDefinition ?? '',
                 );
-                setReuseBaseDefinitions(true);
+                setCompositionDictionary(null);
                 setMenu(null);
               }}
             >
@@ -1657,6 +1871,31 @@ export function ExpressionCanvas({
             >
               Soltar trecho
             </button>
+            {menuRemovalChoices.length > 0 && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setRemovalPanel({
+                    address: menu.address,
+                    session,
+                    fragmentIds: Object.fromEntries(
+                      menuRemovalChoices.map(({ node }) => [
+                        node.id,
+                        'fragment-' + globalThis.crypto.randomUUID(),
+                      ]),
+                    ),
+                    position: {
+                      x: (menuPosition?.x ?? camera.x) + 80,
+                      y: (menuPosition?.y ?? camera.y) + 190,
+                    },
+                  });
+                  setKeptChildId(menuRemovalChoices[0].node.id);
+                  setMenu(null);
+                }}
+              >
+                Retirar só a operação…
+              </button>
+            )}
             <button role="menuitem" onClick={() => menuAction('remove')}>
               Remover trecho <kbd>⌫</kbd>
             </button>
@@ -1734,27 +1973,52 @@ export function ExpressionCanvas({
         {definitionPanel && (
           <div role="dialog" aria-label="Definir composição" className="canvas-floating-panel">
             <h3>Significado desta composição</h3>
+            {definitionSurface && (
+              <p>
+                Forma do conjunto: <strong>{definitionSurface}</strong>
+              </p>
+            )}
+            <DictionaryMeaningPicker
+              context={{
+                passageId: props.passageId,
+                sourceId: props.sourceId,
+                revisionId: props.revisionId,
+                engineFingerprint: props.engineFingerprint,
+              }}
+              contextKey={JSON.stringify([session, definitionPanel])}
+              initialQuery={definitionSurface}
+              disabled={defining}
+              onSelect={(entry) => {
+                setCompositionDefinition(entry.definition);
+                setCompositionDictionary(entry);
+              }}
+            />
+            {compositionDictionary && (
+              <p>
+                Definição escolhida: Navarro · {compositionDictionary.headword}
+                {compositionDictionary.optionalNumber
+                  ? ` ${compositionDictionary.optionalNumber}`
+                  : ''}
+              </p>
+            )}
             <label>
               Definição do conjunto
               <textarea
                 autoFocus
                 value={compositionDefinition}
-                onChange={(event) => setCompositionDefinition(event.target.value)}
+                disabled={defining}
+                maxLength={50_000}
+                onChange={(event) => {
+                  setCompositionDefinition(event.target.value);
+                  setCompositionDictionary(null);
+                }}
               />
             </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={reuseBaseDefinitions}
-                onChange={(event) => setReuseBaseDefinitions(event.target.checked)}
-              />
-              Reutilizar definições das peças no léxico ou dicionário
-            </label>
+            <p>
+              O significado fica nesta parte da árvore. Suas peças conservam os próprios sentidos.
+            </p>
             <p>A revisão criará uma entrada para o conjunto, com o nome baseado na forma gerada.</p>
-            <button
-              disabled={defining || !compositionDefinition.trim()}
-              onClick={() => void defineComposition()}
-            >
+            <button disabled={defining} onClick={() => void defineComposition()}>
               {defining ? 'Conferindo peças…' : 'Usar definição no rascunho'}
             </button>
             <button onClick={closeDefinition}>Cancelar</button>
@@ -1766,7 +2030,10 @@ export function ExpressionCanvas({
             <select
               aria-label="Operação na peça"
               value={operation}
-              onChange={(event) => setOperation(event.target.value)}
+              onChange={(event) => {
+                setOperation(event.target.value);
+                setOperationOperand('');
+              }}
             >
               {treeOperations.map(([value, label]) => (
                 <option key={value} value={value}>
@@ -1786,6 +2053,26 @@ export function ExpressionCanvas({
                 />
               </label>
             )}
+            {operation !== 'var' &&
+              (argumentTreeOperations.has(operation) ||
+                optionalArgumentTreeOperations.has(operation)) && (
+                <div>
+                  <p>
+                    {optionalArgumentTreeOperations.has(operation)
+                      ? 'Argumento opcional'
+                      : 'Argumento da nova operação'}
+                  </p>
+                  <LexicalInput
+                    label="Argumento da nova operação"
+                    value={operationOperand}
+                    onChange={setOperationOperand}
+                    onQueryChange={() => setOperationOperand('')}
+                    passageId={props.passageId}
+                    sourceId={props.sourceId}
+                    contextKey={JSON.stringify([session, operationPanel, operation])}
+                  />
+                </div>
+              )}
             {binaryTreeOperations.has(operation) && (
               <label>
                 Posição do novo encaixe
@@ -1800,13 +2087,98 @@ export function ExpressionCanvas({
               </label>
             )}
             <p>
-              {argumentTreeOperations.has(operation) && operation !== 'var'
+              {argumentTreeOperations.has(operation) &&
+              operation !== 'var' &&
+              !operationOperand.trim()
                 ? 'A nova ligação terá um encaixe vazio para receber outra peça.'
-                : 'A operação será aplicada à parte selecionada.'}
+                : operationPanel.nodeId === 'root'
+                  ? 'A prévia mostra a peça com a operação escolhida.'
+                  : 'A prévia mostra a peça inteira com a alteração na parte selecionada.'}
             </p>
+            <OperationPreview
+              raw={operationPreview.raw}
+              pendingMessage={operationPreview.message}
+              passageId={props.passageId}
+              sourceId={props.sourceId}
+              revisionId={props.revisionId}
+              engineFingerprint={props.engineFingerprint}
+              contextKey={JSON.stringify([session, operationPanel, operation])}
+            />
             <div className="tree-scope-actions">
-              <button onClick={addOperation}>Criar operação</button>
+              <button
+                onClick={addOperation}
+                disabled={operation === 'var' && !operationArgument.trim()}
+              >
+                Criar operação
+              </button>
               <button onClick={() => setOperationPanel(null)}>Cancelar</button>
+            </div>
+          </div>
+        )}
+        {removalPanel && (
+          <div role="dialog" aria-label="Retirar operação" className="canvas-floating-panel">
+            <h3>Retirar só a operação</h3>
+            <p>A parte escolhida ocupará o lugar da operação e continuará ligada à árvore.</p>
+            {removalChoices.length > 1 ? (
+              <label>
+                Parte que continuará ligada
+                <select
+                  autoFocus
+                  value={keptChildId}
+                  onChange={(event) => setKeptChildId(event.target.value)}
+                >
+                  {removalChoices.map((choice) => (
+                    <option key={choice.node.id} value={choice.node.id}>
+                      {removalPartLabel(choice)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : removalChoices[0] ? (
+              <p>
+                <strong>Continuará ligada: </strong>
+                {removalPartLabel(removalChoices[0])}
+              </p>
+            ) : null}
+            {removalChoices.length > 1 && (
+              <p>As outras partes ficarão como peças soltas para reutilizar.</p>
+            )}
+            {removalScope?.piece?.graph?.nodes.find(
+              (node) => node.id === removalPanel.address.nodeId,
+            )?.expression?.operationSourceNodeId && (
+              <p>
+                O significado da operação retirada também será removido. Cada parte conserva seu
+                próprio significado.
+              </p>
+            )}
+            <OperationPreview
+              raw={removalPreview.raw}
+              pendingMessage={removalPreview.message}
+              passageId={props.passageId}
+              sourceId={props.sourceId}
+              revisionId={props.revisionId}
+              engineFingerprint={props.engineFingerprint}
+              contextKey={JSON.stringify([session, removalPanel, keptChildId])}
+            />
+            <div className="tree-scope-actions">
+              <button
+                autoFocus={removalChoices.length === 1}
+                disabled={!removalAction || !removalPreview.raw}
+                onClick={() => {
+                  if (!removalAction || removalPanel.session !== liveSession.current) return;
+                  if (commit(removalAction)) {
+                    for (const [childId, fragmentId] of Object.entries(removalPanel.fragmentIds)) {
+                      if (childId !== keptChildId) knownFragments.current.add(fragmentId);
+                    }
+                    setSelected(canvasPositionKey(removalPanel.address));
+                    setFocusSelection(canvasPositionKey(removalPanel.address));
+                    setRemovalPanel(null);
+                  }
+                }}
+              >
+                Retirar operação
+              </button>
+              <button onClick={() => setRemovalPanel(null)}>Cancelar</button>
             </div>
           </div>
         )}
@@ -1865,23 +2237,21 @@ export function ExpressionCanvas({
               As duas peças formarão uma nova etapa. Você poderá continuar construindo a partir
               dela.
             </p>
+            <OperationPreview
+              raw={combinationPreview.raw}
+              pendingMessage={combinationPreview.message}
+              passageId={props.passageId}
+              sourceId={props.sourceId}
+              revisionId={props.revisionId}
+              engineFingerprint={props.engineFingerprint}
+              contextKey={JSON.stringify([session, combination])}
+            />
             <div className="tree-scope-actions">
               <button
                 onClick={() => {
-                  if (combination.session !== liveSession.current) return;
-                  if (
-                    commit({
-                      type: 'combine',
-                      source: combination.source,
-                      target: combination.target,
-                      operator: combineOperator,
-                      order: combineOrder,
-                    })
-                  ) {
-                    const destination =
-                      !combination.source.fragmentId || !combination.target.fragmentId
-                        ? 'main'
-                        : combination.target.fragmentId;
+                  if (combination.session !== liveSession.current || !combinationAction) return;
+                  if (commit(combinationAction)) {
+                    const destination = combinationDestination ?? 'main';
                     setSelected(`${destination}:root`);
                     setFocusPiece(destination);
                     setCombination(null);
@@ -1946,6 +2316,24 @@ export function ExpressionCanvas({
               </button>
             )}
           </div>
+          {selectedNode.baseDefinition !== undefined && (
+            <p data-testid="canvas-base-definition">
+              <strong>Significado da peça: </strong>
+              {selectedNode.baseDefinition || 'Significado não informado.'}
+            </p>
+          )}
+          {selectedNode.compositeDefinition !== undefined && (
+            <p data-testid="canvas-composite-definition">
+              <strong>Significado do conjunto: </strong>
+              {selectedNode.compositeDefinition || 'Significado não informado.'}
+            </p>
+          )}
+          {selectedNode.inheritedDefinition !== undefined && (
+            <p>
+              <strong>Significado herdado: </strong>
+              {selectedNode.inheritedDefinition || 'Significado não informado.'}
+            </p>
+          )}
           {advanced &&
             (selectedRoot && selectedScope ? (
               <TreeScopeEditor
@@ -1955,6 +2343,7 @@ export function ExpressionCanvas({
                 revisionId={props.revisionId}
                 passageId={props.passageId}
                 sourceId={props.sourceId}
+                engineFingerprint={props.engineFingerprint}
                 selectedScopeId={selectedScope.id}
                 onSelectScope={(id) => setSelected(`${selectedPiece!.id}:${id}`)}
                 onInspectLexeme={props.onInspectLexeme}

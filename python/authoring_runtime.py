@@ -18,6 +18,8 @@ from contextlib import redirect_stdout
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from studio_authoring import expression_tree, source_entries, METHODS, parse_ast, is_slot
+from lexical_metadata import inherit_lexical_status, lexical_status, prepare_lexical_arguments, restore_namespace_lexical_status, verify_lexical_arguments
+from semantic_context import attach_definition_context, register_declarations
 
 BINARY = {ast.Mult: operator.mul, ast.Add: operator.add, ast.Div: operator.truediv, ast.MatMult: operator.matmul, ast.LShift: operator.lshift, ast.RShift: operator.rshift, ast.Eq: operator.eq, ast.NotEq: operator.ne}
 DUNDERS = {ast.Mult: '__mul__', ast.Add: '__add__', ast.Div: '__truediv__', ast.MatMult: '__matmul__', ast.LShift: '__lshift__', ast.RShift: '__rshift__', ast.Eq: '__eq__', ast.NotEq: '__ne__', ast.UAdd: '__pos__', ast.USub: '__neg__'}
@@ -38,12 +40,16 @@ def configure(parent):
 def namespace_for(corpus, source_path, line):
     from historic.lexicon import load_lexicon
     namespace = load_lexicon()
+    shared_path = corpus/'historic/lexicon.tu.py'
+    shared_statements = ast.parse(shared_path.read_text(encoding='utf-8')).body
+    restore_namespace_lexical_status(namespace, shared_statements)
+    register_declarations(namespace, shared_statements, shared_path)
     namespace['studio_define'] = studio_define
     namespace['__name__'] = 'historic._studio_source_context'
     # Keep source-local assignments/helpers and contextual mutations in execution
     # order. Ignore source collections and __main__; no source module is imported.
-    for statement in ast.parse(source_path.read_text(encoding='utf-8')).body:
-        if statement.lineno >= line: break
+    statements = [statement for statement in ast.parse(source_path.read_text(encoding='utf-8')).body if statement.lineno < line]
+    for statement in statements:
         if isinstance(statement, ast.Assign):
             if isinstance(statement.value, (ast.List, ast.Tuple)): continue
             if any(isinstance(target, ast.Name) and target.id in {'l', source_path.name.removesuffix('.tu.py')} for target in statement.targets): continue
@@ -58,6 +64,8 @@ def namespace_for(corpus, source_path, line):
                     else: raise ValueError('Contexto de atribuição requer extensão de adaptador.')
         elif isinstance(statement, ast.FunctionDef) and not statement.name.startswith('_'):
             exec(compile(ast.Module(body=[statement], type_ignores=[]), str(source_path), 'exec'), namespace)
+    restore_namespace_lexical_status(namespace, statements)
+    register_declarations(namespace, statements, source_path)
     return namespace
 
 
@@ -120,10 +128,17 @@ def predicate_create(payload,namespace):
         if not valid:
             raise ValueError(f'{key}: valor incompatível com o tipo de propriedade.')
     inspect.signature(namespace[name]).bind(**values)
+    values, definition_override, lexical = prepare_lexical_arguments(name, values, payload.get('lexical'), namespace[name])
+    inspect.signature(namespace[name]).bind(**values)
     syntax=ast.Call(func=ast.Name(id=name,ctx=ast.Load()),args=[],
                     keywords=[ast.keyword(arg=key,value=ast.Constant(value=values[key])) for key in parameters if key in values])
+    if definition_override is not None:
+        syntax=ast.Call(func=ast.Name(id='studio_define',ctx=ast.Load()),args=[syntax,ast.Constant(value=definition_override)],keywords=[])
     raw=ast.unparse(ast.fix_missing_locations(syntax))
-    return {'expression':raw,**realize(raw,namespace)}
+    value=interpret(syntax,namespace)
+    verify_lexical_arguments(value,name,lexical)
+    status=lexical_status(value)
+    return {'expression':raw,**({'lexicalStatus':status} if status else {}),**realize(raw,namespace)}
 
 
 def dictionary_predicate(payload,namespace):
@@ -199,6 +214,8 @@ def shape(value, depth=0, active=None, path='$'):
 
 def runtime_summary(value):
     result = {'runtimeType':type(value).__name__, 'category':getattr(value,'category',type(value).__name__)}
+    status = lexical_status(value)
+    if status: result['lexicalStatus'] = status
     for key in ('definition','verbete','tag','mood','negated','variation_id','reduplicated','circumstancial','_inflection'):
         val = getattr(value,key,None)
         if isinstance(val,(str,int,float,bool)) or val is None: result[key.lstrip('_')] = val
@@ -381,24 +398,25 @@ def interpret(node, namespace, cards=None, identifier='root', evaluations=None):
     elif isinstance(node, ast.BinOp) and type(node.op) in BINARY:
         left=interpret(node.left,namespace,cards,identifier+'/left',evaluations); right=interpret(node.right,namespace,cards,identifier+'/right',evaluations)
         if not hasattr(left,'eval') or not hasattr(right,'eval'): raise ValueError('Operadores de construção requerem operandos Pydicate.')
-        value=BINARY[type(node.op)](left,right)
+        value=inherit_lexical_status(BINARY[type(node.op)](left,right),left,right)
         if cards is not None:
             implementation=getattr(type(left),DUNDERS[type(node.op)])
             cards[identifier]={'dispatch':f'{implementation.__module__}.{implementation.__qualname__}', 'operandTypes':[type(left).__name__,type(right).__name__]}
     elif isinstance(node, ast.UnaryOp) and isinstance(node.op,(ast.UAdd,ast.USub)):
         operand=interpret(node.operand,namespace,cards,identifier+'/operand',evaluations)
         if not hasattr(operand,'eval'): raise ValueError('Operador de escopo requer um predicado.')
-        value=operator.pos(operand) if isinstance(node.op,ast.UAdd) else operator.neg(operand)
+        value=inherit_lexical_status(operator.pos(operand) if isinstance(node.op,ast.UAdd) else operator.neg(operand),operand)
         if cards is not None:
             implementation=getattr(type(operand),DUNDERS[type(node.op)])
             cards[identifier]={'dispatch':f'{implementation.__module__}.{implementation.__qualname__}', 'operandTypes':[type(operand).__name__]}
     elif isinstance(node, ast.Compare) and len(node.ops)==1 and type(node.ops[0]) in BINARY:
         left=interpret(node.left,namespace,cards,identifier+'/left',evaluations); right=interpret(node.comparators[0],namespace,cards,identifier+'/right',evaluations)
         if not hasattr(left,'eval') or not hasattr(right,'eval'): raise ValueError('Relação requer predicados Pydicate.')
-        value=BINARY[type(node.ops[0])](left,right)
+        value=inherit_lexical_status(BINARY[type(node.ops[0])](left,right),left,right)
         if cards is not None:
             implementation=getattr(type(left),DUNDERS[type(node.ops[0])]); cards[identifier]={'dispatch':f'{implementation.__module__}.{implementation.__qualname__}', 'operandTypes':[type(left).__name__,type(right).__name__]}
     elif isinstance(node, ast.Call) and isinstance(node.func,(ast.Name,ast.Attribute)):
+        receiver=None
         if isinstance(node.func, ast.Name):
             name=node.func.id; function=namespace.get(name)
             if not callable_allowed(name,function): raise ValueError(f'Chamada {name} não é helper ou construtor lexical permitido.')
@@ -413,7 +431,7 @@ def interpret(node, namespace, cards=None, identifier='root', evaluations=None):
         for keyword in node.keywords:
             if keyword.arg is None or keyword.arg.startswith('_'): raise ValueError('Expansão ou argumento privado não permitido.')
             kwargs[keyword.arg]=interpret(keyword.value,namespace,cards,identifier+'/kw:'+keyword.arg,evaluations)
-        value=function(*args,**kwargs)
+        value=inherit_lexical_status(function(*args,**kwargs),function,receiver,*args,*kwargs.values())
         if cards is not None: cards[identifier]={'dispatch':f'{function.__module__}.{function.__qualname__}'}
     else: raise ValueError(f'{type(node).__name__}: construção preservada, extensão necessária para execução.')
     if cards is not None:
@@ -583,11 +601,19 @@ def realize(raw, namespace):
     except Exception:
         fallback = None
     try:
-        return _realize_complete(raw, namespace)
+        result = _realize_complete(raw, namespace)
     except Exception as error:
         if fallback is None:
             raise
-        return _partial_realization(raw, fallback, error)
+        result = _partial_realization(raw, fallback, error)
+    try:
+        result['definitionContext'] = attach_definition_context(result['tree'], namespace, result.get('runtimeTree'))
+    except Exception as error:
+        # Semantic provenance is supplemental evidence. A missing declaration
+        # must never turn a successful morphological realization into a failure.
+        result['definitionContext'] = {'version': 1, 'root': None, 'truncated': True,
+                                       'diagnostics': ['O contexto de significados não pôde ser preparado: ' + type(error).__name__]}
+    return result
 
 
 def lexical_entries(corpus, source_path, namespace, source_line=None):
@@ -641,7 +667,8 @@ def lexical_entries(corpus, source_path, namespace, source_line=None):
         if name == 'cop': declaration={'expression':'Copula()','sourcePath':inspect.getsourcefile(value),'line':inspect.getsourcelines(value)[1],'kind':'helper'}
         if not declaration and inspect.isfunction(value):
             declaration={'expression':inspect.getsource(value),'sourcePath':inspect.getsourcefile(value),'line':inspect.getsourcelines(value)[1],'kind':'helper'}
-        result.append({'id':identities.get(name,{}).get('id') or 'lexical:'+hashlib.sha256((str(corpus)+':'+name).encode()).hexdigest()[:24], 'name':name, 'kind':declaration.get('kind','word'), 'runtimeType':type(value).__name__, 'category':getattr(value,'category','helper'), 'definition':getattr(value,'definition',''), 'expression':declaration.get('expression',name), 'sourcePath':declaration.get('sourcePath',inspect.getsourcefile(value if inspect.isclass(value) else type(value)) if hasattr(value,'eval') else None), 'line':declaration.get('line'), 'provenance':identities.get(name,{}).get('provenance') or {'project':'oldtupicorpus','source':declaration.get('sourcePath','engine'),'lexicalName':name}, 'uses':uses.get(name,[])})
+        status=lexical_status(value)
+        result.append({'id':identities.get(name,{}).get('id') or 'lexical:'+hashlib.sha256((str(corpus)+':'+name).encode()).hexdigest()[:24], 'name':name, 'kind':declaration.get('kind','word'), 'runtimeType':type(value).__name__, 'category':getattr(value,'category','helper'), 'definition':getattr(value,'definition',''), **({'lexicalStatus':status} if status else {}), 'expression':declaration.get('expression',name), 'sourcePath':declaration.get('sourcePath',inspect.getsourcefile(value if inspect.isclass(value) else type(value)) if hasattr(value,'eval') else None), 'line':declaration.get('line'), 'provenance':identities.get(name,{}).get('provenance') or {'project':'oldtupicorpus','source':declaration.get('sourcePath','engine'),'lexicalName':name}, 'uses':uses.get(name,[])})
     return result
 
 
@@ -701,11 +728,15 @@ def approve_authoritatively(payload, corpus):
     import tempfile
     import time
     import uuid
-    from authoring import service
+    from dataclasses import replace
+    from studio_authoring import authoritative_metadata, source_directives, SOURCE_TEXT_FIELDS
     source_path=corpus/'historic'/f"{payload['sourceId']}.tu.py"
     expected_source=payload['sourceFileFingerprint']
     def fingerprint(data):return 'sha256:'+hashlib.sha256(data).hexdigest()
     if fingerprint(source_path.read_bytes())!=expected_source:raise ValueError('A fonte mudou desde a revisão.')
+    annotation=authoritative_metadata(corpus,source_path).get(payload['ordinal'],{})
+    directives=source_directives(source_entries(source_path)[payload['ordinal']-1])
+    from authoring import service
     records_path=corpus/'ground_truth/records/historic'/f"{payload['sourceId']}.jsonl"
     original=records_path.read_bytes() if records_path.exists() else b''
     state_dir=Path(payload['stateDir'])
@@ -716,8 +747,35 @@ def approve_authoritatively(payload, corpus):
         target_index = payload['ordinal'] - 1
         if target_index < 0 or target_index >= len(records) or records[target_index].surface != service.normalize_surface(payload['reviewedSurface']):
             raise ValueError('A superfície mudou desde a revisão. Confira a nova forma antes de salvar ground truth.')
-        rows=[json.dumps(record.to_dict(),ensure_ascii=False,sort_keys=True) for record in records]
-        data=('\n'.join(rows)+('\n' if rows else '')).encode('utf-8')
+        # Approval carries the reviewed source's explicit scholarly text. The
+        # upstream commit otherwise only copies the previous JSONL metadata.
+        fields={SOURCE_TEXT_FIELDS[key]:annotation.get(SOURCE_TEXT_FIELDS[key])
+                for key,_ in directives if key in SOURCE_TEXT_FIELDS and key!='note'}
+        if any(key=='note' and not value.startswith(('studio:v1 ','studio-lexical:v1 ')) for key,value in directives):
+            fields['notes']=tuple(note for note in annotation.get('notes',())
+                                  if not str(note).startswith(('studio:v1 ','studio-lexical:v1 ')))
+        target=fields.get('normalized_target')
+        if target and service.normalize_surface(target)!=service.normalize_surface(payload['reviewedSurface']):
+            raise ValueError('A leitura @target da fonte não coincide com a superfície revisada. Revise a leitura antes de aprovar.')
+        records[target_index]=replace(records[target_index],**fields)
+        # Keep every neighboring record byte-for-byte, including its metadata
+        # whitespace. This review approves exactly one record.
+        rows=original.splitlines(keepends=True)
+        row_indices={}
+        for index,row in enumerate(rows):
+            if row.strip():row_indices[json.loads(row).get('ordinal',len(row_indices)+1)]=index
+        serialized=json.dumps(records[target_index].to_dict(),ensure_ascii=False,sort_keys=True)
+        # The upstream JSONL reader uses str.splitlines(), which also splits
+        # these Unicode separators even when they occur inside JSON strings.
+        for character in ('\x85','\u2028','\u2029'):
+            serialized=serialized.replace(character,'\\u%04x' % ord(character))
+        replacement=(serialized+'\n').encode('utf-8')
+        if payload['ordinal'] in row_indices:rows[row_indices[payload['ordinal']]]=replacement
+        elif payload['ordinal']==len(row_indices)+1:
+            if rows and not rows[-1].endswith(b'\n'):rows[-1]+=b'\n'
+            rows.append(replacement)
+        else:raise ValueError('As referências precisam ser aprovadas na ordem da fonte.')
+        data=b''.join(rows)
         if fingerprint(source_path.read_bytes())!=expected_source:raise ValueError('A fonte mudou durante a revisão.')
         if (path.read_bytes() if path.exists() else b'')!=original:raise ValueError('As referências mudaram durante a revisão.')
         event_id=str(uuid.uuid4());recovery=state_dir/'recovery';recovery.mkdir(parents=True,exist_ok=True)
@@ -756,6 +814,9 @@ def main():
             elif payload.get('action') == 'composition_define':
                 from lexical_publication import define_composition
                 result = define_composition(payload, corpus)
+            elif payload.get('action') == 'node_definition':
+                from node_definitions import define_node
+                result = define_node({**payload, 'action': payload.get('definitionAction', 'set')}, corpus)
             elif payload.get('action') == 'prepare_lexical_publication':
                 from lexical_publication import prepare_lexical_publication
                 result = prepare_lexical_publication(payload, corpus)
@@ -768,7 +829,12 @@ def main():
                 namespace=namespace_for(corpus,path,payload.get('line',10**9))
                 if payload.get('action') == 'active_lexicon':
                     from active_lexicon import inventory
-                    result = inventory(payload['raw'], corpus, path, namespace, source_line=payload.get('line'), runtime_graph=payload.get('runtimeGraph'))
+                    from rendered_structures import isolated_namespace
+                    try:
+                        evaluation = realize(payload['raw'], isolated_namespace(namespace, parse_ast(payload['raw'])))
+                    except Exception as error:
+                        evaluation = {'diagnostics': [{'message': 'A árvore foi preservada sem realização: ' + str(error)[:600]}]}
+                    result = inventory(payload['raw'], corpus, path, namespace, source_line=payload.get('line'), evaluation=evaluation)
                 elif payload.get('action') == 'predicate_catalog':
                     result = predicate_catalog(namespace)
                 elif payload.get('action') == 'predicate_create':

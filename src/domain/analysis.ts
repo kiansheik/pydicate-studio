@@ -75,6 +75,8 @@ export interface AnalysisJob {
   candidateIds: string[];
   questions: AnalysisQuestion[];
   summary?: string;
+  partialResponse?: string;
+  currentAttemptId?: string;
   events?: {
     type?: string;
     phase?: string;
@@ -82,6 +84,7 @@ export interface AnalysisJob {
     text?: string;
     at?: string;
     result?: unknown;
+    attemptId?: string;
   }[];
   usage?: Record<string, number>;
   grammarVerification?: {
@@ -103,6 +106,14 @@ export type AnalysisQuestion =
       candidateRevision?: string;
       nodeId?: string;
     };
+export function analysisStreamText(job: AnalysisJob): string {
+  const deltas = (job.events ?? []).filter((event) => event.type === 'text-delta');
+  const attempt = job.currentAttemptId ?? deltas.at(-1)?.attemptId;
+  return deltas
+    .filter((event) => !attempt || event.attemptId === attempt)
+    .map((event) => event.text ?? '')
+    .join('');
+}
 export function preparedAnalysisInput(draft: Draft | undefined, evidence?: EvidenceStatus) {
   return (
     !!draft &&

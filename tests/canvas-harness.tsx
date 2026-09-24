@@ -16,6 +16,8 @@ declare global {
     canvasSnapshot: CanvasEdit;
     canvasReplaceRaw: (raw: string) => void;
     canvasSetPassageId: (id: string) => void;
+    canvasSetEngineFingerprint: (fingerprint: string) => void;
+    canvasShowTree: (visible: boolean) => void;
     canvasDiagnostic?: CanvasDiagnostic;
     canvasClipboard?: string;
   }
@@ -40,6 +42,8 @@ function Harness() {
   const [pending, setPending] = useState(false);
   const [revision, setRevision] = useState(0);
   const [passageId, setPassageId] = useState('canvas-fixture');
+  const [engineFingerprint, setEngineFingerprint] = useState('canvas-fixture-engine');
+  const [showTree, setShowTree] = useState(true);
   const [selection, setSelection] = useState('root');
   const [history, setHistory] = useState<CanvasEdit[]>([]);
   const [future, setFuture] = useState<CanvasEdit[]>([]);
@@ -47,6 +51,8 @@ function Harness() {
   latest.current = draft;
   window.canvasSnapshot = draft;
   window.canvasSetPassageId = setPassageId;
+  window.canvasSetEngineFingerprint = setEngineFingerprint;
+  window.canvasShowTree = setShowTree;
   useEffect(() => {
     let current = true;
     setPending(true);
@@ -67,7 +73,7 @@ function Harness() {
             raw: draft.raw,
             passageId,
             revisionId: String(revision),
-            engineFingerprint: 'canvas-fixture-engine',
+            engineFingerprint,
           },
         );
         if (!current) return;
@@ -79,7 +85,7 @@ function Harness() {
     return () => {
       current = false;
     };
-  }, [draft.raw, passageId]);
+  }, [draft.raw, passageId, engineFingerprint]);
 
   function apply(next: CanvasEdit) {
     if (JSON.stringify(next) === JSON.stringify(latest.current)) return;
@@ -104,42 +110,46 @@ function Harness() {
   window.canvasReplaceRaw = changeRaw;
   return (
     <main style={{ maxWidth: 1400, margin: 'auto', fontFamily: 'sans-serif' }}>
-      <PydicateTree
-        raw={draft.raw}
-        canvas={draft.canvas}
-        authoringRoot={parsed}
-        evaluatedRoot={evaluated}
-        failures={failures}
-        passageId={passageId}
-        revisionId={`canvas-${revision}`}
-        engineFingerprint="canvas-fixture-engine"
-        selectedSourceNodeId={selection}
-        onSelectSourceNode={setSelection}
-        onChangeRaw={changeRaw}
-        onChangeCanvas={apply}
-        onPrepareDiagnostic={(report) => {
-          window.canvasDiagnostic = report;
-        }}
-        status={pending ? 'Avaliando a estrutura…' : undefined}
-        onUndo={() => {
-          if (!history.length) return;
-          setFuture((values) => [...values, draft]);
-          update(history.at(-1)!);
-          setHistory(history.slice(0, -1));
-        }}
-        onRedo={() => {
-          if (!future.length) return;
-          setHistory((values) => [...values, draft]);
-          update(future.at(-1)!);
-          setFuture(future.slice(0, -1));
-        }}
-        canUndo={history.length > 0}
-        canRedo={future.length > 0}
-      />
+      {showTree && (
+        <PydicateTree
+          raw={draft.raw}
+          canvas={draft.canvas}
+          authoringRoot={parsed}
+          evaluatedRoot={evaluated}
+          failures={failures}
+          passageId={passageId}
+          revisionId={`canvas-${revision}`}
+          engineFingerprint={engineFingerprint}
+          selectedSourceNodeId={selection}
+          onSelectSourceNode={setSelection}
+          onChangeRaw={changeRaw}
+          onChangeCanvas={apply}
+          onPrepareDiagnostic={(report) => {
+            window.canvasDiagnostic = report;
+          }}
+          status={pending ? 'Avaliando a estrutura…' : undefined}
+          onUndo={() => {
+            if (!history.length) return;
+            setFuture((values) => [...values, draft]);
+            update(history.at(-1)!);
+            setHistory(history.slice(0, -1));
+          }}
+          onRedo={() => {
+            if (!future.length) return;
+            setHistory((values) => [...values, draft]);
+            update(future.at(-1)!);
+            setFuture(future.slice(0, -1));
+          }}
+          canUndo={history.length > 0}
+          canRedo={future.length > 0}
+        />
+      )}
       <output id="canvas-raw">{draft.raw}</output>
       <output id="canvas-state">{JSON.stringify(draft.canvas)}</output>
       <output id="canvas-ready">{pending ? 'pending' : 'ready'}</output>
       <output id="canvas-passage">{passageId}</output>
+      <output id="canvas-engine">{engineFingerprint}</output>
+      <output id="canvas-history">{history.length}</output>
     </main>
   );
 }

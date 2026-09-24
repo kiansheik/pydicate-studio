@@ -6,7 +6,7 @@ async function newPassage(page: Page) {
   await expect(page.locator('.add-next-passage')).toBeEnabled();
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
   await page.locator('.add-next-passage').click();
-  await page.getByRole('button', { name: 'Tipos de peça e código', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar peça', exact: true }).click();
   const palette = page.getByRole('dialog', { name: 'Adicionar peça', exact: true });
   await palette.getByRole('tab', { name: 'Código', exact: true }).click();
   await palette.getByLabel('Código da nova peça').fill('Noun("abá", definition="pessoa") * ixé');
@@ -39,6 +39,34 @@ async function newPassage(page: Page) {
     page.getByRole('button', { name: 'Revisar nova passagem', exact: true }),
   ).toBeEnabled();
 }
+
+test('publication review identifies an unattested root without supplying a meaning', async ({
+  page,
+}) => {
+  await newPassage(page);
+  await page.evaluate(() => {
+    window.__nextControl.responses.source_new_preview = {
+      previewId: 'hypothetical-root-preview',
+      kind: 'source',
+      sourceFingerprint: 'simulated-source-v1',
+      diff: '+ekat = Noun("ekat", definition="(t)")',
+      lexicalAdditions: [
+        {
+          name: 'ekat',
+          expression: 'Noun("ekat", definition="(t)")',
+          headword: 'ekat',
+          definition: '',
+          lexicalStatus: 'hypothetical',
+        },
+      ],
+    };
+  });
+  await page.getByRole('button', { name: 'Revisar nova passagem', exact: true }).click();
+  const review = page.getByRole('dialog', { name: 'Revisar passagem e léxico', exact: true });
+  await expect(review.getByRole('listitem')).toContainText('ekat');
+  await expect(review.getByRole('listitem')).toContainText('Sem significado informado.');
+  await expect(review.getByRole('listitem')).toContainText('Raiz hipotética · não atestada');
+});
 
 test('plain-language review keeps complete words and both file diffs available before one apply', async ({
   page,
@@ -137,7 +165,7 @@ test('plain-language review keeps complete words and both file diffs available b
   ).toHaveLength(0);
   await page.getByRole('button', { name: 'Revisar nova passagem', exact: true }).click();
   await page.evaluate(() => window.__nextControl.holds.push({ method: 'source_apply' }));
-  await review.getByRole('button', { name: 'Aplicar passagem e léxico', exact: true }).click();
+  await review.getByRole('button', { name: 'Salvar fonte e ground truth', exact: true }).click();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -145,9 +173,7 @@ test('plain-language review keeps complete words and both file diffs available b
       ),
     )
     .toMatchObject([{ params: { previewId: 'combined-lexicon-preview' } }]);
-  await expect(
-    review.getByRole('button', { name: 'Aplicar passagem e léxico', exact: true }),
-  ).toBeDisabled();
+  await expect(review.getByRole('button', { name: 'Salvando…', exact: true })).toBeDisabled();
   await expect(page.getByRole('dialog')).toHaveCount(1);
 });
 
@@ -166,7 +192,7 @@ test('a source-only review defaults to the draft result and retains its optional
     'SIMULATED DIFF: Noun("abá", definition="pessoa") * ixé',
   );
   await expect(
-    review.getByRole('button', { name: 'Aplicar edição revisada', exact: true }),
+    review.getByRole('button', { name: 'Salvar fonte e ground truth', exact: true }),
   ).toBeEnabled();
   await expect(review.getByRole('table')).toHaveCount(0);
 });
@@ -209,5 +235,12 @@ for (const kind of ['lexicon', 'recovery'] as const) {
     expect(await review.innerText()).not.toContain('abá ixé');
     expect(await review.innerText()).not.toContain('technical_variable');
     await expect(review.locator('pre:visible')).toHaveCount(0);
+    await review.getByRole('button', { name: 'Aplicar edição revisada', exact: true }).click();
+    await expect(review).toHaveCount(0);
+    expect(
+      await page.evaluate(() =>
+        window.__nextControl.requests.filter(({ method }) => method === 'reference_approve'),
+      ),
+    ).toHaveLength(0);
   });
 }

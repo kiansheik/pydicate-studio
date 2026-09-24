@@ -1,6 +1,8 @@
 import { flattenNodes, type AuthorNode } from './authoring';
 import { expressionGraph } from './expression-tree';
 import { editInlineArgument } from './inline-arguments';
+import { operationRemovalChoices, removalSource } from './operation-removal';
+export { operationRemovalChoices } from './operation-removal';
 
 export interface CanvasPoint {
   x: number;
@@ -39,6 +41,13 @@ export type CanvasAction =
       position?: CanvasPoint;
     }
   | { type: 'remove'; source: CanvasAddress }
+  | {
+      type: 'unwrap';
+      source: CanvasAddress;
+      keepChildId: string;
+      position?: CanvasPoint;
+      fragmentIds?: Record<string, string>;
+    }
   | { type: 'connect' | 'swap'; source: CanvasAddress; target: CanvasAddress }
   | {
       type: 'combine';
@@ -156,6 +165,27 @@ export function clearCanvasPositions(canvas: CanvasState, container = 'main'): C
     ),
   };
 }
+
+/** A single remaining tree is the passage result when the primary slot is empty.
+ * Keep nonempty source (including malformed work) and ambiguous forests intact. */
+export function promoteSoleCanvasRoot(edit: CanvasEdit): CanvasEdit {
+  if ((edit.raw.trim() && !isCanvasHole(edit.raw.trim())) || edit.canvas.fragments.length !== 1)
+    return edit;
+  const fragment = edit.canvas.fragments[0];
+  if (!fragment.raw.trim() || isCanvasHole(fragment.raw.trim())) return edit;
+  return {
+    raw: fragment.raw,
+    canvas: {
+      ...edit.canvas,
+      fragments: [],
+      positions: Object.fromEntries(
+        Object.entries(edit.canvas.positions)
+          .filter(([key]) => key.startsWith(fragment.id + ':'))
+          .map(([key, point]) => ['main:' + key.slice(fragment.id.length + 1), { ...point }]),
+      ),
+    },
+  };
+}
 interface Scope {
   container: string;
   raw: string;
@@ -268,7 +298,33 @@ export function editCanvas(document: CanvasDocument, action: CanvasAction): Canv
       action.source,
       action.type === 'remove' || action.type === 'replace',
     );
-    if (action.type === 'argument') {
+    if (action.type === 'unwrap') {
+      const choices = operationRemovalChoices(source.node);
+      const chosen = choices.find(({ node }) => node.id === action.keepChildId);
+      if (!chosen)
+        throw new Error('Escolha uma parte direta de uma operação que possa ser removida.');
+      // The deleted operation owns its definition wrappers. Promote the child's
+      // exact source, retaining only that child's own meaning annotations.
+      remember(
+        {
+          ...source,
+          root: false,
+          start: source.node.start,
+          end: source.node.end,
+          code: source.node.code,
+        },
+        removalSource(source.node, chosen.node, choices),
+      );
+      for (const [index, branch] of choices.filter((choice) => choice !== chosen).entries())
+        add(
+          /[\r\n]/.test(branch.node.code) ? grouped(branch.node.code) : branch.node.code,
+          action.fragmentIds?.[branch.node.id],
+          {
+            x: (action.position?.x ?? 0) + index * 240,
+            y: action.position?.y ?? 0,
+          },
+        );
+    } else if (action.type === 'argument') {
       const next = editInlineArgument(source.raw, source.node, action.slot, action.text);
       remember(
         { ...source, root: true, start: 0, end: source.raw.length, code: source.raw },
@@ -365,7 +421,7 @@ export function editCanvas(document: CanvasDocument, action: CanvasAction): Canv
   }
   if (raw.length > CANVAS_LIMITS.raw || !isCanvasState(canvas))
     throw new Error('A área de trabalho excede os limites de trechos, texto ou posições.');
-  return { raw, canvas };
+  return promoteSoleCanvasRoot({ raw, canvas });
 }
 function applySplices(raw: string, replacements: { start: number; end: number; text: string }[]) {
   const ordered = [...replacements].sort((a, b) => b.start - a.start);

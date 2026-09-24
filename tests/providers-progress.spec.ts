@@ -57,3 +57,80 @@ test('Partial translation requires an explicit scope and does not claim to repla
   expect(context?.raw).toContain('final_constituent');
   expect(context?.selectedNode).toMatchObject({ code: 'first_constituent' });
 });
+
+test('quick tree translation previews a local prompt and adopts only a reviewed language result', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/tests/providers-harness.html?translation');
+  await expect(page.getByLabel('Idioma da tradução')).toHaveValue('Português');
+  await page.getByLabel('Idioma da tradução').fill('English');
+  await page.getByRole('button', { name: 'Gerar prompt de tradução' }).click();
+  await expect(page.getByTestId('translation-prompt')).toContainText('final_constituent');
+  await page.getByRole('button', { name: 'Copiar prompt', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toContain('language: English');
+  expect(
+    await page.evaluate(() =>
+      window.__providerHarness.calls.filter((method) =>
+        ['ai_start', 'ai_configure'].includes(method),
+      ),
+    ),
+  ).toEqual([]);
+  await page.getByRole('button', { name: 'Traduzir', exact: true }).click();
+  const request = await page.evaluate(() => window.__providerHarness.request());
+  expect(request?.context).toMatchObject({
+    targetLanguage: 'English',
+    scope: 'passage',
+    selectedNode: null,
+    diplomatic: '',
+  });
+  await page.evaluate(() => window.__providerHarness.complete());
+  await expect(page.getByText('Tradução · English', { exact: true })).toBeVisible();
+  await page.getByText('Leitura e alternativas', { exact: true }).click();
+  await expect(
+    page.getByText('Literal reading and possible alternatives.', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Copiar tradução para revisão', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel('Tradução humana preservada')).toHaveText('Minha tradução humana.');
+  await page.getByRole('button', { name: 'Revisar tradução', exact: true }).click();
+  await expect(page.getByText('Tradução atual do rascunho', { exact: true })).toBeVisible();
+  await page.getByLabel('Sugestão revisada').fill('My reviewed translation.');
+  await page.getByRole('button', { name: 'Aceitar no rascunho', exact: true }).click();
+  await expect(page.getByLabel('Tradução humana preservada')).toHaveText(
+    'My reviewed translation.',
+  );
+});
+
+test('quick translation discards delayed prompts and prevents applying results to a changed tree or engine', async ({
+  page,
+}) => {
+  await page.goto('/tests/providers-harness.html?translation&delayed');
+  await page.getByRole('button', { name: 'Gerar prompt de tradução' }).click();
+  await page.evaluate(() => window.__providerHarness.changeTree());
+  await page.evaluate(() => window.__providerHarness.releasePreview());
+  await expect(page.getByTestId('translation-prompt')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Traduzir', exact: true }).click();
+  await page.evaluate(() => window.__providerHarness.complete());
+  await page.getByRole('button', { name: 'Revisar tradução', exact: true }).click();
+  await page.evaluate(() => window.__providerHarness.changeEngine());
+  await expect(
+    page.getByRole('button', { name: 'Aceitar no rascunho', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText('A gramática mudou ou não foi registrada.', { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Copiar tradução para revisão', exact: true }),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(() =>
+      window.__providerHarness.calls.filter((method) => method === 'ai_accept'),
+    ),
+  ).toEqual([]);
+  await expect(page.getByLabel('Tradução humana preservada')).toHaveText('Minha tradução humana.');
+});

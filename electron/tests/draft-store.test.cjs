@@ -122,3 +122,24 @@ test('empty imports are rejected before switching a reading desk that requires a
     /Dados inválidos em passagens/,
   );
 });
+
+test('PT and EN draft translations persist independently without relabelling legacy text', async (t) => {
+  const drafts = await store(t);
+  const value = envelope();
+  value.drafts['passage:67'].translation = 'unlabelled';
+  value.drafts['passage:67'].translations = { pt: '  primeira\n\nsegunda ', en: 'first\nsecond' };
+  await drafts.save(value);
+  assert.deepEqual(
+    (await drafts.load(value.projectId)).drafts['passage:67'].translations,
+    value.drafts['passage:67'].translations,
+  );
+  value.drafts['passage:67'].translations.pt = '';
+  await drafts.save(value);
+  const reopened = (await drafts.load(value.projectId)).drafts['passage:67'];
+  assert.equal(reopened.translation, 'unlabelled');
+  assert.deepEqual(reopened.translations, { pt: '', en: 'first\nsecond' });
+  for (const invalid of [{ pt: 3 }, { fr: 'bonjour' }, null]) {
+    value.drafts['passage:67'].translations = invalid;
+    assert.throws(() => validate.envelope(value));
+  }
+});

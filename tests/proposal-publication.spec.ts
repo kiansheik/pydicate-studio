@@ -9,9 +9,7 @@ async function prepareNoun(page: Page, restorePreview = false) {
     page.getByRole('button', { name: 'Revisar nova passagem', exact: true }),
   ).toBeDisabled();
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Mendâra');
-  await page
-    .getByLabel('Tradução em português', { exact: true })
-    .fill('Casamento, na minha leitura.');
+  await page.getByLabel('Tradução', { exact: true }).fill('Casamento, na minha leitura.');
   await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
   await expect(
     page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }),
@@ -75,17 +73,14 @@ for (const entry of ['passage', 'ground-truth'] as const) {
     const action =
       entry === 'ground-truth'
         ? page
-            .getByRole('dialog')
-            .getByRole('button', { name: 'Revisar edição da fonte', exact: true })
+            .locator('.workspace-footer')
+            .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
         : page.getByRole('button', { name: 'Revisar nova passagem', exact: true });
-    if (entry === 'ground-truth') {
-      await page.getByRole('button', { name: 'Commit to Ground Truth', exact: true }).click();
-      await expect(
-        page.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true }),
-      ).toBeDisabled();
-    }
     await expect(action).toBeEnabled();
     await action.click();
+    await expect(
+      page.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true }),
+    ).toHaveCount(0);
     await expect(
       page.getByRole('dialog', { name: 'Revisar nova passagem', exact: true }),
     ).toBeVisible();

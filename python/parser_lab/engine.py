@@ -22,10 +22,12 @@ from parser_lab.normalization import PROFILE, normalize
 
 LEXICON_ONLY_LINE = 1
 DEFAULT_SOURCE = 'araujo_catecismo_1686'
-RUNTIME_FILES = ('authoring_runtime.py', 'studio_authoring.py', 'rendered_structures.py')
+RUNTIME_FILES = ('authoring_runtime.py', 'studio_authoring.py', 'rendered_structures.py',
+                 'navarro_search.py', 'lexical_metadata.py', 'semantic_context.py')
 LAB_FILES = ('normalization.py', 'engine.py', 'grammar.py', 'search.py', 'ranker.py',
              'datasets.py', 'artifacts.py', 'evaluation.py', 'contracts.py',
-             'projection.py', 'index.py', 'jobs.py')
+             'projection.py', 'index.py', 'jobs.py', 'lexicon.py', 'morphology.py',
+             'equivalence.py', 'worker.py')
 
 
 def digest(value):
@@ -94,8 +96,10 @@ class LabEngine:
         Any change invalidates the artifacts built under it; callers surface a
         rebuild action rather than silently reusing incompatible data.
         """
+        from parser_lab.lexicon import dictionary_fingerprints
         material = {'profile': PROFILE, 'sourceId': self.source_id, 'line': self.line,
                     'code': code_fingerprint(), 'python': sys.version.split()[0],
+                    'dictionary': dictionary_fingerprints(self.parent / 'nhe-enga'),
                     'repositories': [item['fingerprint'] for item in self.snapshots()]}
         return digest(json.dumps(material, sort_keys=True, ensure_ascii=False).encode())
 
@@ -146,9 +150,9 @@ class LabEngine:
         Duplicate tags are preserved exactly as the grammar emitted them; they
         are not reinterpreted as separate semantic morphemes.
         """
-        from pydicate.predicate import parse_annotated_morphs
+        from parser_lab.equivalence import units
         result = []
-        for index, item in enumerate(parse_annotated_morphs(annotated)):
-            result.append({'occurrence': index, 'surface': item.surface, 'tags': list(item.tags),
+        for index, (surface, tags) in enumerate(units(annotated)):
+            result.append({'occurrence': index, 'surface': surface, 'tags': sorted(tags),
                            'provenance': 'engine-annotation'})
         return result

@@ -77,6 +77,7 @@ const labels: Record<string, string> = {
   inflection_override: 'Flexão explícita',
 };
 type Values = Record<string, string | number | boolean | null>;
+const defaultLexical = { pluriform: 'default', verbClass: 'default', status: 'unspecified' };
 
 /** Catalog membership and argument types come from the selected engine. The
  * labels explain existing constructors; the backend builds the source. */
@@ -103,6 +104,7 @@ export function PredicatePalette({
   const [mode, setMode] = useState<'types' | 'reuse' | 'code'>(initialMode);
   const [selected, setSelected] = useState<Constructor | null>(null);
   const [values, setValues] = useState<Values>({});
+  const [lexical, setLexical] = useState(defaultLexical);
   const [raw, setRaw] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -136,6 +138,7 @@ export function PredicatePalette({
     setSelected(constructor);
     setError('');
     setValues({});
+    setLexical(defaultLexical);
   }
   function field(parameter: Parameter) {
     const value = values[parameter.name] ?? parameter.default ?? '';
@@ -145,6 +148,7 @@ export function PredicatePalette({
         {parameter.required ? ' *' : ''}
         {parameter.kind === 'boolean' ? (
           <select
+            disabled={busy}
             aria-label={labels[parameter.name] ?? parameter.name}
             value={String(value || false)}
             onChange={(event) =>
@@ -159,6 +163,7 @@ export function PredicatePalette({
           </select>
         ) : (
           <input
+            disabled={busy}
             aria-label={labels[parameter.name] ?? parameter.name}
             type={parameter.kind === 'number' ? 'number' : 'text'}
             value={String(value)}
@@ -175,9 +180,12 @@ export function PredicatePalette({
         )}
         {parameter.name === 'verb_class' && (
           <small>
-            Notação do dicionário, como v.tr. ou 2ª classe. Uma entrada reconhecida pode usar a
-            classe do dicionário.
+            Notação do motor, como v.tr. ou adj. Use o tipo e a pluriformidade acima para preencher
+            a classe de uma raiz nova.
           </small>
+        )}
+        {parameter.name === 'definition' && (
+          <small>Opcional. Deixe em branco se o significado da raiz ainda for desconhecido.</small>
         )}
       </label>
     );
@@ -197,7 +205,14 @@ export function PredicatePalette({
       );
       const result = await invoke<{ expression: string; engineFingerprint?: string }>(
         'predicate_create',
-        { passageId, sourceId, engineFingerprint, constructor: selected.name, values: supplied },
+        {
+          passageId,
+          sourceId,
+          engineFingerprint,
+          constructor: selected.name,
+          values: supplied,
+          ...(hasLexicalOptions ? { lexical } : {}),
+        },
       );
       if (!alive.current || requested !== current.current) return;
       onAdd(result.expression);
@@ -208,13 +223,12 @@ export function PredicatePalette({
       if (alive.current && requested === current.current) setBusy(false);
     }
   }
+  const hasLexicalOptions = selected?.name === 'Noun' || selected?.name === 'Verb';
   const primary =
     selected?.parameters.filter(
       (parameter) =>
         parameter.required ||
-        ['definition', 'value', 'verbete', 'inflection_or_verbete', 'verb_class'].includes(
-          parameter.name,
-        ),
+        ['definition', 'value', 'verbete', 'inflection_or_verbete'].includes(parameter.name),
     ) ?? [];
   const additional = selected?.parameters.filter((parameter) => !primary.includes(parameter)) ?? [];
   return (
@@ -275,6 +289,64 @@ export function PredicatePalette({
           </button>
           <h4>{terms[selected.name]?.label ?? selected.name}</h4>
           {primary.map(field)}
+          {hasLexicalOptions && (
+            <>
+              {selected.name === 'Verb' && (
+                <label>
+                  Tipo de verbo
+                  <select
+                    aria-label="Tipo de verbo"
+                    disabled={busy}
+                    value={lexical.verbClass}
+                    onChange={(event) =>
+                      setLexical((previous) => ({ ...previous, verbClass: event.target.value }))
+                    }
+                  >
+                    <option value="default">Padrão do motor / classe informada</option>
+                    <option value="intransitive">Intransitivo</option>
+                    <option value="transitive">Transitivo</option>
+                    <option value="stative">Estativo (2ª classe · adj.)</option>
+                  </select>
+                </label>
+              )}
+              <label>
+                Pluriformidade
+                <select
+                  aria-label="Pluriformidade"
+                  disabled={busy}
+                  value={lexical.pluriform}
+                  onChange={(event) =>
+                    setLexical((previous) => ({ ...previous, pluriform: event.target.value }))
+                  }
+                >
+                  <option value="default">Padrão do motor / classe informada</option>
+                  <option value="none">Não pluriforme</option>
+                  <option value="t">Pluriforme (t)</option>
+                  <option value="s">Pluriforme (s)</option>
+                  {selected.name === 'Noun' && <option value="m">Pluriforme (m)</option>}
+                  {selected.name === 'Verb' && <option value="t,t">Pluriforme (t, t)</option>}
+                </select>
+              </label>
+              <label>
+                Situação da raiz
+                <select
+                  aria-label="Situação da raiz"
+                  disabled={busy}
+                  value={lexical.status}
+                  onChange={(event) =>
+                    setLexical((previous) => ({ ...previous, status: event.target.value }))
+                  }
+                >
+                  <option value="unspecified">Sem classificação de atestação</option>
+                  <option value="hypothetical">Hipotética, não atestada</option>
+                </select>
+                <small>
+                  Uma hipótese permite testar a estrutura e reutilizar a raiz sem afirmar que ela
+                  foi atestada. A revisão da passagem permite incluí-la no léxico.
+                </small>
+              </label>
+            </>
+          )}
           {!!additional.length && (
             <details>
               <summary>Outras propriedades</summary>
@@ -303,6 +375,7 @@ export function PredicatePalette({
           revisionId={revisionId}
           contextKey={contextKey}
           onAdd={onAdd}
+          onCreate={() => setMode('types')}
           autoFocus
         />
       )}

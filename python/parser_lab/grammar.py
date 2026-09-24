@@ -12,13 +12,17 @@ decided by rendering the assembled expression, not by the fragment keys.
 """
 from __future__ import annotations
 
-GRAMMAR_VERSION = 1
+GRAMMAR_VERSION = 2
 
 # Lexical categories a slot can draw from. The actual members come from the
 # selected profile, so a held-out lexeme experiment only changes configuration.
-CATEGORIES = ('pronoun', 'verb', 'noun', 'postposition')
+CATEGORIES = ('pronoun', 'verb', 'noun', 'postposition', 'word')
 
 FAMILIES = {
+    'lexical_word': {
+        'id': 'lexical_word', 'type': 'word', 'label': 'Peça lexical',
+        'template': '{word}', 'slots': (('word', 'word'),), 'example': {'word': 'kori'},
+    },
     'verb_clause': {
         'id': 'verb_clause', 'type': 'clause', 'label': 'Oração finita',
         'template': '(+{subject} * {verb})',
@@ -55,6 +59,7 @@ FAMILIES = {
 # that the engine may realize the parts in either surface order; the renderer
 # decides, the search only proposes.
 ROOT_RULES = {
+    'word': {'id': 'word', 'parts': ('word',), 'template': '{0}', 'label': 'Peça lexical isolada'},
     'clause': {'id': 'clause', 'parts': ('clause',), 'template': '{0}',
                'label': 'Oração isolada'},
     'np': {'id': 'np', 'parts': ('np',), 'template': '{0}', 'label': 'Sintagma nominal isolado'},

@@ -14,12 +14,23 @@ export function DraftArchive({ studio, onClose }: { studio: Studio; onClose: () 
       draft.diplomatic ||
       draft.normalized ||
       draft.translation ||
+      draft.translations?.pt ||
+      draft.translations?.en ||
       draft.notes
     ),
   }));
   const populated = rows.filter((row) => row.hasText);
   const matches = populated.filter(({ draft, raw }) =>
-    [raw, draft.notes, draft.diplomatic, draft.normalized, draft.translation, draft.passageId]
+    [
+      raw,
+      draft.notes,
+      draft.diplomatic,
+      draft.normalized,
+      draft.translation,
+      draft.translations?.pt,
+      draft.translations?.en,
+      draft.passageId,
+    ]
       .join(' ')
       .toLowerCase()
       .includes(query.toLowerCase()),
@@ -76,7 +87,10 @@ export function DraftArchive({ studio, onClose }: { studio: Studio; onClose: () 
                     draft.normalized ||
                     raw ||
                     draft.notes ||
-                    draft.translation
+                    draft.translation ||
+                    draft.translations?.pt ||
+                    draft.translations?.en ||
+                    ''
                   ).slice(0, 100)}
                 </strong>
                 <small>
@@ -95,6 +109,8 @@ export function DraftArchive({ studio, onClose }: { studio: Studio; onClose: () 
               {active.draft.normalized && <p>{active.draft.normalized}</p>}
               <p>{active.draft.notes}</p>
               <p>{active.draft.translation}</p>
+              {active.draft.translations?.pt && <p>Português: {active.draft.translations.pt}</p>}
+              {active.draft.translations?.en && <p>Inglês: {active.draft.translations.en}</p>}
               <p>
                 A associação preserva o original e cria uma cópia nesta passagem. Evidências e
                 respostas de IA não são movidas.

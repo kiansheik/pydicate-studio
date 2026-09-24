@@ -74,6 +74,7 @@ describe('next-passage shells', () => {
   });
   it('projects stable pending shells once without copying source text, reference approval or PDF geometry', () => {
     const source = project();
+    source.passages.at(-1)!.translations = { pt: 'não herdar', en: 'do not inherit' };
     const first = pending(source);
     const second = {
       ...pending(source, 'b', 4),
@@ -94,6 +95,7 @@ describe('next-passage shells', () => {
       second.passageId,
     ]);
     const last = projected.passages.at(-1)!;
+    expect(last.translations).toBeUndefined();
     expect(last).toMatchObject({
       sourceExpression: '',
       acceptedReference: null,

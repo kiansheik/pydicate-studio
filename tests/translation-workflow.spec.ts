@@ -5,6 +5,8 @@ test('human translation is editable before analysis, preserved on acceptance and
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   const translation = page.getByLabel('Tradução em português', { exact: true });
+  await page.getByLabel('Tradução', { exact: true }).fill('Texto anterior sem idioma.');
+  await page.getByLabel('Tradução em inglês', { exact: true }).fill('Independent English text.');
   await translation.fill('Minha tradução inicial.');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Abá.');
   await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
@@ -23,11 +25,17 @@ test('human translation is editable before analysis, preserved on acceptance and
     .getByRole('button', { name: 'Substituir minha tradução por esta', exact: true })
     .click();
   await expect(translation).toHaveValue('Pessoa: tradução sugerida pela fixture.');
+  await expect(page.getByLabel('Tradução', { exact: true })).toHaveValue(
+    'Texto anterior sem idioma.',
+  );
+  await expect(page.getByLabel('Tradução em inglês', { exact: true })).toHaveValue(
+    'Independent English text.',
+  );
   await translation.fill('Pessoa; tradução revisada por mim.');
   await expect
     .poll(() =>
       page.evaluate(
-        () => window.__nextControl.saved['simulated:a'].drafts['passage-a'].translation,
+        () => window.__nextControl.saved['simulated:a'].drafts['passage-a'].translations?.pt,
       ),
     )
     .toBe('Pessoa; tradução revisada por mim.');
@@ -57,7 +65,7 @@ test('using a proposal and translation together avoids a stale draft and saves b
     .poll(() =>
       page.evaluate(() => {
         const draft = window.__nextControl.saved['simulated:a'].drafts['passage-a'];
-        return { raw: draft.raw, translation: draft.translation };
+        return { raw: draft.raw, translation: draft.translations?.pt };
       }),
     )
     .toEqual({ raw: 'beta', translation: 'Pessoa: tradução sugerida pela fixture.' });

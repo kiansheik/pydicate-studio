@@ -159,6 +159,11 @@
 .pdf-evidence .field-hint {
   margin: 0;
 }
+.evidence-region-list li {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
 html[data-theme='light'] .evidence-controls button,
 html[data-theme='light'] .evidence-region-list button,
 html[data-theme='light'] .evidence-controls input,

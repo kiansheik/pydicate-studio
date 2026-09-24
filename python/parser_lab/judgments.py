@@ -42,6 +42,9 @@ class JudgmentLog:
             'candidateSource': payload.get('candidateSource', ''),
             'correctedSource': payload.get('correctedSource', ''),
             'surface': payload.get('surface', ''),
+            'candidateCompleteness': payload.get('candidateCompleteness', 'complete'),
+            'lexicalEvidence': list(payload.get('lexicalEvidence') or [])[:32],
+            'lexicalHints': list(payload.get('lexicalHints') or [])[:8],
             # The whole ranked set that was on screen, so a preference can be
             # derived later: what this reading was actually chosen over.
             'shownSources': list(payload.get('shownSources') or ())[:25],
