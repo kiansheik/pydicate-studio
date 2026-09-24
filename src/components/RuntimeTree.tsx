@@ -34,6 +34,7 @@ import {
 } from '../domain/runtime-tree';
 import '../runtime-tree.css';
 import { track } from '../domain/usage';
+import { useAdvancedTools } from '../domain/preferences';
 import { invoke, type AuthorNode } from '../domain/authoring';
 import { expressionGraph } from '../domain/expression-tree';
 import { TreeScopeEditor } from './TreeScopeEditor';
@@ -268,6 +269,9 @@ function TreeCanvas({
   onSelectSourceNode?: (id: string) => void;
   status?: string;
 } & TreeEditingProps) {
+  // Expandir tudo, Visão geral and the reference/realisation toggles together recorded five
+  // uses in a month of work; they return with the secondary tools.
+  const advancedTools = useAdvancedTools();
   const [showInternals, setShowInternals] = useState(false);
   const graph = useMemo(
     () => runtimeProjection(completeGraph, showInternals),
@@ -572,46 +576,50 @@ function TreeCanvas({
             {showInternals ? ' · com cópias de realização' : ''}
           </p>
         </div>
-        <button onClick={exportSvg} title="Baixar a árvore visível como SVG">
-          <Download size={15} /> SVG
-        </button>
+        {advancedTools && (
+          <button onClick={exportSvg} title="Baixar a árvore visível como SVG">
+            <Download size={15} /> SVG
+          </button>
+        )}
       </div>
       <div className="runtime-toolbar">
-        <form
-          className="runtime-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            focusMatch(matchIndex + (selected === matches[matchIndex]?.id ? 1 : 0));
-          }}
-        >
-          <Search size={16} />
-          <input
-            aria-label="Buscar na árvore"
-            placeholder={
-              sourceTree
-                ? 'Buscar variável, operação, definição…'
-                : 'Buscar lexema, definição, traço…'
-            }
-            title={
-              sourceTree
-                ? 'Busque variáveis, operadores ou definições lexicais. Use aspas para um nome exato, como "oré".'
-                : 'Use aspas para um nome exato, como "oré". Sem aspas, busca também definições e traços.'
-            }
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setMatchIndex(0);
+        {advancedTools && (
+          <form
+            className="runtime-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              focusMatch(matchIndex + (selected === matches[matchIndex]?.id ? 1 : 0));
             }}
-          />
-          {query && (
-            <span role="status">
-              {matches.length ? `${matchIndex + 1}/${matches.length}` : '0'}
-            </span>
-          )}
-          <button disabled={!matches.length} title="Localizar próxima correspondência">
-            Ir
-          </button>
-        </form>
+          >
+            <Search size={16} />
+            <input
+              aria-label="Buscar na árvore"
+              placeholder={
+                sourceTree
+                  ? 'Buscar variável, operação, definição…'
+                  : 'Buscar lexema, definição, traço…'
+              }
+              title={
+                sourceTree
+                  ? 'Busque variáveis, operadores ou definições lexicais. Use aspas para um nome exato, como "oré".'
+                  : 'Use aspas para um nome exato, como "oré". Sem aspas, busca também definições e traços.'
+              }
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setMatchIndex(0);
+              }}
+            />
+            {query && (
+              <span role="status">
+                {matches.length ? `${matchIndex + 1}/${matches.length}` : '0'}
+              </span>
+            )}
+            <button disabled={!matches.length} title="Localizar próxima correspondência">
+              Ir
+            </button>
+          </form>
+        )}
         <div className="runtime-tools">
           <button onClick={() => zoom(1 / 1.25)} aria-label="Diminuir árvore">
             <Minus size={15} />
@@ -673,53 +681,59 @@ function TreeCanvas({
             </button>
           </>
         )}
-        <button
-          onClick={() => {
-            track('editor.operation', { action: 'tree.expandAll', count: graph.nodes.length });
-            setCollapsed(new Set());
-            setFitRequested((value) => value + 1);
-          }}
-        >
-          <UnfoldVertical size={14} /> Expandir tudo
-        </button>
-        <button
-          onClick={() => {
-            track('editor.operation', { action: 'tree.overview' });
-            setCollapsed(
-              new Set([...hierarchy.depth].filter(([, depth]) => depth === 1).map(([id]) => id)),
-            );
-            setFitRequested((value) => value + 1);
-          }}
-        >
-          <Expand size={14} /> Visão geral
-        </button>
-        {!sourceTree && (
-          <label>
-            <input
-              type="checkbox"
-              checked={showLinks}
-              onChange={(event) => {
-                track('editor.operation', { action: 'tree.references' });
-                setShowLinks(event.target.checked);
-              }}
-            />{' '}
-            Vínculos de referência
-          </label>
-        )}
-        {completeGraph.edges.some((edge) => edge.kind === 'internal') && (
-          <label>
-            <input
-              type="checkbox"
-              checked={showInternals}
-              onChange={(event) => {
-                setShowInternals(event.target.checked);
-                setSelected(completeGraph.rootId);
-                setMatchIndex(0);
+        {advancedTools && (
+          <>
+            <button
+              onClick={() => {
+                track('editor.operation', { action: 'tree.expandAll', count: graph.nodes.length });
+                setCollapsed(new Set());
                 setFitRequested((value) => value + 1);
               }}
-            />{' '}
-            Cópias de realização
-          </label>
+            >
+              <UnfoldVertical size={14} /> Expandir tudo
+            </button>
+            <button
+              onClick={() => {
+                track('editor.operation', { action: 'tree.overview' });
+                setCollapsed(
+                  new Set(
+                    [...hierarchy.depth].filter(([, depth]) => depth === 1).map(([id]) => id),
+                  ),
+                );
+                setFitRequested((value) => value + 1);
+              }}
+            >
+              <Expand size={14} /> Visão geral
+            </button>
+            {!sourceTree && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showLinks}
+                  onChange={(event) => {
+                    track('editor.operation', { action: 'tree.references' });
+                    setShowLinks(event.target.checked);
+                  }}
+                />{' '}
+                Vínculos de referência
+              </label>
+            )}
+            {completeGraph.edges.some((edge) => edge.kind === 'internal') && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showInternals}
+                  onChange={(event) => {
+                    setShowInternals(event.target.checked);
+                    setSelected(completeGraph.rootId);
+                    setMatchIndex(0);
+                    setFitRequested((value) => value + 1);
+                  }}
+                />{' '}
+                Cópias de realização
+              </label>
+            )}
+          </>
         )}
       </div>
       <div ref={viewport} className="runtime-viewport">

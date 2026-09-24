@@ -21,6 +21,7 @@ import {
   Layers,
   Leaf,
   MessageSquareText,
+  MoreHorizontal,
   Plus,
   RefreshCw,
   Search,
@@ -28,6 +29,7 @@ import {
   X,
 } from 'lucide-react';
 import { compareReference, expressionFor } from './domain/model';
+import { readAdvancedTools, setAdvancedTools, useAdvancedTools } from './domain/preferences';
 import { flushLexicalNotes } from './domain/lexical-note-sync';
 import { analysisNoteSnapshot } from './domain/analysis-submission';
 import type { LexicalNote } from './domain/passage-lexicon';
@@ -81,6 +83,10 @@ const tabs = [
   'Código',
 ] as const;
 type Tab = (typeof tabs)[number];
+// The everyday desk shows the projections the usage log records people moving between.
+// The remaining four stay one switch away under the secondary tools.
+const coreTabs: readonly Tab[] = ['Árvore', 'Sugerir', 'Tradução'];
+const coreModes = ['analysis', 'lexicon', 'dictionary'] as const;
 const statusLabels = {
   untranscribed: 'Por transcrever',
   analysis: 'Em análise',
@@ -570,7 +576,9 @@ export default function App() {
   const { project, passage, draft, result } = studio;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
-  const [tab, setTab] = useState<Tab>(window.studio ? 'Árvore' : 'Construção');
+  const [tab, setTab] = useState<Tab>(
+    window.studio || !readAdvancedTools() ? 'Árvore' : 'Construção',
+  );
   const [selected, setSelected] = useState('object');
   const [surfaceHighlight, setSurfaceHighlight] = useState<MorphemeSurfaceHighlight | null>(null);
   const [mode, setMode] = useState<'analysis' | 'reading' | 'review' | 'lexicon' | 'dictionary'>(
@@ -580,6 +588,8 @@ export default function App() {
   useEffect(() => {
     if (studio.setupRequired) setProjectDialog(true);
   }, [studio.setupRequired]);
+  const advanced = useAdvancedTools();
+  const [moreOpen, setMoreOpen] = useState(false);
   const [details, setDetails] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [learningView, setLearningView] = useState<'lessons' | 'reference' | null>(null);
@@ -699,6 +709,13 @@ export default function App() {
     );
   }
 
+  // Turning the secondary tools off must never strand the desk on a surface it stopped showing.
+  useEffect(() => {
+    if (advanced) return;
+    if (!coreTabs.includes(tab)) setTab('Árvore');
+    if (!(coreModes as readonly string[]).includes(mode)) setMode('analysis');
+  }, [advanced, tab, mode]);
+
   useEffect(() => {
     if (!query) return;
     const timer = setTimeout(() => track('navigation.search', { count: query.length }), 800);
@@ -723,6 +740,24 @@ export default function App() {
     setNotice('');
     setSelected('object');
   };
+  // Passage navigation is the second most frequent thing recorded, and it runs in streaks:
+  // Alt+arrows keep a reading pass on the keyboard instead of returning to the header buttons.
+  useEffect(() => {
+    const step = (event: KeyboardEvent) => {
+      if (!event.altKey || event.metaKey || event.ctrlKey) return;
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      if ((event.target as Element | null)?.closest('input,textarea,select,[contenteditable=true]'))
+        return;
+      if (!studio.ready) return;
+      const next = project.passages[selectedIndex + (event.key === 'ArrowRight' ? 1 : -1)];
+      if (!next) return;
+      event.preventDefault();
+      changePassage(next.id);
+    };
+    window.addEventListener('keydown', step);
+    return () => window.removeEventListener('keydown', step);
+  }, [project.passages, selectedIndex, studio.ready]);
+
   function addNextPassage(position?: 'before' | 'after') {
     if (!studio.createPendingDraft(position)) return;
     setMode('analysis');
@@ -978,16 +1013,18 @@ export default function App() {
         >
           <div className="workspace-top">
             <div className="work-modes">
-              <button
-                className={mode === 'reading' ? 'active' : ''}
-                onClick={() => {
-                  changeMode('reading');
-                  setTimeout(() => note.current?.focus(), 0);
-                }}
-              >
-                <FileText size={14} />
-                Contribuir uma leitura
-              </button>
+              {advanced && (
+                <button
+                  className={mode === 'reading' ? 'active' : ''}
+                  onClick={() => {
+                    changeMode('reading');
+                    setTimeout(() => note.current?.focus(), 0);
+                  }}
+                >
+                  <FileText size={14} />
+                  Contribuir uma leitura
+                </button>
+              )}
               <button
                 className={mode === 'analysis' ? 'active' : ''}
                 onClick={() => changeMode('analysis')}
@@ -995,13 +1032,15 @@ export default function App() {
                 <GitBranch size={14} />
                 Montar a análise
               </button>
-              <button
-                className={mode === 'review' ? 'active' : ''}
-                onClick={() => changeMode('review')}
-              >
-                <ClipboardCheck size={14} />
-                Revisar
-              </button>
+              {advanced && (
+                <button
+                  className={mode === 'review' ? 'active' : ''}
+                  onClick={() => changeMode('review')}
+                >
+                  <ClipboardCheck size={14} />
+                  Revisar
+                </button>
+              )}
               <button
                 className={mode === 'lexicon' ? 'active' : ''}
                 onClick={() => changeMode('lexicon')}
@@ -1315,7 +1354,7 @@ export default function App() {
           {mode === 'analysis' && (
             <>
               <div className="projection-tabs" role="tablist" aria-label="Projeções da análise">
-                {tabs.map((item) => (
+                {(advanced ? tabs : tabs.filter((item) => coreTabs.includes(item))).map((item) => (
                   <button
                     key={item}
                     role="tab"
@@ -1701,26 +1740,107 @@ export default function App() {
           <ChevronDown size={13} />
         </button>
         <div className="header-end">
-          <button className="button small" onClick={() => setLearningView('lessons')}>
-            <BookOpen size={15} /> Aprender
-          </button>
-          <button className="button small" onClick={() => setLearningView('reference')}>
-            Referência
-          </button>
-          <button className="button small" onClick={() => setUsageOpen(true)}>
-            Atividade
-          </button>
-          <button
-            className="button small"
-            aria-label="Alternar tema"
-            onClick={() => {
-              const next = theme === 'dark' ? 'light' : 'dark';
-              track('ui.theme', { from: theme, to: next });
-              setTheme(next);
-            }}
-          >
-            {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
-          </button>
+          {advanced && (
+            <>
+              <button className="button small" onClick={() => setLearningView('lessons')}>
+                <BookOpen size={15} /> Aprender
+              </button>
+              <button className="button small" onClick={() => setLearningView('reference')}>
+                Referência
+              </button>
+              <button className="button small" onClick={() => setUsageOpen(true)}>
+                Atividade
+              </button>
+              <button
+                className="button small"
+                aria-label="Alternar tema"
+                onClick={() => {
+                  const next = theme === 'dark' ? 'light' : 'dark';
+                  track('ui.theme', { from: theme, to: next });
+                  setTheme(next);
+                }}
+              >
+                {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+              </button>
+            </>
+          )}
+          <div className="header-more">
+            <button
+              className="icon-button"
+              aria-label="Mais ferramentas"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen(!moreOpen)}
+            >
+              <MoreHorizontal size={19} />
+            </button>
+            {moreOpen && (
+              <>
+                <button
+                  type="button"
+                  className="header-menu-scrim"
+                  aria-label="Fechar mais ferramentas"
+                  onClick={() => setMoreOpen(false)}
+                />
+                <div className="header-menu" role="menu" aria-label="Mais ferramentas">
+                  {!advanced && (
+                    <>
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setMoreOpen(false);
+                          setLearningView('lessons');
+                        }}
+                      >
+                        <BookOpen size={15} /> Aprender
+                      </button>
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setMoreOpen(false);
+                          setLearningView('reference');
+                        }}
+                      >
+                        Referência
+                      </button>
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          setMoreOpen(false);
+                          setUsageOpen(true);
+                        }}
+                      >
+                        Atividade
+                      </button>
+                      <button
+                        role="menuitem"
+                        onClick={() => {
+                          const next = theme === 'dark' ? 'light' : 'dark';
+                          track('ui.theme', { from: theme, to: next });
+                          setTheme(next);
+                          setMoreOpen(false);
+                        }}
+                      >
+                        {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+                      </button>
+                    </>
+                  )}
+                  <label className="header-menu-toggle">
+                    <input
+                      type="checkbox"
+                      checked={advanced}
+                      onChange={(event) => setAdvancedTools(event.target.checked)}
+                    />{' '}
+                    Ferramentas avançadas
+                  </label>
+                  <p>
+                    Mostra as leituras, a revisão, as projeções Construção, Morfemas, Histórico e
+                    Código, os controles de janelas e as opções da árvore.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
           <span className="local-indicator">
             <span />
             {project.mode === 'example' ? 'Exemplo avaliado' : 'Projeto local'}
