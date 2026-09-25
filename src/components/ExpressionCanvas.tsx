@@ -386,6 +386,7 @@ export function ExpressionCanvas({
   const firstEvidence = useRef(false);
   const knownFragments = useRef(new Set(saved.fragments.map((fragment) => fragment.id)));
   const [focusPiece, setFocusPiece] = useState<string | null>(null);
+  const [fitRequested, setFitRequested] = useState(0);
   const [focusSelection, setFocusSelection] = useState<string | null>(null);
   const promotedRoots = useRef(new Set<string>());
   useEffect(() => {
@@ -623,6 +624,12 @@ export function ExpressionCanvas({
       setFocusPiece(newPiece.id);
     }
   }, [saved.fragments]);
+  useEffect(() => {
+    // Expanding every branch changes the whole extent, so the camera has to follow it or
+    // the tree leaves the viewport. The layout for this commit is ready by the time the
+    // effect runs, which a direct call inside the click handler would not be.
+    if (fitRequested) fit();
+  }, [fitRequested]);
   useEffect(() => {
     if (!focusPiece) return;
     const point = layout.positions.get(focusPiece + ':root');
@@ -1417,7 +1424,14 @@ export function ExpressionCanvas({
             </button>
           </>
         )}
-        <button onClick={() => setCollapsed(new Set())}>Expandir tudo</button>
+        <button
+          onClick={() => {
+            setCollapsed(new Set());
+            setFitRequested((value) => value + 1);
+          }}
+        >
+          Expandir tudo
+        </button>
         <button
           onClick={() => {
             setCollapsed(
