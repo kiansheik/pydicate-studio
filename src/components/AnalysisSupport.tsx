@@ -1,4 +1,5 @@
 import { translationChange } from '../domain/translations';
+import { BulkTranslation } from './BulkTranslation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushLexicalNotes } from '../domain/lexical-note-sync';
 import { analysisNoteSnapshot, submissionOperation } from '../domain/analysis-submission';
@@ -7,6 +8,7 @@ import { invoke, flattenNodes, type AuthorNode } from '../domain/authoring';
 import { aiSelection, type AIStatus } from '../domain/ai';
 import {
   analysisError,
+  type BatchError,
   analysisActivity,
   analysisLabels,
   analysisProgress,
@@ -629,6 +631,8 @@ export function AnalysisSupport({
   }, [translationRequest]);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batch, setBatch] = useState<string[]>([]);
+  const [batchTask, setBatchTask] = useState<'analyze' | 'translate'>('analyze');
+  const [translationsOpen, setTranslationsOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [historyJob, setHistoryJob] = useState<string | null>(null);
@@ -969,11 +973,19 @@ export function AnalysisSupport({
           throw new Error(
             `A passagem ${passage.ordinal} mudou. Revise a seleção e tente novamente.`,
           );
+        // A translation is grounded in the tree when there is one, and in the source
+        // reading otherwise; the engine refuses an incomplete tree, and those passages are
+        // resubmitted below against the source instead of failing the whole batch.
         const item = {
           projectId,
           passageId: draft.passageId,
           revisionId: draft.revisionId,
-          task: 'analyze',
+          task:
+            batchTask === 'analyze'
+              ? 'analyze'
+              : draft.raw?.trim()
+                ? 'translate-analysis'
+                : 'translate-source',
           scope: 'passage',
           evidenceRevision: status.revision,
           includeImages,
@@ -997,15 +1009,37 @@ export function AnalysisSupport({
       }
       if (latest.current.project.id !== projectId)
         throw new Error('O projeto mudou. Abra novamente a fila antes de enviar.');
-      const result = await invoke<{ jobs: AnalysisJob[]; errors: unknown[] }>(
+      const result = await invoke<{ jobs: AnalysisJob[]; errors: BatchError[] }>(
         'analysis_submit_batch',
         { projectId, items },
       );
+      let jobs = result.jobs.length;
+      let errors = result.errors;
+      const incomplete = errors.filter((entry) => entry.code === 'INCOMPLETE_EVALUATION');
+      if (incomplete.length) {
+        const retries = items
+          .filter((entry) => incomplete.some((failed) => failed.passageId === entry.passageId))
+          .map((entry) => ({
+            ...entry,
+            task: 'translate-source',
+            operationId: `${entry.operationId}:source`,
+          }));
+        const second = await invoke<{ jobs: AnalysisJob[]; errors: BatchError[] }>(
+          'analysis_submit_batch',
+          { projectId, items: retries },
+        );
+        jobs += second.jobs.length;
+        errors = [
+          ...errors.filter((entry) => entry.code !== 'INCOMPLETE_EVALUATION'),
+          ...second.errors,
+        ];
+      }
       await refresh();
+      const label = batchTask === 'analyze' ? 'análise(s)' : 'tradução(ões)';
       setNotice(
-        `${result.jobs.length} análise(s) na fila.${result.errors.length ? ` ${result.errors.length} entrada(s) não foram enviadas: ${result.errors.map(analysisError).join('; ')}` : ''}`,
+        `${jobs} ${label} na fila.${incomplete.length ? ` ${incomplete.length} sem árvore completa foram enviadas como leitura da fonte.` : ''}${errors.length ? ` ${errors.length} entrada(s) não foram enviadas: ${errors.map(analysisError).join('; ')}` : ''}`,
       );
-      if (!result.errors.length) setBatch([]);
+      if (!errors.length) setBatch([]);
     });
   }
   async function openCandidate(candidate: AnalysisCandidate) {
@@ -1294,6 +1328,25 @@ export function AnalysisSupport({
                 Usa as entradas e regiões salvas. Contexto anterior revisado fica congelado;
                 hipóteses não são passadas para a linha seguinte.
               </p>
+              <label className="batch-task">
+                O que fazer com as selecionadas
+                <select
+                  aria-label="Tarefa do lote"
+                  value={batchTask}
+                  disabled={busy || batchLoading}
+                  onChange={(event) => setBatchTask(event.target.value as 'analyze' | 'translate')}
+                >
+                  <option value="analyze">Analisar</option>
+                  <option value="translate">Traduzir</option>
+                </select>
+              </label>
+              {batchTask === 'translate' && (
+                <p className="field-hint">
+                  Cada passagem com árvore montada é traduzida a partir dela; as demais são enviadas
+                  como leitura da fonte. As traduções concluídas ficam em Traduções propostas, onde
+                  você compara antes de gravar.
+                </p>
+              )}
               <p className="field-hint">
                 {includeImages
                   ? 'Este lote enviará imagens das regiões próprias de cada passagem.'
@@ -1327,9 +1380,20 @@ export function AnalysisSupport({
                 disabled={busy || batchLoading || !batch.length}
                 onClick={() => void submitBatch()}
               >
-                Analisar {batch.length} selecionada(s)
+                {batchTask === 'translate' ? 'Traduzir' : 'Analisar'} {batch.length} selecionada(s)
               </button>
             </details>
+            <button className="button" onClick={() => setTranslationsOpen(!translationsOpen)}>
+              Traduções propostas
+            </button>
+            {translationsOpen && (
+              <BulkTranslation
+                studio={studio}
+                jobs={listing.jobs}
+                onClose={() => setTranslationsOpen(false)}
+                onNotice={setNotice}
+              />
+            )}
           </section>
         )}
         <nav className="analysis-chat-actions" aria-label="Conversas de IA">
