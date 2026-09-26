@@ -176,7 +176,7 @@ function createHttp({config,store,auth,runtime}) {
       if(req.method==='GET'){
         if(['/collab/bridge.js','/collab/panel.js'].includes(route))return await staticFile(res,path.join(__dirname,'public'),route.slice(8));
         if(route==='/'||route==='/index.html')return await staticFile(res,config.distDirectory,'index.html',true);
-        if(/^\/assets\/[a-zA-Z0-9_.-]+$/.test(route)||route==='/favicon.ico')return await staticFile(res,config.distDirectory,route.slice(1));
+        if(/^\/assets\/[a-zA-Z0-9_.-]+$/.test(route)||['/favicon.ico','/mark.svg'].includes(route))return await staticFile(res,config.distDirectory,route.slice(1));
       }
       throw fault(404,'NOT_FOUND','Não encontrado.');
     }catch(error){

@@ -36,7 +36,14 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
   const original=store.snapshot(runtime.project.id).envelope.drafts[id].raw;
   assert.ok(original.trim());assert.equal(await editor.inputValue(),original);
   // Whitespace-only draft change: exercise the real React autosave without publishing source.
-  const edited=original+'\n';await editor.fill(edited);
+  const edited=original+'\n';
+  const evaluationResponse=page.waitForResponse(response=>{
+    if(!response.url().endsWith('/api/invoke')||response.request().method()!=='POST')return false;
+    const request=response.request().postDataJSON();return request.method==='evaluate_expression'&&request.params?.raw===edited;
+  },{timeout:60000});
+  await editor.fill(edited);
+  const evaluated=await evaluationResponse;assert.equal(evaluated.status(),200);
+  assert.equal((await evaluated.json()).engineFingerprint,runtime.project.engineFingerprint);
   const until=Date.now()+60000;
   while(store.snapshot(runtime.project.id).envelope.drafts[id].raw!==edited&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,100));
   assert.equal(store.snapshot(runtime.project.id).envelope.drafts[id].raw,edited);
@@ -47,6 +54,7 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
   await page.getByText('Comentário do teste integrado, sem publicação.',{exact:true}).waitFor();
   assert.equal(store.comments(id).comments[0].authorId,'fixture');
   assert.deepEqual(failures,[],'Unhandled browser exceptions');
+  assert.equal(await page.evaluate(()=>[...document.querySelectorAll('#root img')].every(image=>image.complete&&image.naturalWidth>0)),true,'Public branding images load through the hosted static boundary');
   const evidence=path.resolve(__dirname,'../../test-results/collab');fs.mkdirSync(evidence,{recursive:true});
   await page.screenshot({path:path.join(evidence,'hosted-react-editor.png'),fullPage:true});
 });
