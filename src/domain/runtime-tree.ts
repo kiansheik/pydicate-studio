@@ -1,5 +1,6 @@
 import { flattenNodes, replaceNode, type AuthorNode, type NodeEvaluation } from './authoring';
 import type { InlineCallArguments } from './inline-arguments';
+import { clampZoom, type Camera } from './canvas-camera';
 export type RuntimePrimitive = string | number | boolean | null;
 export interface RuntimeSourceOccurrence {
   sourceNodeId: string;
@@ -115,18 +116,14 @@ export function replaceRuntimeScope(raw: string, scope: AuthorNode, replacement:
   return replaceNode(raw, scope, replacement);
 }
 
-export interface TreeCamera {
-  x: number;
-  y: number;
-  zoom: number;
-}
+export type TreeCamera = Camera;
 export function zoomRuntimeAt(
   camera: TreeCamera,
   factor: number,
   offsetX: number,
   offsetY: number,
 ): TreeCamera {
-  const zoom = Math.min(2.5, Math.max(0.025, camera.zoom * factor));
+  const zoom = clampZoom(camera.zoom * factor);
   return {
     zoom,
     x: camera.x + offsetX / camera.zoom - offsetX / zoom,

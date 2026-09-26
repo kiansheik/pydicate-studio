@@ -2323,3 +2323,98 @@ test('the actual workspace highlights RESULTADO ATUAL from selected tree nodes w
   await expect(output.locator('mark')).toHaveCount(0);
   await expect(page.getByTestId('reference-surface')).toHaveText(snapshots[raw].surface);
 });
+
+const tools = (page: Page) => page.locator('.expression-canvas > .canvas-toolbar .runtime-tools');
+const zoomReading = (page: Page) => tools(page).locator('output');
+async function framing(page: Page) {
+  const [x, y, width, height] = (await svg(page).getAttribute('viewBox'))!.split(' ').map(Number);
+  return { x: x + width / 2, y: y + height / 2, width, height };
+}
+async function visibleNodeKey(page: Page, except: string) {
+  const key = await svg(page).evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    for (const group of element.querySelectorAll<SVGGElement>('[data-canvas-key]')) {
+      const box = group.getBoundingClientRect();
+      if (
+        box.width > 20 &&
+        box.left > bounds.left + 8 &&
+        box.right < bounds.right - 8 &&
+        box.top > bounds.top + 8 &&
+        box.bottom < bounds.bottom - 8
+      )
+        return group.getAttribute('data-canvas-key');
+    }
+    return null;
+  });
+  expect(key, 'no fully visible canvas node to select').toBeTruthy();
+  expect(key).not.toBe(except);
+  return key!;
+}
+
+test('selecting a piece after zooming in leaves the camera exactly where it was', async ({
+  page,
+}) => {
+  await openCanvas(page, '(emi * tym) + no');
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  const framed = (await svg(page).getAttribute('viewBox'))!;
+  const key = await visibleNodeKey(page, 'main:root');
+  await node(page, key).click();
+  await expect(node(page, key)).toHaveAttribute('aria-pressed', 'true');
+  // The inspector below the diagram grows and shrinks with the chosen constituent;
+  // neither that nor the scrollbar it can summon may move the tree.
+  await expect(page.getByRole('complementary', { name: 'Constituinte selecionado' })).toBeVisible();
+  await expect(svg(page)).toHaveAttribute('viewBox', framed);
+});
+
+test('jumping to a search match keeps the zoom and only pans as far as needed', async ({
+  page,
+}) => {
+  await openCanvas(page, '(emi * tym) + no');
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  const zoom = (await zoomReading(page).textContent())!;
+  const search = page.locator('.canvas-view-options .runtime-search');
+  await search.getByRole('textbox', { name: 'Buscar na árvore', exact: true }).fill('emi');
+  await search.getByRole('button', { name: 'Ir', exact: true }).click();
+  await expect(zoomReading(page)).toHaveText(zoom);
+  const match = svg(page).locator('[data-canvas-key].is-selected');
+  await expect(match).toHaveCount(1);
+  const box = (await match.boundingBox())!;
+  const view = (await svg(page).boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(view.x);
+  expect(box.y).toBeGreaterThanOrEqual(view.y);
+  expect(box.y + box.height).toBeLessThanOrEqual(view.y + view.height);
+});
+
+test('detaching a piece brings it into view without taking over the zoom', async ({ page }) => {
+  await openCanvas(page, 'no + (emi * tym)');
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  const zoom = (await zoomReading(page).textContent())!;
+  await menu(page, 'main:root/right', 'Soltar trecho');
+  await expect
+    .poll(() => page.evaluate(() => window.canvasSnapshot.canvas.fragments.length))
+    .toBe(1);
+  const fragment = (await page.evaluate(() => window.canvasSnapshot)).canvas.fragments[0];
+  await expect(card(page, `${fragment.id}:root`)).toBeVisible();
+  await expect(zoomReading(page)).toHaveText(zoom);
+  const loose = await card(page, `${fragment.id}:root`).boundingBox();
+  const view = (await svg(page).boundingBox())!;
+  expect(loose!.x).toBeGreaterThanOrEqual(view.x);
+  expect(loose!.x + loose!.width).toBeLessThanOrEqual(view.x + view.width);
+});
+
+test('resizing the desk keeps the contributor frame instead of refitting the whole tree', async ({
+  page,
+}) => {
+  await openCanvas(page, '(emi * tym) + no');
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  const before = await framing(page);
+  const zoom = (await zoomReading(page).textContent())!;
+  await page.setViewportSize({ width: 1180, height: 820 });
+  await expect.poll(async () => (await framing(page)).width).not.toBe(before.width);
+  const after = await framing(page);
+  expect(after.x).toBeCloseTo(before.x, 1);
+  expect(after.y).toBeCloseTo(before.y, 1);
+  await expect(zoomReading(page)).toHaveText(zoom);
+});

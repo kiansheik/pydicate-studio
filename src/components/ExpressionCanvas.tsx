@@ -49,6 +49,14 @@ import {
   type RuntimeGraph,
   type TreePosition,
 } from '../domain/runtime-tree';
+import {
+  clampZoom,
+  fitCamera,
+  revealCamera,
+  sameCamera,
+  type ViewSize,
+  type WorldBox,
+} from '../domain/canvas-camera';
 import { operationTerm } from '../domain/operation-terms';
 import {
   addTreeOperation,
@@ -383,6 +391,7 @@ export function ExpressionCanvas({
   const pieceSearchElement = useRef<HTMLDivElement>(null);
   const pieceSearch = useRef<PieceSearchHandle>(null);
   const firstLayout = useRef(false);
+  const framed = useRef(false);
   const firstEvidence = useRef(false);
   const knownFragments = useRef(new Set(saved.fragments.map((fragment) => fragment.id)));
   const [focusPiece, setFocusPiece] = useState<string | null>(null);
@@ -570,33 +579,60 @@ export function ExpressionCanvas({
     setSelected(`${piece.id}:root`);
   }, [pieces, selected]);
 
+  const extent: WorldBox = {
+    x: layout.minX,
+    y: layout.minY,
+    width: layout.width,
+    height: layout.height,
+  };
   function fit() {
-    setCamera({
-      x: layout.minX + layout.width / 2,
-      y: layout.minY + layout.height / 2,
-      zoom: Math.min(
-        1.1,
-        (dimensions.width - 70) / layout.width,
-        (dimensions.height - 70) / layout.height,
-      ),
+    framed.current = true;
+    setCamera((value) => {
+      const next = fitCamera(extent, dimensions);
+      return sameCamera(value, next) ? value : next;
     });
   }
-  useEffect(() => {
-    if (!viewport.current) return;
-    const observer = new ResizeObserver(([entry]) =>
-      setDimensions({
-        width: Math.max(250, entry.contentRect.width),
-        height: Math.max(260, entry.contentRect.height),
-      }),
+  /** Bring a node into view without taking the camera away from the contributor:
+   * the zoom they chose is kept and the pan is the smallest one that works. */
+  function reveal(point: Positioned, margin = 80) {
+    setCamera((value) =>
+      revealCamera(
+        value,
+        dimensions,
+        {
+          x: point.x,
+          y: point.y,
+          width: treeNodeWidth(point.node),
+          height: treeNodeHeight(point.node),
+        },
+        margin,
+      ),
     );
-    observer.observe(viewport.current);
-    return () => observer.disconnect();
-  }, []);
+  }
   useEffect(() => {
-    // Resizing a dock or entering fullscreen changes the usable viewport;
-    // ordinary source/evaluation revisions retain the contributor's camera.
-    if (firstLayout.current) fit();
-  }, [dimensions.width, dimensions.height]);
+    const element = viewport.current;
+    if (!element) return;
+    let frame = 0;
+    // Whole pixels only, and never a repeat: a scrollbar appearing beside the desk
+    // or a sub-pixel reflow must not reach the camera at all.
+    const observer = new ResizeObserver(([entry]) => {
+      const next: ViewSize = {
+        width: Math.max(250, Math.round(entry.contentRect.width)),
+        height: Math.max(260, Math.round(entry.contentRect.height)),
+      };
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() =>
+        setDimensions((value) =>
+          value.width === next.width && value.height === next.height ? value : next,
+        ),
+      );
+    });
+    observer.observe(element);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
   useEffect(() => {
     if (firstLayout.current || !pieces.some((piece) => piece.root)) return;
     firstLayout.current = true;
@@ -631,29 +667,33 @@ export function ExpressionCanvas({
     if (fitRequested) fit();
   }, [fitRequested]);
   useEffect(() => {
+    // Fullscreen is a deliberate request for a different frame, unlike the dock
+    // resizes and scrollbars that used to move the camera on their own.
+    const element = container.current;
+    if (!element) return;
+    const refit = () => {
+      if (document.fullscreenElement === element) setFitRequested((value) => value + 1);
+    };
+    document.addEventListener('fullscreenchange', refit);
+    return () => document.removeEventListener('fullscreenchange', refit);
+  }, []);
+  useEffect(() => {
     if (!focusPiece) return;
     const point = layout.positions.get(focusPiece + ':root');
     if (!point || point.piece.pending) return;
-    if (focusPiece === 'main' && saved.fragments.length === 0) fit();
-    else
-      setCamera({
-        x: point.x + treeNodeWidth(point.node) / 2 + 80,
-        y: point.y + treeNodeHeight(point.node) / 2,
-        zoom: 0.85,
-      });
+    // Only the very first tree is framed for the contributor. Afterwards a new or
+    // combined piece is merely brought into view, so their zoom and place survive.
+    if (!framed.current) fit();
+    else reveal(point, 110);
     setFocusPiece(null);
   }, [focusPiece, layout, dimensions]);
   useEffect(() => {
     if (!focusSelection) return;
     const point = layout.positions.get(focusSelection);
     if (!point) return;
-    setCamera((value) => ({
-      ...value,
-      x: point.x + treeNodeWidth(point.node) / 2,
-      y: point.y + treeNodeHeight(point.node) / 2,
-    }));
+    reveal(point);
     setFocusSelection(null);
-  }, [focusSelection, layout]);
+  }, [focusSelection, layout, dimensions]);
   useEffect(() => {
     setMenu(null);
     setOperationPanel(null);
@@ -917,7 +957,7 @@ export function ExpressionCanvas({
   function changeLayout(layout: 'horizontal' | 'bottom-up') {
     if (orientation === layout) return;
     props.onChangeCanvas({ raw, canvas: { ...saved, layout, positions: {} } });
-    setFocusPiece(pieces.find((piece) => piece.id === 'main')?.id ?? pieces[0]?.id ?? 'main');
+    setFitRequested((value) => value + 1);
     track('editor.operation', { action: 'canvas.layout', category: layout });
   }
   function openMenu(position: Positioned, client?: CanvasPoint) {
@@ -1180,6 +1220,390 @@ export function ExpressionCanvas({
   const combinationPreview = combinationAction
     ? previewAction(combinationAction, combinationDestination ?? undefined)
     : { raw: '', message: '' };
+  // Panning and zooming change nothing about the nodes themselves. The rendered
+  // tree is therefore built from the layout alone and reused across camera moves,
+  // which needs handlers that never go stale behind a memo.
+  const behaviour = useRef<{
+    select: typeof select;
+    connectTo: typeof connectTo;
+    openMenu: typeof openMenu;
+    startDrag: typeof startDrag;
+    focusNode: typeof focusNode;
+    commit: typeof commit;
+    staged: typeof staged;
+  }>(null!);
+  behaviour.current = { select, connectTo, openMenu, startDrag, focusNode, commit, staged };
+  const api = useMemo(
+    () => ({
+      select: (point: Positioned) => behaviour.current.select(point),
+      connect: (point: Positioned) => behaviour.current.connectTo(point),
+      activate: (point: Positioned) => {
+        if (behaviour.current.staged) behaviour.current.connectTo(point);
+        else behaviour.current.select(point);
+      },
+      openMenu: (point: Positioned, client: CanvasPoint) =>
+        behaviour.current.openMenu(point, client),
+      startDrag: (point: Positioned, event: React.PointerEvent<SVGGElement>) =>
+        behaviour.current.startDrag(point, event),
+      focusNode: (piece: Piece, id: string) => behaviour.current.focusNode(piece, id),
+      commit: (action: CanvasAction, focusCanvas?: boolean) =>
+        behaviour.current.commit(action, focusCanvas),
+    }),
+    [],
+  );
+  const traceEvaluations = useMemo(
+    () => new Map((morphology.graph?.nodes ?? []).map((node) => [node.id, node.evaluation])),
+    [morphology.graph],
+  );
+  const edgeElements = useMemo(
+    () =>
+      layout.edges.map((edge) => {
+        const a = pointFor(layout.positions.get(edge.source)!);
+        const b = pointFor(layout.positions.get(edge.target)!);
+        return (
+          <g key={edge.id} className="runtime-edge expression-connection">
+            <path d={canvasEdgePath(a, b, orientation)} />
+            <text
+              x={orientation === 'horizontal' ? b.x - 12 : b.x + treeNodeWidth(b.node) / 2 + 14}
+              y={orientation === 'horizontal' ? b.y + 41 : b.y - 23}
+              textAnchor={orientation === 'horizontal' ? 'end' : 'start'}
+            >
+              {edge.label}
+            </text>
+          </g>
+        );
+      }),
+    [layout, orientation, dragPreview],
+  );
+  const nodeElements = useMemo(
+    () =>
+      [...layout.positions.values()].map((original) => {
+        const point = pointFor(original);
+        const node = point.node;
+        const junction = isOperationJunction(node);
+        const preview = treeEvaluationPreview(node);
+        const traceEvaluation = traceEvaluations.get(node.id);
+        const nodeTrace =
+          point.piece.id === selectedPiece?.id &&
+          preview?.status === 'ok' &&
+          traceEvaluation?.status === 'ok' &&
+          traceEvaluation.surface === preview.text
+            ? morphology.trace?.nodes[node.id]
+            : undefined;
+        const tracedLines =
+          nodeTrace && preview?.status === 'ok'
+            ? highlightLines(preview.text, preview.lines, nodeTrace?.ranges ?? [])
+            : null;
+
+        const nodeWidth = treeNodeWidth(node);
+        const nodeHeight = treeNodeHeight(node);
+        const operationWidth = Math.min(nodeWidth, Math.max(66, [...node.label].length * 8 + 24));
+        const hole = isCanvasHole(node.expression?.code ?? '');
+        const hypothesisDetails =
+          node.attributes.lexicalStatus === 'hypothetical'
+            ? `Hipótese não atestada · ${node.definition || 'significado desconhecido'}`
+            : undefined;
+        const meaning = junction
+          ? operationTerm({
+              ...node.expression!,
+              label: node.label,
+              dispatch:
+                typeof node.attributes.dispatch === 'string' ? node.attributes.dispatch : undefined,
+              runtimeType:
+                typeof node.attributes.runtimeType === 'string'
+                  ? node.attributes.runtimeType
+                  : undefined,
+              operandTypes:
+                typeof node.attributes.operandTypes === 'string'
+                  ? node.attributes.operandTypes.split(' · ')
+                  : undefined,
+            })
+          : null;
+        return (
+          <g
+            key={point.key}
+            transform={`translate(${point.x} ${point.y})`}
+            data-canvas-key={point.key}
+            data-piece-id={point.piece.id}
+            data-source-node={node.id}
+            data-morpheme-trace={nodeTrace?.status}
+            data-evaluation-state={preview?.status}
+            data-lexical-status={node.attributes.lexicalStatus}
+            className={`runtime-node canvas-node ${junction ? 'runtime-junction canvas-operation' : ''} ${hole ? 'canvas-hole' : ''} ${preview ? 'canvas-' + preview.status : ''} ${selected === point.key ? 'is-selected' : ''} ${matches.has(point.key) ? 'is-match' : ''} ${dragPreview?.target === point.key ? 'is-drop-target' : ''} ${dragPreview?.keys.includes(point.key) ? 'is-dragging' : ''}`}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              api.openMenu(point, { x: event.clientX, y: event.clientY });
+            }}
+          >
+            {node.id === 'root' && (
+              <text className="canvas-piece-label" x={0} y={-15}>
+                {point.piece.id === 'main' ? 'RESULTADO PRINCIPAL' : 'PEÇA SOLTA'}
+              </text>
+            )}
+            <g
+              role="button"
+              tabIndex={0}
+              aria-pressed={selected === point.key}
+              onFocus={() => api.select(point)}
+              aria-label={`${hole ? 'Encaixe vazio' : (meaning?.label ?? node.label)}, ${point.piece.id === 'main' ? 'árvore principal' : 'peça solta'}${hypothesisDetails ? `, ${hypothesisDetails}` : ''}`}
+              onPointerDown={(event) => api.startDrag(point, event)}
+              onClick={() => {
+                if (suppressClick.current) return;
+                api.activate(point);
+              }}
+              onDoubleClick={() => {
+                api.select(point);
+                setAdvanced(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  api.activate(point);
+                }
+                if (event.key === 'ArrowRight' && point.children.length) {
+                  event.preventDefault();
+                  if (collapsed.has(point.key))
+                    setCollapsed(
+                      (values) => new Set([...values].filter((key) => key !== point.key)),
+                    );
+                  else api.focusNode(point.piece, point.children[0]);
+                }
+                if (event.key === 'ArrowLeft') {
+                  event.preventDefault();
+                  if (point.children.length && !collapsed.has(point.key))
+                    setCollapsed((values) => new Set(values).add(point.key));
+                  else if (node.id.includes('/'))
+                    api.focusNode(point.piece, node.id.slice(0, node.id.lastIndexOf('/')));
+                }
+                if (event.key === 'Home') {
+                  event.preventDefault();
+                  api.focusNode(point.piece, 'root');
+                }
+                if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  const parentId = node.id.slice(0, node.id.lastIndexOf('/'));
+                  const siblings = layout.positions.get(`${point.piece.id}:${parentId}`)
+                    ?.children ?? ['root'];
+                  const index = siblings.indexOf(node.id);
+                  api.focusNode(
+                    point.piece,
+                    siblings[
+                      (index + (event.key === 'ArrowDown' ? 1 : siblings.length - 1)) %
+                        siblings.length
+                    ],
+                  );
+                }
+              }}
+            >
+              <title>
+                {node.expression?.code}
+                {hypothesisDetails ? `\n${hypothesisDetails}` : ''}
+                {preview ? `\n${preview.label}: ${preview.text}` : ''}
+              </title>
+              {junction ? (
+                <>
+                  <text
+                    className="runtime-operation-name"
+                    x={nodeWidth / 2}
+                    y={19}
+                    textAnchor="middle"
+                  >
+                    {clip(meaning?.label ?? node.label, Math.max(12, Math.floor(nodeWidth / 5)))}
+                  </text>
+                  <rect
+                    className="runtime-node-body"
+                    x={(nodeWidth - operationWidth) / 2}
+                    y={30}
+                    width={operationWidth}
+                    height={40}
+                    rx={20}
+                  />
+                  {node.expression?.inlineCall ? (
+                    <InlineCallLabel
+                      key={`${point.key}:${session}`}
+                      call={node.expression.inlineCall}
+                      width={nodeWidth}
+                      onBegin={() => {
+                        api.select(point);
+                        setNotice('');
+                      }}
+                      onReturnToCanvas={() => svg.current?.focus({ preventScroll: true })}
+                      onCommit={(slot, text) => {
+                        if (session !== liveSession.current) return false;
+                        return api.commit(
+                          {
+                            type: 'argument',
+                            source: {
+                              ...point.address,
+                              nodeId:
+                                node.expression?.operationSourceNodeId ?? point.address.nodeId,
+                              expectedRaw: point.piece.raw,
+                            },
+                            slot,
+                            text,
+                          },
+                          false,
+                        );
+                      }}
+                    />
+                  ) : (
+                    <text
+                      className="runtime-operation-label"
+                      x={nodeWidth / 2}
+                      y={56}
+                      textAnchor="middle"
+                    >
+                      {clip(node.label, 20)}
+                    </text>
+                  )}
+                  {preview && (
+                    <g
+                      className={`runtime-step-result${point.piece.id === 'main' && node.id === 'root' ? ' is-final' : ''}`}
+                      data-evaluation-state={preview.status}
+                    >
+                      <rect
+                        className="runtime-result-background"
+                        x={0}
+                        y={77}
+                        width={nodeWidth}
+                        height={nodeHeight - 81}
+                        rx={7}
+                      />
+                      <text className="runtime-result-caption" x={10} y={89}>
+                        {hypothesisDetails
+                          ? 'Hipótese não atestada'
+                          : node.id === 'root' && point.piece.id !== 'main'
+                            ? 'Resultado da peça'
+                            : preview.label}
+                      </text>
+                      <text className="runtime-result-text" x={10} y={108}>
+                        {preview.lines.map((line, index) => (
+                          <tspan key={index} x={10} dy={index ? 18 : 0}>
+                            {tracedLines ? <MorphemeSpans segments={tracedLines[index]} /> : line}
+                          </tspan>
+                        ))}
+                      </text>
+                    </g>
+                  )}
+                </>
+              ) : (
+                <>
+                  <rect
+                    className="runtime-node-body"
+                    width={nodeWidth}
+                    height={nodeHeight}
+                    rx={12}
+                  />
+                  <path className="runtime-node-accent" d={`M 1 18 L 1 ${nodeHeight - 18}`} />
+                  <text className="runtime-node-type" x={15} y={21}>
+                    {hole ? 'ENCAIXE VAZIO' : node.runtimeType.toLocaleUpperCase('pt')}
+                  </text>
+                  <text className="runtime-node-label" x={15} y={46}>
+                    {hole ? 'Adicionar uma peça' : clip(node.label, 27)}
+                  </text>
+                  <text className="runtime-node-definition" x={15} y={66}>
+                    {clip(
+                      hole
+                        ? 'Arraste ou conecte uma peça aqui'
+                        : hypothesisDetails || node.definition || node.expression?.code || '',
+                      36,
+                    )}
+                  </text>
+                  <text
+                    className="runtime-node-flags runtime-leaf-result"
+                    data-evaluation-state={preview?.status}
+                    x={15}
+                    y={86}
+                  >
+                    {preview
+                      ? preview.lines.map((line, index) => (
+                          <tspan key={index} x={15} dy={index ? 18 : 0}>
+                            {tracedLines ? <MorphemeSpans segments={tracedLines[index]} /> : line}
+                          </tspan>
+                        ))
+                      : point.piece.pending
+                        ? 'Avaliando esta peça…'
+                        : 'Expressão preservada'}
+                  </text>
+                </>
+              )}
+            </g>
+            <g
+              role="button"
+              tabIndex={0}
+              aria-label={hole ? 'Conectar no encaixe vazio' : `Conectar ${node.label}`}
+              onFocus={() => api.select(point)}
+              onClick={(event) => {
+                event.stopPropagation();
+                api.connect(point);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  api.connect(point);
+                }
+              }}
+            >
+              <circle
+                className="canvas-port"
+                cx={orientation === 'horizontal' ? -8 : nodeWidth / 2}
+                cy={orientation === 'horizontal' ? 50 : -8}
+                r={7}
+              />
+            </g>
+            {point.children.length > 0 && (
+              <g
+                className="runtime-collapse"
+                role="button"
+                tabIndex={0}
+                aria-label={`${collapsed.has(point.key) ? 'Expandir' : 'Recolher'} ${node.label}`}
+                aria-expanded={!collapsed.has(point.key)}
+                transform={`translate(${nodeWidth + 17} 50)`}
+                onClick={() =>
+                  setCollapsed((values) => {
+                    const next = new Set(values);
+                    if (next.has(point.key)) next.delete(point.key);
+                    else next.add(point.key);
+                    return next;
+                  })
+                }
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setCollapsed((values) => {
+                      const next = new Set(values);
+                      if (next.has(point.key)) next.delete(point.key);
+                      else next.add(point.key);
+                      return next;
+                    });
+                  }
+                }}
+              >
+                <circle r={12} />
+                <path
+                  className="runtime-collapse-chevron"
+                  d={collapsed.has(point.key) ? 'M -3 -5 L 3 0 L -3 5' : 'M -5 -3 L 0 3 L 5 -3'}
+                />
+              </g>
+            )}
+          </g>
+        );
+      }),
+    [
+      layout,
+      dragPreview,
+      selected,
+      collapsed,
+      matches,
+      orientation,
+      session,
+      morphology.trace,
+      traceEvaluations,
+      selectedPiece?.id,
+      api,
+    ],
+  );
   const viewWidth = dimensions.width / camera.zoom;
   const viewHeight = dimensions.height / camera.zoom;
   // Connecting, detaching and adding are the structural edits the usage log records most
@@ -1347,18 +1771,14 @@ export function ExpressionCanvas({
           </button>
           <button
             aria-label="Diminuir árvore"
-            onClick={() =>
-              setCamera((value) => ({ ...value, zoom: Math.max(0.025, value.zoom / 1.25) }))
-            }
+            onClick={() => setCamera((value) => ({ ...value, zoom: clampZoom(value.zoom / 1.25) }))}
           >
             <Minus size={15} />
           </button>
           <output aria-label="Zoom da árvore">{Math.round(camera.zoom * 100)}%</output>
           <button
             aria-label="Ampliar árvore"
-            onClick={() =>
-              setCamera((value) => ({ ...value, zoom: Math.min(2.5, value.zoom * 1.25) }))
-            }
+            onClick={() => setCamera((value) => ({ ...value, zoom: clampZoom(value.zoom * 1.25) }))}
           >
             <Plus size={15} />
           </button>
@@ -1395,7 +1815,6 @@ export function ExpressionCanvas({
             setCollapsed(
               (values) => new Set([...values].filter((key) => !next.startsWith(key + '/'))),
             );
-            setCamera((value) => ({ ...value, zoom: 1 }));
           }}
         >
           <Search size={15} />
@@ -1445,7 +1864,7 @@ export function ExpressionCanvas({
                 ),
               ),
             );
-            setFocusPiece('main');
+            setFitRequested((value) => value + 1);
           }}
         >
           Visão geral
@@ -1518,355 +1937,8 @@ export function ExpressionCanvas({
             vazio para conectar; sobre outra peça para trocar. O menu de contexto oferece as mesmas
             ações.
           </desc>
-          {layout.edges.map((edge) => {
-            const a = pointFor(layout.positions.get(edge.source)!);
-            const b = pointFor(layout.positions.get(edge.target)!);
-            return (
-              <g key={edge.id} className="runtime-edge expression-connection">
-                <path d={canvasEdgePath(a, b, orientation)} />
-                <text
-                  x={orientation === 'horizontal' ? b.x - 12 : b.x + treeNodeWidth(b.node) / 2 + 14}
-                  y={orientation === 'horizontal' ? b.y + 41 : b.y - 23}
-                  textAnchor={orientation === 'horizontal' ? 'end' : 'start'}
-                >
-                  {edge.label}
-                </text>
-              </g>
-            );
-          })}
-          {[...layout.positions.values()].map((original) => {
-            const point = pointFor(original);
-            const node = point.node;
-            const junction = isOperationJunction(node);
-            const preview = treeEvaluationPreview(node);
-            const traceEvaluation = morphology.graph?.nodes.find(
-              (value) => value.id === node.id,
-            )?.evaluation;
-            const nodeTrace =
-              point.piece.id === selectedPiece?.id &&
-              preview?.status === 'ok' &&
-              traceEvaluation?.status === 'ok' &&
-              traceEvaluation.surface === preview.text
-                ? morphology.trace?.nodes[node.id]
-                : undefined;
-            const tracedLines =
-              nodeTrace && preview?.status === 'ok'
-                ? highlightLines(preview.text, preview.lines, nodeTrace?.ranges ?? [])
-                : null;
-
-            const nodeWidth = treeNodeWidth(node);
-            const nodeHeight = treeNodeHeight(node);
-            const operationWidth = Math.min(
-              nodeWidth,
-              Math.max(66, [...node.label].length * 8 + 24),
-            );
-            const hole = isCanvasHole(node.expression?.code ?? '');
-            const hypothesisDetails =
-              node.attributes.lexicalStatus === 'hypothetical'
-                ? `Hipótese não atestada · ${node.definition || 'significado desconhecido'}`
-                : undefined;
-            const meaning = junction
-              ? operationTerm({
-                  ...node.expression!,
-                  label: node.label,
-                  dispatch:
-                    typeof node.attributes.dispatch === 'string'
-                      ? node.attributes.dispatch
-                      : undefined,
-                  runtimeType:
-                    typeof node.attributes.runtimeType === 'string'
-                      ? node.attributes.runtimeType
-                      : undefined,
-                  operandTypes:
-                    typeof node.attributes.operandTypes === 'string'
-                      ? node.attributes.operandTypes.split(' · ')
-                      : undefined,
-                })
-              : null;
-            return (
-              <g
-                key={point.key}
-                transform={`translate(${point.x} ${point.y})`}
-                data-canvas-key={point.key}
-                data-piece-id={point.piece.id}
-                data-source-node={node.id}
-                data-morpheme-trace={nodeTrace?.status}
-                data-evaluation-state={preview?.status}
-                data-lexical-status={node.attributes.lexicalStatus}
-                className={`runtime-node canvas-node ${junction ? 'runtime-junction canvas-operation' : ''} ${hole ? 'canvas-hole' : ''} ${preview ? 'canvas-' + preview.status : ''} ${selected === point.key ? 'is-selected' : ''} ${matches.has(point.key) ? 'is-match' : ''} ${dragPreview?.target === point.key ? 'is-drop-target' : ''} ${dragPreview?.keys.includes(point.key) ? 'is-dragging' : ''}`}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  openMenu(point, { x: event.clientX, y: event.clientY });
-                }}
-              >
-                {node.id === 'root' && (
-                  <text className="canvas-piece-label" x={0} y={-15}>
-                    {point.piece.id === 'main' ? 'RESULTADO PRINCIPAL' : 'PEÇA SOLTA'}
-                  </text>
-                )}
-                <g
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={selected === point.key}
-                  onFocus={() => select(point)}
-                  aria-label={`${hole ? 'Encaixe vazio' : (meaning?.label ?? node.label)}, ${point.piece.id === 'main' ? 'árvore principal' : 'peça solta'}${hypothesisDetails ? `, ${hypothesisDetails}` : ''}`}
-                  onPointerDown={(event) => startDrag(point, event)}
-                  onClick={() => {
-                    if (suppressClick.current) return;
-                    if (staged) connectTo(point);
-                    else select(point);
-                  }}
-                  onDoubleClick={() => {
-                    select(point);
-                    setAdvanced(true);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      if (staged) connectTo(point);
-                      else select(point);
-                    }
-                    if (event.key === 'ArrowRight' && point.children.length) {
-                      event.preventDefault();
-                      if (collapsed.has(point.key))
-                        setCollapsed(
-                          (values) => new Set([...values].filter((key) => key !== point.key)),
-                        );
-                      else focusNode(point.piece, point.children[0]);
-                    }
-                    if (event.key === 'ArrowLeft') {
-                      event.preventDefault();
-                      if (point.children.length && !collapsed.has(point.key))
-                        setCollapsed((values) => new Set(values).add(point.key));
-                      else if (node.id.includes('/'))
-                        focusNode(point.piece, node.id.slice(0, node.id.lastIndexOf('/')));
-                    }
-                    if (event.key === 'Home') {
-                      event.preventDefault();
-                      focusNode(point.piece, 'root');
-                    }
-                    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                      event.preventDefault();
-                      const parentId = node.id.slice(0, node.id.lastIndexOf('/'));
-                      const siblings = layout.positions.get(`${point.piece.id}:${parentId}`)
-                        ?.children ?? ['root'];
-                      const index = siblings.indexOf(node.id);
-                      focusNode(
-                        point.piece,
-                        siblings[
-                          (index + (event.key === 'ArrowDown' ? 1 : siblings.length - 1)) %
-                            siblings.length
-                        ],
-                      );
-                    }
-                  }}
-                >
-                  <title>
-                    {node.expression?.code}
-                    {hypothesisDetails ? `\n${hypothesisDetails}` : ''}
-                    {preview ? `\n${preview.label}: ${preview.text}` : ''}
-                  </title>
-                  {junction ? (
-                    <>
-                      <text
-                        className="runtime-operation-name"
-                        x={nodeWidth / 2}
-                        y={19}
-                        textAnchor="middle"
-                      >
-                        {clip(
-                          meaning?.label ?? node.label,
-                          Math.max(12, Math.floor(nodeWidth / 5)),
-                        )}
-                      </text>
-                      <rect
-                        className="runtime-node-body"
-                        x={(nodeWidth - operationWidth) / 2}
-                        y={30}
-                        width={operationWidth}
-                        height={40}
-                        rx={20}
-                      />
-                      {node.expression?.inlineCall ? (
-                        <InlineCallLabel
-                          key={`${point.key}:${session}`}
-                          call={node.expression.inlineCall}
-                          width={nodeWidth}
-                          onBegin={() => {
-                            select(point);
-                            setNotice('');
-                          }}
-                          onReturnToCanvas={() => svg.current?.focus({ preventScroll: true })}
-                          onCommit={(slot, text) => {
-                            if (session !== liveSession.current) return false;
-                            return commit(
-                              {
-                                type: 'argument',
-                                source: {
-                                  ...point.address,
-                                  nodeId:
-                                    node.expression?.operationSourceNodeId ?? point.address.nodeId,
-                                  expectedRaw: point.piece.raw,
-                                },
-                                slot,
-                                text,
-                              },
-                              false,
-                            );
-                          }}
-                        />
-                      ) : (
-                        <text
-                          className="runtime-operation-label"
-                          x={nodeWidth / 2}
-                          y={56}
-                          textAnchor="middle"
-                        >
-                          {clip(node.label, 20)}
-                        </text>
-                      )}
-                      {preview && (
-                        <g
-                          className={`runtime-step-result${point.piece.id === 'main' && node.id === 'root' ? ' is-final' : ''}`}
-                          data-evaluation-state={preview.status}
-                        >
-                          <rect
-                            className="runtime-result-background"
-                            x={0}
-                            y={77}
-                            width={nodeWidth}
-                            height={nodeHeight - 81}
-                            rx={7}
-                          />
-                          <text className="runtime-result-caption" x={10} y={89}>
-                            {hypothesisDetails
-                              ? 'Hipótese não atestada'
-                              : node.id === 'root' && point.piece.id !== 'main'
-                                ? 'Resultado da peça'
-                                : preview.label}
-                          </text>
-                          <text className="runtime-result-text" x={10} y={108}>
-                            {preview.lines.map((line, index) => (
-                              <tspan key={index} x={10} dy={index ? 18 : 0}>
-                                {tracedLines ? (
-                                  <MorphemeSpans segments={tracedLines[index]} />
-                                ) : (
-                                  line
-                                )}
-                              </tspan>
-                            ))}
-                          </text>
-                        </g>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <rect
-                        className="runtime-node-body"
-                        width={nodeWidth}
-                        height={nodeHeight}
-                        rx={12}
-                      />
-                      <path className="runtime-node-accent" d={`M 1 18 L 1 ${nodeHeight - 18}`} />
-                      <text className="runtime-node-type" x={15} y={21}>
-                        {hole ? 'ENCAIXE VAZIO' : node.runtimeType.toLocaleUpperCase('pt')}
-                      </text>
-                      <text className="runtime-node-label" x={15} y={46}>
-                        {hole ? 'Adicionar uma peça' : clip(node.label, 27)}
-                      </text>
-                      <text className="runtime-node-definition" x={15} y={66}>
-                        {clip(
-                          hole
-                            ? 'Arraste ou conecte uma peça aqui'
-                            : hypothesisDetails || node.definition || node.expression?.code || '',
-                          36,
-                        )}
-                      </text>
-                      <text
-                        className="runtime-node-flags runtime-leaf-result"
-                        data-evaluation-state={preview?.status}
-                        x={15}
-                        y={86}
-                      >
-                        {preview
-                          ? preview.lines.map((line, index) => (
-                              <tspan key={index} x={15} dy={index ? 18 : 0}>
-                                {tracedLines ? (
-                                  <MorphemeSpans segments={tracedLines[index]} />
-                                ) : (
-                                  line
-                                )}
-                              </tspan>
-                            ))
-                          : point.piece.pending
-                            ? 'Avaliando esta peça…'
-                            : 'Expressão preservada'}
-                      </text>
-                    </>
-                  )}
-                </g>
-                <g
-                  role="button"
-                  tabIndex={0}
-                  aria-label={hole ? 'Conectar no encaixe vazio' : `Conectar ${node.label}`}
-                  onFocus={() => select(point)}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    connectTo(point);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      connectTo(point);
-                    }
-                  }}
-                >
-                  <circle
-                    className="canvas-port"
-                    cx={orientation === 'horizontal' ? -8 : nodeWidth / 2}
-                    cy={orientation === 'horizontal' ? 50 : -8}
-                    r={7}
-                  />
-                </g>
-                {point.children.length > 0 && (
-                  <g
-                    className="runtime-collapse"
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${collapsed.has(point.key) ? 'Expandir' : 'Recolher'} ${node.label}`}
-                    aria-expanded={!collapsed.has(point.key)}
-                    transform={`translate(${nodeWidth + 17} 50)`}
-                    onClick={() =>
-                      setCollapsed((values) => {
-                        const next = new Set(values);
-                        if (next.has(point.key)) next.delete(point.key);
-                        else next.add(point.key);
-                        return next;
-                      })
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        setCollapsed((values) => {
-                          const next = new Set(values);
-                          if (next.has(point.key)) next.delete(point.key);
-                          else next.add(point.key);
-                          return next;
-                        });
-                      }
-                    }}
-                  >
-                    <circle r={12} />
-                    <path
-                      className="runtime-collapse-chevron"
-                      d={collapsed.has(point.key) ? 'M -3 -5 L 3 0 L -3 5' : 'M -5 -3 L 0 3 L 5 -3'}
-                    />
-                  </g>
-                )}
-              </g>
-            );
-          })}
+          {edgeElements}
+          {nodeElements}
         </svg>
         <span className="runtime-canvas-hint canvas-hint">
           {staged

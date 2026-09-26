@@ -1,5 +1,18 @@
 # Work log
 
+## 2026-09-26 - Steady canvas camera and reusable tree rendering
+
+The tree editor no longer reframes itself during ordinary work. A new
+`src/domain/canvas-camera.ts` holds the fit, reveal and clamp rules; viewport
+resizes, scrollbars and sub-pixel reflows stop reaching the camera; and focusing
+a piece, detaching one or jumping to a search match now pans the smallest amount
+that brings it into view at the contributor's own zoom instead of imposing one.
+Node and edge elements are memoised from the layout alone behind a stable handler
+façade, so panning and zooming reuse them and no longer rebuild every card.
+243 domain tests, 87 canvas/tree browser tests (the same five pre-existing
+failures remain) and 25 workspace browser tests passed. See the
+[handoff](session-handoffs/2026-09-26-canvas-camera-stability.md).
+
 ## 2026-09-24 - Published four-platform desktop preview
 
 Published [0.2.10006](https://github.com/kiansheik/pydicate-studio/releases/tag/v0.2.10006)

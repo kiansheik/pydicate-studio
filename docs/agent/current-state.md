@@ -1,5 +1,18 @@
 # Current state
 
+## Steady tree-editor camera
+
+The canvas frames a tree once and then leaves the camera to the contributor.
+Viewport resizes, scrollbars and sub-pixel reflows no longer refit; fullscreen
+and **Ajustar** are the deliberate ways to reframe. Adding, detaching or
+combining a piece, and jumping to a search match, pan by the smallest amount that
+brings the target into view and keep the current zoom. `src/domain/canvas-camera.ts`
+holds those rules with unit checks. Node and edge elements are built from the
+layout alone behind a stable handler façade, so panning and zooming reuse them
+instead of rebuilding every card, and morpheme evidence is looked up through one
+map rather than a scan per node. See
+[handoff](session-handoffs/2026-09-26-canvas-camera-stability.md).
+
 ## Native installers, managed setup and startup updates
 
 Installers bundle SHA-256-pinned CPython 3.13.15 and Git 2.53.0, with precompiled
