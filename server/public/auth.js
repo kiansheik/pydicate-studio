@@ -1,0 +1,8 @@
+'use strict';
+const form=document.getElementById('account-form'),email=document.getElementById('email'),password=document.getElementById('password'),message=document.getElementById('message'),submit=document.getElementById('submit');
+const token=new URLSearchParams(location.hash.slice(1)).get('token');
+history.replaceState(null,'',location.pathname); // Remove reset secret from history before other resources/navigation.
+if(token){email.required=false;email.closest('label').hidden=true;password.minLength=15;password.autocomplete='new-password';submit.textContent='Definir senha';document.getElementById('forgot').hidden=true;message.textContent='Escolha uma senha com pelo menos 15 caracteres.';}
+async function post(route,body){const result=await fetch(route,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await result.json();if(!result.ok)throw new Error(data.error?.message||'Não foi possível completar o pedido.');return data;}
+form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;message.textContent='Aguarde…';try{await post(token?'/api/reset':'/api/login',token?{token,password:password.value}:{email:email.value,password:password.value});password.value='';location.replace(token?'/login':'/');}catch(error){message.textContent=error.message;}finally{submit.disabled=false;}};
+document.getElementById('forgot').onclick=async()=>{if(!email.reportValidity())return;try{message.textContent=(await post('/api/forgot',{email:email.value})).message;}catch(error){message.textContent=error.message;}};

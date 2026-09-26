@@ -1,0 +1,20 @@
+.collab-account { margin:0; font:16px/1.5 system-ui,sans-serif; background:#edf2f2; color:#142e31; }
+.collab-account main { max-width:32rem; margin:8vh auto; padding:2rem; background:white; border-radius:12px; }
+.collab-account label, #collab-panel label { display:block; margin:.8rem 0; }
+.collab-account input, #collab-panel input:not([type=checkbox]), #collab-panel textarea, #collab-panel select { box-sizing:border-box; width:100%; padding:.6rem; border:1px solid #a7b8b8; border-radius:5px; color:#152f32; background:#fff; }
+.collab-account button, #collab-panel button, #collab-toggle { font:inherit; border:1px solid #54787b; border-radius:5px; background:#174d52; color:white; padding:.5rem .7rem; margin:.2rem; cursor:pointer; }
+#collab-toggle { position:fixed; bottom:12px; right:12px; z-index:10000; }
+#collab-panel { position:fixed; z-index:9999; top:12px; right:12px; bottom:64px; width:min(420px,calc(100vw - 48px)); overflow:auto; padding:16px; border:1px solid #879fa0; background:#f7faf9; color:#173338; box-shadow:0 4px 24px #0004; font:14px/1.45 system-ui,sans-serif; }
+#collab-panel[hidden] { display:none; }
+#collab-panel h2 { margin:0 0 .8rem; } #collab-panel h3 { margin:1rem 0 .4rem; }
+#collab-panel article { border-top:1px solid #bdd0ce; padding:.65rem 0; }
+#collab-panel article p { white-space:pre-wrap; overflow-wrap:anywhere; }
+#collab-panel textarea { min-height:90px; } #collab-panel pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+#collab-panel details { margin:1rem 0; } #collab-panel summary { cursor:pointer; font-weight:600; }
+.collab-disclosure { font-size:.85em; opacity:.85; border-top:1px solid #bccdcc; padding-top:1rem; }
+@media(max-width:600px) { .collab-account main { margin:2vh 12px; padding:1.2rem; } }
+
+/* Isolate the panel from the desktop's global dark-theme element rules. */
+#collab-panel h2, #collab-panel h3, #collab-panel summary, #collab-panel label { color:#173338 !important; }
+#collab-panel input:not([type=checkbox]), #collab-panel textarea, #collab-panel select { color:#173338 !important; background:#fff !important; }
+#collab-panel input::placeholder, #collab-panel textarea::placeholder { color:#516a6d !important; opacity:1; }

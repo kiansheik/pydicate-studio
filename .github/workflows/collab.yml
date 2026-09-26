@@ -1,0 +1,64 @@
+name: Collaboration server
+on:
+  pull_request:
+  push:
+    branches: [main, collab-server-kian]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hosted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: studio
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: npm ci && npm run build:app
+        working-directory: studio
+      - name: Authentication, storage, HTTP and browser transport tests
+        run: node --test server/tests/*.test.cjs
+        working-directory: studio
+      - name: Install Chromium for the hosted transport workflow
+        run: npx playwright install --with-deps chromium
+        working-directory: studio
+      - name: Two-browser hosted transport workflow
+        run: COLLAB_BROWSER_TESTS=1 node --test server/tests/browser.test.cjs
+        working-directory: studio
+      - name: Trusted public corpus fixtures (read-only smoke)
+        run: |
+          mkdir workspace
+          git clone --depth 1 https://github.com/kiansheik/oldtupicorpus.git workspace/oldtupicorpus
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/kiansheik/nhe-enga.git workspace/nhe-enga
+          git -C workspace/nhe-enga sparse-checkout set --no-cone '/*' '!/*/' '/pydicate/' '/tupi/' '/js/' '/docs/dict-conjugated.json.gz' '/docs/primary_sources/index.html' '/docs/primary_sources/image-formats.json'
+          git -C workspace/oldtupicorpus rev-parse HEAD
+          git -C workspace/nhe-enga rev-parse HEAD
+      - name: Real Python adapter and source integrity
+        run: |
+          COLLAB_REAL_PROJECT="$GITHUB_WORKSPACE/workspace" node --test server/tests/real-project.test.cjs
+          test -z "$(git -C "$GITHUB_WORKSPACE/workspace/oldtupicorpus" status --porcelain --untracked-files=no)"
+          test -z "$(git -C "$GITHUB_WORKSPACE/workspace/nhe-enga" status --porcelain --untracked-files=no)"
+        working-directory: studio
+      - name: Full compiled React editor with the real Python service
+        run: |
+          COLLAB_FULL_EDITOR=1 COLLAB_REAL_PROJECT="$GITHUB_WORKSPACE/workspace" node --test server/tests/full-editor.test.cjs
+          test -z "$(git -C "$GITHUB_WORKSPACE/workspace/oldtupicorpus" status --porcelain --untracked-files=no)"
+        working-directory: studio
+      - name: Hosted editor browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-editor-evidence
+          path: studio/test-results/collab/
+          if-no-files-found: ignore
+          retention-days: 7
