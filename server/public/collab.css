@@ -15,6 +15,6 @@
 @media(max-width:600px) { .collab-account main { margin:2vh 12px; padding:1.2rem; } }
 
 /* Isolate the panel from the desktop's global dark-theme element rules. */
-#collab-panel h2, #collab-panel h3, #collab-panel summary, #collab-panel label { color:#173338; }
+#collab-panel h2, #collab-panel h3, #collab-panel summary, #collab-panel label { color:#173338 !important; }
 #collab-panel input:not([type=checkbox]), #collab-panel textarea, #collab-panel select { color:#173338 !important; background:#fff !important; }
-#collab-panel input::placeholder, #collab-panel textarea::placeholder { color:#516a6d; opacity:1; }
+#collab-panel input::placeholder, #collab-panel textarea::placeholder { color:#516a6d !important; opacity:1; }
