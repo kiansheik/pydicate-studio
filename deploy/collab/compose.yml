@@ -6,6 +6,7 @@ services:
       dockerfile: deploy/collab/Dockerfile
     restart: unless-stopped
     init: true
+    stop_grace_period: 75s
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

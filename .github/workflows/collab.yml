@@ -49,3 +49,16 @@ jobs:
           test -z "$(git -C "$GITHUB_WORKSPACE/workspace/oldtupicorpus" status --porcelain --untracked-files=no)"
           test -z "$(git -C "$GITHUB_WORKSPACE/workspace/nhe-enga" status --porcelain --untracked-files=no)"
         working-directory: studio
+      - name: Full compiled React editor with the real Python service
+        run: |
+          COLLAB_FULL_EDITOR=1 COLLAB_REAL_PROJECT="$GITHUB_WORKSPACE/workspace" node --test server/tests/full-editor.test.cjs
+          test -z "$(git -C "$GITHUB_WORKSPACE/workspace/oldtupicorpus" status --porcelain --untracked-files=no)"
+        working-directory: studio
+      - name: Hosted editor browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-editor-evidence
+          path: studio/test-results/collab/
+          if-no-files-found: ignore
+          retention-days: 7

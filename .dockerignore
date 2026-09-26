@@ -9,3 +9,7 @@ release
 **/*.pem
 **/*.key
 !**/.env.example
+.local
+.venv
+test-results
+playwright-report
