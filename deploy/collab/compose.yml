@@ -1,0 +1,43 @@
+name: pydicate-studio
+services:
+  studio:
+    build:
+      context: ../..
+      dockerfile: deploy/collab/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 2g
+    cpus: 2.0
+    env_file: .env
+    environment:
+      COLLAB_STATE_DIR: /data
+      COLLAB_HOST: 0.0.0.0
+      COLLAB_PORT: 8787
+      COLLAB_TRUST_PROXY: '1'
+      PYDICATE_PROJECT_PARENT: /workspace
+    volumes:
+      - studio_data:/data
+      # Use dedicated trusted server checkouts, never a contributor's working copy.
+      - ${COLLAB_WORKSPACE:?Set COLLAB_WORKSPACE}/oldtupicorpus:/workspace/oldtupicorpus
+      - ${COLLAB_WORKSPACE:?Set COLLAB_WORKSPACE}/nhe-enga:/workspace/nhe-enga:ro
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    networks:
+      edge:
+        aliases: [pydicate-studio]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # No published port and no second Caddy: existing shared edge owns 80/443.
+volumes:
+  studio_data:
+networks:
+  edge:
+    external: true
+    name: caddy_edge

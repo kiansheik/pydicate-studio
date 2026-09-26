@@ -1,0 +1,18 @@
+# Optional overlay for the existing Neologismo SMTP relay. Confirm the actual
+# private network name; do not publish an unauthenticated SMTP port on the VPS.
+services:
+  studio:
+    networks:
+      - edge
+      - existing_mail
+    environment:
+      SMTP_HOST: smtp-relay
+      SMTP_PORT: '25'
+      SMTP_USE_TLS: 'false'
+      SMTP_USE_SSL: 'false'
+      SMTP_USERNAME: ''
+      SMTP_PASSWORD: ''
+networks:
+  existing_mail:
+    external: true
+    name: ${COLLAB_SMTP_NETWORK:?Set the existing private relay network}
