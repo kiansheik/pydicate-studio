@@ -1,5 +1,57 @@
 # Work log
 
+## 2026-09-27 - Compact short leaf branches
+
+Bottom-up layout now compares occupied branch contours at matching depths rather
+than reserving each subtree's full rectangular width. Short right-hand leaves
+move closer to deep left branches; mirrored trees benefit too. Parent centering,
+operand order, wrapped-result clearance and the existing sibling gap remain.
+Four layout tests, nine browser checks, typecheck and production Vite build pass;
+the exact expanded-tree screenshot was inspected after compaction.
+See [handoff](session-handoffs/2026-09-27-compact-tree-spacing.md).
+
+## 2026-09-27 - Fix overlapping leaves through Expandir tudo
+
+The previous repair only reorganized positions through a separate button.
+**Expandir tudo** still combined a fully expanded tree with conflicting saved
+coordinates. It now uses the same undoable automatic placement before fitting,
+while individual branch expansion and ordinary navigation retain placements.
+Regression coverage starts from the screenshot's exact saved tree and presses
+the reported command directly; it failed before the fix and passes after it.
+All three new and twelve existing browser checks, 54 focused domain checks,
+TypeScript and the production Vite build pass. See the
+[handoff](session-handoffs/2026-09-27-expand-all-layout.md).
+
+## 2026-09-26 - Review camera regressions and restore overlapping layouts
+
+Reviewed `e210c5d` against its parent. Fixed initial fitting of hidden panes,
+fullscreen dimensions/return, delayed-evaluation camera ownership and initial
+focus when a sole loose tree becomes principal. Added tests that open the tree
+without first clicking **Ajustar**. The screenshot's crossings matched saved
+position edits; the source tree itself retained its connections.
+
+**Organizar árvore** now restores automatic placement in one undoable layout
+edit, and Alt/middle-button dragging pans over cards without moving them.
+An isolated replay of the actual saved tree retained all 12 nodes and identical
+source/results while removing both overlaps. Typecheck, production Vite build,
+74 focused domain checks and 96 tree browser checks passed; five failures also
+reproduce before the camera change. After stabilizing the empty-canvas fallback,
+14 workspace/camera/layout checks passed again. Details are recorded in the
+[handoff](session-handoffs/2026-09-26-canvas-regression-review.md).
+
+## 2026-09-26 - Steady canvas camera and reusable tree rendering
+
+The tree editor no longer reframes itself during ordinary work. A new
+`src/domain/canvas-camera.ts` holds the fit, reveal and clamp rules; viewport
+resizes, scrollbars and sub-pixel reflows stop reaching the camera; and focusing
+a piece, detaching one or jumping to a search match now pans the smallest amount
+that brings it into view at the contributor's own zoom instead of imposing one.
+Node and edge elements are memoised from the layout alone behind a stable handler
+façade, so panning and zooming reuse them and no longer rebuild every card.
+243 domain tests, 87 canvas/tree browser tests (the same five pre-existing
+failures remain) and 25 workspace browser tests passed. See the
+[handoff](session-handoffs/2026-09-26-canvas-camera-stability.md).
+
 ## 2026-09-24 - Published four-platform desktop preview
 
 Published [0.2.10006](https://github.com/kiansheik/pydicate-studio/releases/tag/v0.2.10006)

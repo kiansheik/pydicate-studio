@@ -9,6 +9,7 @@ export interface CanvasFixture extends CanvasEdit {
   root: AuthorNode | null;
   evaluatedRoot?: AuthorNode | null;
   failures?: EvaluationFailure[];
+  hidden?: boolean;
 }
 declare global {
   interface Window {
@@ -18,6 +19,7 @@ declare global {
     canvasSetPassageId: (id: string) => void;
     canvasSetEngineFingerprint: (fingerprint: string) => void;
     canvasShowTree: (visible: boolean) => void;
+    canvasSetPaneVisible: (visible: boolean) => void;
     canvasDiagnostic?: CanvasDiagnostic;
     canvasClipboard?: string;
     canvasLexicalPreview?: import('../src/domain/authoring').SourcePreview;
@@ -40,11 +42,12 @@ function Harness() {
     draft.raw === initial.raw ? initial.evaluatedRoot : undefined,
   );
   const [failures, setFailures] = useState(initial.failures);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState(!initial.evaluatedRoot);
   const [revision, setRevision] = useState(0);
   const [passageId, setPassageId] = useState('canvas-fixture');
   const [engineFingerprint, setEngineFingerprint] = useState('canvas-fixture-engine');
   const [showTree, setShowTree] = useState(true);
+  const [paneVisible, setPaneVisible] = useState(!initial.hidden);
   const [selection, setSelection] = useState('root');
   const [history, setHistory] = useState<CanvasEdit[]>([]);
   const [future, setFuture] = useState<CanvasEdit[]>([]);
@@ -54,6 +57,7 @@ function Harness() {
   window.canvasSetPassageId = setPassageId;
   window.canvasSetEngineFingerprint = setEngineFingerprint;
   window.canvasShowTree = setShowTree;
+  window.canvasSetPaneVisible = setPaneVisible;
   useEffect(() => {
     let current = true;
     setPending(true);
@@ -110,7 +114,14 @@ function Harness() {
   }
   window.canvasReplaceRaw = changeRaw;
   return (
-    <main style={{ maxWidth: 1400, margin: 'auto', fontFamily: 'sans-serif' }}>
+    <main
+      style={{
+        maxWidth: 1400,
+        margin: 'auto',
+        fontFamily: 'sans-serif',
+        display: paneVisible ? undefined : 'none',
+      }}
+    >
       {showTree && (
         <PydicateTree
           raw={draft.raw}

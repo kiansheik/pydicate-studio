@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { copyText } from '../domain/clipboard';
 import { flushLexicalNotes, LEXICAL_NOTES_CHANGED } from '../domain/lexical-note-sync';
 import {
   canAcceptAI,
@@ -652,7 +653,7 @@ export function AssistantPanel(props: AssistantProps) {
               <button
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(prompt.prompt);
+                    await copyText(prompt.prompt);
                     setCopiedPrompt(true);
                   } catch (problem) {
                     setError(String(problem));
@@ -821,9 +822,9 @@ export function AssistantPanel(props: AssistantProps) {
                 {record.status === 'completed' && record.action === 'translate' && (
                   <button
                     onClick={() =>
-                      void navigator.clipboard
-                        .writeText(record.suggestion?.translation || record.text)
-                        .catch((problem) => setError(String(problem)))
+                      void copyText(record.suggestion?.translation || record.text).catch(
+                        (problem) => setError(String(problem)),
+                      )
                     }
                   >
                     {resultScope === 'passage'
