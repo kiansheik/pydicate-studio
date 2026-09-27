@@ -23,8 +23,11 @@ lexical notes are active; four remain historical. Final PR and both main CI
 workflows are green (205 browser tests passed, 102 optional skipped, no failures).
 The only CI failure was an outdated blank-transcription expectation, corrected
 to the requested inherited reading; exact textual lines and prayer metadata also
-carry into empty passages. A separate history readability follow-up (`c4732a5`)
-passed six reader and four browser tests; its deployment remains to be recorded.
+carry into empty passages. The history readability follow-up passed six reader
+and four browser tests and deployed as PR #10 (`4602f57`), with a new verified
+full backup and no repeat archive import. Final live checks passed all 1,167
+field comparisons and all 73 individually numbered analysis revisions; recorded
+expressions/results are readable and active drafts/selection remain unchanged.
 
 ## 2026-09-27 - Merge collaboration into main and repair deployment
 

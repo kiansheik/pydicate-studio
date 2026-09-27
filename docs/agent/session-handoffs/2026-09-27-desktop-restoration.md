@@ -93,7 +93,25 @@ individual revision numbers, saved-expression fallbacks, rationale and annotated
 results are directly readable. The actual archive already exposes all 73
 candidate revisions individually. Six reader tests and four browser tests pass;
 the 73-record regression also covers pagination, stable identities and exact
-original downloads. This follow-up's release/deployment is not yet recorded.
+original downloads.
+
+PR #10 merged as `4602f5749bc83ba3987999752bd1491fd66d2476`. Deployment through
+`Remote.prepare_release` / `Remote.deploy_release` succeeded using the already
+verified server archive, without uploading or importing it again. The service
+is healthy and publication receipt verification passed. Both files in the new
+backup `predeploy-20260927T173928-3e8a87` were independently rehashed; dependency
+revisions remain unchanged. Private logs/reports: `deploy-history.log` and
+`history-backup-verification.json` under `.local/desktop-migration/`.
+The task's disposable PostgreSQL cluster on port 56544 was stopped cleanly.
+
+Final live parity repeated all 202 file checks, 1,167 field comparisons and
+preexisting history hashes successfully (`history-live-verification.json`).
+The isolated read-only Chrome check
+`browser-candidate-history-2026-09-27T17-41-58.083Z.json` passed pagination
+(50 + 23 = 73 unique numbered revisions), an actual evaluated revision's exact
+expression/rationale/annotated result and original download availability.
+Selection and the complete draft hash stayed unchanged, with no blocked requests,
+browser errors or API failures.
 
 ## What worked / what failed
 
@@ -120,8 +138,8 @@ Historical records without a provable current source/lexical occurrence remain
 visible for review instead of being attached by guesswork. In-memory undo stacks
 and tab-specific Session Storage are not recoverable authoring histories through
 this migration. Browser-only PDF buffers are restored explicitly to the owner's
-browser without replacing newer local buffers. Record the separate history
-readability follow-up's release and final verification when deployed.
+browser without replacing newer local buffers. The source profile and complete
+allowlisted original archive remain preserved.
 
 Suggested next prompt: “Review the restored desktop history and resolve any
 historical source links that should become current passages.”

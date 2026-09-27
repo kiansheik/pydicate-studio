@@ -32,10 +32,14 @@ The previous PDF page/region remains a guide; existing next-passage work is
 preserved. Optional `prayerName` round-trips in Studio metadata and is shown as
 `Oração (opcional)`.
 
-A separate history readability follow-up (`c4732a5`) numbers candidate revisions
-and shows saved expressions, rationale and annotated results directly. Six reader
-tests and four browser tests pass; all 73 actual revisions were already
-individually flattened. Its deployment is not yet recorded here.
+The history readability follow-up (PR #10, deployed `4602f57`) numbers candidate
+revisions and shows saved expressions, rationale and annotated results directly.
+Six reader tests and four browser tests pass; all 73 actual revisions were already
+individually flattened. The final release is healthy and its new full backup
+has independently verified hashes; the verified archive was reused without
+another import. Final live checks repeated all 1,167 field comparisons and
+verified 73 individually numbered history revisions, readable recorded results,
+unchanged drafts/selection and no browser/API errors.
 
 ## PDF range cache and idle upstream updates
 
