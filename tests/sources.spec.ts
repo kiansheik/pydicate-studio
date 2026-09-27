@@ -64,7 +64,9 @@ test('create a source, write its first reading, reload, switch sources and appen
   );
   await page.locator('.add-next-passage').click();
   await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0002');
-  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
+    'Minha primeira leitura',
+  );
   await page
     .getByRole('combobox', { name: 'Fonte', exact: true })
     .selectOption('araujo_catecismo_1686');
