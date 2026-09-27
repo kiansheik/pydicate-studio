@@ -364,7 +364,16 @@ export function PdfEvidence({
     let loading: ReturnType<typeof getDocument> | undefined;
     setPdf(null);
     setViewport(null);
-    if (!assetId || !window.studio?.invoke || status?.asset?.managedState !== 'ok') return;
+    // A source switch renders once with the previous status before its reset
+    // effect commits. Never request that asset under the new source's identity.
+    if (
+      !assetId ||
+      !window.studio?.invoke ||
+      status?.asset?.managedState !== 'ok' ||
+      status.projectId !== projectId ||
+      status.sourceId !== sourceId
+    )
+      return;
     setRendering(true);
     window.studio
       .invoke('evidence_bytes', { projectId, sourceId, passageId, assetId })
@@ -400,7 +409,14 @@ export function PdfEvidence({
       cancelled = true;
       void loading?.destroy();
     };
-  }, [projectId, sourceId, assetId, status?.asset?.managedState]);
+  }, [
+    projectId,
+    sourceId,
+    assetId,
+    status?.asset?.managedState,
+    status?.projectId,
+    status?.sourceId,
+  ]);
 
   useEffect(() => {
     if (!pdf || !canvas.current) return;

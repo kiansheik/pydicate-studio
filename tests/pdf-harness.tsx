@@ -5,6 +5,9 @@ import type { EvidencePointer } from '../src/domain/evidence';
 
 function Harness() {
   const guideMode = new URLSearchParams(location.search).has('guide');
+  const sourcesMode = new URLSearchParams(location.search).has('sources');
+  const [sourceId, setSourceId] = useState('araujo');
+  const [projectId, setProjectId] = useState('project:pdf-test');
   const [pointers, setPointers] = useState(0);
   const [lastPointer, setLastPointer] = useState<EvidencePointer | null>(null);
   const [hidden, setHidden] = useState(false);
@@ -22,6 +25,20 @@ function Harness() {
   return (
     <main style={{ maxWidth: 650, color: '#eee', background: '#1a1d24', fontFamily: 'sans-serif' }}>
       <nav>
+        {sourcesMode && (
+          <>
+            <button onClick={() => setSourceId('bettendorff')}>Fonte Bettendorff</button>
+            <button onClick={() => setProjectId('project:other')}>Outro projeto</button>
+            <button
+              onClick={() => {
+                setSourceId('araujo');
+                setProjectId('project:pdf-test');
+              }}
+            >
+              Voltar à fonte original
+            </button>
+          </>
+        )}
         <button onClick={() => choosePassage('passage:a')}>Passagem A</button>
         <button onClick={() => choosePassage('passage:b')}>Passagem B</button>
         {guideMode && <button onClick={() => choosePassage('passage:c')}>Passagem C</button>}
@@ -41,8 +58,8 @@ function Harness() {
       <div hidden={hidden}>
         <PdfEvidence
           preparationRef={preparation}
-          projectId="project:pdf-test"
-          sourceId="araujo"
+          projectId={projectId}
+          sourceId={sourceId}
           passageId={passage}
           newPassageGuide={guideMode && passage !== 'passage:a'}
           previousPassageId={
