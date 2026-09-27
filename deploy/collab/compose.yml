@@ -11,7 +11,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-studio.sh:ro
-    networks: [database]
+    networks:
+      database:
+        # Studio also joins Neo's SMTP network, which has its own `postgres`.
+        aliases: [pydicate-studio-postgres]
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U studio_app -d studio_prod']
       interval: 5s
@@ -41,7 +44,7 @@ services:
       COLLAB_TRUST_PROXY: '1'
       COLLAB_AI_ENABLED: '0'
       COLLAB_VAULT_KEY_FILE: /run/secrets/provider_vault_key
-      PGHOST: postgres
+      PGHOST: pydicate-studio-postgres
       PGUSER: studio_app
       PGDATABASE: studio_prod
       PGPASSWORD_FILE: /run/secrets/postgres_password

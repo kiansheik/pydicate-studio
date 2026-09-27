@@ -12,6 +12,21 @@ jobs:
     timeout-minutes: 20
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      COLLAB_TEST_DATABASE_URL: postgresql://studio_test:studio_test@127.0.0.1:5432/studio_test
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: studio_test
+          POSTGRES_PASSWORD: studio_test
+          POSTGRES_DB: studio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U studio_test -d studio_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
         with:
