@@ -606,3 +606,9 @@ Cross-runtime diagnosis found Python 3.14/3.11 AST fingerprint differences behin
 61 avoidable unmatched crop links. The importer now recognizes unique identical
 source-file SHA/source/ordinal statements without weakening changed-file checks;
 13 evidence-import tests pass.
+
+Final deployment `a24f874` restored 61 previously unmatched crop links, retained
+four existing server values, and left two historical orphans. Live source/PDF
+smoke passed with saved drafts unchanged; backup hashes and successful active
+timer verified. Strict cached navigation measured 453 ms; warm reload fetched
+zero PDF bytes. Latest published corpus/grammar revisions are live.

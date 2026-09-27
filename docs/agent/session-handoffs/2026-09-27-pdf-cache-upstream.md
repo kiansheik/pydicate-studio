@@ -135,3 +135,23 @@ passage 17 1.72 s, passage 18 3.61 s, next physical page 1.13 s, cached return
 453 ms. Reload including full application startup took 5.22 s with zero PDF
 requests. Total PDF traffic remains 1,175,699 B; original selection/drafts stayed
 unchanged. Report: `.local/vps-qa/pdf-performance-2026-09-27T16-39-54.349Z.json`.
+
+
+## Final portability deployment and verification
+
+PR #8 merged and deployed as `a24f874b2c624514015ff86f215788209c585226`.
+The import added 61 entries, preserved four existing hosted entries, left two
+historical IDs unmatched, and resolved all predecessor-guide mappings. Existing
+server values retain priority. Public health and release.json agree; dependency
+revisions remain e707610a/c43c83ec. Full backup
+`predeploy-20260927T164256-91d037` passed independent SHA-256 checks for both files.
+The timer is active and its last service result is success.
+
+Final browser smoke passed login, multiple sources, opening/cancelling Nova fonte,
+actual scan pixels and saved regions, source switch/return, zero desktop queue
+calls/API/browser errors, restored original selection and unchanged shared drafts.
+Private report: `.local/vps-qa/source-deploy-smoke-2026-09-27T16-45-24.126Z.json`.
+The UI readiness push CI passed all checks; hosted CI also passed for the final
+portability PR. The final broad browser CI jobs were still running when these
+notes were written; focused import tests and actual deployment/import already pass.
+No credentials, PDFs, corpus text or private reports were committed.

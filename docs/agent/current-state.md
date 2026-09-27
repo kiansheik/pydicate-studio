@@ -22,11 +22,15 @@ revisions: oldtupicorpus `e707610a`, nhe-enga `c43c83ec`.
 
 Local verification: production build, 19 PDF/cache browser scenarios, authenticated
 HTTP/range/abort checks, real-source upload/restore, and the compiled contributor
-source/PDF/crop/restart/submission workflow pass. PR #7 (`ae4087b`) is deployed; both repositories are current and the timer
+source/PDF/crop/restart/submission workflow pass. PR #8 (`a24f874`) is deployed; both repositories are current and the timer
 is active. Current-page rendering readiness is explicit before drawing. The
 remaining crop-import mismatch was traced to Python 3.14 versus 3.11 AST dump
 formatting, despite identical source files. A narrow full-file SHA/source/ordinal
 match restores portability while preserving changed-file and collision checks.
+The final import added 61 links, preserved four existing server entries, left two
+historical entries unmatched and no unmatched guides. Final real-source/PDF smoke
+passed with original selection and shared drafts preserved; the full backup
+checksums and the successful active timer were independently verified.
 Live rollout and measurements are recorded in the [handoff](session-handoffs/2026-09-27-pdf-cache-upstream.md).
 
 ## Main merge and deployment repair
