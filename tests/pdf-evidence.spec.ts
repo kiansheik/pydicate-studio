@@ -37,7 +37,11 @@ async function draw(page: Page, start: [number, number], end: [number, number]) 
   await page.mouse.up();
 }
 
-async function guideFixture(page: Page, directory: string) {
+async function guideFixture(
+  page: Page,
+  directory: string,
+  onInvoke?: (method: string, input: Record<string, unknown>) => void,
+) {
   const source = join(directory, 'guide-vector.pdf');
   await writeFile(source, makePdfFixture());
   const options = { stateDirectory: join(directory, 'state'), chooseFile: async () => source };
@@ -54,6 +58,7 @@ async function guideFixture(page: Page, directory: string) {
   await page.exposeFunction(
     '__pdfInvoke',
     async (method: string, input: Record<string, unknown>) => {
+      onInvoke?.(method, input);
       const result = await fixture.service.invoke(method, {
         ...input,
         previousPassages: input.passageId === 'passage:a' ? [] : [{ id: 'passage:a', ordinal: 1 }],
@@ -74,6 +79,53 @@ async function guideFixture(page: Page, directory: string) {
     };
   });
   return { fixture, assetId: attached.asset!.id, revision: attached.revision };
+}
+
+for (const target of ['Fonte Bettendorff', 'Outro projeto']) {
+  test(`switching to ${target} never requests the previous source's PDF`, async ({ page }) => {
+    const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-source-switch-'));
+    try {
+      const byteRequests: Record<string, unknown>[] = [];
+      const { fixture, assetId, revision } = await guideFixture(
+        page,
+        directory,
+        (method, input) => {
+          if (method === 'evidence_bytes') byteRequests.push(input);
+        },
+      );
+      const saved = (await fixture.service.invoke('evidence_save', {
+        ...params,
+        assetId,
+        expectedRevision: revision,
+        regions: [{ id: 'saved-region', assetId, pageIndex: 0, rect: [30, 40, 90, 100] }],
+        view: { pageIndex: 0, zoom: 1, rotation: 0 },
+      })) as EvidenceStatus;
+      await page.goto('/tests/pdf-harness.html?sources');
+      await ready(page);
+      await expect(
+        page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: target, exact: true }).click();
+      await expect(
+        page.getByRole('button', { name: 'Vincular PDF à fonte', exact: true }),
+      ).toBeEnabled();
+      await expect(page.getByTestId('pdf-canvas')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Voltar à fonte original', exact: true }).click();
+      await ready(page);
+      await expect(
+        page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true }),
+      ).toBeVisible();
+      expect(byteRequests).toEqual([
+        { ...params, assetId },
+        { ...params, assetId },
+      ]);
+      const returned = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+      expect(returned.passage).toEqual(saved.passage);
+      expect(returned.revision).toBe(saved.revision);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 }
 
 test('hosted PDF keeps real rendering and saved regions without desktop relocation controls', async ({
