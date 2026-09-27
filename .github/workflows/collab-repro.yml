@@ -1,0 +1,36 @@
+name: Collaboration reproducibility
+on:
+  workflow_dispatch:
+  push:
+    branches: [collab-server-kian]
+    paths: ['.github/workflows/collab-repro.yml']
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: studio
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Capture tracked source only and isolated PostgreSQL client dependency
+        run: |
+          git -C studio archive HEAD -o "$PWD/studio-source.tar"
+          mkdir pg-tools
+          cd pg-tools
+          npm init -y >/dev/null
+          npm install --save-exact pg@8.16.3
+          cd ..
+          tar -czf pg-tools.tar.gz pg-tools
+      - uses: actions/upload-artifact@v4
+        with:
+          name: collaboration-source-validation
+          path: |
+            studio-source.tar
+            pg-tools.tar.gz
+          retention-days: 7
