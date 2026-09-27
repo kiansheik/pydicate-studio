@@ -74,6 +74,7 @@
       return;
     }
     const input = value.input || value.inputContext || value.context || {};
+    if (entry.revisionNumber) element('p', 'Revisão ' + entry.revisionNumber, parent);
     const status = value.workflow?.stage || value.status;
     if (status) element('p', 'Estado na cópia: ' + (labels[status] || status), parent);
     if (value.provider || input.provider)
@@ -126,8 +127,15 @@
     );
     textSection(parent, 'Tradução em português', value.translations?.pt);
     textSection(parent, 'Tradução em inglês', value.translations?.en);
-    textSection(parent, 'Expressão Pydicate', value.raw || value.suggestion?.expression, true);
+    textSection(
+      parent,
+      'Expressão Pydicate',
+      value.raw ?? value.expression ?? value.suggestion?.expression ?? value.evaluation?.expression,
+      true,
+    );
+    textSection(parent, 'Justificativa', value.rationale);
     textSection(parent, 'Resultado registrado', value.evaluation?.surface || value.surface);
+    textSection(parent, 'Resultado anotado', value.evaluation?.annotated, true);
     textSection(parent, 'Notas', value.notes || value.fields?.note);
     textSection(parent, 'Interpretação', value.fields?.meaning);
     textSection(parent, 'Observações gramaticais', value.fields?.grammar);
@@ -354,6 +362,7 @@
             [
               entry.sourceId,
               entry.ordinal ? 'passagem ' + entry.ordinal : '',
+              entry.revisionNumber ? 'revisão ' + entry.revisionNumber : '',
               entry.status ? labels[entry.status] || entry.status : '',
               entry.originalPassageId && !entry.passageId ? 'vínculo não resolvido' : '',
             ]
