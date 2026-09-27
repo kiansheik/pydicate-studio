@@ -1,5 +1,104 @@
 # Work log
 
+## 2026-09-27 - Merge collaboration into main and repair deployment
+
+The successful 84.7 MB upload exposed an incompatible default release: `main`
+did not contain the collaboration installer. The user explicitly authorized
+merging PR #2 and retrying. Published completed task changes as `74b2bb3` on
+`collab-server-kian`, preserving unrelated uncommitted agent notes. Added remote
+release validation before upload and pinned the verified commit across transfer;
+39 deployment tests, app build and formatting passed. All four GitHub checks passed, PR #2 merged as `02851f6`, and the ordinary Make
+deploy succeeded with verified backup and HTTPS health. Real scan/source smoke
+found one transient stale-PDF request on source switching; follow-up repair is
+recorded in the [handoff](session-handoffs/2026-09-27-main-deployment.md).
+PR #4 deployed `91707c0`; final live browser check passed real scan rendering,
+source switching, restored selection and unchanged drafts with no API/queue
+errors. Repeat PDF import was idempotent and the second backup hashes verified.
+A separate test-only readiness correction passed the rebuilt compiled contributor
+workflow (1/1, no skips) and was merged through PR #5; no further runtime deploy
+is required for that test/documentation change.
+
+## 2026-09-27 - Show deployment upload progress
+
+The user interrupted `make collab-deploy` after its single PDF-count message;
+the traceback confirmed an unobservable SSH upload before server deployment.
+Added standard-library streaming progress with transfer ETA, speed and elapsed
+time, non-TTY heartbeat lines, bounded stalled uploads, SSH keepalives/connection
+timeout and clean cancellation. Checksum/no-overwrite checks remain. Remote host
+operations now label each build/backup/migration/import/health phase with flushed
+output. All 34 deployment operation tests passed, covering slow/failing/stalled
+local receivers, startup/active cancellation and checksum ordering without
+touching the VPS. See
+[handoff](session-handoffs/2026-09-27-deploy-progress.md).
+
+## 2026-09-27 - Multiple sources and hosted PDF contribution
+
+Repaired the hosted desktop-AI queue request and missing PDF upload revision.
+Removed the hidden Bettendorff exclusion and Araújo-only append/analysis gates.
+Added a source selector, safe empty `.tu.py` creation, first-line drafts,
+source-local navigation and restoration, contributor upload and an editor
+submission action. Reviewer publication/ground truth remains explicit. Saved
+PDF pointers now restore after reload, and immutable submissions carry source
+metadata plus own-region geometry; imports recreate missing source scaffolds.
+
+Deployment now transfers managed PDFs/evidence from the laptop profile with
+additive conflict-preserving import. Real 84.7 MB local roundtrip succeeded;
+100 entries mapped, two historical entries retained for review. Browser tests
+passed source creation/restoration, existing insertion workflows, hosted queue
+behavior and actual PDF rendering/persistence. The compiled hosted contributor
+workflow passed against real Python and disposable PostgreSQL, including
+evaluation and immutable evidence submission. Typecheck, production build,
+domain, Python, desktop service and operation checks passed; details and exact
+boundaries are in the [handoff](session-handoffs/2026-09-27-multiple-sources-pdfs.md).
+Existing unrelated agent notes were preserved. No publication or live deploy.
+
+## 2026-09-27 - Repair browser enforcement during Neo consent
+
+The user reported a CSP form-action error while using their invitation. Actual
+Chromium verification also found that `no-referrer` produced `Origin: null` on
+the consent POST, correctly rejected by Neo. Fixed only the consent HTML policy:
+allow its configured Studio callback and use same-origin referrers; code/API
+responses retain no-referrer and all identity checks remain. HTTP clients had
+missed both browser behaviors. Studio `ba52715` adds a real-browser contract,
+pinned in Neo CI by `d47e009`. Old self-only CSP fails that contract; corrected
+headers pass the actual callback/session and revocation flow. Fresh Neo backup
+and API tests passed; deployment/CI outcomes are in the
+[handoff](session-handoffs/2026-09-27-neo-consent-browser.md).
+
+## 2026-09-27 - Repair and verify the hosted VPS
+
+After the user authorized diagnosis and completion, fixed Studio's PostgreSQL
+DNS collision with Neo and root-owned Git metadata created by host operations.
+Installed all migrations without resetting a database; ordinary redeploy at
+`871de34` passed with application-owned workspace metadata. Configured Neo SSO,
+created the private independent recovery administrator, added only Studio's
+Caddy block, and sent the requested admin invitation. Personal Neo sign-in
+confirmation is still pending.
+
+Live recovery-account QA passed real corpus evaluation, persistent edits,
+comments, presence/reservations, submission and history/activity; restored the
+original draft afterward. Downloaded the first full backup, verified its outer
+and manifest checksums, and rechecked public health after restart. Operations
+tests: 12 passed. Server tests: 31 passed, three opt-in suites initially skipped;
+real-project, compiled-editor and real-Neo identity suites subsequently passed
+separately. Live server-to-server identity introspection also passed. Fixed
+collaboration CI's missing PostgreSQL service and outdated hidden-Code fixture;
+all four collaboration and general Checks runs are green on `30d8120`. See the
+[repair handoff](session-handoffs/2026-09-27-vps-repair.md).
+
+## 2026-09-27 - VPS QA stopped at Studio database migration
+
+Updated both requested branches, backed up Neo database/media, and deployed
+Neo identity `23ad031`; migration and public API/CORS smoke checks passed.
+Studio clean installation at `b68c2e5` built successfully and brought up its
+dedicated healthy PostgreSQL container, then failed at `server/migrate.cjs`
+with a generic migration error. Stopped at this first runbook failure; no
+database reset/retry, recovery account, SSO activation, Caddy change or browser
+QA followed. Neo health remained OK and Studio had no activated `current`
+release. User-added DNS resolves to the VPS. Current collaboration CI separately
+lacks its test PostgreSQL service/URL. See the
+[handoff](session-handoffs/2026-09-27-vps-qa.md) for preserved state and next steps.
+
 ## 2026-09-27 - Compact short leaf branches
 
 Bottom-up layout now compares occupied branch contours at matching depths rather
@@ -327,7 +426,7 @@ Verification: build/typecheck, eight domain tests, 47 desktop/MCP checks across 
 
 The preceding mendara proof bypassed `analysis_accept`; that service still rejected an old model fingerprint after Studio/runtime changes. Inspection now opens an undoable normal draft directly. Acceptance locally reevaluates exact source, preserves original evidence, and records current complete/partial/failed realization. Current disk revision/source identity checks remain; one same-command refresh handles a watcher lag without paid replay. Fixed saved-preview restoration marking itself complete before candidate details arrived.
 
-Full copied-real-profile proof now includes the failing acceptance boundary: old mendara proposal accepted under current engine, repeat command idempotent, source preview names mendara, corpus regression128/127 passes,13 original files unchanged. Build,27 service/persistence,5 domain and22 browser checks pass across focused runs. No provider calls. See [handoff](session-handoffs/2026-09-17-inspect-local-recheck.md).
+Full copied-real-profile proof now includes the failing acceptance boundary: old mendara proposal accepted under current engine, repeat command idempotent, source preview names mendara, corpus regression128/127 passes,13 original files unchanged. Build,27 service/persistence,5 domain and 22 browser checks pass across focused runs. No provider calls. See [handoff](session-handoffs/2026-09-17-inspect-local-recheck.md).
 
 ## 2026-09-17 — Review the visible noun proposal and edit translations
 

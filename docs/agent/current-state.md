@@ -1,6 +1,105 @@
 # Current state
 
-## Optional hosted collaboration (draft PR, not production)
+## Main merge and deployment repair
+
+PR #2 merged into `main` as `02851f6` after all four GitHub checks passed.
+`make collab-deploy` successfully validated that release, uploaded the complete
+84,734,099-byte PDF, verified SHA-256, took a full backup, migrated/imported and
+started healthy. The follow-up source-switch guard merged as `91707c0` (PR #4) and was deployed
+successfully. Public HTTPS reports that release; both final backup manifest
+hashes were independently verified. Live browser smoke renders the actual scan
+and saved region, switches Araújo/Bettendorff and back, opens/cancels **Nova fonte**,
+sees no queue calls/API/browser errors, restores selection and preserves drafts. A test-only crop-readiness correction and handoff were
+merged through PR #5 after its focused compiled contributor workflow passed. See the
+[handoff](session-handoffs/2026-09-27-main-deployment.md).
+
+The hosted PDF import matched 39 entries and retained 63 unmatched entries and
+four unmatched predecessor guides. Server corpus is clean at the same Git commit
+as desktop; desktop's unpublished source changes explain 59 changed expressions
+and two additional passages, plus two older orphan identities. Complete PDF and
+original evidence remain in the private import archive. No local corpus edits
+were published or references approved by this app deployment.
+
+## Deployment upload progress and cancellation
+
+The laptop deploy command now streams uploads with a dependency-free terminal
+bar (bytes, percent, rolling speed, elapsed time and transfer ETA), or periodic
+lines when redirected. It identifies SSH connection/checksum phases, exits
+cleanly on Ctrl-C, times out after 180 seconds without byte progress and bounds
+SSH connection setup/keepalives. Server setup/build/backup/sync/migration/import/
+health phases print flushed labels. Transfer completion still requires SSH exit
+success and the remote checksum; there is no invented ETA for the whole deploy.
+The user's interruption traceback was in upload, before application deployment.
+All 39 deployment operation tests passed, including real throttled local transfer,
+failure, stall, startup/active cancellation and release preflight checks. Two live
+Make deployments and actual PDF uploads completed successfully. See
+[handoff](session-handoffs/2026-09-27-deploy-progress.md).
+
+## Multiple sources, contributor PDFs and deployment evidence
+
+The left pane now selects among readable corpus `.tu.py` sources (including
+Bettendorff), creates an empty named source with title/year, opens its first
+draft and appends/inserts within the selected source. Empty-source restoration
+and navigation preserve pending work. Hosted contributors can attach a first
+PDF, mark regions and use **Enviar para revisão**; direct source/ground-truth
+publication remains reviewer-only. Immutable submissions include the source
+description and saved own-crop evidence; the local importer recreates missing
+scaffolds and preserves the PDF pointer. Hosted source panes no longer poll the
+unsupported desktop AI queue. Saved PDF pointers survive reload/source return
+and clear on replacement instead of carrying the previous witness.
+
+`make collab-install/redeploy/deploy` snapshots all managed attached/retained PDFs
+for the desktop profile's selected project and imports them during the stopped
+deployment window, preserving hosted uploads/regions. Overrides are
+`LOCAL_STUDIO_STATE` and `LOCAL_PROJECT_PARENT`. Changed or ambiguous historical
+associations remain in a retained archive/report. Local real-PDF roundtrip:
+84,734,099 bytes, 100 evidence entries mapped, two retained unmatched. The
+subsequent live deployment matched 39 and retained 63 because desktop corpus edits
+are unpublished; complete bytes/evidence remain preserved. App changes are now
+merged into main and deployed; see the main-deployment section above. See the
+[source workflow handoff](session-handoffs/2026-09-27-multiple-sources-pdfs.md)
+and [browser contributor guide](../collab-contributor.md).
+
+## Neo consent browser repair
+
+The user's first invited sign-in exposed browser policy failures missed by the
+earlier HTTP-only contract. Neo `d47e009` permits the configured Studio callback
+in consent HTML's `form-action` and uses `Referrer-Policy: same-origin` there so
+Chrome preserves the required POST Origin. Code/API responses keep `no-referrer`;
+strict origin, PKCE, invitation and one-use-code checks remain. Studio `ba52715`
+adds the real Chromium invitation/consent/callback regression, pinned by Neo CI.
+The test reproduces the old CSP block and passes with both corrected headers,
+including a real Studio cookie and password-revision revocation. Neo's 64
+identity/API checks and the final seven identity checks passed. Deployment and
+new CI results are being verified; personal sign-in needs a fresh invitation
+attempt. See [browser repair handoff](session-handoffs/2026-09-27-neo-consent-browser.md).
+
+## Hosted VPS installed and live QA verified
+
+On 2026-09-27, Studio `871de34` deployed successfully to
+`https://studio.academiatupi.com`; HTTPS health remained OK after the first full
+backup. Neo identity release `20260927133536-23ad031` remains healthy. The original
+migration failure was a Docker DNS collision with Neo's `postgres` alias; Studio
+now uses its own database hostname. A second failure came from root-owned Git
+metadata after host operations; ownership is now restored before application use,
+including failure paths. No database reset was needed.
+
+Recovery login, real Araújo loading/evaluation, autosave/reload, comments,
+presence/reservations, immutable submission, authorship/history and activity all
+passed live QA. Two isolated browser sessions used the same recovery account;
+distinct-user collaboration passed in the disposable integration suite. Original
+draft content was restored and the reservation released; labeled technical QA
+comment/submission records remain. The first private full backup passed outer
+and manifest checksum validation. Neo SSO is configured and the administrator
+invitation was accepted by the SMTP relay; the user's own Neo login is still
+awaiting confirmation. The disposable real-Neo identity contract and the live
+authenticated identity introspection endpoint passed. Collaboration CI now has
+PostgreSQL and a repaired full-editor fixture (`30d8120`); all four collaboration
+and general Checks runs passed. See the
+[repair handoff](session-handoffs/2026-09-27-vps-repair.md) for evidence and private
+artifact locations. Neither PR has been merged.
+
+## Optional hosted collaboration
 
 PostgreSQL-backed hosted state now keeps research events and every changed saved revision without
 automatic expiry. Immutable author-specific submissions export from laptop-restored DB snapshots

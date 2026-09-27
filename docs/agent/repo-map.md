@@ -1,5 +1,39 @@
 # Repository map
 
+## Hosted collaboration and deployment
+
+- `python/source_catalog.py`, `adapter.py`, `authoring_service.py`: safe empty
+  source scaffold/title/year metadata, all-source catalog, named-collection
+  append and first-passage context. `src/domain/sources.ts`, `NewSourceDialog`,
+  `App` and `useStudio` expose selection/creation and source-local draft flow.
+- `src/domain/capabilities.ts`, hosted `bridge.js`, `AnalysisSupport`: hosted
+  source-only support without desktop AI polling; bridge review capability and
+  submission action distinguish contributor submission from publication.
+- `scripts/collab/evidence_sync.py`: read-only desktop managed-PDF snapshot and
+  additive server import with exact bytes, identity reconciliation and retained
+  conflict report; `ops.py` transfers it and `host.py` imports while stopped.
+- `scripts/collab/progress.py`: standard-library upload feeder with responsive
+  transfer progress, stall detection, cancellation and receiver cleanup;
+  `tests/test_progress.py` uses real local subprocesses, never production SSH.
+- `server/tests/source-workflow.test.cjs`: real compiled-editor contributor
+  source creation, PDF upload/crop, restart, engine evaluation and submission;
+  copies the corpus into disposable state and uses opt-in local PostgreSQL.
+- `server/`, `server/public/`: PostgreSQL-backed accounts, separate Neo SSO sessions,
+  shared drafts, reservations/presence, comments, immutable submissions and
+  research activity; `docs/design/collab-server.md` defines the contract.
+- `deploy/collab/compose.yml`: private PostgreSQL network with the unique
+  `pydicate-studio-postgres` alias, application routing/SMTP networks and health
+  checks. `server/migrate.cjs` emits bounded failure codes without credentials.
+- `scripts/collab/{ops,host,sso_setup}.py`, `deploy/collab/README.md`: remote
+  installation, deploy/sync, private identity configuration, backup/restore and
+  contribution collection/import. Host Git writes restore UID/GID 1000 ownership
+  before application restart, including failure paths.
+- `server/tests/`, `.github/workflows/collab.yml`: isolated PostgreSQL tests,
+  real Neo identity fixture, distinct-user browser transport and compiled editor
+  against real corpus/engine copies. `scripts/collab/tests/` covers host
+  operations. [VPS repair handoff](session-handoffs/2026-09-27-vps-repair.md) records
+  the live verification boundary and private backup/recovery locations.
+
 ## Contributor application
 
 - `electron/runtime-environment.cjs`, `scripts/prepare-runtime.mjs`, `requirements-runtime.txt`: verified native Python/Git staging and subprocess environment; packaged runtime ignores host interpreter overrides.
