@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: npm ci && npm run build:app
+      - run: npm ci && npm --prefix server ci && npm run build:app
         working-directory: studio
       - name: Authentication, storage, HTTP and browser transport tests
         run: node --test server/tests/*.test.cjs
