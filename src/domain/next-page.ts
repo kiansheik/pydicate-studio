@@ -10,7 +10,7 @@ export function nextPassageLocators(
   return {
     printedPage: draft?.locators?.printedPage ?? previous.witness.printedPage ?? '',
     folio: draft?.locators?.folio ?? previous.witness.folio ?? '',
-    line: '',
+    line: draft?.locators?.line ?? String(previous.witness.textualLine ?? ''),
     section: draft?.locators?.section ?? previous.witness.section ?? '',
     subsection: draft?.locators?.subsection ?? previous.witness.subsection ?? '',
     ...((draft?.locators?.prayerName ?? previous.witness.prayerName) != null

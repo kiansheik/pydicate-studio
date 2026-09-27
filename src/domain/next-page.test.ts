@@ -67,7 +67,7 @@ describe('next-passage shells', () => {
       normalized: draft.normalized,
       translations: draft.translations,
       aiInput: draft.aiInput,
-      locators: { prayerName: 'Pai-nosso', printedPage: '27', line: '' },
+      locators: { prayerName: 'Pai-nosso', printedPage: '27', line: '3–5' },
     });
     for (const key of ['raw', 'notes', 'analysis', 'workflow', 'aiAcceptances', 'canvas'])
       expect(context).not.toHaveProperty(key);
@@ -153,7 +153,7 @@ describe('next-passage shells', () => {
     draft.pending.sourceId = 'missing';
     expect(projectWithPending(source, envelope).passages).toEqual(source.passages);
   });
-  it('continues the latest edited page and section, clearing only the line locator', () => {
+  it('continues the latest edited page, section and literal line locator without incrementing', () => {
     const previous = project().passages[1];
     const draft = {
       ...createDraft(previous),
@@ -168,14 +168,14 @@ describe('next-passage shells', () => {
     expect(nextPassageLocators(previous, draft)).toEqual({
       printedPage: '21–22',
       folio: '',
-      line: '',
+      line: '9–12',
       section: 'Nova seção',
       subsection: 'Perguntas',
     });
     expect(nextPassageLocators(previous)).toEqual({
       printedPage: '20',
       folio: '10v',
-      line: '',
+      line: '4–8',
       section: 'Doutrina',
       subsection: 'Orações',
     });

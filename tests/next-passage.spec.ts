@@ -149,7 +149,7 @@ test('one click opens the next passage with prior reading context and an empty a
     ['Fólio', '13v'],
     ['Seção', 'Doutrina'],
     ['Subseção', 'Orações'],
-    ['Linhas no texto', ''],
+    ['Linhas no texto', '10–15'],
     ['Oração (opcional)', 'Pai-nosso'],
   ])
     await expect(page.getByLabel(`${label} da passagem`, { exact: true })).toHaveValue(value);
