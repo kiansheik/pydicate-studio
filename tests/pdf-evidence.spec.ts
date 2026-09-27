@@ -26,6 +26,10 @@ async function draw(page: Page, start: [number, number], end: [number, number]) 
   await ready(page);
   const marking = page.getByRole('button', { name: 'Marcar região', exact: true });
   if ((await marking.getAttribute('aria-pressed')) !== 'true') await marking.click();
+  // Wait for the page's geometry to settle before deriving mouse coordinates;
+  // the second fixture page has a different aspect ratio.
+  await page.getByTestId('pdf-canvas').scrollIntoViewIfNeeded();
+  await ready(page);
   const box = (await page.getByTestId('pdf-canvas').boundingBox())!;
   await page.mouse.move(box.x + box.width * start[0], box.y + box.height * start[1]);
   await page.mouse.down();
@@ -71,6 +75,62 @@ async function guideFixture(page: Page, directory: string) {
   });
   return { fixture, assetId: attached.asset!.id, revision: attached.revision };
 }
+
+test('hosted PDF keeps real rendering and saved regions without desktop relocation controls', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-hosted-'));
+  try {
+    const { fixture } = await guideFixture(page, directory);
+    await page.addInitScript(() => {
+      window.studio!.runtime = 'collaborative';
+      window.studio!.capabilities = { analysis: false };
+    });
+    await page.goto('/tests/pdf-harness.html?guide');
+    await ready(page);
+    await expect(page.getByRole('button', { name: 'Relocalizar mesmo PDF' })).toHaveCount(0);
+    await draw(page, [0.2, 0.3], [0.5, 0.45]);
+    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByText('Evidência salva no servidor.', { exact: false })).toBeVisible();
+    const saved = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(saved.passage!.regions).toHaveLength(1);
+    await page.reload();
+    await ready(page);
+    await expect(page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true })).toBeVisible();
+    await expect(page.locator('#evidence-pointer')).toHaveText(
+      JSON.stringify({
+        version: 1,
+        assetId: saved.asset!.id,
+        passageId: params.passageId,
+      }),
+    );
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-guide-region')).toBeVisible();
+    await expect(page.locator('#evidence-pointer')).toHaveText('null');
+    await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
+    await ready(page);
+    await expect(page.locator('#evidence-pointer')).toHaveText(
+      JSON.stringify({
+        version: 1,
+        assetId: saved.asset!.id,
+        passageId: params.passageId,
+      }),
+    );
+    await writeFile(
+      join(directory, 'guide-vector.pdf'),
+      Buffer.concat([makePdfFixture(), Buffer.from('\n% a different witness\n')]),
+    );
+    await page.getByRole('button', { name: 'Vincular outro testemunho', exact: true }).click();
+    await ready(page);
+    await expect(page.locator('#evidence-pointer')).toHaveText('null');
+    const replaced = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(replaced.asset!.id).not.toBe(saved.asset!.id);
+    expect(replaced.passage!.regions).toEqual(saved.passage!.regions);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('a passage continues onto another page with ordered crops preserved through restart and preparation', async ({
   page,

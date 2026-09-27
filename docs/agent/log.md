@@ -478,3 +478,12 @@ See [handoff](session-handoffs/2026-09-24-independent-translations.md).
 ## 2026-09-24 — Source-region inheritance repair
 
 Changed the ordinary existing-passage path to use `guideEvidence`, keeping predecessor geometry outside owned `regions`. Added a real two-page browser regression and updated the two old inheritance expectations. No managed evidence, browser drafts, corpus sources or saved rectangles were modified. Isolated checks: 8 browser, 5 domain, 10 desktop and TypeScript pass. See `session-handoffs/2026-09-24-source-region-inheritance.md`.
+
+## 2026-09-27 — Hosted research and maintainer lifecycle
+
+Replaced draft hosted SQLite state with PostgreSQL, permanent exact-save research history,
+immutable author submissions and laptop DB-to-Git worktrees. Added Make/SSH install/deploy,
+private backups/restores, source receipts/digests, public contributor help/DNS, and invited Neo
+identity without password copying. Local PostgreSQL/operations and real Neo identity tests
+passed; full clean-host and compiled-browser checks are recorded in the PR's subsequent CI.
+Production/SMTP/DNS remain unchanged. See `collab-server-handoff.md`.

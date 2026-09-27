@@ -1,0 +1,7 @@
+# Append to the EXISTING shared xe-roka Caddy configuration, then validate/reload.
+# Leave academiatupi.com and api.academiatupi.com routes unchanged.
+studio.academiatupi.com {
+    reverse_proxy pydicate-studio:8787 {
+        flush_interval -1
+    }
+}

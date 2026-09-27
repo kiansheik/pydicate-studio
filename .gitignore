@@ -13,3 +13,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Collaboration operational data belongs outside version control.
+server/node_modules/
+backups/
+*.dump
+*.bundle

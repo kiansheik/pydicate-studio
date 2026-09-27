@@ -1,0 +1,42 @@
+name: Collaboration reproducibility
+on:
+  workflow_dispatch:
+  push:
+    branches: [collab-server-kian]
+    paths: ['.github/workflows/collab-repro.yml']
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: studio
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Capture tracked source and isolated dependencies
+        run: |
+          git -C studio archive HEAD -o "$PWD/studio-source.tar"
+          mkdir pg-tools
+          cd pg-tools
+          npm init -y >/dev/null
+          npm install --save-exact pg@8.16.3
+          cd ..
+          tar -czf pg-tools.tar.gz pg-tools
+          docker run --rm --entrypoint bash postgres:17-bookworm -c '
+            set -e
+            files=$(ldd /usr/lib/postgresql/17/bin/{postgres,initdb,pg_ctl,psql,pg_dump,pg_restore} /usr/lib/postgresql/17/lib/*.so 2>/dev/null | awk "/=> \\// { print \$3 }" | sort -u | grep -Ev "/(libc|libm|libpthread|librt|libdl)\\.so")
+            tar --dereference -czf - /usr/lib/postgresql/17 /usr/share/postgresql/17 $files
+          ' > postgres-runtime.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: collaboration-source-validation
+          path: |
+            studio-source.tar
+            pg-tools.tar.gz
+            postgres-runtime.tar.gz
+          retention-days: 7

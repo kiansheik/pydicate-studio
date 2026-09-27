@@ -28,6 +28,7 @@ import {
 } from './domain/next-page';
 import { registerProjectRecovery } from './domain/project-recovery';
 import { approvalState, type ReferenceStatus } from './domain/ground-truth';
+import { emptySourcePassage, projectSources } from './domain/sources';
 
 export interface SourceApplyOutcome {
   sourceApplied: boolean;
@@ -86,7 +87,10 @@ export function useStudio() {
   const [refreshRequested, setRefreshRequested] = useState<string | null>(null);
   const latest = useRef({ project, envelope, ready, selectedId });
   latest.current = { project, envelope, ready, selectedId };
-  const passage = project.passages.find((p) => p.id === selectedId) ?? project.passages[0];
+  const passage =
+    project.passages.find((p) => p.id === selectedId) ??
+    project.passages[0] ??
+    emptySourcePassage(projectSources(project)[0] ?? { id: '', title: 'Nenhuma fonte', year: '' });
   const draft = envelope.drafts[passage.id];
   const conflict = !!draft && draftConflicts(draft, passage);
   // Older drafts predate syntax fingerprints. Prove equality without evaluating
@@ -253,7 +257,11 @@ export function useStudio() {
     persist()
       .then(() => {
         if (cancelled) return;
-        setSaveState('Rascunho salvo neste dispositivo');
+        setSaveState(
+          window.studio?.runtime === 'collaborative'
+            ? 'Rascunho salvo no servidor'
+            : 'Rascunho salvo neste dispositivo',
+        );
         const previousError = lastSaveError.current;
         if (previousError) setError((current) => (current === previousError ? '' : current));
         lastSaveError.current = '';
@@ -430,11 +438,23 @@ export function useStudio() {
   }, []);
 
   useEffect(() => {
-    if (project.mode === 'local' && window.studio?.invoke)
+    if (
+      project.mode === 'local' &&
+      selectedId &&
+      project.passages.some((p) => p.id === selectedId) &&
+      window.studio?.invoke
+    )
       void invoke('session_select', { projectId: project.id, passageId: selectedId }).catch(
         (reason) => setError(String(reason.message ?? reason)),
       );
   }, [project.id, project.mode, selectedId]);
+
+  useEffect(() => {
+    if (ready && !busy && project.mode === 'local' && !project.passages.length) {
+      const source = projectSources(project)[0];
+      if (source) createPendingDraft(undefined, source.id);
+    }
+  }, [ready, busy, project.id, project.passages.length]);
 
   useEffect(
     () =>
@@ -458,6 +478,7 @@ export function useStudio() {
     const selected =
       current.project.passages.find((p) => p.id === current.selectedId) ??
       current.project.passages[0];
+    if (!selected) return;
     editPassages([{ passageId: selected.id, changes, expectedRevision }]);
   }
 
@@ -881,16 +902,20 @@ export function useStudio() {
     );
   }
 
-  function createPendingDraft(position?: 'before' | 'after') {
+  function createPendingDraft(position?: 'before' | 'after', requestedSourceId?: string) {
     const current = latest.current;
     if (!current.ready || (operation.current && !automaticRefresh.current)) return null;
     const identifier = 'pending:' + crypto.randomUUID();
+    const selected = current.project.passages.find((p) => p.id === current.selectedId);
+    const sourceId =
+      requestedSourceId ?? selected?.sourceId ?? projectSources(current.project)[0]?.id;
+    const source = projectSources(current.project).find((item) => item.id === sourceId);
     const lastPassage = position
       ? current.project.passages.find((p) => p.id === current.selectedId)
-      : [...current.project.passages]
-          .filter((passage) => passage.sourceId === 'araujo_catecismo_1686')
+      : ([...current.project.passages]
+          .filter((passage) => passage.sourceId === sourceId)
           .sort((a, b) => a.ordinal - b.ordinal)
-          .at(-1);
+          .at(-1) ?? (source ? emptySourcePassage(source) : undefined));
     if (!lastPassage) return null;
     const empty = createDraft({
       ...lastPassage,
@@ -916,7 +941,12 @@ export function useStudio() {
     empty.pending = {
       beforePassageId,
       sourceId: lastPassage.sourceId,
-      previousPassageId: position === 'before' ? siblings[selectedIndex - 1]?.id : lastPassage.id,
+      previousPassageId:
+        position === 'before'
+          ? siblings[selectedIndex - 1]?.id
+          : lastPassage.id.startsWith('empty:')
+            ? undefined
+            : lastPassage.id,
       ordinal: lastPassage.ordinal + 1,
     };
     empty.canvas = { ...emptyCanvas(), layout: 'bottom-up' };
@@ -931,6 +961,33 @@ export function useStudio() {
     setVerification('');
     track('editor.operation', { action: 'passage.create-next' }, { passageId: identifier });
     return identifier;
+  }
+
+  async function createSource(input: { sourceId: string; title: string; year: string }) {
+    if (!latest.current.ready || operation.current) return null;
+    operation.current = true;
+    setBusy(true);
+    try {
+      await persist();
+      const next = await invoke<StudioProject>('source_create', {
+        projectId: latest.current.project.id,
+        ...input,
+      });
+      changeProject(next);
+      operation.current = false;
+      const identifier = createPendingDraft(undefined, input.sourceId);
+      operation.current = true;
+      // Persist the first draft before a PDF upload or collaborator navigation uses it.
+      try {
+        await persist();
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+      }
+      return identifier;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
   }
   function editPendingDraft(identifier: string, changes: Parameters<typeof updateDraft>[1]) {
     const current = latest.current;
@@ -1009,7 +1066,7 @@ export function useStudio() {
     const projected = projectWithPending(next, latest.current.envelope);
     const selected = projected.passages.some((p) => p.id === latest.current.selectedId)
       ? latest.current.selectedId
-      : (next.passages.find((p) => p.analysis)?.id ?? next.passages[0].id);
+      : (projected.passages.find((p) => p.analysis)?.id ?? projected.passages[0]?.id ?? '');
     latest.current.project = projected;
     latest.current.selectedId = selected;
     setProject(next);
@@ -1349,6 +1406,7 @@ export function useStudio() {
     reconcileDraft,
     refresh,
     createPendingDraft,
+    createSource,
     editPendingDraft,
     pendingDrafts: Object.values(envelope.drafts).filter((item) =>
       item.passageId.startsWith('pending:'),

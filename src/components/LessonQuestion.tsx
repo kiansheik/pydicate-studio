@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MessageCircle, Send, Square } from 'lucide-react';
 import { invoke } from '../domain/authoring';
+import { analysisAvailable } from '../domain/capabilities';
 import { isAIEvent, mergeAIRecords, type AIRecord, type AIStatus } from '../domain/ai';
 import type { Lesson } from '../domain/learning';
 import type { Passage, StudioProject } from '../domain/types';
@@ -22,6 +23,7 @@ export function LessonQuestion({
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
   useEffect(() => {
+    if (!analysisAvailable()) return;
     let current = true;
     const relevant = (record: AIRecord) => record.context.learningLessonId === lesson.id;
     void invoke<AIStatus>('ai_status')
@@ -59,6 +61,7 @@ export function LessonQuestion({
     };
   }, [lesson.id, project.id, passage.id]);
   const active = records.find((record) => record.status === 'streaming');
+  if (!analysisAvailable()) return null;
   return (
     <section className="lesson-question" aria-label="Perguntas da lição">
       <h3>

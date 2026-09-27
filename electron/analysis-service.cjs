@@ -451,8 +451,11 @@ function createAnalysisService({
       throw error('DRAFT_CONFLICT', 'Salve a revisão atual antes de enviar a análise.');
     const passage = project.passages.find((p) => p.id === params.passageId),
       sourceId = passage?.sourceId ?? draft.pending?.sourceId;
-    if (sourceId !== 'araujo_catecismo_1686')
-      throw error('SOURCE_UNSUPPORTED', 'Este fluxo está disponível para o Catecismo de Araújo.');
+    if (
+      !project.sources?.some((source) => source.id === sourceId) &&
+      !project.passages.some((item) => item.sourceId === sourceId)
+    )
+      throw error('SOURCE_UNSUPPORTED', 'A fonte não está disponível. Atualize o projeto.');
     if (passage && draft.sourceFingerprint !== passage.sourceFingerprint)
       throw error('STALE_SOURCE', 'Reconcilie o rascunho com a fonte antes de analisar.');
     if (!passage && !draft.pending) throw error('PASSAGE_NOT_FOUND', 'Passagem não encontrada.');

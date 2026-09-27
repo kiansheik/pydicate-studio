@@ -3,6 +3,7 @@ import { createExampleProject } from './example';
 import { createDraft, validateDraftEnvelope } from './model';
 import { nextPassageLocators, projectWithPending } from './next-page';
 import type { Draft, DraftEnvelope, StudioProject } from './types';
+import { emptySourcePassage } from './sources';
 
 function project(): StudioProject {
   const example = createExampleProject();
@@ -45,6 +46,37 @@ function pending(source = project(), suffix = 'a', ordinal = 3): Draft {
   };
 }
 describe('next-passage shells', () => {
+  it('restores the first draft in an empty source without borrowing another source witness', () => {
+    const source = project();
+    const catalogue = { id: 'manuscrito', title: 'Meu manuscrito', year: '1750' };
+    source.sources = [catalogue];
+    const draft = createDraft({ ...emptySourcePassage(catalogue), id: 'pending:first' });
+    draft.pending = { sourceId: catalogue.id, ordinal: 1, beforePassageId: null };
+    const envelope: DraftEnvelope = {
+      version: 1,
+      projectId: source.id,
+      drafts: { [draft.passageId]: draft },
+    };
+    const projected = projectWithPending(source, envelope);
+    expect(projected.passages.at(-1)).toMatchObject({
+      id: draft.passageId,
+      sourceId: 'manuscrito',
+      ordinal: 1,
+      sourceExpression: '',
+      acceptedReference: null,
+      referenceProvenance: 'none',
+      witness: {
+        title: 'Meu manuscrito',
+        year: '1750',
+        pdfPage: null,
+        region: null,
+        printedPage: '',
+      },
+    });
+    expect(projectWithPending(projected, envelope)).toEqual(projected);
+    draft.pending.sourceId = 'missing';
+    expect(projectWithPending(source, envelope).passages).toEqual(source.passages);
+  });
   it('continues the latest edited page and section, clearing only the line locator', () => {
     const previous = project().passages[1];
     const draft = {

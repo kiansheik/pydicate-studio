@@ -53,6 +53,7 @@ declare global {
 
 function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
   const fixture = createExampleProject();
+  const sourceId = new URLSearchParams(location.search).get('source') ?? 'araujo_catecismo_1686';
   return {
     ...fixture,
     id,
@@ -64,7 +65,7 @@ function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
     passages: fixture.passages.slice(0, 2).map((passage, index) => ({
       ...passage,
       id: `passage-${index ? 'b' : 'a'}`,
-      sourceId: 'araujo_catecismo_1686',
+      sourceId,
       ordinal: index + 1,
       sourceExpression: index ? 'beta' : raw,
       sourceFingerprint: `source:${id}:${index}`,
@@ -80,6 +81,12 @@ function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
 }
 const listeners = new Set<(event: unknown) => void>();
 const project = makeProject();
+if (new URLSearchParams(location.search).has('sources'))
+  project.sources = JSON.parse(localStorage.getItem('simulated-sources') || 'null') ?? undefined;
+if (new URLSearchParams(location.search).has('empty-source')) {
+  project.passages = [];
+  project.sources = [{ id: 'fonte_vazia', title: 'Fonte vazia', year: '' }];
+}
 let analysisFixture: AnalysisListing =
   JSON.parse(localStorage.getItem('simulated-analysis') || 'null') ?? emptyAnalysis();
 function saveAnalysisFixture() {
@@ -135,6 +142,18 @@ const publicationPreviews = new Map<
 >();
 function answer(method: string, params: Record<string, unknown>): unknown {
   if (Object.hasOwn(control.responses, method)) return structuredClone(control.responses[method]);
+  if (method === 'source_create') {
+    const source = {
+      id: String(params.sourceId),
+      title: String(params.title),
+      year: String(params.year),
+      fileName: `${params.sourceId}.tu.py`,
+      passageCount: 0,
+    };
+    control.project.sources = [...(control.project.sources ?? []), source];
+    localStorage.setItem('simulated-sources', JSON.stringify(control.project.sources));
+    return structuredClone(control.project);
+  }
   if (method === 'refresh_project') return structuredClone(control.project);
   if (method === 'draft_save') return undefined;
   if (method === 'lexical_notes_list') return { records: [] };
@@ -668,6 +687,8 @@ function answer(method: string, params: Record<string, unknown>): unknown {
 async function bridgeRequest(method: string, params: Record<string, unknown> = {}) {
   const request = { id: ++sequence, method, params: structuredClone(params) };
   control.requests.push(request);
+  if (new URLSearchParams(location.search).has('collaborative') && /^(analysis_|ai_)/.test(method))
+    throw new Error('Esta operação não está habilitada no servidor colaborativo.');
   const index = control.holds.findIndex(
     (hold) => hold.method === method && (hold.raw === undefined || hold.raw === params.raw),
   );
@@ -684,6 +705,9 @@ async function bridgeRequest(method: string, params: Record<string, unknown> = {
   return structuredClone(answer(method, params));
 }
 window.studio = {
+  ...(new URLSearchParams(location.search).has('collaborative')
+    ? { runtime: 'collaborative' as const, capabilities: { analysis: false } }
+    : {}),
   invoke: bridgeRequest,
   onEvent(listener) {
     listeners.add(listener);

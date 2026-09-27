@@ -62,6 +62,9 @@ import { flattenNodes, invoke, type SourcePreview } from './domain/authoring';
 import { PhraseEditor, SelectionNote, nodeLabels } from './components/PhraseEditor';
 import { useStudio } from './useStudio';
 import type { Studio } from './useStudio';
+import { NewSourceDialog } from './components/NewSourceDialog';
+import { projectSources, sourceLabel } from './domain/sources';
+import { analysisAvailable } from './domain/capabilities';
 
 const LearningWorkspace = lazy(() =>
   import('./components/LearningWorkspace').then((module) => ({
@@ -171,14 +174,14 @@ function Projections({
         onChangeRaw={(raw) => studio.edit({ raw })}
         canvas={draft?.canvas}
         onChangeCanvas={(changes) => studio.edit(changes)}
-        onPrepareDiagnostic={prepareDiagnostic}
+        onPrepareDiagnostic={analysisAvailable() ? prepareDiagnostic : undefined}
         onUndo={studio.undo}
         onRedo={studio.redo}
         canUndo={studio.canUndo}
         canRedo={studio.canRedo}
         onLexicalPreview={lexicalPreview}
         onInspectLexeme={inspectLexeme}
-        onAskAI={askAI}
+        onAskAI={analysisAvailable() ? askAI : undefined}
       />
     );
   if (studio.project.mode === 'local' && ['Construção', 'Código'].includes(tab))
@@ -313,7 +316,7 @@ function Projections({
             <h2>Tradução da passagem</h2>
             <p>Registre sua tradução e preserve dúvidas para a revisão.</p>
           </div>
-          {studio.project.mode === 'local' && (
+          {studio.project.mode === 'local' && analysisAvailable() && (
             <button
               className="button small"
               disabled={!studio.ready || !draft?.raw?.trim() || studio.pending}
@@ -585,6 +588,11 @@ export default function App() {
     'analysis',
   );
   const [projectDialog, setProjectDialog] = useState(false);
+  const [newSourceOpen, setNewSourceOpen] = useState(false);
+  const canAnalyze = analysisAvailable();
+  const collaborative = window.studio?.runtime === 'collaborative';
+  const canReviewSource = window.studio?.capabilities?.sourceReview !== false;
+  const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     if (studio.setupRequired) setProjectDialog(true);
   }, [studio.setupRequired]);
@@ -692,7 +700,10 @@ export default function App() {
       ? surfaceHighlight.ranges
       : [];
   const stage = draft?.workflow?.stage ?? (passage.status === 'review' ? 'review' : 'analysis');
-  const completed = project.passages.filter(
+  const sources = projectSources(project);
+  const selectedSource = sources.find((source) => source.id === passage.sourceId);
+  const sourcePassages = project.passages.filter((p) => p.sourceId === passage.sourceId);
+  const completed = sourcePassages.filter(
     (p) => studio.envelope.drafts[p.id]?.workflow?.stage === 'complete',
   ).length;
   function changeMode(next: typeof mode) {
@@ -721,7 +732,7 @@ export default function App() {
     const timer = setTimeout(() => track('navigation.search', { count: query.length }), 800);
     return () => clearTimeout(timer);
   }, [query]);
-  const passages = project.passages.filter(
+  const passages = sourcePassages.filter(
     (p) =>
       (filter !== 'editable' || project.mode === 'local' || p.analysis) &&
       (filter !== 'complete' || studio.envelope.drafts[p.id]?.workflow?.stage === 'complete') &&
@@ -733,7 +744,7 @@ export default function App() {
         .includes(query.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()),
   );
   const sourceIds = [...new Set(passages.map((p) => p.sourceId))];
-  const selectedIndex = project.passages.findIndex((p) => p.id === passage.id);
+  const selectedIndex = sourcePassages.findIndex((p) => p.id === passage.id);
   const orphaned = studio.orphanDrafts.length;
   const changePassage = (id: string) => {
     studio.setSelectedId(id);
@@ -749,26 +760,38 @@ export default function App() {
       if ((event.target as Element | null)?.closest('input,textarea,select,[contenteditable=true]'))
         return;
       if (!studio.ready) return;
-      const next = project.passages[selectedIndex + (event.key === 'ArrowRight' ? 1 : -1)];
+      const next = sourcePassages[selectedIndex + (event.key === 'ArrowRight' ? 1 : -1)];
       if (!next) return;
       event.preventDefault();
       changePassage(next.id);
     };
     window.addEventListener('keydown', step);
     return () => window.removeEventListener('keydown', step);
-  }, [project.passages, selectedIndex, studio.ready]);
+  }, [project.passages, passage.sourceId, selectedIndex, studio.ready]);
 
-  function addNextPassage(position?: 'before' | 'after') {
-    if (!studio.createPendingDraft(position)) return;
+  function prepareNewPassage() {
     setMode('analysis');
     setTab('Árvore');
     setSelected('root');
     setQuery('');
     setFilter('all');
     setNotice('');
+    layout.support('source');
     if (layout.state.hidden.editor) layout.toggle('editor');
     if (layout.state.hidden.source) layout.toggle('source');
     if (layout.state.maximized) layout.maximize(layout.state.maximized);
+  }
+
+  function addNextPassage(position?: 'before' | 'after') {
+    if (studio.createPendingDraft(position, passage.sourceId)) prepareNewPassage();
+  }
+
+  function changeSource(sourceId: string) {
+    setQuery('');
+    setFilter('all');
+    const first = project.passages.find((item) => item.sourceId === sourceId);
+    if (first) changePassage(first.id);
+    else if (studio.createPendingDraft(undefined, sourceId)) prepareNewPassage();
   }
   async function save() {
     try {
@@ -829,7 +852,32 @@ export default function App() {
         <span className="eyebrow">MESA DE LEITURA</span>
         <span className="edition-number">01</span>
       </div>
-      <h1>Suas passagens</h1>
+      <h1>Fontes e passagens</h1>
+      <div className="source-selector">
+        <label htmlFor="source-selection">Fonte</label>
+        <select
+          id="source-selection"
+          value={selectedSource?.id ?? ''}
+          disabled={!studio.ready}
+          onChange={(event) => changeSource(event.target.value)}
+        >
+          {!sources.length && <option value="">Nenhuma fonte</option>}
+          {sources.map((source) => (
+            <option key={source.id} value={source.id}>
+              {sourceLabel(source)}
+            </option>
+          ))}
+        </select>
+        {project.mode === 'local' && (
+          <button
+            className="button small"
+            disabled={!studio.ready}
+            onClick={() => setNewSourceOpen(true)}
+          >
+            <Plus size={14} /> Nova fonte
+          </button>
+        )}
+      </div>
       <label className="search-box">
         <Search size={15} />
         <input
@@ -842,7 +890,7 @@ export default function App() {
       </label>
       <div className="navigator-filter">
         <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
-          Todas <span>{project.passages.length}</span>
+          Todas <span>{sourcePassages.length}</span>
         </button>
         <button className={filter === 'open' ? 'active' : ''} onClick={() => setFilter('open')}>
           Em trabalho
@@ -860,13 +908,7 @@ export default function App() {
             <div className="source-group">
               <ChevronDown size={12} />
               <BookOpen size={13} />
-              <span>
-                {sourceId.includes('araujo')
-                  ? 'Araújo · Catecismo'
-                  : sourceId.includes('bettendorff')
-                    ? 'Bettendorff · Compêndio'
-                    : sourceId}
-              </span>
+              <span>{sourceLabel(sources.find((source) => source.id === sourceId)!)}</span>
             </div>
             {passages
               .filter((p) => p.sourceId === sourceId)
@@ -885,7 +927,10 @@ export default function App() {
                     )}
                   </span>
                   <span className="passage-reading" lang="tpw">
-                    {p.acceptedReference ?? 'Por transcrever'}
+                    {studio.envelope.drafts[p.id]?.normalized ||
+                      studio.envelope.drafts[p.id]?.diplomatic ||
+                      p.acceptedReference ||
+                      'Por transcrever'}
                   </span>
                   <span className="passage-status">
                     <span
@@ -934,11 +979,13 @@ export default function App() {
     <div className="desk workspace-desk">
       <header className="desk-header">
         <div className="breadcrumbs">
-          <span>{passage.sourceId.includes('araujo') ? 'Araújo, 1686' : 'Corpus histórico'}</span>
+          <span>{selectedSource ? sourceLabel(selectedSource) : 'Fontes'}</span>
           <ChevronRight size={13} />
           <strong>Passagem {String(passage.ordinal).padStart(4, '0')}</strong>
           {passage.id.startsWith('pending:') && (
-            <span className="new-passage-badge">Nova · rascunho local</span>
+            <span className="new-passage-badge">
+              Nova · {collaborative ? 'rascunho compartilhado' : 'rascunho local'}
+            </span>
           )}
         </div>
         <div className="desk-nav">
@@ -976,8 +1023,8 @@ export default function App() {
                   void studio
                     .persist()
                     .then(() => {
-                      if (project.passages[selectedIndex + 1])
-                        changePassage(project.passages[selectedIndex + 1].id);
+                      if (sourcePassages[selectedIndex + 1])
+                        changePassage(sourcePassages[selectedIndex + 1].id);
                       else addNextPassage();
                     })
                     .catch((error) => studio.setError(String(error)));
@@ -991,15 +1038,15 @@ export default function App() {
             className="icon-button"
             aria-label="Passagem anterior"
             disabled={selectedIndex <= 0 || !studio.ready}
-            onClick={() => changePassage(project.passages[selectedIndex - 1].id)}
+            onClick={() => changePassage(sourcePassages[selectedIndex - 1].id)}
           >
             <ArrowLeft size={16} />
           </button>
           <button
             className="icon-button"
             aria-label="Próxima passagem"
-            disabled={selectedIndex >= project.passages.length - 1 || !studio.ready}
-            onClick={() => changePassage(project.passages[selectedIndex + 1].id)}
+            disabled={selectedIndex >= sourcePassages.length - 1 || !studio.ready}
+            onClick={() => changePassage(sourcePassages[selectedIndex + 1].id)}
           >
             <ArrowRight size={16} />
           </button>
@@ -1053,14 +1100,16 @@ export default function App() {
               >
                 Dicionário
               </button>
-              <button
-                className={
-                  layout.state.supportTab === 'ai' && !layout.state.hidden.source ? 'active' : ''
-                }
-                onClick={() => layout.support('ai')}
-              >
-                Assistência IA
-              </button>
+              {canAnalyze && (
+                <button
+                  className={
+                    layout.state.supportTab === 'ai' && !layout.state.hidden.source ? 'active' : ''
+                  }
+                  onClick={() => layout.support('ai')}
+                >
+                  Assistência IA
+                </button>
+              )}
             </div>
             <div className="workspace-title">
               <div className="workflow-control">
@@ -1091,22 +1140,26 @@ export default function App() {
                     <Check size={14} /> Concluir passagem
                   </button>
                 )}
-                {project.mode === 'local' && passage.id.startsWith('pending:') && (
-                  <button
-                    className="button small ground-truth-shortcut"
-                    disabled={
-                      !(analysis.preview?.raw ?? draft?.raw)?.trim() || !studio.ready || reviewBusy
-                    }
-                    onClick={() => void reviewSource(!!analysis.preview)}
-                  >
-                    <Check size={14} />{' '}
-                    {reviewBusy
-                      ? 'Conferindo regressão…'
-                      : analysis.preview
-                        ? 'Usar e revisar proposta'
-                        : 'Revisar nova passagem'}
-                  </button>
-                )}
+                {project.mode === 'local' &&
+                  canReviewSource &&
+                  passage.id.startsWith('pending:') && (
+                    <button
+                      className="button small ground-truth-shortcut"
+                      disabled={
+                        !(analysis.preview?.raw ?? draft?.raw)?.trim() ||
+                        !studio.ready ||
+                        reviewBusy
+                      }
+                      onClick={() => void reviewSource(!!analysis.preview)}
+                    >
+                      <Check size={14} />{' '}
+                      {reviewBusy
+                        ? 'Conferindo regressão…'
+                        : analysis.preview
+                          ? 'Usar e revisar proposta'
+                          : 'Revisar nova passagem'}
+                    </button>
+                  )}
               </div>
             </div>
             <div
@@ -1154,14 +1207,14 @@ export default function App() {
                 </p>
                 <span className="surface-caption">
                   {result?.origin === 'engine'
-                    ? 'Motor local · revisão atual'
+                    ? `${collaborative ? 'Motor do servidor' : 'Motor local'} · revisão atual`
                     : result
                       ? 'Resultado previamente avaliado'
                       : !draft?.raw?.trim()
                         ? 'Sua próxima leitura começa aqui'
                         : 'Aguardando análise válida e avaliação'}
                 </span>
-                {project.mode === 'local' && (
+                {project.mode === 'local' && canAnalyze && (
                   <div className="surface-repair-action">
                     <button
                       className="button small"
@@ -1234,7 +1287,9 @@ export default function App() {
               <span>
                 {project.mode === 'example'
                   ? 'Motor do exemplo registrado'
-                  : 'Motor local identificado'}
+                  : collaborative
+                    ? 'Motor do servidor identificado'
+                    : 'Motor local identificado'}
               </span>
             </div>
             {(studio.renderError || studio.conflict) && (
@@ -1506,7 +1561,7 @@ export default function App() {
           )}
           {mode === 'review' && (
             <div className="review-view">
-              {project.mode === 'local' && (
+              {project.mode === 'local' && canReviewSource && (
                 <button
                   className="button"
                   disabled={!draft || !studio.ready || reviewBusy}
@@ -1556,7 +1611,7 @@ export default function App() {
                   </p>
                 </div>
               </div>
-              {project.mode === 'local' && (
+              {project.mode === 'local' && canReviewSource && (
                 <div className="source-actions">
                   <button
                     className="button"
@@ -1576,7 +1631,7 @@ export default function App() {
                   >
                     Recarregar fonte e comparar rascunhos
                   </button>
-                  <SourceRecovery onPreview={setPreview} />
+                  {!collaborative && <SourceRecovery onPreview={setPreview} />}
 
                   <button
                     className="button"
@@ -1650,7 +1705,30 @@ export default function App() {
                 <Check size={15} />
                 Salvar rascunho
               </button>
-              {project.mode === 'local' && (
+              {window.studio?.submitContribution && (
+                <button
+                  className="button"
+                  disabled={!studio.ready || !draft?.raw?.trim() || submitting}
+                  onClick={() => {
+                    setSubmitting(true);
+                    void studio
+                      .persist()
+                      .then(() => window.studio!.submitContribution!())
+                      .then(() =>
+                        setNotice(
+                          'Contribuição enviada para revisão. Você pode continuar trabalhando; a versão enviada foi preservada.',
+                        ),
+                      )
+                      .catch((reason) =>
+                        studio.setError(reason instanceof Error ? reason.message : String(reason)),
+                      )
+                      .finally(() => setSubmitting(false));
+                  }}
+                >
+                  {submitting ? 'Enviando…' : 'Enviar para revisão'}
+                </button>
+              )}
+              {project.mode === 'local' && canReviewSource && (
                 <button
                   className="button"
                   disabled={!draft || !studio.ready || reviewBusy}
@@ -1843,7 +1921,11 @@ export default function App() {
           </div>
           <span className="local-indicator">
             <span />
-            {project.mode === 'example' ? 'Exemplo avaliado' : 'Projeto local'}
+            {project.mode === 'example'
+              ? 'Exemplo avaliado'
+              : collaborative
+                ? 'Projeto compartilhado'
+                : 'Projeto local'}
           </span>
           <button
             className="icon-button help-button"
@@ -1915,7 +1997,9 @@ export default function App() {
       <footer className="app-status">
         <span>
           <span className="status-dot" />
-          Seu trabalho fica neste dispositivo
+          {collaborative
+            ? 'Seu trabalho é salvo no servidor colaborativo'
+            : 'Seu trabalho fica neste dispositivo'}
         </span>
         <span>
           Português · Tupi antigo <span className="status-divider">/</span> Pydicate Studio
@@ -1923,6 +2007,16 @@ export default function App() {
       </footer>
       {usageOpen && <UsagePanel onClose={() => setUsageOpen(false)} />}
       {archiveOpen && <DraftArchive studio={studio} onClose={() => setArchiveOpen(false)} />}
+      {newSourceOpen && (
+        <NewSourceDialog
+          studio={studio}
+          onClose={() => setNewSourceOpen(false)}
+          onCreated={() => {
+            setNewSourceOpen(false);
+            prepareNewPassage();
+          }}
+        />
+      )}
       {preview && (
         <div
           className="review-overlay"
@@ -1963,6 +2057,7 @@ export default function App() {
               <button
                 className="button primary"
                 disabled={
+                  !canReviewSource ||
                   reviewBusy ||
                   !studio.ready ||
                   (passageReview && approveOnSave

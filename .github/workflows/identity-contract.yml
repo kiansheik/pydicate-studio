@@ -1,0 +1,31 @@
+name: Identity contract fixtures
+on:
+  workflow_dispatch:
+  push:
+    branches: [collab-server-kian]
+    paths: ['.github/workflows/identity-contract.yml']
+permissions:
+  contents: read
+jobs:
+  fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: kiansheik/neologismotupi
+          ref: e19e16cdf1f746cc76cfaba60eed50b383283f8a
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          git archive HEAD -o neologismo-source.tar
+          python -m pip download --dest wheels 'passlib[argon2]' asyncpg aiosqlite email-validator python-multipart itsdangerous
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neologismo-contract-fixture
+          path: |
+            neologismo-source.tar
+            wheels/
+          retention-days: 7

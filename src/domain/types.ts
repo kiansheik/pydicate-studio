@@ -54,11 +54,19 @@ export interface RepositorySnapshot {
   dirty: boolean;
   fingerprint: string;
 }
+export interface StudioSource {
+  id: string;
+  title: string;
+  year: string;
+  fileName?: string;
+  passageCount?: number;
+}
 export interface StudioProject {
   id: string;
   name: string;
   mode: 'example' | 'local';
   passages: Passage[];
+  sources?: StudioSource[];
   repositories: RepositorySnapshot[];
   engineFingerprint: string;
   diagnostics: string[];
@@ -149,6 +157,9 @@ export interface DraftEnvelope {
   drafts: Record<string, Draft>;
 }
 export interface StudioBridge {
+  runtime?: 'desktop' | 'collaborative';
+  capabilities?: { analysis?: boolean; sourceReview?: boolean };
+  submitContribution?(): Promise<{ id: string }>;
   setupProject?(): Promise<StudioProject>;
   installationStatus?(): Promise<InstallationStatus>;
   openReleasePage?(): Promise<void>;

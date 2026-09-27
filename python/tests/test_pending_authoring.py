@@ -120,10 +120,11 @@ araujo_catecismo_1686 = l
         context=self.adapter.invoke('assistant_context',{**self.pending,'raw':raw,'action':'translate'})
         self.assertTrue(context['pending']);self.assertTrue(context['passage']['pending'])
         self.assertIsNone(context['passage']['acceptedReference'])
-        self.assertEqual(context['ordinal'],len(self.project['passages'])+1)
+        source_passages=[p for p in self.project['passages'] if p['sourceId']==SOURCE]
+        self.assertEqual(context['ordinal'],len(source_passages)+1)
         self.assertEqual(context['evaluation']['expression'],raw)
         self.assertEqual(context['evaluation']['revisionId'],self.pending['revisionId'])
-        self.assertEqual(context['surroundingPassages'],self.project['passages'][-2:])
+        self.assertEqual(context['surroundingPassages'],source_passages[-2:])
         self.assertEqual(next(entry for entry in context['lexicalDefinitions'] if entry['name']=='pending_probe')['expression'],"Noun('beforeanchor')")
         incomplete='pending_probe + __studio_slot_ab'
         context=self.adapter.invoke('assistant_context',{**self.pending,'raw':incomplete,'action':'investigate'})
@@ -137,11 +138,50 @@ araujo_catecismo_1686 = l
         self.assertEqual(self.path.read_bytes(),before)
 
     def test_pending_identity_never_masquerades_as_published_source_for_writes_or_approval(self):
-        for method,extra in [('source_preview',{'raw':'amen'}),('reference_status',{}),('reference_verify',{}),('reference_approve',{}),('lexicon_create',{'headword':'abá','definition':'pessoa'})]:
+        for method,extra in [('source_preview',{'raw':'amen'}),('reference_status',{}),('reference_verify',{}),('reference_approve',{})]:
             with self.subTest(method=method),self.assertRaises(AdapterError) as error:
                 self.adapter.invoke(method,{**self.pending,**extra})
             self.assertEqual(error.exception.code,'PASSAGE_NOT_FOUND')
         self.assertEqual(self.path.read_bytes(),self.original)
+
+    def test_new_source_first_and_second_passages_roundtrip_and_explicit_ground_truth(self):
+        source='new_witness';path=self.corpus/'historic'/f'{source}.tu.py'
+        self.addCleanup(path.unlink,missing_ok=True)
+        records=self.corpus/'ground_truth/records/historic'/f'{source}.jsonl'
+        companion=records.with_suffix('.studio.json')
+        self.addCleanup(records.unlink,missing_ok=True);self.addCleanup(companion.unlink,missing_ok=True)
+        self.project=self.adapter.invoke('source_create',{'sourceId':source,'title':'Novo testemunho','year':'1720'})
+        self.assertEqual(next(s['passageCount'] for s in self.project['sources'] if s['id']==source),0)
+        pending={**self.pending,'sourceId':source}
+        first=self.adapter.invoke('evaluate_expression',{**pending,'raw':'amen'})
+        self.assertEqual(first['evaluationStatus'],'complete')
+        lexical=self.adapter.invoke('lexicon_create',{**pending,'headword':'abá','definition':'pessoa'})
+        self.assertTrue(lexical['diff']);self.assertNotIn('abá',path.read_text())
+        preview=self.adapter.invoke('source_new_preview',{**pending,'raw':'amen','metadata':{'diplomatic':'amen','translation':'amém'}})
+        self.assertFalse(records.exists())
+        self.project=self.adapter.invoke('source_apply',preview)
+        published=next(p for p in self.project['passages'] if p['id']==preview['passageId'])
+        self.assertEqual(published['ordinal'],1);self.assertEqual(published['witness']['title'],'Novo testemunho')
+        self.assertEqual(published['witness']['year'],'1720');self.assertIsNone(published['acceptedReference'])
+        self.assertFalse(records.exists())
+        self.adapter.invoke('reference_approve',{'passageId':published['id'],'sourceFingerprint':published['sourceFingerprint'],'reviewedSurface':first['surface']})
+        self.assertTrue(records.exists())
+        preview=self.adapter.invoke('source_new_preview',{**pending,'raw':'amen'})
+        self.project=self.adapter.invoke('source_apply',preview)
+        self.assertEqual([p['ordinal'] for p in self.project['passages'] if p['sourceId']==source],[1,2])
+        reopened=ProjectAdapter(self.parent/'reopened-new-source').open_project(str(self.parent))
+        self.assertEqual(next(s['passageCount'] for s in reopened['sources'] if s['id']==source),2)
+        self.assertEqual(self.path.read_bytes(),self.original)
+
+    def test_append_to_named_collection_uses_its_actual_collection_and_preserves_prior_lines(self):
+        source='named_collection';path=self.corpus/'historic'/f'{source}.tu.py'
+        path.write_text('from historic.lexicon import load_lexicon\nglobals().update(load_lexicon())\nnamed_collection = [amen]\n',encoding='utf-8')
+        self.addCleanup(path.unlink,missing_ok=True)
+        self.project=self.adapter.refresh_project();original=next(p for p in self.project['passages'] if p['sourceId']==source)
+        preview=self.adapter.invoke('source_new_preview',{'sourceId':source,'raw':'amen'})
+        self.project=self.adapter.invoke('source_apply',preview)
+        self.assertIn('named_collection += amen',path.read_text())
+        self.assertEqual([p['id'] for p in self.project['passages'] if p['sourceId']==source],[original['id'],preview['passageId']])
 
     def test_pending_lexical_update_is_a_reviewable_preview_not_source_publication(self):
         before=self.path.read_bytes()
@@ -179,7 +219,7 @@ araujo_catecismo_1686 = l
 
     def test_imported_hierarchy_is_cumulative_and_new_sections_clear_subsections(self):
         self.metadata_fixture()
-        self.assertEqual([(p['witness']['section'],p['witness']['subsection']) for p in self.project['passages']],
+        self.assertEqual([(p['witness']['section'],p['witness']['subsection']) for p in self.project['passages'] if p['sourceId']==SOURCE],
                          [('1','1.1'),('1','1.1'),('2',None),('2','2.1'),('2','2.1')])
 
     def test_reviewed_subsection_reset_survives_apply_and_refresh(self):
@@ -197,8 +237,9 @@ araujo_catecismo_1686 = l
         self.metadata_fixture()
         preview=self.adapter.invoke('source_new_preview',{'sourceId':SOURCE,'raw':'amen','metadata':{'section':'2','subsection':''}})
         project=self.adapter.invoke('source_apply',preview)
-        self.assertEqual(project['passages'][-1]['witness']['section'],'2')
-        self.assertIsNone(project['passages'][-1]['witness']['subsection'])
+        created=next(p for p in project['passages'] if p['id']==preview['passageId'])
+        self.assertEqual(created['witness']['section'],'2')
+        self.assertIsNone(created['witness']['subsection'])
         passage=project['passages'][0]
         preview=self.adapter.invoke('source_preview',{'passageId':passage['id'],'metadata':{'section':'3','subsection':'1.1'}})
         project=self.adapter.invoke('source_apply',preview)

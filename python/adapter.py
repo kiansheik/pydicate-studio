@@ -331,7 +331,7 @@ class ProjectAdapter:
     @staticmethod
     def _engine_fingerprint(snapshots: list[dict]) -> str:
         # Corpus fingerprint includes lexicon definitions; no clean-HEAD claim.
-        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'lexical_metadata.py', 'semantic_context.py', 'node_definitions.py', 'lexical_publication.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
+        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'source_catalog.py', 'passage_insertion.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'lexical_metadata.py', 'semantic_context.py', 'node_definitions.py', 'lexical_publication.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
         implementation = digest(b"".join((Path(__file__).parent / name).read_bytes() for name in runtime_files))
         material = ADAPTER_VERSION + ":" + sys.version + ":" + implementation + ":" + ":".join(item["fingerprint"] for item in snapshots)
         return "sha256:" + digest(material.encode())
@@ -367,8 +367,9 @@ class ProjectAdapter:
         diagnostics.append("Identidades locais preservam alinhamentos inequívocos; alterações e duplicatas ambíguas recebem novos vínculos para preservar rascunhos anteriores."
                            if self.state_dir else "Identidades provisórias por conteúdo: configure o diretório de estado do Studio para persistir identificadores locais.")
         passages = []
+        sources = []
         for path in sorted((corpus / "historic").glob("*.tu.py")):
-            if path.name == "lexicon.tu.py" or "bettendorff" in path.name:
+            if path.name == "lexicon.tu.py":
                 continue
             source = path.name.removesuffix(".tu.py")
             try:
@@ -391,6 +392,9 @@ class ProjectAdapter:
                 diagnostics.append(f"{path.name}: leitura indisponível ({exc}). Outros documentos continuam disponíveis.")
                 continue
             file_hash = digest(path.read_bytes())
+            from source_catalog import descriptor
+            source_description = {**descriptor(path), 'passageCount': len(entries)}
+            sources.append(source_description)
             from studio_authoring import expression_fingerprint
             for entry in entries: entry['syntaxFingerprint'] = expression_fingerprint(entry['expression'])
             fingerprints = [digest(entry["expression"].encode()) for entry in entries]
@@ -436,7 +440,7 @@ class ProjectAdapter:
                 page = _string(location.get("page_start")) or None
                 if page and location.get("page_end"):
                     page += "–" + str(location["page_end"])
-                title = "Araújo · Catecismo" if source == "araujo_catecismo_1686" else source.replace("_", " ")
+                title = source_description['title']
                 notes = source_metadata.get("notes") if source_metadata.get("notes") is not None else record.get("notes")
                 if isinstance(notes, (list, tuple)): notes = [note for note in notes if not str(note).startswith(("studio:v1 ", "studio-lexical:v1 "))]
                 # Draft conflicts include scholarly metadata, while identity
@@ -466,7 +470,7 @@ class ProjectAdapter:
                     **({'translations': translations} if translations is not None else {}),
                     "notes": "\n".join(str(note) for note in notes) if isinstance(notes, (list, tuple)) else "",
                     "witness": {"title": _string(location.get("witness")) or title,
-                                "year": "1686" if source == "araujo_catecismo_1686" else "",
+                                "year": source_description['year'],
                                 "printedPage": page, "pdfPage": None, "region": None, "folio": location.get("folio_start"), "textualLine": location.get("line_start"), "section": location.get("section"), "subsection": location.get("subsection")},
                     "status": "analysis" if saved is not None else "untranscribed",
                     "analysis": None if entry["contextualOverride"] else parse_analysis(entry["expression"])})
@@ -475,14 +479,14 @@ class ProjectAdapter:
                 diagnostics.append(f"{path.name}: {missing} expressão(ões) sem referência salva; nenhuma referência foi gerada.")
             if len(records) > len(entries):
                 diagnostics.append(f"{path.name}: há mais referências do que expressões; o vínculo por posição requer revisão.")
-        if not passages:
+        if not sources:
             details = " ".join(diagnostics[3:])[:3000]
             raise AdapterError("Nenhuma passagem pôde ser lida em historic/*.tu.py. Verifique os arquivos do projeto. " + details,
                                "NO_PASSAGES")
         if self._engine_fingerprint(self._snapshots()) != self._engine_fingerprint(snapshots):
             raise AdapterError("Os arquivos mudaram durante a leitura. Atualize o projeto.", "STALE_PROJECT")
         registry.save()
-        project = {"id": project_id, "name": "Corpus local de tupi antigo", "mode": "local", "passages": passages,
+        project = {"id": project_id, "name": "Corpus local de tupi antigo", "mode": "local", "passages": passages, "sources": sources,
                    "repositories": snapshots, "engineFingerprint": self._engine_fingerprint(snapshots), "diagnostics": diagnostics}
         self.project = project
         return project

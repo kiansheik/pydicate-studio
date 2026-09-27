@@ -280,7 +280,26 @@ function project(value) {
       string(repo[field], field, 4096);
     boolean(repo.dirty, 'alterações locais');
   }
-  if (!Array.isArray(value.passages) || value.passages.length < 1 || value.passages.length > 20_000)
+  if (value.sources !== undefined) {
+    if (!Array.isArray(value.sources) || value.sources.length > 2000) fail('fontes');
+    const sourceIds = new Set();
+    for (const source of value.sources) {
+      object(source, 'fonte');
+      id(source.id, 'fonte');
+      if (sourceIds.has(source.id)) fail('fonte repetida');
+      sourceIds.add(source.id);
+      string(source.title, 'título da fonte', 1000, true);
+      string(source.year, 'ano da fonte', 40);
+      string(source.fileName, 'arquivo da fonte', 300, true);
+      if (!Number.isSafeInteger(source.passageCount) || source.passageCount < 0)
+        fail('passagens da fonte');
+    }
+  }
+  if (
+    !Array.isArray(value.passages) ||
+    value.passages.length > 20_000 ||
+    (!value.passages.length && !value.sources?.length)
+  )
     fail('passagens');
   const ids = new Set();
   for (const passage of value.passages) {

@@ -4,6 +4,65 @@ const sourceTab = (page: import('@playwright/test').Page) =>
   page.getByRole('tab', { name: 'Fonte', exact: true });
 const aiTab = (page: import('@playwright/test').Page) => page.getByRole('tab', { name: /^IA/ });
 
+test('hosted source stays editable with a saved AI tab and never calls desktop queue or providers', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'pydicate-studio:workspace:v2',
+      JSON.stringify({
+        version: 2,
+        supportTab: 'ai',
+        positions: { navigator: 'left', editor: 'center', source: 'right' },
+        hidden: { navigator: false, editor: false, source: false },
+        maximized: null,
+        sizes: { left: 220, right: 400, bottom: 280 },
+      }),
+    ),
+  );
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis&collaborative');
+  const source = page.getByRole('region', { name: 'Testemunho e leitura', exact: true });
+  await expect(source).toBeVisible();
+  await expect(source.getByRole('button', { name: 'Vincular PDF à fonte' })).toBeEnabled();
+  await expect(page.getByRole('tab', { name: /^IA/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Salvar e analisar', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Fila ·/ })).toHaveCount(0);
+  await source
+    .getByLabel('Transcrição diplomática', { exact: true })
+    .fill('Minha fonte no servidor');
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__nextControl.saved['simulated:a']?.drafts['passage-a']?.diplomatic,
+      ),
+    )
+    .toBe('Minha fonte no servidor');
+  await page.reload();
+  await expect(source.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
+    'Minha fonte no servidor',
+  );
+  await expect(page.getByText(/Não foi possível carregar a fila/)).toHaveCount(0);
+  const requests = await page.evaluate(() =>
+    window.__nextControl.requests.map((request) => request.method),
+  );
+  expect(requests).toContain('evidence_status');
+  expect(requests.filter((method) => /^(analysis_|ai_)/.test(method))).toEqual([]);
+});
+
+test('another source can prepare desktop analysis through the same source pane', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis&source=bettendorff_1687');
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura de outra fonte');
+  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
+  const requests = await page.evaluate(() => window.__nextControl.requests);
+  expect(requests.find((request) => request.method === 'evidence_status')?.params.sourceId).toBe(
+    'bettendorff_1687',
+  );
+  expect(requests.filter((request) => request.method === 'analysis_submit')).toHaveLength(1);
+});
+
 test('new conversation clears context while history and readable activity remain available', async ({
   page,
 }) => {
@@ -357,8 +416,8 @@ test('batch accepts tentative and own PDF preparation and honors image consent b
   await aiTab(page).click();
   await page.getByRole('button', { name: 'Fila · 0', exact: true }).click();
   await page.getByText('Enviar passagens preparadas em lote', { exact: true }).click();
-  await expect(page.getByRole('checkbox', { name: 'Passagem 1', exact: true })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Passagem 2', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: /· passagem 1$/ })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /· passagem 2$/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Fila · 0', exact: true }).click();
   await page.evaluate(() => {
     window.__nextControl.evidence['passage-b'].passage!.regions = [
@@ -367,8 +426,8 @@ test('batch accepts tentative and own PDF preparation and honors image consent b
   });
   await page.getByRole('button', { name: 'Fila · 0', exact: true }).click();
   await page.getByText('Enviar passagens preparadas em lote', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Passagem 1', exact: true }).check();
-  await page.getByRole('checkbox', { name: 'Passagem 2', exact: true }).check();
+  await page.getByRole('checkbox', { name: /· passagem 1$/ }).check();
+  await page.getByRole('checkbox', { name: /· passagem 2$/ }).check();
   await page
     .getByRole('checkbox', { name: 'Enviar imagem das regiões selecionadas', exact: true })
     .check();
@@ -747,8 +806,8 @@ test('prepared passages queue as a batch and node assistance preserves the tree 
   await aiTab(page).click();
   await page.getByRole('button', { name: 'Fila · 0', exact: true }).click();
   await page.getByText('Enviar passagens preparadas em lote', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Passagem 1', exact: true }).check();
-  await page.getByRole('checkbox', { name: 'Passagem 2', exact: true }).check();
+  await page.getByRole('checkbox', { name: /· passagem 1$/ }).check();
+  await page.getByRole('checkbox', { name: /· passagem 2$/ }).check();
   await page.getByRole('button', { name: 'Analisar 2 selecionada(s)', exact: true }).click();
   await expect(page.getByText('2 análise(s) na fila.', { exact: true })).toBeVisible();
   const submission = await page.evaluate(() =>

@@ -340,6 +340,27 @@ test('submission captures immutable distinct tentative/target/evidence input and
   });
 });
 
+test('first pending passage in another catalogued source supports desktop analysis capture', async (t) => {
+  const f = await fixture(t);
+  const pendingId = 'pending:581521e2-a5ba-46fb-86a6-461036450ac5';
+  f.setProject({ ...f.project(), passages: [], sources: [{ id: 'another_witness' }] });
+  await f.draftStore.saveChecked({
+    ...(await f.draftStore.load(projectId)),
+    version: 1,
+    projectId,
+    drafts: {
+      [pendingId]: {
+        ...draft(pendingId),
+        sourceFingerprint: 'pending',
+        pending: { sourceId: 'another_witness', ordinal: 1 },
+      },
+    },
+  });
+  const submitted = await f.service.invoke('analysis_submit', f.params({ passageId: pendingId }));
+  assert.equal(submitted.input.sourceId, 'another_witness');
+  assert.equal(submitted.input.passageId, pendingId);
+});
+
 test('new conversation archives history, clears provider context and keeps late results in the old thread', async (t) => {
   const f = await fixture(t);
   const first = await f.service.invoke('analysis_submit', f.params());

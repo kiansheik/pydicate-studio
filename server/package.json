@@ -1,0 +1,12 @@
+{
+  "name": "pydicate-studio-collaboration",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional Linux collaboration service",
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "dependencies": {
+    "pg": "8.16.3"
+  }
+}

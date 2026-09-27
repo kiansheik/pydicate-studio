@@ -1,0 +1,15 @@
+name: Solicitar acesso ao Studio
+description: Pedido de convite para colaborar pelo navegador (sem dados privados)
+title: '[Acesso] Pedido de convite'
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: 'O acesso é por convite. Não publique e-mail, senha, chave Pix ou chave de API. O responsável combinará o contato em privado.'
+  - type: textarea
+    id: interesse
+    attributes:
+      label: Como você gostaria de contribuir?
+      description: 'Conte brevemente seu interesse em tupi, transcrição, revisão ou ferramentas.'
+    validations:
+      required: true

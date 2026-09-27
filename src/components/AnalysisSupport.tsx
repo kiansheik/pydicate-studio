@@ -1,4 +1,5 @@
 import { translationChange } from '../domain/translations';
+import { analysisAvailable } from '../domain/capabilities';
 import { BulkTranslation } from './BulkTranslation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushLexicalNotes } from '../domain/lexical-note-sync';
@@ -110,7 +111,8 @@ export function useAnalysisWorkspace(studio: Studio) {
   const refresh = useCallback(async () => {
     const projectId = latest.current.project.id;
     const passageId = latest.current.passage.id;
-    if (latest.current.project.mode !== 'local' || !window.studio?.invoke) return;
+    if (!analysisAvailable() || latest.current.project.mode !== 'local' || !window.studio?.invoke)
+      return;
     const request = ++sequence.current;
     try {
       const data = await invoke<AnalysisListing>('analysis_list', { projectId });
@@ -175,6 +177,7 @@ export function useAnalysisWorkspace(studio: Studio) {
     void refresh();
   }, [studio.passage.id, refresh]);
   useEffect(() => {
+    if (!analysisAvailable()) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const unsubscribe = window.studio?.onEvent?.((event) => {
       if (event?.type === 'analysis' && event.projectId === latest.current.project.id && !timer)
@@ -611,11 +614,12 @@ export function AnalysisSupport({
   analysis: AnalysisWorkspace;
   selectedNode?: AuthorNode;
   translationRequest?: number;
-  onEvidence: (pointer: EvidencePointer) => void;
+  onEvidence: (pointer: EvidencePointer | null) => void;
   onPreview: () => void;
   onDictionary: (evidence: AnalysisEvidence) => void;
   onFocusNode: (id: string, candidate?: AnalysisCandidate) => void;
 }) {
+  const supportsAnalysis = analysisAvailable();
   const evidence = useRef<EvidencePreparation>(null);
   const { listing, current, conversation, saveConversation, refresh, latest } = analysis;
   const [busy, setBusy] = useState(false);
@@ -657,13 +661,7 @@ export function AnalysisSupport({
   } | null>(null);
   const activeKey = `${studio.project.id}:${studio.passage.id}`;
   const canRun =
-    studio.project.mode === 'local' &&
-    (studio.passage.sourceId === 'araujo_catecismo_1686' ||
-      listing.jobs.some(
-        (job) => job.conversationId === conversation?.id && job.input.task === 'grammar-repair',
-      )) &&
-    studio.ready &&
-    !!studio.draft;
+    supportsAnalysis && studio.project.mode === 'local' && studio.ready && !!studio.draft;
   const jobs = listing.jobs.filter((job) => job.passageId === studio.passage.id);
   const currentJobs = jobs.filter((job) => !conversation || job.conversationId === conversation.id);
   const isRepairConversation = currentJobs[0]?.input.task === 'grammar-repair';
@@ -711,10 +709,7 @@ export function AnalysisSupport({
     const projectId = studio.project.id;
     void Promise.allSettled(
       studio.project.passages
-        .filter(
-          (passage) =>
-            passage.sourceId === 'araujo_catecismo_1686' && studio.envelope.drafts[passage.id],
-        )
+        .filter((passage) => studio.envelope.drafts[passage.id])
         .map(
           async (passage) =>
             [
@@ -744,7 +739,7 @@ export function AnalysisSupport({
     };
   }, [batchOpen, studio.project.id, studio.project.passages.length]);
   useEffect(() => {
-    if (!window.studio?.invoke) return;
+    if (!supportsAnalysis || !window.studio?.invoke) return;
     let cancelled = false;
     invoke<AIStatus>('ai_status', { projectId: studio.project.id })
       .then((value) => {
@@ -754,7 +749,7 @@ export function AnalysisSupport({
     return () => {
       cancelled = true;
     };
-  }, [studio.project.id, showLegacy]);
+  }, [studio.project.id, showLegacy, supportsAnalysis]);
   useEffect(() => {
     const explain = () => {
       setTask('explain');
@@ -1157,6 +1152,14 @@ export function AnalysisSupport({
       onFocusNode(item.nodeId, candidate);
     } else onDictionary(item);
   }
+  // Saved desktop layouts may still point at IA. Hosted evidence must remain
+  // visible without mounting provider settings or sending unsupported queue RPCs.
+  if (!supportsAnalysis)
+    return (
+      <section className="analysis-support" aria-label="Fonte">
+        <SourcePane studio={studio} onEvidence={onEvidence} preparationRef={evidence} />
+      </section>
+    );
   return (
     <section
       className={`analysis-support${showTranslation ? ' is-translating' : ''}`}
@@ -1354,10 +1357,8 @@ export function AnalysisSupport({
               </p>
               {batchLoading && <p>Verificando entradas e regiões salvas…</p>}
               {studio.project.passages
-                .filter(
-                  (item) =>
-                    item.sourceId === 'araujo_catecismo_1686' &&
-                    preparedAnalysisInput(studio.envelope.drafts[item.id], batchEvidence[item.id]),
+                .filter((item) =>
+                  preparedAnalysisInput(studio.envelope.drafts[item.id], batchEvidence[item.id]),
                 )
                 .map((item) => (
                   <label key={item.id}>
@@ -1372,7 +1373,7 @@ export function AnalysisSupport({
                         )
                       }
                     />
-                    Passagem {item.ordinal}
+                    {item.witness.title} · passagem {item.ordinal}
                   </label>
                 ))}
               <button

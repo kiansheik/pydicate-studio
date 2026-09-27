@@ -42,7 +42,7 @@ interface Props {
   folio?: string | null;
   lineLocator?: string | null;
   /** A proposed source-comment pointer; applying it remains a separate review action. */
-  onEvidence?: (pointer: EvidencePointer) => void;
+  onEvidence?: (pointer: EvidencePointer | null) => void;
 }
 export interface PreparedEvidence {
   revision: number;
@@ -122,6 +122,7 @@ export function PdfEvidence({
       : regionPages.join(', ');
   const assetId = status?.asset?.id;
   const available = Boolean(window.studio?.invoke);
+  const collaborative = window.studio?.runtime === 'collaborative';
   const preparing = useRef(false);
   const invalidCache = useRef(false);
 
@@ -161,8 +162,6 @@ export function PdfEvidence({
         }
         const ownRegions =
           next.passage?.regions.filter((region) => region.assetId === next.asset?.id) ?? [];
-        if (next.asset && ownRegions.length)
-          onEvidence?.({ version: 1, assetId: next.asset.id, passageId });
         return {
           revision: next.revision,
           assetId: next.asset?.id,
@@ -187,11 +186,19 @@ export function PdfEvidence({
   }));
 
   function acceptStatus(next: EvidenceStatus, restoreDraft: boolean) {
+    if (activeKey.current !== key || next.projectId !== projectId || next.sourceId !== sourceId)
+      return;
     invalidCache.current = false;
     loadedKey.current = key;
     setStatus(next);
     const boundRegions =
       next.passage?.regions.filter((region) => region.assetId === next.asset?.id) || [];
+    // Saved crops carry their portable source pointer across reloads. Changing
+    // the selected PDF clears that pointer until this passage has its own saved
+    // regions; predecessor guides and cached rectangles cannot supply it.
+    onEvidence?.(
+      next.asset && boundRegions.length ? { version: 1, assetId: next.asset.id, passageId } : null,
+    );
     const savedView =
       next.passage && (!next.passage.viewAssetId || next.passage.viewAssetId === next.asset?.id)
         ? next.passage.view
@@ -487,13 +494,6 @@ export function PdfEvidence({
       if (activeKey.current !== requestKey || !result) return;
       if (method === 'evidence_save') localStorage.removeItem(cacheKey);
       acceptStatus(result, false);
-      if (
-        method === 'evidence_save' &&
-        result.asset &&
-        (!newPassageGuide ||
-          result.passage?.regions.some((region) => region.assetId === result.asset?.id))
-      )
-        onEvidence?.({ version: 1, assetId: result.asset.id, passageId });
     } catch (failure) {
       if (activeKey.current === requestKey) setError(message(failure));
     } finally {
@@ -634,13 +634,15 @@ export function PdfEvidence({
   return (
     <section className="pdf-evidence" aria-label="PDF e regiões da passagem">
       <div className="evidence-controls">
-        <button
-          disabled={!available || busy || disabled || dirty}
-          onClick={() => void operation('evidence_attach', { replace: Boolean(assetId) })}
-        >
-          {assetId ? 'Vincular outro testemunho' : 'Vincular PDF à fonte'}
-        </button>
-        {assetId && (
+        {(!assetId || window.studio?.capabilities?.sourceReview !== false) && (
+          <button
+            disabled={!available || busy || disabled || dirty}
+            onClick={() => void operation('evidence_attach', { replace: Boolean(assetId) })}
+          >
+            {assetId ? 'Vincular outro testemunho' : 'Vincular PDF à fonte'}
+          </button>
+        )}
+        {assetId && !collaborative && (
           <button
             disabled={busy || disabled || dirty}
             onClick={() => void operation('evidence_relocate')}
@@ -660,7 +662,7 @@ export function PdfEvidence({
           <small title={status.asset.fingerprint}>
             SHA-256 {status.asset.fingerprint.slice(0, 16)}… · cópia gerenciada
           </small>
-          {status.asset.originalState !== 'ok' && (
+          {!collaborative && status.asset.originalState !== 'ok' && (
             <p role="status">
               {status.asset.originalState === 'changed'
                 ? 'O arquivo original foi substituído. A cópia vinculada e suas regiões permanecem preservadas.'
@@ -669,8 +671,9 @@ export function PdfEvidence({
           )}
           {status.asset.managedState !== 'ok' && (
             <p role="alert">
-              A cópia gerenciada está indisponível ou mudou. Relocalize o mesmo PDF para recuperar
-              as regiões.
+              {collaborative
+                ? 'O PDF está indisponível. Peça à administração para recuperar a cópia do servidor.'
+                : 'A cópia gerenciada está indisponível ou mudou. Relocalize o mesmo PDF para recuperar as regiões.'}
             </p>
           )}
         </div>
@@ -942,7 +945,9 @@ export function PdfEvidence({
           <p className="field-hint" role="status">
             {dirty
               ? 'Regiões ou visualização não salvas · rascunho local recuperável.'
-              : 'Evidência salva no computador.'}{' '}
+              : collaborative
+                ? 'Evidência salva no servidor.'
+                : 'Evidência salva no computador.'}{' '}
             {regions.length} região(ões).
           </p>
           {dirty && (

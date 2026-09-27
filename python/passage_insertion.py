@@ -2,7 +2,7 @@
 import ast
 import json
 import re
-from studio_authoring import source_entries, authoritative_metadata
+from studio_authoring import source_entries, authoritative_metadata, expression_fingerprint
 from passage_references import read, changes
 
 
@@ -15,11 +15,15 @@ def insert(corpus, source, text, raw, directives, studio, passages, before_id):
     lines=text.splitlines(keepends=True)
     edits=[]
     for passage,entry in zip(sorted((p for p in passages if p['sourceId']==source),key=lambda p:p['ordinal']),entries):
-        if not target:continue
+        # A deliberately appended duplicate must not orphan the previous
+        # unmarked passage when identity reconciliation sees equal syntax.
+        if not target and expression_fingerprint(entry['expression'])!=expression_fingerprint(raw):continue
         if (entry.get('studio') or {}).get('passageId')==passage['id']:continue
         line=min(entry['statementLine'],entry.get('openingLine',entry['statementLine']))
         offset=sum(map(len,lines[:line-1])); prefix=text[offset:entry['start']]
-        if prefix.strip() and not prefix.lstrip().startswith(entry['collection']+' +='):
+        singleton_initial=(prefix.lstrip().startswith(entry['collection']+' =')
+                           and sum(other['statementLine']==entry['statementLine'] for other in entries)==1)
+        if prefix.strip() and not prefix.lstrip().startswith(entry['collection']+' +=') and not singleton_initial:
             raise ValueError('Separe os itens da lista em linhas distintas antes de inserir uma passagem.')
         indent=re.match(r'[ \t]*',lines[line-1]).group()
         metadata={**(entry.get('studio') or {}),'passageId':passage['id']}
@@ -44,11 +48,11 @@ def insert(corpus, source, text, raw, directives, studio, passages, before_id):
             if value:restore.append(indent+'# @'+directive+' '+str(value)+'\n')
         addition=''.join(indent+line for line in directives)+indent+'# @note studio:v1 '+json.dumps(studio)+'\n'+indent+code+'\n'+''.join(restore)
     else:
-        tree=ast.parse(text)
-        anchor=next((s for s in tree.body if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id==source for t in s.targets)),None)
+        from source_catalog import collection_context
+        collection,anchor=collection_context(text,source)
         offset=sum(map(len,lines[:anchor.lineno-1])) if anchor else len(text)
         expression='('+raw+'\n)' if '\n' in raw else raw
-        addition='\n'+''.join(directives)+'# @note studio:v1 '+json.dumps(studio)+'\nl += '+expression+'\n\n'
+        addition='\n'+''.join(directives)+'# @note studio:v1 '+json.dumps(studio)+'\n'+collection+' += '+expression+'\n\n'
     # At a shared offset, existing identity comes after the new passage.
     edits.append((offset,addition))
     for offset,addition in sorted(edits,key=lambda pair:pair[0],reverse=True):text=text[:offset]+addition+text[offset:]

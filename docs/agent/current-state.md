@@ -1,5 +1,17 @@
 # Current state
 
+## Optional hosted collaboration (draft PR, not production)
+
+PostgreSQL-backed hosted state now keeps research events and every changed saved revision without
+automatic expiry. Immutable author-specific submissions export from laptop-restored DB snapshots
+into new main-based corpus/grammar worktrees; reviewed Git receipts and opt-in merge digests are
+separate from editorial approval. Makefile commands cover clean remote install, safe redeploy,
+backup/restore and contribution review. Optional Neo identity uses one-use codes/PKCE, not copied
+password hashes; it requires the companion Neo PR and explicit private configuration. Desktop is
+unchanged. Provider key preferences are encrypted but hosted AI execution still fails closed.
+See [current contract](../design/collab-server.md), [deployment guide](../../deploy/collab/README.md)
+and [handoff](collab-server-handoff.md). Consult new CI; older SQLite results do not validate
+the PostgreSQL version.
 ## Expand all restores the complete tree layout
 
 Bottom-up branches now pack against their occupied widths at each depth, so

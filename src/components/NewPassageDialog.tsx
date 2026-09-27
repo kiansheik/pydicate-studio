@@ -59,7 +59,7 @@ export function NewPassageDialog({
   return (
     <div className="review-overlay" role="dialog" aria-modal="true" aria-label="Nova passagem">
       <section>
-        <h2>Nova passagem de Araújo</h2>
+        <h2>Nova passagem · {studio.passage.witness.title}</h2>
         <p>
           Contribua uma leitura agora e monte a análise quando estiver pronta. Este rascunho fica
           salvo neste dispositivo; a fonte só muda depois de revisar a diferença.
@@ -152,7 +152,7 @@ export function NewPassageDialog({
             value={lexical}
             onChange={setLexical}
             passageId={draftId}
-            sourceId="araujo_catecismo_1686"
+            sourceId={draft.pending?.sourceId ?? studio.passage.sourceId}
             contextKey={draft.revisionId}
           />
           <button
