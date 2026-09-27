@@ -111,6 +111,8 @@ class Host:
         # No secrets are regenerated or copied from other applications on redeployment.
         self.application_ownership(self.data,self.workspace)
         run(['docker','network','inspect','caddy_edge'],capture=True)
+        from upstream import install_timer
+        install_timer(self)
     def deploy(self, initial=False, evidence=None):
         print('[server] Building Studio image (existing service stays available)...',flush=True)
         self.compose('build','studio') # Existing service stays up during build.
@@ -297,6 +299,9 @@ def main():
     parser.add_argument('--evidence',help='Private managed-PDF bundle prepared on the deploying laptop')
     parser.add_argument('--neo-env',default='/srv/nheenga-neologismos/deploy/env/api.env');parser.add_argument('--mode',default='off');parser.add_argument('--review-sha',default='');parser.add_argument('--confirm',default='');parser.add_argument('--email');parser.add_argument('--name',default='Administrator')
     args=parser.parse_args();os.umask(0o077);host=Host(args.root)
+    if args.action=='auto-update':
+        from upstream import run_locked
+        return run_locked(host)
     with host.lock():
         if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence)
         elif args.action=='redeploy':host.deploy(evidence=args.evidence)

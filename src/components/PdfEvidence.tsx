@@ -13,6 +13,7 @@ import {
   type PageViewport,
 } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { createCachedPdfTask, type PdfLoadingTask } from '../domain/pdf-document';
 import {
   pdfRect,
   viewportRect,
@@ -59,6 +60,13 @@ interface Gesture {
   start: [number, number];
   original: PdfRect;
 }
+interface PdfSource {
+  projectId: string;
+  sourceId: string;
+  assetId: string;
+  passageId: string;
+  length: number;
+}
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const emptyView = (page = 1): EvidenceView => ({
   pageIndex: Math.max(0, page - 1),
@@ -93,6 +101,12 @@ export function PdfEvidence({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+  const [pdfSource, setPdfSource] = useState<PdfSource | null>(null);
+  const [pdfAttempt, setPdfAttempt] = useState(0);
+  const [pdfError, setPdfError] = useState('');
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [receivedBytes, setReceivedBytes] = useState(0);
+  const pdfActivity = useRef<(() => void) | null>(null);
   const [viewport, setViewport] = useState<PageViewport | null>(null);
   const [rendering, setRendering] = useState(false);
   const [width, setWidth] = useState(500);
@@ -120,7 +134,10 @@ export function PdfEvidence({
     regionPages.length > 1 && regionPages.at(-1)! - regionPages[0] === regionPages.length - 1
       ? `${regionPages[0]}–${regionPages.at(-1)}`
       : regionPages.join(', ');
-  const assetId = status?.asset?.id;
+  const activePdfSource =
+    pdfSource?.projectId === projectId && pdfSource.sourceId === sourceId ? pdfSource : null;
+  const assetId = status ? status.asset?.id : activePdfSource?.assetId;
+  const evidenceReady = loadedKey.current === key && working !== null;
   const available = Boolean(window.studio?.invoke);
   const collaborative = window.studio?.runtime === 'collaborative';
   const preparing = useRef(false);
@@ -191,6 +208,17 @@ export function PdfEvidence({
     invalidCache.current = false;
     loadedKey.current = key;
     setStatus(next);
+    // Passage metadata can refresh without closing or downloading its source PDF.
+    setPdfSource((current) => {
+      if (!next.asset || next.asset.managedState !== 'ok') return null;
+      if (
+        current?.projectId === projectId &&
+        current.sourceId === sourceId &&
+        current.assetId === next.asset.id
+      )
+        return current;
+      return { projectId, sourceId, passageId, assetId: next.asset.id, length: next.asset.bytes };
+    });
     const boundRegions =
       next.passage?.regions.filter((region) => region.assetId === next.asset?.id) || [];
     // Saved crops carry their portable source pointer across reloads. Changing
@@ -361,74 +389,125 @@ export function PdfEvidence({
 
   useEffect(() => {
     let cancelled = false;
-    let loading: ReturnType<typeof getDocument> | undefined;
+    let failed = false;
+    let documentLoaded = false;
+    let loading: PdfLoadingTask | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     setPdf(null);
     setViewport(null);
-    // A source switch renders once with the previous status before its reset
-    // effect commits. Never request that asset under the new source's identity.
-    if (
-      !assetId ||
-      !window.studio?.invoke ||
-      status?.asset?.managedState !== 'ok' ||
-      status.projectId !== projectId ||
-      status.sourceId !== sourceId
-    )
-      return;
-    setRendering(true);
-    window.studio
-      .invoke('evidence_bytes', { projectId, sourceId, passageId, assetId })
-      .then(async (bytes) => {
-        if (cancelled) return;
-        loading = getDocument({
-          data: new Uint8Array(bytes as ArrayBuffer),
-          isEvalSupported: false,
-          useSystemFonts: true,
-        });
-        const document = await loading.promise;
-        if (cancelled) {
-          await document.destroy();
-          return;
-        }
-        setWorking((current) =>
-          current && current.view.pageIndex >= document.numPages
-            ? {
-                ...current,
-                view: { ...current.view, pageIndex: document.numPages - 1 },
-              }
-            : current,
+    setRendering(false);
+    setLoadingPdf(false);
+    setPdfError('');
+    setReceivedBytes(0);
+    if (!activePdfSource || !window.studio?.invoke) return;
+    const { length, ...request } = activePdfSource;
+    const bridge = window.studio;
+    const fail = (failure: unknown) => {
+      if (cancelled || failed) return;
+      failed = true;
+      clearTimeout(timer);
+      setPdfError(`Não foi possível carregar o PDF: ${message(failure)}`);
+      setLoadingPdf(false);
+      setRendering(false);
+      void loading?.destroy().catch(() => {});
+    };
+    const progress = () => {
+      clearTimeout(timer);
+      if (!documentLoaded)
+        timer = setTimeout(
+          () =>
+            fail(
+              new Error(
+                'A transferência ficou sem progresso. Verifique sua conexão e tente novamente.',
+              ),
+            ),
+          45000,
         );
-        setPdf(document);
-      })
-      .catch((failure: unknown) => {
-        if (!cancelled) {
-          setError(`Não foi possível renderizar o PDF: ${message(failure)}`);
-          setRendering(false);
-        }
-      });
+    };
+    setLoadingPdf(true);
+    progress();
+    void (async () => {
+      const cacheScope = bridge.evidenceCacheScope?.();
+      if (bridge.evidenceUrl && cacheScope) {
+        loading = createCachedPdfTask({
+          ...request,
+          length,
+          url: bridge.evidenceUrl(request),
+          cacheScope,
+          onError: fail,
+        });
+      } else {
+        const source = bridge.evidenceUrl
+          ? {
+              url: bridge.evidenceUrl(request),
+              withCredentials: true,
+              disableStream: true,
+              disableAutoFetch: true,
+              rangeChunkSize: 64 * 1024,
+            }
+          : {
+              data: new Uint8Array(
+                (await bridge.invoke!('evidence_bytes', { ...request })) as ArrayBuffer,
+              ),
+            };
+        if (cancelled || failed) return;
+        loading = getDocument({ ...source, isEvalSupported: false, useSystemFonts: true });
+      }
+      loading.onProgress = ({ loaded }: { loaded: number }) => {
+        if (cancelled || failed) return;
+        setReceivedBytes(loaded);
+        progress();
+        pdfActivity.current?.();
+      };
+      const document = await loading.promise;
+      if (cancelled || failed) {
+        await document.destroy();
+        return;
+      }
+      documentLoaded = true;
+      clearTimeout(timer);
+      setWorking((current) =>
+        current && current.view.pageIndex >= document.numPages
+          ? { ...current, view: { ...current.view, pageIndex: document.numPages - 1 } }
+          : current,
+      );
+      setLoadingPdf(false);
+      setPdf(document);
+    })().catch(fail);
     return () => {
       cancelled = true;
-      void loading?.destroy();
+      clearTimeout(timer);
+      void loading?.destroy().catch(() => {});
     };
-  }, [
-    projectId,
-    sourceId,
-    assetId,
-    status?.asset?.managedState,
-    status?.projectId,
-    status?.sourceId,
-  ]);
+  }, [activePdfSource, pdfAttempt]);
 
   useEffect(() => {
-    if (!pdf || !canvas.current) return;
+    if (!pdf || !canvas.current || !evidenceReady) return;
     let cancelled = false;
+    let failed = false;
     let task: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | undefined;
     setRendering(true);
+    setPdfError('');
     setViewport(null);
+    let timer: ReturnType<typeof setTimeout>;
+    const activity = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        failed = true;
+        task?.cancel();
+        setRendering(false);
+        setPdfError('A página não terminou de carregar. Verifique sua conexão e tente novamente.');
+        void pdf.destroy().catch(() => {});
+      }, 60000);
+    };
+    pdfActivity.current = activity;
+    activity();
     const physicalPage = Math.min(pdf.numPages, Math.max(1, view.pageIndex + 1));
     pdf
       .getPage(physicalPage)
       .then(async (page) => {
-        if (cancelled || !canvas.current) return;
+        if (cancelled || failed || !canvas.current) return;
         const rotation = (page.rotate + view.rotation) % 360;
         const base = page.getViewport({ scale: 1, rotation });
         const next = page.getViewport({ scale: (width / base.width) * view.zoom, rotation });
@@ -445,22 +524,29 @@ export function PdfEvidence({
           transform: [pixelRatio, 0, 0, pixelRatio, 0, 0],
         });
         await task.promise;
-        if (!cancelled) setRendering(false);
+        if (!cancelled && !failed) setRendering(false);
       })
       .catch((failure: unknown) => {
         if (
           !cancelled &&
+          !failed &&
           !(failure instanceof Error && failure.name === 'RenderingCancelledException')
         ) {
-          setError(`Página indisponível: ${message(failure)}`);
+          setPdfError(`Página indisponível: ${message(failure)}`);
           setRendering(false);
         }
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        if (pdfActivity.current === activity) pdfActivity.current = null;
       });
     return () => {
       cancelled = true;
+      clearTimeout(timer);
+      if (pdfActivity.current === activity) pdfActivity.current = null;
       task?.cancel();
     };
-  }, [pdf, view.pageIndex, view.zoom, view.rotation, width]);
+  }, [pdf, view.pageIndex, view.zoom, view.rotation, width, evidenceReady, key]);
 
   useEffect(() => {
     if (
@@ -846,10 +932,26 @@ export function PdfEvidence({
           </div>
         )}
       </div>
-      {(busy || rendering) && (
+      {(busy || loadingPdf || rendering) && (
         <p role="status" className="field-hint">
-          {busy ? 'Carregando ou salvando evidência…' : 'Renderizando página…'}
+          {busy
+            ? 'Carregando ou salvando evidência…'
+            : loadingPdf
+              ? 'Carregando PDF…'
+              : 'Renderizando página…'}
+          {!busy &&
+            collaborative &&
+            receivedBytes > 0 &&
+            ` ${(receivedBytes / (1024 * 1024)).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB recebidos.`}
         </p>
+      )}
+      {pdfError && (
+        <div className="evidence-controls">
+          <p role="alert">{pdfError}</p>
+          <button onClick={() => setPdfAttempt((attempt) => attempt + 1)}>
+            Tentar carregar PDF novamente
+          </button>
+        </div>
       )}
       {assetId && (
         <>

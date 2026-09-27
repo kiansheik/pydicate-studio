@@ -330,6 +330,7 @@ function createNextService(options) {
   }
   return {
     invoke,
+    openEvidence: (params) => evidence.openAsset(params),
     analysis,
     parserLab,
     saveSession: save,

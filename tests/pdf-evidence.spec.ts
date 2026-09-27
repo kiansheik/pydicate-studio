@@ -13,7 +13,7 @@ const { createEvidenceService } = require('../electron/evidence-service.cjs') as
   }) => { invoke(method: string, params: Record<string, unknown>): Promise<unknown> };
 };
 const { makePdfFixture } = require('../electron/tests/pdf-fixture.cjs') as {
-  makePdfFixture: () => Buffer;
+  makePdfFixture: (options?: { paddingBytes?: number }) => Buffer;
 };
 const params = { projectId: 'project:pdf-test', sourceId: 'araujo', passageId: 'passage:a' };
 
@@ -41,9 +41,10 @@ async function guideFixture(
   page: Page,
   directory: string,
   onInvoke?: (method: string, input: Record<string, unknown>) => void,
+  pdfBytes = makePdfFixture(),
 ) {
   const source = join(directory, 'guide-vector.pdf');
-  await writeFile(source, makePdfFixture());
+  await writeFile(source, pdfBytes);
   const options = { stateDirectory: join(directory, 'state'), chooseFile: async () => source };
   const fixture = {
     service: createEvidenceService(options),
@@ -127,6 +128,146 @@ for (const target of ['Fonte Bettendorff', 'Outro projeto']) {
     }
   });
 }
+
+test('passages in the same source reuse the open PDF and keep their own regions', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-reuse-'));
+  try {
+    const requests: Record<string, unknown>[] = [];
+    const { fixture, assetId, revision } = await guideFixture(page, directory, (method, input) => {
+      if (method === 'evidence_bytes') requests.push(input);
+    });
+    await fixture.service.invoke('evidence_save', {
+      ...params,
+      assetId,
+      expectedRevision: revision,
+      regions: [{ id: 'original', assetId, pageIndex: 0, rect: [30, 40, 90, 100] }],
+      view: { pageIndex: 0, zoom: 1, rotation: 0 },
+    });
+    await page.goto('/tests/pdf-harness.html?guide');
+    await ready(page);
+    const originalPixels = await page
+      .getByTestId('pdf-canvas')
+      .evaluate((node) => (node as HTMLCanvasElement).toDataURL());
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-guide-region')).toBeVisible();
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveCount(1);
+    expect(
+      await page
+        .getByTestId('pdf-canvas')
+        .evaluate((node) => (node as HTMLCanvasElement).toDataURL()),
+    ).toBe(originalPixels);
+    expect(requests).toEqual([{ ...params, assetId }]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('hosted PDF caches original byte ranges across passage switches and reloads', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-ranges-'));
+  try {
+    const bytes = makePdfFixture({ paddingBytes: 2 * 1024 * 1024 });
+    const { assetId } = await guideFixture(
+      page,
+      directory,
+      (method) => {
+        expect(method).not.toBe('evidence_bytes');
+      },
+      bytes,
+    );
+    const ranges: string[] = [];
+    await page.route('**/fixture.pdf*', async (route) => {
+      const range = route.request().headers().range;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/pdf',
+        'Accept-Ranges': 'bytes',
+        ETag: `"sha256-${assetId}"`,
+      };
+      if (range) {
+        ranges.push(range);
+        const match = /^bytes=(\d+)-(\d+)$/.exec(range)!;
+        const start = Number(match[1]),
+          end = Math.min(Number(match[2]), bytes.length - 1);
+        headers['Content-Range'] = `bytes ${start}-${end}/${bytes.length}`;
+        headers['Content-Length'] = String(end - start + 1);
+        await route.fulfill({ status: 206, headers, body: bytes.subarray(start, end + 1) });
+      } else {
+        headers['Content-Length'] = String(bytes.length);
+        await route.fulfill({ status: 200, headers, body: bytes });
+      }
+    });
+    await page.addInitScript(() => {
+      window.studio!.runtime = 'collaborative';
+      window.studio!.evidenceUrl = ({ assetId }) => `/fixture.pdf?asset=${assetId}`;
+      window.studio!.evidenceCacheScope = () => 'fixture-account';
+    });
+    await page.goto('/tests/pdf-harness.html?guide');
+    await ready(page);
+    expect(ranges.length).toBeGreaterThan(0);
+    const requested = ranges.reduce((sum, range) => {
+      const [start, end] = range.slice(6).split('-').map(Number);
+      return sum + end - start + 1;
+    }, 0);
+    expect(requested).toBeLessThan(bytes.length / 4);
+    const firstRanges = [...ranges];
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    expect(ranges).toEqual(firstRanges);
+    await expect
+      .poll(() =>
+        page.getByTestId('pdf-canvas').evaluate((node) => {
+          const canvas = node as HTMLCanvasElement;
+          const pixels = canvas
+            .getContext('2d')!
+            .getImageData(0, 0, canvas.width, canvas.height).data;
+          return pixels.some((value, index) => index % 4 === 2 && value > pixels[index - 2] + 80);
+        }),
+      )
+      .toBe(true);
+    await page.reload();
+    await ready(page);
+    expect(ranges).toEqual(firstRanges);
+    expect(assetId).toBeTruthy();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a stalled hosted PDF stops loading and can be retried', async ({ page }) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-retry-'));
+  try {
+    await guideFixture(page, directory);
+    let requests = 0;
+    await page.route('**/stalled.pdf', async (route) => {
+      requests++;
+      if (requests === 1) return; // A live request with no response/progress.
+      await route.fulfill({ status: 200, contentType: 'application/pdf', body: makePdfFixture() });
+    });
+    await page.addInitScript(() => {
+      window.studio!.runtime = 'collaborative';
+      window.studio!.evidenceUrl = () => '/stalled.pdf';
+    });
+    await page.clock.install();
+    await page.goto('/tests/pdf-harness.html');
+    await expect(page.getByRole('status').filter({ hasText: 'Carregando PDF' })).toBeVisible();
+    await expect.poll(() => requests).toBe(1);
+    await page.clock.fastForward(46000);
+    await expect(page.getByRole('alert').filter({ hasText: 'sem progresso' })).toBeVisible();
+    await page.getByRole('button', { name: 'Tentar carregar PDF novamente', exact: true }).click();
+    await ready(page);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(requests).toBe(2);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('hosted PDF keeps real rendering and saved regions without desktop relocation controls', async ({
   page,

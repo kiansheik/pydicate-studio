@@ -94,6 +94,8 @@ async function atomicWrite(filename, contents) {
 /** Main-process service. Renderer never supplies an arbitrary filesystem path. */
 function createEvidenceService({ stateDirectory, chooseFile }) {
   const writes = new Map();
+  const verifiedFiles = new Map(),
+    verifyingFiles = new Map();
   const assetDirectory = path.join(stateDirectory, 'assets');
   const manifestDirectory = path.join(stateDirectory, 'sources');
   const sourceKey = (params) =>
@@ -173,13 +175,66 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
     if (Buffer.byteLength(contents) > 8 * 1024 * 1024) fail('Manifesto de evidência excede 8 MiB.');
     await atomicWrite(filename(params), contents);
   }
+  // Managed PDFs are immutable by SHA-256. Recheck filesystem identity on every
+  // access, but do not reread an entire scan for each passage or HTTP range.
+  const fileVersion = (stat) =>
+    [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(':');
+  async function openVerifiedFile(filePath, expected) {
+    const handle = await fs.open(filePath, 'r');
+    try {
+      const stat = await handle.stat({ bigint: true }),
+        version = fileVersion(stat);
+      const changed = () =>
+        Object.assign(new Error('A cópia do PDF foi alterada. Relocalize o mesmo arquivo.'), {
+          code: 'EVIDENCE_CHANGED',
+        });
+      if (!stat.isFile() || stat.size > BigInt(MAX_PDF_BYTES)) throw changed();
+      const key = JSON.stringify([filePath, expected, version]);
+      if (!verifiedFiles.has(key)) {
+        let pending = verifyingFiles.get(key);
+        if (!pending) {
+          pending = (async () => {
+            const digest = createHash('sha256'),
+              buffer = Buffer.alloc(256 * 1024);
+            let position = 0;
+            while (position < Number(stat.size)) {
+              const { bytesRead } = await handle.read(
+                buffer,
+                0,
+                Math.min(buffer.length, Number(stat.size) - position),
+                position,
+              );
+              if (!bytesRead) throw changed();
+              digest.update(buffer.subarray(0, bytesRead));
+              position += bytesRead;
+            }
+            if (
+              digest.digest('hex') !== expected ||
+              fileVersion(await handle.stat({ bigint: true })) !== version
+            )
+              throw changed();
+            if (verifiedFiles.size >= 128) verifiedFiles.delete(verifiedFiles.keys().next().value);
+            verifiedFiles.set(key, true);
+          })().finally(() => verifyingFiles.delete(key));
+          verifyingFiles.set(key, pending);
+        }
+        await pending;
+      }
+      if (fileVersion(await handle.stat({ bigint: true })) !== version) throw changed();
+      return { handle, size: Number(stat.size), id: expected };
+    } catch (error) {
+      await handle.close();
+      throw error;
+    }
+  }
   async function fileState(filePath, expected) {
     try {
-      const stat = await fs.stat(filePath);
-      if (!stat.isFile() || stat.size > MAX_PDF_BYTES) return 'changed';
-      return hash(await fs.readFile(filePath)) === expected ? 'ok' : 'changed';
+      const asset = await openVerifiedFile(filePath, expected);
+      await asset.handle.close();
+      return 'ok';
     } catch (error) {
       if (error.code === 'ENOENT') return 'missing';
+      if (error.code === 'EVIDENCE_CHANGED') return 'changed';
       return 'unreadable';
     }
   }
@@ -394,6 +449,16 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
     return status(params, document);
   }
   return {
+    // Internal server API: the caller owns this handle and must close it. It is
+    // deliberately unavailable through renderer invoke/JSON transport.
+    async openAsset(params) {
+      const key = sourceKey(params);
+      await writes.get(key)?.catch(() => {});
+      const document = await read(params),
+        assetId = fingerprint(params.assetId);
+      if (document.selectedAssetId !== assetId) fail('O PDF selecionado mudou.');
+      return openVerifiedFile(assetFilename(assetId), assetId);
+    },
     async invoke(method, params) {
       if (!params || typeof params !== 'object') fail('Parâmetros de evidência inválidos.');
       const key = sourceKey(params);

@@ -1,5 +1,30 @@
 # Current state
 
+## PDF range cache and idle upstream updates
+
+The hosted viewer now fetches original PDF byte ranges, keeps the document open
+across same-source passages, and stores visited chunks in account/project/source/
+SHA-scoped IndexedDB for seven days (256 MiB LRU cap). No raster conversion or
+lossy compression is used. Cache corruption/storage failure falls back to checked
+network ranges; stalled loading has bounded progress timeouts and retry. The
+server streams authenticated ranges with per-request authorization and verified
+asset identity, using bounded file hashing rather than allocating the full scan
+on each evidence-status request.
+
+Deployment installs a 15-minute dependency timer. A fresh private idle handshake
+requires ten minutes without interaction and no work in flight before a short
+maintenance lease. One full checkpoint precedes fast-forward updates of both
+public dependency repositories; dirty/diverged work defers the update. Restart
+and health checks refresh the engine and corpus. The collaboration panel shows
+status and an explicit reload when repository revisions change, preserving open
+edits. Fresh-install dependency pins match the user's newly published clean local
+revisions: oldtupicorpus `e707610a`, nhe-enga `c43c83ec`.
+
+Local verification: production build, 19 PDF/cache browser scenarios, authenticated
+HTTP/range/abort checks, real-source upload/restore, and the compiled contributor
+source/PDF/crop/restart/submission workflow pass. Live rollout and measurements
+are recorded in the [handoff](session-handoffs/2026-09-27-pdf-cache-upstream.md).
+
 ## Main merge and deployment repair
 
 PR #2 merged into `main` as `02851f6` after all four GitHub checks passed.

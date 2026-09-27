@@ -158,6 +158,8 @@ export interface DraftEnvelope {
 }
 export interface StudioBridge {
   runtime?: 'desktop' | 'collaborative';
+  evidenceUrl?: (params: { projectId: string; sourceId: string; assetId: string }) => string;
+  evidenceCacheScope?: () => string | null;
   capabilities?: { analysis?: boolean; sourceReview?: boolean };
   submitContribution?(): Promise<{ id: string }>;
   setupProject?(): Promise<StudioProject>;
