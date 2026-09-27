@@ -64,10 +64,13 @@ secret was printed and no corpus/ground-truth file was approved or published.
   `data/evidence-imports/3d7bae4836d73db017134b09cb5152f50bfbe3966d2900eda9f9cdb36ba8cd03.tar`.
 - Read-only comparison confirms desktop has 105 Araújo passages, hosted has 103.
   Server is clean at corpus `f520ffce`; desktop HEAD is identical but its working
-  source is edited. Of 63 unmatched entries, 59 have changed expression fingerprints,
-  2 are local-only added passages and 2 are older missing identities. None of the
-  61 current unmatched expressions appears elsewhere in the published source.
-  Preserve conservative matching; publishing reviewed corpus changes is separate.
+  source is edited. **Correction from the later portability investigation:** the
+  changed fingerprints did not establish changed expression text. Python 3.14
+  and 3.11 serialize empty AST fields differently; 99 of the original 103 raw
+  expressions match at the same ordinal. With the user's published current
+  corpus, exact file SHA/ordinal matching safely identifies 100 evidence entries
+  and leaves two historical IDs unmatched. See the
+  [later handoff](2026-09-27-pdf-cache-upstream.md).
 - Live browser smoke renders the historical scan and saved regions, switches
   Bettendorff and returns, opens/cancels Nova fonte, and restores selection and
   unchanged drafts. It caught one 422 evidence_bytes response during source switch;

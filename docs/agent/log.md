@@ -601,3 +601,8 @@ The live release and dependency update completed with independently verified
 backup hashes; normal and throttled reloads issue no PDF requests. A CI pixel
 timing race prompted explicit selected-page render readiness and a delayed
 metadata regression before final measurement.
+
+Cross-runtime diagnosis found Python 3.14/3.11 AST fingerprint differences behind
+61 avoidable unmatched crop links. The importer now recognizes unique identical
+source-file SHA/source/ordinal statements without weakening changed-file checks;
+13 evidence-import tests pass.
