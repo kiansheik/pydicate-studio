@@ -73,6 +73,7 @@ function records(file, data) {
         (Array.isArray(revisions) ? revisions : [revisions]).map((value, index) => ({
           section: 'candidateRevisions',
           recordId: JSON.stringify([id, index]),
+          revisionNumber: index + 1,
           kind: 'candidate-revision',
           value,
         })),
@@ -224,6 +225,7 @@ function createDesktopHistory({ directory }) {
       path: file.path,
       kind: record.kind,
       ...(record.section ? { section: record.section, recordId: record.recordId } : {}),
+      ...(record.revisionNumber ? { revisionNumber: record.revisionNumber } : {}),
       title: titles[record.kind] || file.kind || path.basename(file.path),
       label:
         value.lexicalName ||

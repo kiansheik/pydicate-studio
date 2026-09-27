@@ -14,6 +14,18 @@ flags. Added requested empty-passage text/location continuation and an optional
 prayer name, preserving existing work and separate approval state. Validation
 and deployment are recorded in the [handoff](session-handoffs/2026-09-27-desktop-restoration.md).
 
+PR #9 merged as `6ceb2cb` and ordinary Make deployment succeeded. Live checks
+verified all 202 archive files and 1,167 saved fields, restored 105 current Araújo
+completion flags, and preserved all 67 existing revisions, one comment and one
+submission byte-for-byte. Both backup hashes and the read-only browser smoke
+passed, including history details and real Bettendorff PDF/crop pixels. Three
+lexical notes are active; four remain historical. Final PR and both main CI
+workflows are green (205 browser tests passed, 102 optional skipped, no failures).
+The only CI failure was an outdated blank-transcription expectation, corrected
+to the requested inherited reading; exact textual lines and prayer metadata also
+carry into empty passages. A separate history readability follow-up (`c4732a5`)
+passed six reader and four browser tests; its deployment remains to be recorded.
+
 ## 2026-09-27 - Merge collaboration into main and repair deployment
 
 The successful 84.7 MB upload exposed an incompatible default release: `main`

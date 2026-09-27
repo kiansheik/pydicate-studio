@@ -179,6 +179,75 @@ test('history stays within the selected project and manifest files; binaries ret
   });
 });
 
+test('all 73 revisions across 16 candidate arrays have stable individual records through pagination and download', async (t) => {
+  const f = await fixture(t);
+  const data = JSON.parse(await fs.readFile(path.join(f.base, f.analysis)));
+  data.candidateRevisions = Object.fromEntries(
+    Array.from({ length: 16 }, (_, candidate) => [
+      'candidate:' + candidate,
+      Array.from({ length: candidate < 9 ? 5 : 4 }, (_, revision) => ({
+        id: 'candidate:' + candidate,
+        jobId: 'job:1',
+        projectId: 'desktop',
+        passageId: 'old:1',
+        revisionId: `revision:${candidate}:${revision}`,
+        raw: `N("leitura ${candidate}-${revision}")`,
+        canvas: { fragments: [], positions: {} },
+        rationale: 'Justificativa preservada',
+        status: 'ready-for-review',
+        updatedAt: '2026-09-27T12:00:00Z',
+        evaluation: {
+          expression: `N("leitura ${candidate}-${revision}")`,
+          surface: 'leitura',
+          annotated: 'leitura[N]',
+        },
+      })),
+    ]),
+  );
+  const bytes = Buffer.from(JSON.stringify(data));
+  await fs.writeFile(path.join(f.base, f.analysis), bytes);
+  const manifestFile = path.join(f.base, 'manifest.json');
+  const manifest = JSON.parse(await fs.readFile(manifestFile));
+  manifest.files.find((file) => file.path === f.analysis).sha256 = sha(bytes);
+  await fs.writeFile(manifestFile, JSON.stringify(manifest));
+  const params = {
+    projectId: 'hosted',
+    passageId: 'passage:current',
+    kind: 'candidate-revision',
+    limit: 50,
+  };
+  const first = await f.reader.list(params);
+  assert.equal(first.total, 73);
+  assert.equal(first.entries.length, 50);
+  assert.equal(first.nextCursor, 50);
+  const second = await f.reader.list({ ...params, cursor: first.nextCursor });
+  assert.equal(second.entries.length, 23);
+  assert.equal(second.nextCursor, null);
+  const entries = [...first.entries, ...second.entries];
+  assert.equal(new Set(entries.map((row) => row.recordId)).size, 73);
+  assert.deepEqual((await f.reader.list(params)).entries, first.entries);
+  for (const row of entries) {
+    const [candidate, revision] = JSON.parse(row.recordId);
+    assert.equal(row.revisionNumber, revision + 1);
+    assert.equal(row.originalPassageId, 'old:1');
+    const item = await f.reader.get({ projectId: 'hosted', ...row });
+    assert.deepEqual(item.data, data.candidateRevisions[candidate][revision]);
+    assert.equal(Array.isArray(item.data), false);
+  }
+  await assert.rejects(
+    f.reader.get({
+      projectId: 'hosted',
+      ...entries[0],
+      recordId: JSON.stringify(['candidate:0', 99]),
+    }),
+    { code: 'DESKTOP_RECORD_MISSING' },
+  );
+  assert.deepEqual(
+    (await f.reader.file({ projectId: 'hosted', snapshot: f.snapshot, path: f.analysis })).bytes,
+    bytes,
+  );
+});
+
 test('changed or symlinked historical files are rejected even after a cached read', async (t) => {
   const f = await fixture(t);
   await f.reader.list({ projectId: 'hosted' });

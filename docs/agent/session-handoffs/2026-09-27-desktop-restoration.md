@@ -4,8 +4,10 @@
 
 Restore all persisted pre-refactor research before further authoring, including
 the desktop's explicit completion states; preserve existing online contributions.
-Also carry location/PDF guide and editable text into an empty next passage, with
-an optional prayer name.
+Also carry diplomatic/revised readings, translations, analysis instructions,
+location fields (including the exact textual line) and the previous PDF guide
+into an empty next passage, with an optional prayer name. Existing next-passage
+work, analysis trees and editorial approval remain separate.
 
 ## Inspected
 
@@ -41,7 +43,7 @@ an optional prayer name.
   exported data includes 29 PDF buffers (30 regions), 14 historical retry
   records, last-passage pointers and interface preferences. No saved learning
   progress or lexical-note buffers were present at inspected origins.
-- Sanitized input snapshot: 202 files, 107,494,830 bytes;
+- Sanitized rehearsal snapshot: 202 files, 107,494,830 bytes;
   SHA-256 `f26e0b2bf76a0164f71d78be3f0731b262778c75f86541d15bbd4a06c9161fe6`.
   Managed PDFs travel in the existing separate exact-byte bundle.
 - Final local checks: production build and formatting; 60 deployment tests;
@@ -53,6 +55,45 @@ an optional prayer name.
   whose only change was formatting (verified by same-runtime AST and comment
   fingerprints). Four occurrence notes reference historical passages and retain
   their complete original histories for review.
+
+## Verified live deployment
+
+- PR #9 merged as `6ceb2cbe29e657b578ffdbc4868f5b711db297cd` and
+  `make collab-deploy` completed successfully. Final PR head
+  `94508a9a30440d6a457cd3119ee21b79695ea918` and both merged-main workflows
+  passed. The browser suite finished with 205 passed, 102 optional skipped and
+  zero failures; `gh pr checks 9` and the main workflow results were verified.
+- Actual deployed archive:
+  `2b8564d3ca19da674603b75f866200b626fa085d23300c17548dc3cc42882c2f`;
+  every SHA-256 verified across 202 files / 107,494,830 bytes. Backup
+  `predeploy-20260927T172802-e9668f` has verified hashes for both `database.dump`
+  and `workspace-state.tar.gz`.
+- Live parity: 1,167 field checks, zero skipped conflict fields; 105 current
+  Araújo completion flags, 137 mapped drafts, one pending draft, 22 historical
+  drafts and 30 canvases. Nine stale fingerprints stay explicit; zero draft
+  conflicts. Three lexical notes are active and four retain historical linkage.
+  All 67 preexisting revisions, one comment and one submission retained exact
+  hashes. Reports: `.local/desktop-migration/live-verification.json` and
+  `backup-verification.json` in the same private directory.
+- Read-only browser smoke passed:
+  `.local/desktop-migration/browser-verify-2026-09-27T17-34-01.712Z.json`.
+  It verified 105 completed current passages in the API/sidebar, the completed
+  filter's 106 entries including the pending passage, the prayer field,
+  preserved conversation/draft details, and actual Bettendorff PDF pixels plus
+  its saved crop. No paid-analysis polling, content writes, external requests,
+  browser errors or API errors occurred. Original selection was restored;
+  draft and evidence hashes were unchanged.
+
+## History readability follow-up
+
+Separate commit `c4732a5` improves `server/desktop-history.cjs` and
+`server/public/desktop-history.js`, with regressions in
+`server/tests/desktop-history.test.cjs` and `tests/desktop-history.spec.ts`:
+individual revision numbers, saved-expression fallbacks, rationale and annotated
+results are directly readable. The actual archive already exposes all 73
+candidate revisions individually. Six reader tests and four browser tests pass;
+the 73-record regression also covers pagination, stable identities and exact
+original downloads. This follow-up's release/deployment is not yet recorded.
 
 ## What worked / what failed
 
@@ -66,14 +107,21 @@ eligible for deployment. PostgreSQL tests required sandbox escalation for the
 loopback socket. One existing schema-count assertion required updating for the
 new fourth migration; the schema-integrity test then passed.
 
+The only general CI failure was the old `sources.spec.ts` expectation that a
+new passage's transcription stay blank. It now expects the requested inherited
+reading; all three focused source browser tests and the final CI suites pass.
+Two initial live-QA assumptions were corrected without application changes:
+the completed filter includes one completed pending passage (106 total), and
+the collaboration panel must be opened before its history button is visible.
+
 ## Remaining questions / next prompt
 
 Historical records without a provable current source/lexical occurrence remain
 visible for review instead of being attached by guesswork. In-memory undo stacks
 and tab-specific Session Storage are not recoverable authoring histories through
 this migration. Browser-only PDF buffers are restored explicitly to the owner's
-browser without replacing newer local buffers. Deployment/production verification
-results will be added here before completion.
+browser without replacing newer local buffers. Record the separate history
+readability follow-up's release and final verification when deployed.
 
 Suggested next prompt: “Review the restored desktop history and resolve any
 historical source links that should become current passages.”

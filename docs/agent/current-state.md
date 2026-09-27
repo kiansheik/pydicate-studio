@@ -11,20 +11,31 @@ conflicting desktop versions remain accessible in an administrator history
 viewer; provider queues never restart during historical reads. Credentials and
 browser authentication are excluded. Existing hosted contributions win conflicts.
 
-A real-data isolated PostgreSQL rehearsal restored all 105 current Araújo
-completion flags, 137 matching drafts, 22 historical drafts, one pending passage
-and 30 canvases, with 1,166 saved-field parity checks. Nine stale fingerprints
-remain explicit rather than being relabeled as fresh approval. The input archive
-contains 202 files / 107,494,830 bytes in addition to managed PDFs. Lexical notes
-and browser buffers retain their original provenance and require safe identity
-mapping. Live rollout verification is recorded in the
+PR #9 merged as `6ceb2cbe29e657b578ffdbc4868f5b711db297cd`; ordinary
+`make collab-deploy` succeeded. Both main workflows and final PR head `94508a9`
+passed, including 205 browser tests (102 optional tests skipped, no failures).
+Live verification checked every file in the 202-file / 107,494,830-byte archive
+and 1,167 saved fields, with no skipped conflict fields: 105 current Araújo
+completion flags, 137 mapped drafts, one pending draft, 22 historical drafts and
+30 canvases. Nine stale fingerprints remain explicit; no draft conflicts occurred.
+Three lexical notes are active and four remain historical. All 67 preexisting
+revisions, one comment and one submission kept their exact hashes; both backup
+file hashes were verified. Live browser checks passed completion labels, history
+details and actual Bettendorff PDF/crop rendering, with original selection,
+drafts and evidence preserved. Exact release, archive and QA evidence are in the
 [handoff](session-handoffs/2026-09-27-desktop-restoration.md).
 
-Empty next passages also inherit editable reading/location context, translations
-and analysis instructions without inheriting analysis trees, completion or
-approval. The previous PDF page/region remains a guide; existing next-passage
-work is preserved. Optional `prayerName` round-trips in Studio metadata and is
-shown as `Oração (opcional)`.
+Empty next passages inherit diplomatic/revised readings, translations, analysis
+instructions and location fields, including the exact `Linhas no texto` value
+and prayer name, without inheriting analysis trees, completion or approval.
+The previous PDF page/region remains a guide; existing next-passage work is
+preserved. Optional `prayerName` round-trips in Studio metadata and is shown as
+`Oração (opcional)`.
+
+A separate history readability follow-up (`c4732a5`) numbers candidate revisions
+and shows saved expressions, rationale and annotated results directly. Six reader
+tests and four browser tests pass; all 73 actual revisions were already
+individually flattened. Its deployment is not yet recorded here.
 
 ## PDF range cache and idle upstream updates
 

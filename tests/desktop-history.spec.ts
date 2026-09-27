@@ -70,6 +70,77 @@ test('contributor UI does not expose private desktop research history', async ({
   await expect(page.getByRole('button', { name: 'Histórico do desktop' })).toHaveCount(0);
 });
 
+test('candidate revisions show saved expressions, rationale and annotated results individually', async ({
+  page,
+}) => {
+  const data = [
+    {
+      raw: 'N("leitura original")',
+      rationale: 'Justificativa <b>preservada</b>',
+      evaluation: {
+        expression: 'N("resultado antigo")',
+        surface: 'leitura',
+        annotated: 'leitura[N]',
+      },
+    },
+    { expression: 'N("expressão registrada")' },
+    { evaluation: { expression: 'N("avaliação registrada")' } },
+  ];
+  const entries = data.map((_, index) => ({
+    snapshot: 'a'.repeat(64),
+    path: 'files/analysis/records/one.json',
+    kind: 'candidate-revision',
+    section: 'candidateRevisions',
+    recordId: JSON.stringify(['candidate:1', index]),
+    revisionNumber: index + 1,
+    title: 'Revisão de proposta',
+    originalPassageId: 'old:1',
+    passageId: 'passage:current',
+  }));
+  const requests: string[] = [];
+  await page.route('**/api/**', async (route) => {
+    requests.push(route.request().method() + ' ' + route.request().url());
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/desktop-history') {
+      await route.fulfill({ json: { archives: [{}], entries, total: 3, nextCursor: null } });
+    } else if (url.pathname === '/api/desktop-history/item') {
+      const index = entries.findIndex(
+        (entry) => entry.recordId === url.searchParams.get('recordId'),
+      );
+      await route.fulfill({ json: { entry: entries[index], data: data[index], relatedFiles: [] } });
+    } else await route.abort();
+  });
+  await page.goto('/tests/desktop-history-harness.html');
+  await page.getByRole('button', { name: 'Histórico do desktop', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Histórico do desktop' });
+  await expect(dialog.getByRole('status')).toContainText('3 registro(s)');
+  const expressions = [
+    'N("leitura original")',
+    'N("expressão registrada")',
+    'N("avaliação registrada")',
+  ];
+  for (const [index, expression] of expressions.entries()) {
+    await dialog.getByRole('button', { name: new RegExp('revisão ' + (index + 1)) }).click();
+    await expect(dialog.getByRole('heading', { name: 'Expressão Pydicate' })).toBeVisible();
+    await expect(dialog.getByText(expression, { exact: true })).toBeVisible();
+    if (index === 0) {
+      await expect(
+        dialog.getByText('Justificativa <b>preservada</b>', { exact: true }),
+      ).toBeVisible();
+      await expect(dialog.getByText('leitura[N]', { exact: true })).toBeVisible();
+      await expect(dialog.locator('b')).toHaveCount(0);
+    }
+    await expect(
+      dialog.getByRole('link', { name: 'Baixar arquivo original completo' }),
+    ).toHaveAttribute('href', /desktop-history\/file/);
+  }
+  expect(
+    requests.every(
+      (request) => request.startsWith('GET ') && request.includes('/api/desktop-history'),
+    ),
+  ).toBe(true);
+});
+
 test('administrator explicitly restores a PDF buffer with mapped passage and current revision', async ({
   page,
 }) => {
