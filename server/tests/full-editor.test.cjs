@@ -29,7 +29,7 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
     await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
     settings.origin = 'http://127.0.0.1:' + app.server.address().port;
     auth.origin = settings.origin;
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, ...(process.env.COLLAB_CHROMIUM ? { executablePath: process.env.COLLAB_CHROMIUM } : {}) });
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
@@ -39,7 +39,10 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
     await page.locator('#submit').click();
     await page.waitForURL(settings.origin + '/');
     await page.waitForFunction(() => window.collab?.state().projectId && !window.collab.state().projectId.startsWith('example:'), null, { timeout: 60000 });
-    await page.locator('#root').getByText('Código', { exact: true }).first().click();
+    await page.getByRole('button', { name: 'Mais ferramentas', exact: true }).click();
+    await page.getByRole('menu', { name: 'Mais ferramentas' }).getByRole('checkbox', { name: 'Ferramentas avançadas' }).check();
+    await page.getByRole('button', { name: 'Fechar mais ferramentas', exact: true }).click();
+    await page.getByRole('tab', { name: 'Código', exact: true }).click();
     const editor = page.getByLabel('Pydicate editável', { exact: true });
     await editor.waitFor({ timeout: 60000 });
     const id = await page.evaluate(() => window.collab.state().selected);
