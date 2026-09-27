@@ -12,6 +12,12 @@ historical records remain preserved. Sixteen recovery integration/storage tests,
 eight domain tests, eleven evidence-service tests and eighteen PDF browser tests
 pass. See [handoff](session-handoffs/2026-09-27-canonical-pdf-evidence.md).
 
+PR #11 deployed `d711aba` successfully through ordinary Make deployment. All 26
+live region/view states match the desktop copies; 86 other evidence entries and
+all drafts are unchanged. Browser checks for both named examples passed with an
+intentionally stale cache, as did Bettendorff rendering and read-only final
+hashes. Both full-backup files were independently verified.
+
 ## 2026-09-27 - Restore desktop research before further authoring
 
 Traced missing hosted completion flags to an incomplete migration: PDF evidence

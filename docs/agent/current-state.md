@@ -10,7 +10,10 @@ including removals/empty regions. A durable content-based receipt prevents later
 deployments from replaying them over subsequent online edits. Pristine browser
 caches adopt corrected server geometry; actual local edits remain protected.
 Real-data rehearsal applies 26 corrections (18 remove page 37); two historical
-buffers and one legacy buffer without a baseline remain archived. See the
+buffers and one legacy buffer without a baseline remain archived. PR #11 is
+deployed as `d711aba`; live checks verified all 26 corrections, 86 unchanged
+other entries and unchanged drafts. Both named examples render only page 38 even
+with an old page-37 browser cache; the new full backup hashes are verified. See the
 [handoff](session-handoffs/2026-09-27-canonical-pdf-evidence.md) for validation and
 live rollout results. The earlier 1,167-field parity check covered passage drafts,
 not PDF working-copy precedence, and was insufficient to establish full fidelity.
