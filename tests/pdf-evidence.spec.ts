@@ -19,6 +19,7 @@ const params = { projectId: 'project:pdf-test', sourceId: 'araujo', passageId: '
 
 async function ready(page: Page) {
   await expect(page.getByTestId('pdf-canvas')).toBeVisible();
+  await expect(page.getByTestId('pdf-canvas')).toHaveAttribute('aria-busy', 'false');
   await expect(page.getByRole('status').filter({ hasText: 'Renderizando' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Marcar região', exact: true })).toBeEnabled();
 }
@@ -40,7 +41,7 @@ async function draw(page: Page, start: [number, number], end: [number, number]) 
 async function guideFixture(
   page: Page,
   directory: string,
-  onInvoke?: (method: string, input: Record<string, unknown>) => void,
+  onInvoke?: (method: string, input: Record<string, unknown>) => void | Promise<void>,
   pdfBytes = makePdfFixture(),
 ) {
   const source = join(directory, 'guide-vector.pdf');
@@ -59,7 +60,7 @@ async function guideFixture(
   await page.exposeFunction(
     '__pdfInvoke',
     async (method: string, input: Record<string, unknown>) => {
-      onInvoke?.(method, input);
+      await onInvoke?.(method, input);
       const result = await fixture.service.invoke(method, {
         ...input,
         previousPassages: input.passageId === 'passage:a' ? [] : [{ id: 'passage:a', ordinal: 1 }],
@@ -164,6 +165,36 @@ test('passages in the same source reuse the open PDF and keep their own regions'
     ).toBe(originalPixels);
     expect(requests).toEqual([{ ...params, assetId }]);
   } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('drawing waits for the selected passage while its metadata is delayed', async ({ page }) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-readiness-'));
+  let release!: () => void,
+    waiting = false;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await guideFixture(page, directory, async (method, input) => {
+      if (method === 'evidence_status' && input.passageId === 'passage:b') {
+        waiting = true;
+        await blocked;
+      }
+    });
+    await page.goto('/tests/pdf-harness.html?guide');
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await expect.poll(() => waiting).toBe(true);
+    await expect(page.getByTestId('pdf-canvas')).toBeVisible();
+    await expect(page.getByTestId('pdf-canvas')).toHaveAttribute('aria-busy', 'true');
+    await expect(page.getByRole('button', { name: 'Marcar região', exact: true })).toBeDisabled();
+    release();
+    await ready(page);
+    await expect(page.getByTestId('pdf-canvas')).toHaveAttribute('data-pdf-page', '1');
+  } finally {
+    release();
     await rm(directory, { recursive: true, force: true });
   }
 });

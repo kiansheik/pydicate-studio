@@ -109,6 +109,7 @@ export function PdfEvidence({
   const pdfActivity = useRef<(() => void) | null>(null);
   const [viewport, setViewport] = useState<PageViewport | null>(null);
   const [rendering, setRendering] = useState(false);
+  const [renderedKey, setRenderedKey] = useState('');
   const [width, setWidth] = useState(500);
   const [drawing, setDrawing] = useState(false);
   const [selection, setSelection] = useState<string | null>(null);
@@ -138,6 +139,17 @@ export function PdfEvidence({
     pdfSource?.projectId === projectId && pdfSource.sourceId === sourceId ? pdfSource : null;
   const assetId = status ? status.asset?.id : activePdfSource?.assetId;
   const evidenceReady = loadedKey.current === key && working !== null;
+  const renderKey = JSON.stringify([
+    key,
+    assetId,
+    view.pageIndex,
+    view.zoom,
+    view.rotation,
+    width,
+    pdfAttempt,
+  ]);
+  const pagePending =
+    !pdfError && Boolean(pdf && (!evidenceReady || rendering || renderedKey !== renderKey));
   const available = Boolean(window.studio?.invoke);
   const collaborative = window.studio?.runtime === 'collaborative';
   const preparing = useRef(false);
@@ -524,7 +536,10 @@ export function PdfEvidence({
           transform: [pixelRatio, 0, 0, pixelRatio, 0, 0],
         });
         await task.promise;
-        if (!cancelled && !failed) setRendering(false);
+        if (!cancelled && !failed) {
+          setRenderedKey(renderKey);
+          setRendering(false);
+        }
       })
       .catch((failure: unknown) => {
         if (
@@ -546,11 +561,11 @@ export function PdfEvidence({
       if (pdfActivity.current === activity) pdfActivity.current = null;
       task?.cancel();
     };
-  }, [pdf, view.pageIndex, view.zoom, view.rotation, width, evidenceReady, key]);
+  }, [pdf, view.pageIndex, view.zoom, view.rotation, width, evidenceReady, key, renderKey]);
 
   useEffect(() => {
     if (
-      rendering ||
+      pagePending ||
       drawing ||
       gesture.current ||
       !viewport ||
@@ -580,7 +595,7 @@ export function PdfEvidence({
         container.clientHeight / 2,
       behavior: 'instant',
     });
-  }, [selection, viewport, rendering, key, focusRequest]);
+  }, [selection, viewport, pagePending, key, focusRequest]);
 
   async function operation(method: string, extra: Record<string, unknown> = {}) {
     if (!window.studio?.invoke || busy) return;
@@ -629,7 +644,8 @@ export function PdfEvidence({
     ];
   }
   function startGesture(event: PointerEvent<HTMLDivElement>) {
-    if (disabled || busy || rendering || !viewport || !working || event.button !== 0) return;
+    if (disabled || busy || pagePending || pdfError || !viewport || !working || event.button !== 0)
+      return;
     const target = event.target as Element;
     const regionId = target.closest('[data-region-id]')?.getAttribute('data-region-id');
     const existing = regions.find((region) => region.id === regionId);
@@ -731,7 +747,9 @@ export function PdfEvidence({
     anchor.click();
     URL.revokeObjectURL(url);
   }
-  const locked = Boolean(disabled || busy || !working || status?.asset?.managedState !== 'ok');
+  const locked = Boolean(
+    disabled || busy || !evidenceReady || status?.asset?.managedState !== 'ok',
+  );
 
   return (
     <section className="pdf-evidence" aria-label="PDF e regiões da passagem">
@@ -863,7 +881,13 @@ export function PdfEvidence({
             onPointerUp={finishGesture}
             onPointerCancel={finishGesture}
           >
-            <canvas ref={canvas} aria-label="Página renderizada do PDF" data-testid="pdf-canvas" />
+            <canvas
+              ref={canvas}
+              aria-label="Página renderizada do PDF"
+              data-testid="pdf-canvas"
+              aria-busy={busy || loadingPdf || pagePending}
+              data-pdf-page={renderedKey === renderKey ? view.pageIndex + 1 : undefined}
+            />
             {viewport && (
               <svg
                 aria-label="Regiões da passagem"
@@ -932,7 +956,7 @@ export function PdfEvidence({
           </div>
         )}
       </div>
-      {(busy || loadingPdf || rendering) && (
+      {(busy || loadingPdf || pagePending) && (
         <p role="status" className="field-hint">
           {busy
             ? 'Carregando ou salvando evidência…'
@@ -971,7 +995,7 @@ export function PdfEvidence({
           <div className="evidence-controls">
             <button
               aria-pressed={drawing}
-              disabled={locked || rendering || !viewport}
+              disabled={locked || pagePending || Boolean(pdfError) || !viewport}
               onClick={() => setDrawing(!drawing)}
             >
               Marcar região
