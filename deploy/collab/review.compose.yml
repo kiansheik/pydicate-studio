@@ -1,0 +1,42 @@
+# Offline laptop review database: no public ports, no web server, no SMTP or AI worker.
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: studio_review
+      POSTGRES_DB: studio_review
+      POSTGRES_PASSWORD_FILE: /run/secrets/review_password
+    secrets: [review_password]
+    volumes: [review_db:/var/lib/postgresql/data]
+    networks: [review]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U studio_review -d studio_review']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+  tools:
+    build:
+      context: ../..
+      dockerfile: deploy/collab/Dockerfile
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    environment:
+      PGHOST: postgres
+      PGUSER: studio_review
+      PGDATABASE: studio_review
+      PGPASSWORD_FILE: /run/secrets/review_password
+      COLLAB_STATE_DIR: /tmp/review-state
+      COLLAB_AI_ENABLED: '0'
+      COLLAB_DIGEST_MODE: 'off'
+    secrets: [review_password]
+    volumes: ["${LOCAL_REVIEW_DIR:?Set LOCAL_REVIEW_DIR}:/review"]
+    networks: [review]
+    entrypoint: [node]
+    command: [server/submission-export.cjs]
+secrets:
+  review_password:
+    file: ${LOCAL_REVIEW_DIR}/password
+volumes:
+  review_db:
+networks:
+  review:
+    internal: true

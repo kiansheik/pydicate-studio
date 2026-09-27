@@ -1,34 +1,40 @@
-# Collaboration server handoff — 2026-09-26
+# Collaboration research / operations / identity handoff — 2026-09-27
 
-Optional server mode is under `server/`. Its contract and deliberate omissions are in
-[collab-server.md](../design/collab-server.md); deployment is in
-[deploy/collab](../../deploy/collab/README.md). The existing desktop entry and React source are
-unchanged. The hosted HTML injects a separate browser bridge and collaboration panel.
+User requested indefinite thesis evidence, PostgreSQL, reproducible Make/SSH install and redeploy,
+laptop backup-to-Git review, contributor docs/DNS and reuse of Neo identity. Studio PR #2 remains
+a draft; a companion Neo PR adds the code issuer. No production changes are implied.
 
-## Review and validation
+## Implementation map
 
-Local Node 22.16 execution passed 14 authentication, persistence, permissions and HTTP tests:
-`node --test server/tests/*.test.cjs` (two integration opt-ins skipped). The two-browser harness
-was attempted locally but Chromium's environment policy blocked loopback navigation with
-`ERR_BLOCKED_BY_ADMINISTRATOR`; do not report that attempt as a browser pass. A dedicated CI
-workflow builds the existing app, runs the two-browser transport harness, and runs a separate
-real selected-Python-engine smoke against disposable public checkouts. The browser harness
-uses a small editor fixture, not the complete React canvas. Read actual CI results separately.
+- `server/database.cjs`, `migrations/`, `store.cjs`, async auth/HTTP/runtime: PostgreSQL and exact-save history.
+- `submissions.cjs`, `publication.cjs`, `digests.cjs`: immutable review snapshots, ancestry receipts/outbox.
+- `identity.cjs`, public SSO pages: invited identity linking with PKCE/state and Neo revocation checks.
+- `provider-vault.cjs`: encrypted API-key preferences only, not released hosted generation.
+- `scripts/collab/`: laptop SSH driver, server lifecycle, offline DB/worktree importer, SSO env preparation.
+- `deploy/collab/`: private PostgreSQL, Docker resources, same Caddy/SMTP network and DNS instructions.
+- Root README, contributor guide and public `/help`: browser-first onboarding and data disclosure.
 
-Remaining staging acceptance: full React editor with the real Araújo PDF, contributor/reviewer
-publication, real SMTP invitation/reset delivery, Caddy reconnects, backup restoration and
-representative multi-user memory/latency. No production deployment, DNS/SMTP changes, real
-invitations, paid model calls, or historical source publication were performed for this task.
+## Local checks performed before publishing
 
-## Constraints for the next change
+Real PostgreSQL 17 on a disposable local port: 30 Node unit/HTTP/research/identity tests passed;
+three browser/engine opt-ins were skipped by that base command. A separate real Neo + Studio
+HTTP identity contract test passed with a disposable Neo SQLite database. Six companion Neo
+identity tests passed. Seven Python operations safety tests passed. Further CI now covers
+actual compiled React/Python and the fresh Make/SSH/Docker install/backup/restore path; read
+its actual results before asserting those checks passed. Local root npm build dependencies
+were unavailable, so local unit checks must not be called a full browser/build verification.
 
-- Keep the hosted RPC allowlist independent from Electron; new desktop endpoints default deny.
-- Preserve per-passage compare-and-swap. Never adopt a remote version without its content.
-- Reservations, comments and report distinct-passage counts normalize pending/canonical IDs.
-- Do not mistake browser usage or presence for approved text, billable hours or Pix entitlement.
-- Shared server state is one workspace and one process; accounts are not isolated projects.
-- The trusted Python engine is not a sandbox for uploaded repositories. Provider/grammar repair
-  endpoints are disabled. Do not add public paid AI without per-account authorization/budgets.
-- Preserve local recovery copies when conflicts or expired sessions prevent saving.
-- Do not enable a second public Caddy or replace the existing Academia Tupi sites. Reuse the
-  verified shared `caddy_edge`; configure SMTP secrets outside Git.
+## Deployment acceptance still needed
+
+Real DNS, SMTP deliverability, Neo account linking across the deployed HTTPS origins, actual
+Araújo PDF/crops, linguistic review/publication and concurrent-user load. No paid AI, real invites,
+GitHub main merge or historical-source change was performed during implementation. UI help
+prompts can follow observed usage; existing `/help` works beside the editor.
+
+## Preserve these boundaries
+
+Do not reintroduce research expiry or revision coalescing; expired sessions/leases are different.
+Never silently reset dirty server repos, import ambiguous source anchors, certify ground truth
+from generated equality, or equate presence with billable output. Copy no Neo password hashes
+and widen no cookie domains. Keep a local admin recovery path. Provider keys are not OAuth
+subscription sessions. Audit migration checksums and fresh-source install tests before release.

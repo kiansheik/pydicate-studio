@@ -96,6 +96,12 @@
   window.addEventListener('beforeunload',event=>{if(failed||inflight){event.preventDefault();event.returnValue='';}});
   window.collab=Object.freeze({me,request,clientId,download,exportLocal,
     state:()=>({selected,projectId,failed,inflight}),
+    submit:async()=>{
+      if(failed||inflight)throw new Error('Espere a confirmação do salvamento antes de enviar.');
+      const saved=snapshots.get(projectId)?.envelope?.drafts[selected];
+      if(!saved)throw new Error('Salve sua edição antes de enviar.');
+      return request('/api/submit',{passageId:selected,revisionId:saved.revisionId});
+    },
     reload:()=>{if((failed||inflight)&&!confirm('Há edições não confirmadas. Exporte a cópia local antes de recarregar. Continuar?'))return;location.reload();},
     logout:async()=>{if(failed||inflight)throw new Error('Exporte as edições locais antes de sair.');await request('/api/logout',{});if(identity)sessionStorage.removeItem('collab-recovery:'+identity.user.id);location.assign('/login');},
   });

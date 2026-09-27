@@ -26,6 +26,11 @@ def send(message, env=os.environ):
     mail['From'] = formataddr((name, sender))
     mail['To'] = message['to']
     mail['Subject'] = message['subject']
+    if message.get('messageId'):
+        import re
+        if not re.fullmatch(r'<[a-f0-9-]{36}@studio\.academiatupi\.com>', message['messageId']):
+            raise ValueError('Invalid message ID')
+        mail['Message-ID'] = message['messageId']
     mail.set_content(message['body'])
     context = ssl.create_default_context()
     client = smtplib.SMTP_SSL(host, port, timeout=15, context=context) if implicit else smtplib.SMTP(host, port, timeout=15)

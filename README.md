@@ -1,5 +1,35 @@
 # Pydicate Studio
 
+## Quer contribuir com o tupi antigo? Comece pelo site
+
+**[ENTRAR NO STUDIO](https://studio.academiatupi.com/login)** ·
+**[COMO PARTICIPAR / PEDIR CONVITE](docs/collab-contributor.md)** ·
+**[TUTORIAL EM OUTRA JANELA](https://studio.academiatupi.com/help)**
+
+**Para colaboradores: não instale nada.** O acesso ao espaço coletivo é por convite; peça-o ao
+responsável que compartilhou o projeto ou [solicite acesso sem publicar dados pessoais](https://github.com/kiansheik/pydicate-studio/issues/new?template=acesso.yml).
+O convite chega por e-mail. Escolha **Entrar com Academia Tupi / Neologismos** para usar
+sua conta Neo verificada (quando o login compartilhado estiver habilitado), sem criar outra senha.
+Também há a opção de conta local do Studio. Não precisa de Git/Python nem de credenciais
+pagas de IA. O serviço está em implantação piloto: o endereço fica disponível depois que o
+mantenedor instala o servidor e configura o DNS.
+
+**Fluxo:** entrar → reservar uma passagem → consultar o PDF → editar e salvar → comentar dúvidas
+→ enviar a versão salva para revisão. Cada envio mantém sua autoria e versão exata. O mantenedor
+revisa/testa em Git antes de integrar as mudanças. IA fica desligada inicialmente.
+
+Abra o [guia de contribuição](docs/collab-contributor.md) e a [ajuda do site](https://studio.academiatupi.com/help)
+ao lado do editor. **Aprender** e **Referência** também estão disponíveis na aplicação.
+Versões salvas e eventos de uso são preservados sem expiração automática para pesquisa/defesa
+da tese; [leia o aviso sobre dados e colaboração](docs/collab-contributor.md#seus-dados-e-a-pesquisa).
+
+**Para o mantenedor:** [instalar do zero, redeploy, PostgreSQL e backups](deploy/collab/README.md) ·
+[modelo Git/rascunhos/revisão](docs/design/collab-server.md) · [DNS do Studio](deploy/collab/DNS.md).
+`make collab-help` lista os comandos. O modo desktop abaixo continua independente; suas funções
+de IA/configuração local não são habilitadas automaticamente no site.
+
+---
+
 A Portuguese desktop reading and authoring desk for Old Tupi. Consult a historical PDF, contribute a reading, edit a nested Pydicate construction visually or directly, compare actual engine output, and keep unfinished work across restarts.
 
 Version 0.2 opens the local `oldtupicorpus` project and Araújo by default. It continues the original Electron/React application; the bundled browser example remains available separately. The current audit finds 86 expressions. The [coverage matrix](docs/coverage/araujo.md) distinguishes concrete syntax, structure, editing probes, engine comparisons and UI verification.

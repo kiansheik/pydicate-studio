@@ -15,6 +15,7 @@ function config(env = process.env) {
   if (origin.protocol === 'http:' && !['127.0.0.1', '::1', 'localhost'].includes(host)) {
     throw new Error('Development HTTP must bind to loopback.');
   }
+  if (env.COLLAB_AI_ENABLED && env.COLLAB_AI_ENABLED !== '0') throw new Error('Hosted AI execution is not released yet; keep COLLAB_AI_ENABLED=0.');
   return {
     origin: origin.origin, secure: origin.protocol === 'https:', host, port,
     trustProxy: env.COLLAB_TRUST_PROXY === '1',
@@ -23,7 +24,11 @@ function config(env = process.env) {
     applicationDirectory: path.resolve(__dirname, '..'),
     distDirectory: path.resolve(__dirname, '../dist'),
     python: env.PYDICATE_PYTHON || 'python3',
-    telemetryDays: 90,
+    telemetryDays: null,
+    identity: {enabled: env.COLLAB_NEO_SSO_ENABLED === '1', issuer: env.COLLAB_NEO_ISSUER || 'https://api.academiatupi.com',
+      clientId: 'pydicate-studio', secretFile: env.COLLAB_NEO_SECRET_FILE || '', allowHttp: env.COLLAB_ALLOW_HTTP === '1'},
+    release: env.APP_RELEASE || 'development',
+    vaultKeyFile: env.COLLAB_VAULT_KEY_FILE || '',
   };
 }
 module.exports = { config };

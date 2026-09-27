@@ -3,6 +3,8 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
+COPY server/package*.json ./server/
+RUN npm --prefix server ci --omit=dev
 COPY . .
 RUN npm run build:app
 

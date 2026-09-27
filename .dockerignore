@@ -13,3 +13,6 @@ release
 .venv
 test-results
 playwright-report
+**/node_modules
+backups
+**/__pycache__
