@@ -7,6 +7,10 @@ from ops import Remote
 
 
 class ReleaseTests(unittest.TestCase):
+    def setUp(self):
+        mocked = patch('desktop_sync.prepare_local_bundle', return_value=None)
+        mocked.start(); self.addCleanup(mocked.stop)
+
     def fixture(self, missing=None):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
         root = pathlib.Path(temporary.name); repo = root / 'origin'; repo.mkdir()
@@ -17,11 +21,13 @@ class ReleaseTests(unittest.TestCase):
         files = {
             'scripts/collab/host.py': """import argparse, pathlib
 p=argparse.ArgumentParser(); p.add_argument('action')
-for name in ('root','public-url','smtp','neo-path','evidence'): p.add_argument('--'+name)
+for name in ('root','public-url','smtp','neo-path','evidence','desktop'): p.add_argument('--'+name)
 a=p.parse_args()
 pathlib.Path(a.root, 'deployed').write_text('first')
 """,
             'scripts/collab/evidence_sync.py': '# fixture importer\n',
+            'scripts/collab/desktop_sync.py': '# fixture research archive\n',
+            'server/desktop-import.cjs': '// fixture research importer\n',
             'deploy/collab/compose.yml': 'services: {}\n',
             'deploy/collab/Dockerfile': 'FROM scratch\n',
             'deploy/collab/dependencies.json': '{}\n',
@@ -84,6 +90,25 @@ pathlib.Path(a.root, 'deployed').write_text('first')
             (root/'server/releases'/sha/'unexpected').write_text('changed')
             with self.assertRaises(subprocess.CalledProcessError): remote.deploy_release(sha)
         self.assertFalse((root/'server/deployed').exists())
+
+    def test_research_capability_is_checked_before_upload(self):
+        root, repo, remote, git, ssh = self.fixture('server/desktop-import.cjs')
+        with patch('ops.URL', str(repo)), patch.object(remote, 'ssh', side_effect=ssh):
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                remote.prepare_release('main', desktop=True)
+        self.assertIn(b'does not support desktop research migration', caught.exception.stderr)
+
+    def test_research_bundle_reaches_pinned_release_and_is_removed_after_success(self):
+        root, repo, remote, git, ssh = self.fixture()
+        def upload(file, target):
+            path = pathlib.Path(target); path.parent.mkdir(exist_ok=True); path.write_bytes(b'research fixture')
+        with patch('ops.URL', str(repo)), patch.object(remote, 'ssh', side_effect=ssh), \
+                patch('evidence_sync.prepare_local_bundle', return_value=None), \
+                patch('desktop_sync.prepare_local_bundle', return_value=root/'desktop.tar'), \
+                patch.object(remote, 'upload', side_effect=upload):
+            remote.deploy()
+        self.assertEqual((root/'server/deployed').read_text(), 'first')
+        self.assertFalse(list((root/'server/incoming').iterdir()))
 
     def test_only_validated_full_sha_can_reach_deployment(self):
         remote = Remote()

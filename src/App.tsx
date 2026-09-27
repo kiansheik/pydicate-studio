@@ -816,6 +816,7 @@ export default function App() {
       line: String(passage.witness.textualLine ?? ''),
       section: passage.witness.section ?? '',
       subsection: passage.witness.subsection ?? '',
+      prayerName: passage.witness.prayerName ?? '',
     };
     for (const [key, value] of Object.entries(draft.locators ?? {}))
       if (value !== locators[key]) metadata[key] = value;

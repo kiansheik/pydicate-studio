@@ -22,7 +22,8 @@ import { flushEdits, setUsageContext, track, trackEdit } from './domain/usage';
 import { registerStructureContext, structureDrafts } from './domain/structure-drafts';
 import { editCanvas, emptyCanvas } from './domain/canvas';
 import {
-  nextPassageLocators,
+  nextPassageContext,
+  prefillEmptyNextPassage,
   projectWithPending,
   pendingInsertionContexts,
 } from './domain/next-page';
@@ -916,7 +917,7 @@ export function useStudio() {
           .filter((passage) => passage.sourceId === sourceId)
           .sort((a, b) => a.ordinal - b.ordinal)
           .at(-1) ?? (source ? emptySourcePassage(source) : undefined));
-    if (!lastPassage) return null;
+    if (!lastPassage || lastPassage.sourceId !== sourceId) return null;
     const empty = createDraft({
       ...lastPassage,
       id: identifier,
@@ -929,7 +930,7 @@ export function useStudio() {
       notes: '',
       analysis: null,
     });
-    empty.locators = nextPassageLocators(lastPassage, current.envelope.drafts[lastPassage.id]);
+    Object.assign(empty, nextPassageContext(lastPassage, current.envelope.drafts[lastPassage.id]));
     const siblings = current.project.passages.filter((p) => p.sourceId === lastPassage.sourceId);
     const selectedIndex = siblings.findIndex((p) => p.id === lastPassage.id);
     const beforePassageId =
@@ -1249,6 +1250,23 @@ export function useStudio() {
     )
       return;
     flushEdits();
+    const current = latest.current;
+    const previous = current.project.passages.find((p) => p.id === current.selectedId);
+    const next = current.project.passages.find((p) => p.id === id)!;
+    const nextDraft = current.envelope.drafts[id];
+    if (current.project.mode === 'local' && previous && nextDraft) {
+      const prefilled = prefillEmptyNextPassage(
+        previous,
+        next,
+        current.envelope.drafts[previous.id],
+        nextDraft,
+      );
+      if (prefilled !== nextDraft)
+        replaceEnvelope({
+          ...current.envelope,
+          drafts: { ...current.envelope.drafts, [id]: prefilled },
+        });
+    }
     track('navigation.passage', {}, { passageId: id });
     latest.current.selectedId = id;
     setSelectedId(id);

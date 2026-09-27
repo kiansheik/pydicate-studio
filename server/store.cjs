@@ -63,7 +63,8 @@ class Store {
                     updatedAt: new Date(this.now()).toISOString(),
                     locators: { printedPage: passage.witness.printedPage ?? '', folio: passage.witness.folio ?? '',
                         line: passage.witness.textualLine == null ? '' : String(passage.witness.textualLine),
-                        section: passage.witness.section ?? '', subsection: passage.witness.subsection ?? '' },
+                        section: passage.witness.section ?? '', subsection: passage.witness.subsection ?? '',
+                        ...(passage.witness.prayerName != null ? { prayerName: passage.witness.prayerName } : {}) },
                     ...(passage.translations ? { translations: passage.translations } : {}),
                 };
                 await put.run(project.id, passage.id, JSON.stringify(draft));

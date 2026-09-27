@@ -53,6 +53,7 @@ function createHttp({ config, store, auth, runtime }) {
     const streams = new Set(), people = new Map(), limiter = new RateLimiter(store.now);
     let uploading = false;
     const idle = require('./idle.cjs').createIdle({ directory: config.stateDirectory, now: store.now });
+    const desktopHistory = require('./desktop-history.cjs').createDesktopHistory({ directory: path.join(config.stateDirectory, 'desktop-imports') });
     function json(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); }
     function emit(event) { const line = 'data: ' + JSON.stringify(event) + '\n\n'; for (const item of streams) {
         if (item.res.destroyed || item.res.writableEnded) {
@@ -90,7 +91,7 @@ function createHttp({ config, store, auth, runtime }) {
             const html = bytes.toString('utf8');
             if (!html.includes('<head>'))
                 throw new Error('Built index has no head.');
-            bytes = Buffer.from(html.replace('<head>', '<head><link rel="stylesheet" href="/collab/collab.css"><script src="/collab/bridge.js"></script><script src="/collab/panel.js" defer></script>'));
+            bytes = Buffer.from(html.replace('<head>', '<head><link rel="stylesheet" href="/collab/collab.css"><link rel="stylesheet" href="/collab/desktop-history.css"><script src="/collab/bridge.js"></script><script src="/collab/panel.js" defer></script><script src="/collab/desktop-storage.js" defer></script><script src="/collab/desktop-history.js" defer></script>'));
         }
         res.writeHead(200, { 'Content-Type': MIME[path.extname(target)] || 'application/octet-stream' });
         res.end(bytes);
@@ -163,6 +164,17 @@ function createHttp({ config, store, auth, runtime }) {
             finishWork = idle.begin(route);
             if (route === '/api/upstream-status' && req.method === 'GET')
                 return json(res, 200, await require('./idle.cjs').upstreamStatus(config.stateDirectory));
+            if (req.method === 'GET' && ['/api/desktop-history', '/api/desktop-history/item', '/api/desktop-history/file'].includes(route)) {
+                admin(session);
+                const params = { ...Object.fromEntries(url.searchParams), projectId: runtime.project.id };
+                if (route === '/api/desktop-history') return json(res, 200, await desktopHistory.list(params));
+                if (route === '/api/desktop-history/item') return json(res, 200, await desktopHistory.get(params));
+                const file = await desktopHistory.file(params);
+                res.writeHead(200, { 'Content-Type': file.contentType,
+                    'Content-Disposition': "attachment; filename*=UTF-8''" + encodeURIComponent(file.name),
+                    'Content-Length': file.bytes.length });
+                return res.end(file.bytes);
+            }
             if (route === '/api/pdf' && ['GET', 'HEAD'].includes(req.method)) {
                 const params = { projectId: identifier(url.searchParams.get('projectId')),
                     sourceId: identifier(url.searchParams.get('sourceId')), assetId: url.searchParams.get('assetId') };
@@ -375,7 +387,7 @@ function createHttp({ config, store, auth, runtime }) {
                 }
             }
             if (req.method === 'GET') {
-                if (['/collab/bridge.js', '/collab/panel.js'].includes(route))
+                if (['/collab/bridge.js', '/collab/panel.js', '/collab/desktop-history.js', '/collab/desktop-storage.js', '/collab/desktop-history.css'].includes(route))
                     return await staticFile(res, path.join(__dirname, 'public'), route.slice(8));
                 if (route === '/' || route === '/index.html')
                     return await staticFile(res, config.distDirectory, 'index.html', true);

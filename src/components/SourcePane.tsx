@@ -92,6 +92,7 @@ export function SourcePane({
                 ['line', 'Linhas no texto'],
                 ['section', 'Seção'],
                 ['subsection', 'Subseção'],
+                ['prayerName', 'Oração (opcional)'],
               ] as const
             ).map(([key, label]) => (
               <label
@@ -135,7 +136,8 @@ export function SourcePane({
             ))}
           </datalist>
           <p>
-            Seção e subseção continuam nas próximas passagens. A página do PDF é controlada abaixo.
+            Seção, subseção e oração continuam nas próximas passagens. A página do PDF é controlada
+            abaixo.
           </p>
         </details>
       )}

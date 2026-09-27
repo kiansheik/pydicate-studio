@@ -19,6 +19,7 @@ this mode. Desktop dependencies and local storage remain independent.
 | Discussions, review decisions, publication receipts | PostgreSQL |
 | Reviewed source, lexical definitions and morphology code | `oldtupicorpus` / `nhe-enga` Git repositories |
 | PDF bytes, evidence geometry, worker recovery files | Private managed files, included in full backup |
+| Imported desktop research and provenance | SHA-256 verified private archives; current drafts reconciled into PostgreSQL |
 | Optional personal API keys | Encrypted PostgreSQL vault, encryption key outside DB; generation off |
 
 There is no automatic expiry of research/usage records and no 30-second coalescing of revisions.
@@ -33,6 +34,13 @@ and shared-workspace disclosure before login.
 
 Sessions, password-reset tokens, one-use identity codes and presence leases still expire. Their
 expiry is a security boundary, not research-data deletion.
+
+Desktop migration is an explicit stopped-service deployment step after a full checkpoint.
+Source identity proofs remap current passages across machines; per-field comparisons with
+the first hosted revision preserve online changes. Original drafts, completion timestamps,
+conversations, note history and unresolved records remain in an immutable input archive.
+The administrator history reader never starts the desktop analysis service or resumes
+provider jobs. Shared active state and private historical prompts have separate access paths.
 
 ## Editing and review are different operations
 

@@ -20,6 +20,12 @@ def validate_translations(value):
     return dict(value)
 
 
+def validate_prayer_name(value):
+    if not isinstance(value, str) or len(value) > 1000 or any(ord(character) < 32 or character in '\x85\u2028\u2029' for character in value):
+        raise ValueError('Oração: informe um nome em uma linha, com até 1000 caracteres.')
+    return value
+
+
 def encode_source_text(directive, value, studio):
     """One safe physical comment line, with an explicit, content-bound codec.
 

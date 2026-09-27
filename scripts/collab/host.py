@@ -113,7 +113,7 @@ class Host:
         run(['docker','network','inspect','caddy_edge'],capture=True)
         from upstream import install_timer
         install_timer(self)
-    def deploy(self, initial=False, evidence=None):
+    def deploy(self, initial=False, evidence=None, desktop=None):
         print('[server] Building Studio image (existing service stays available)...',flush=True)
         self.compose('build','studio') # Existing service stays up during build.
         print('[server] Starting PostgreSQL and waiting for health...',flush=True)
@@ -141,6 +141,9 @@ class Host:
             if evidence:
                 print('[server] Importing desktop PDFs and saved evidence...',flush=True)
                 self.import_evidence(evidence)
+            if desktop:
+                print('[server] Restoring desktop drafts, progress and research history...',flush=True)
+                self.import_desktop(desktop)
             print('[server] Starting Studio and waiting for health...',flush=True)
             self.compose('up','-d','--wait','studio')
         except Exception:
@@ -173,6 +176,17 @@ class Host:
         self.application_ownership(directory)
         self.compose('run','--rm','--no-deps','studio','python3','scripts/collab/evidence_sync.py',
                      '--archive','/data/evidence-imports/'+destination.name,'--state','/data','--parent','/workspace')
+    def import_desktop(self, archive):
+        # The deployment lock and full checkpoint precede every active write.
+        from desktop_sync import extract_bundle
+        archive=pathlib.Path(archive)
+        if archive.is_symlink() or not archive.is_file():raise ValueError('Expected a regular desktop research archive')
+        directory=self.data/'desktop-imports'/sha(archive)
+        report=extract_bundle(archive,directory)
+        print('[server] Desktop archive verified: '+str(report['files'])+' files.',flush=True)
+        self.application_ownership(directory.parent)
+        self.compose('run','--rm','--no-deps','studio','node','server/desktop-import.cjs',
+                     '--directory','/data/desktop-imports/'+directory.name)
     def checkpoint(self,dest,restart=True):
         dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
         print('[server] Backup: checking persistent state...',flush=True)
@@ -297,14 +311,15 @@ def main():
     parser.add_argument('--public-url',default='https://studio.academiatupi.com');parser.add_argument('--smtp',default='relay')
     parser.add_argument('--neo-path',default='/srv/nheenga-neologismos');parser.add_argument('--file');parser.add_argument('--repo',default='oldtupicorpus')
     parser.add_argument('--evidence',help='Private managed-PDF bundle prepared on the deploying laptop')
+    parser.add_argument('--desktop',help='Private saved-research bundle prepared on the deploying laptop')
     parser.add_argument('--neo-env',default='/srv/nheenga-neologismos/deploy/env/api.env');parser.add_argument('--mode',default='off');parser.add_argument('--review-sha',default='');parser.add_argument('--confirm',default='');parser.add_argument('--email');parser.add_argument('--name',default='Administrator')
     args=parser.parse_args();os.umask(0o077);host=Host(args.root)
     if args.action=='auto-update':
         from upstream import run_locked
         return run_locked(host)
     with host.lock():
-        if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence)
-        elif args.action=='redeploy':host.deploy(evidence=args.evidence)
+        if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence,desktop=args.desktop)
+        elif args.action=='redeploy':host.deploy(evidence=args.evidence,desktop=args.desktop)
         elif args.action=='backup':host.backup(args.file,True)
         elif args.action=='db-backup':host.backup(args.file,False)
         elif args.action=='db-restore':host.restore_database(args.file,args.confirm)

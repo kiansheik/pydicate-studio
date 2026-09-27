@@ -66,6 +66,38 @@ function validateNote(note) {
   };
 }
 
+function validateNotebook(data, projectId) {
+  if (
+    data?.version !== 1 ||
+    data.projectId !== projectId ||
+    !Array.isArray(data.records) ||
+    data.records.length > 10_000
+  )
+    throw new Error('Formato das notas lexicais inválido; o arquivo foi preservado.');
+  const ids = new Set();
+  for (const note of data.records) {
+    const normalized = validateNote(note);
+    if (
+      note.id !== normalized.id ||
+      ids.has(note.id) ||
+      !Number.isInteger(note.version) ||
+      note.version < 1 ||
+      !Array.isArray(note.history) ||
+      note.history.length !== note.version ||
+      typeof note.createdAt !== 'string' ||
+      typeof note.updatedAt !== 'string'
+    )
+      throw new Error('Histórico das notas lexicais inválido; o arquivo foi preservado.');
+    ids.add(note.id);
+    for (const item of note.history) {
+      validateNote({ ...note, ...item });
+      if (!Number.isInteger(item.version) || typeof item.savedAt !== 'string')
+        throw new Error('Revisão lexical inválida; o arquivo foi preservado.');
+    }
+  }
+  return data;
+}
+
 function createLexicalNotesService({ stateDirectory }) {
   let writes = Promise.resolve();
   const fileFor = (projectId) =>
@@ -80,35 +112,7 @@ function createLexicalNotesService({ stateDirectory }) {
         'As notas lexicais estão ilegíveis. O arquivo foi preservado; recupere uma cópia antes de salvar.',
       );
     }
-    if (
-      data?.version !== 1 ||
-      data.projectId !== projectId ||
-      !Array.isArray(data.records) ||
-      data.records.length > 10_000
-    )
-      throw new Error('Formato das notas lexicais inválido; o arquivo foi preservado.');
-    const ids = new Set();
-    for (const note of data.records) {
-      const normalized = validateNote(note);
-      if (
-        note.id !== normalized.id ||
-        ids.has(note.id) ||
-        !Number.isInteger(note.version) ||
-        note.version < 1 ||
-        !Array.isArray(note.history) ||
-        note.history.length !== note.version ||
-        typeof note.createdAt !== 'string' ||
-        typeof note.updatedAt !== 'string'
-      )
-        throw new Error('Histórico das notas lexicais inválido; o arquivo foi preservado.');
-      ids.add(note.id);
-      for (const item of note.history) {
-        validateNote({ ...note, ...item });
-        if (!Number.isInteger(item.version) || typeof item.savedAt !== 'string')
-          throw new Error('Revisão lexical inválida; o arquivo foi preservado.');
-      }
-    }
-    return data;
+    return validateNotebook(data, projectId);
   }
   async function invoke(method, params = {}) {
     const projectId = text(params.projectId, 'projeto');
@@ -170,4 +174,4 @@ function createLexicalNotesService({ stateDirectory }) {
   }
   return { invoke };
 }
-module.exports = { createLexicalNotesService };
+module.exports = { createLexicalNotesService, validateNotebook, identity };

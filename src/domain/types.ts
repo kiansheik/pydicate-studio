@@ -18,6 +18,7 @@ export interface Witness {
   textualLine?: string | number | null;
   section?: string | null;
   subsection?: string | null;
+  prayerName?: string | null;
 }
 export type PassageTranslations = Partial<Record<'pt' | 'en', string>>;
 
@@ -111,6 +112,7 @@ export interface Draft {
     line?: string;
     section?: string;
     subsection?: string;
+    prayerName?: string;
   };
   /** Raw input remains authoritative even while incomplete or invalid. */
   raw?: string;

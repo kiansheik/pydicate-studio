@@ -48,7 +48,7 @@ apex is proxied or points elsewhere. The key stays on your laptop; SSH agent for
 used. Verify the server fingerprint and establish known_hosts before installation.
 `make collab-ssh`, `collab-logs` and `collab-psql` reuse that same connection.
 
-### Desktop PDFs accompany each update
+### Desktop PDFs and saved research accompany each update
 
 `make collab-install`, `make collab-redeploy` and `make collab-deploy` automatically read the
 native `pydicate-studio` desktop profile and its last opened workspace. On macOS this is
@@ -65,8 +65,8 @@ make collab-deploy STUDIO_REF=REVIEWED_COMMIT \
 The source of truth is `evidence/assets/` plus that project's `evidence/sources/` manifests.
 All attached/retained managed PDFs for that project are included, even if the original file
 has moved. To include another local PDF, attach it to its source in desktop Studio first.
-The deployment does not scan unrelated folders, copy other desktop projects or publish
-local `.tu.py` edits. A missing default profile is reported and skipped; an explicitly
+The deployment does not scan unrelated folders or publish local `.tu.py` edits.
+A missing default profile is reported and skipped; an explicitly
 configured missing profile, invalid manifest or corrupt managed PDF stops before deployment.
 
 Transfer checks SHA-256 and byte counts, rejects unsafe archive paths/links, and remaps the
@@ -83,6 +83,29 @@ complete portable input and report imported/conflicting/unmatched evidence. Orig
 file paths are removed from the portable metadata. Identical reruns retain the same archive
 and leave evidence revisions unchanged. These archives are covered by full backups. PDF sync
 does not grant editorial approval or create saved ground-truth references.
+
+Deployment also snapshots saved drafts, completion/review states, pending passages,
+canvases, analysis conversations/candidates/history, lexical notebooks, recovery journals,
+parser experiments and usage records. Original source/ground-truth bytes are retained as
+provenance. An isolated Electron reader recovers allowlisted local browser buffers and
+preferences without opening Studio or its job queues. Provider settings, authentication,
+cookies and browser caches are excluded. In-memory undo and tab-local Session Storage
+are not persistent research records in this migration.
+
+Every archived file has a byte count and SHA-256. The verified private snapshot lives in
+`data/desktop-imports/<sha256>/`, with a reconciliation `receipt.json`; full backups include
+it. The importer restores the selected project's current drafts and unambiguous notes.
+Unmodified source defaults accept desktop work; changed hosted fields win conflicts,
+whose original desktop copies remain recoverable. Historical drafts and records from
+other projects remain preserved, without replacing the shared workspace. Repeat imports
+do not duplicate changes. Migration revisions have explicit desktop provenance and do
+not invent a human author, approval, or resumed AI attempt.
+
+Administrators can open **Histórico do desktop** in the collaboration panel to read original
+drafts, conversations, note versions and other records, including unresolved links. Browser
+buffers/preferences can be restored to that administrator's browser without overwriting
+existing local work; old AI retry records remain historical. Shared migrated draft progress
+is available to ordinary collaborators in the usual editor.
 
 The installer creates dedicated persistent `workspace/`, `data/`, `config/`, release directories,
 and PostgreSQL 17 on a private Docker network. The application DB role is not a superuser.

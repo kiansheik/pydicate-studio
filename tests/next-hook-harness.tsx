@@ -81,6 +81,18 @@ function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
 }
 const listeners = new Set<(event: unknown) => void>();
 const project = makeProject();
+if (new URLSearchParams(location.search).has('empty-next')) {
+  project.passages[1].sourceExpression = '';
+  project.passages[1].witness = {
+    ...project.passages[1].witness,
+    printedPage: null,
+    folio: null,
+    textualLine: null,
+    section: null,
+    subsection: null,
+    prayerName: null,
+  };
+}
 if (new URLSearchParams(location.search).has('sources'))
   project.sources = JSON.parse(localStorage.getItem('simulated-sources') || 'null') ?? undefined;
 if (new URLSearchParams(location.search).has('empty-source')) {

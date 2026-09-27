@@ -258,7 +258,14 @@ export function PdfEvidence({
       try {
         const cachedText = localStorage.getItem(cacheKey);
         const cached: unknown = JSON.parse(cachedText || 'null');
-        if (validWorkingEvidence(cached, nextWorking.assetId)) {
+        const validCache = validWorkingEvidence(cached, nextWorking.assetId);
+        const untouchedCache =
+          validCache &&
+          !cached.regions.length &&
+          !cached.guide &&
+          cached.baseline === JSON.stringify(next.passage) &&
+          JSON.stringify(cached.view) === JSON.stringify(savedView);
+        if (validCache) {
           nextWorking = { ...cached };
           restored = true;
           if (cached.baseline === JSON.stringify(next.passage))
@@ -267,7 +274,8 @@ export function PdfEvidence({
             setError(
               'Há regiões locais não salvas e a evidência mudou. Exporte o rascunho antes de recarregar.',
             );
-        } else if (!cachedText && !next.passage && next.asset?.managedState === 'ok') {
+        }
+        if ((!cachedText || untouchedCache) && !next.passage && next.asset?.managedState === 'ok') {
           // Prefer the last visited earlier passage, then source order. Both saved and
           // unsaved locations remain bound to this project's exact PDF fingerprint.
           for (const previous of (newPassageGuide ? next.guideCandidates : next.previousPassages) ||
@@ -304,6 +312,7 @@ export function PdfEvidence({
           }
         } else if (
           cachedText &&
+          !validCache &&
           cached &&
           typeof cached === 'object' &&
           'assetId' in cached &&

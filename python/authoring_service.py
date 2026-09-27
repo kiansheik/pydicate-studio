@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unicodedata
 import uuid
-from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots, encode_source_text, validate_translations
+from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots, encode_source_text, validate_translations, validate_prayer_name
 
 
 def digest(data): return 'sha256:' + hashlib.sha256(data).hexdigest()
@@ -240,7 +240,7 @@ class AuthoringService:
 
     def review_fields(self,metadata,previous=None):
         previous=previous or {}
-        labels={'diplomatic':'Transcrição da fonte','normalized':'Leitura em tupi','target':'Leitura em tupi','translation':'Tradução sem idioma informado','translations':'Traduções por idioma','notes':'Notas','analysis':'Análise','uncertainty':'Incerteza','printedPage':'Página impressa','folio':'Fólio','line':'Linha','section':'Seção','subsection':'Subseção','evidence':'Trecho do PDF'}
+        labels={'diplomatic':'Transcrição da fonte','normalized':'Leitura em tupi','target':'Leitura em tupi','translation':'Tradução sem idioma informado','translations':'Traduções por idioma','notes':'Notas','analysis':'Análise','uncertainty':'Incerteza','printedPage':'Página impressa','folio':'Fólio','line':'Linha','section':'Seção','subsection':'Subseção','prayerName':'Oração','evidence':'Trecho do PDF'}
         def readable(key,value):
             if key=='translations':return '\n'.join(label+': '+value.get(lang,'') for lang,label in [('pt','Português'),('en','Inglês')]) if isinstance(value,dict) else ''
             if key=='evidence':return 'Vinculado' if value else 'Sem vínculo'
@@ -287,12 +287,16 @@ class AuthoringService:
         if contains_slots(raw): self.error('Conecte todos os lugares vazios antes de aplicar à fonte. A construção incompleta pode continuar no rascunho.', 'UNRESOLVED_SLOTS')
         metadata=params.get('metadata') or {}
         if not isinstance(metadata,dict): self.error('Metadados inválidos.')
-        if any(key not in {'diplomatic','normalized','target','translation','translations','notes','analysis','uncertainty','evidence','printedPage','folio','line','section','subsection'} for key in metadata): self.error('Campo de metadados desconhecido.')
+        if any(key not in {'diplomatic','normalized','target','translation','translations','notes','analysis','uncertainty','evidence','printedPage','folio','line','section','subsection','prayerName'} for key in metadata): self.error('Campo de metadados desconhecido.')
+        if 'prayerName' in metadata:
+            try: metadata = {**metadata, 'prayerName': validate_prayer_name(metadata['prayerName'])}
+            except ValueError as error: self.error(str(error))
         if 'translations' in metadata:
             try: metadata = {**metadata, 'translations': validate_translations(metadata['translations'])}
             except ValueError as error: self.error(str(error))
         existing = {key:passage.get(key,'') for key in ('diplomatic','normalized','translation','notes')}
         existing['translations'] = passage.get('translations', {})
+        existing['prayerName'] = passage.get('witness', {}).get('prayerName') or ''
         existing.update(target=passage.get('normalized',''), analysis=(passage.get('sourceMetadata') or {}).get('analysis') or '', evidence=(entry.get('studio') or {}).get('evidence'), uncertainty=(entry.get('studio') or {}).get('uncertainty',''))
         existing.update({key:passage.get('witness',{}).get(witness_key) or '' for key,witness_key in [('printedPage','printedPage'),('folio','folio'),('line','textualLine'),('section','section'),('subsection','subsection')]})
         requested_metadata=self.hierarchy_metadata(metadata,existing)
@@ -314,6 +318,7 @@ class AuthoringService:
         # versioned evidence pointer. Existing note and locators stay adjacent.
         studio=dict(entry.get('studio') or {}); studio['passageId']=passage['id']
         if 'translations' in metadata: studio['translations']=metadata['translations']
+        if 'prayerName' in metadata: studio['prayerName']=metadata['prayerName']
         if 'evidence' in metadata: studio['evidence']=metadata['evidence']
         if 'uncertainty' in metadata: studio['uncertainty']=str(metadata['uncertainty'])
         # Concrete outer parentheses can start before the AST operand. A note
@@ -325,7 +330,7 @@ class AuthoringService:
         directives=[]
         mapping={'normalized':'target','printedPage':'page','notes':'note'}
         for key,value in metadata.items():
-            if key in {'evidence','uncertainty','translations'}: continue
+            if key in {'evidence','uncertainty','translations','prayerName'}: continue
             if not isinstance(value,str): self.error(f'{key}: texto esperado.')
             directive=mapping.get(key,key)
             try: encoded=encode_source_text(directive,value,studio)
@@ -355,7 +360,7 @@ class AuthoringService:
         # Other comments and inherited locators retain their original bytes.
         source_lines=text.splitlines(keepends=True)
         directive_aliases={'pages':'page','lines':'line','folios':'folio','sections':'section','subsections':'subsection'}
-        edited_directives={mapping.get(key,key) for key in metadata if key not in {'evidence','uncertainty','translations'}}
+        edited_directives={mapping.get(key,key) for key in metadata if key not in {'evidence','uncertainty','translations','prayerName'}}
         line_index=anchor_line-2;found=False
         while line_index>=0:
             source_line=source_lines[line_index]
@@ -414,6 +419,9 @@ class AuthoringService:
                     if passage['sourceId']==source_id and (passage['ordinal']<target['ordinal'] if target else anchor is None or passage['sourceLine']<anchor.lineno)),None)
         metadata=self.hierarchy_metadata(metadata,(prior or {}).get('witness',{}))
         studio={'passageId':passage_id}
+        if 'prayerName' in metadata:
+            try: studio['prayerName']=validate_prayer_name(metadata['prayerName'])
+            except ValueError as error: self.error(str(error))
         if 'translations' in metadata:
             try: studio['translations']=validate_translations(metadata['translations'])
             except ValueError as error: self.error(str(error))

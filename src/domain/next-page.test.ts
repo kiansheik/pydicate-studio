@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createExampleProject } from './example';
 import { createDraft, validateDraftEnvelope } from './model';
-import { nextPassageLocators, projectWithPending } from './next-page';
+import {
+  nextPassageLocators,
+  nextPassageContext,
+  prefillEmptyNextPassage,
+  projectWithPending,
+} from './next-page';
 import type { Draft, DraftEnvelope, StudioProject } from './types';
 import { emptySourcePassage } from './sources';
 
@@ -46,6 +51,77 @@ function pending(source = project(), suffix = 'a', ordinal = 3): Draft {
   };
 }
 describe('next-passage shells', () => {
+  it('copies reading context and prayer without carrying trees, notes, evidence or completion', () => {
+    const previous = project().passages[0];
+    const draft = {
+      ...createDraft(previous),
+      locators: { prayerName: 'Pai-nosso', printedPage: '27', line: '3–5' },
+      translations: { pt: 'Nosso pai', en: 'Our father' },
+      aiInput: { tentativeReading: 'tuba', meaning: 'pai', constraints: 'Conservar grafia' },
+      notes: 'Nota desta passagem',
+      workflow: { stage: 'complete' as const, updatedAt: new Date().toISOString() },
+    };
+    const context = nextPassageContext(previous, draft);
+    expect(context).toMatchObject({
+      diplomatic: draft.diplomatic,
+      normalized: draft.normalized,
+      translations: draft.translations,
+      aiInput: draft.aiInput,
+      locators: { prayerName: 'Pai-nosso', printedPage: '27', line: '3–5' },
+    });
+    for (const key of ['raw', 'notes', 'analysis', 'workflow', 'aiAcceptances', 'canvas'])
+      expect(context).not.toHaveProperty(key);
+    expect(context.translations).not.toBe(draft.translations);
+    expect(context.aiInput).not.toBe(draft.aiInput);
+  });
+  it('prefills only an empty immediate same-source next passage and preserves every authored field', () => {
+    const previous = project().passages[0];
+    const next = {
+      ...project().passages[1],
+      sourceExpression: '',
+      diplomatic: '',
+      normalized: '',
+      translation: '',
+      translations: undefined,
+      notes: '',
+      analysis: null,
+      acceptedReference: null,
+      witness: { ...previous.witness, printedPage: null, folio: null, textualLine: null },
+    };
+    const blank = createDraft(next);
+    const donor = {
+      ...createDraft(previous),
+      diplomatic: 'Última leitura',
+      locators: { printedPage: '29', prayerName: 'Ave-Maria' },
+    };
+    expect(prefillEmptyNextPassage(previous, next, donor, blank)).toMatchObject({
+      diplomatic: 'Última leitura',
+      raw: '',
+      locators: { printedPage: '29', prayerName: 'Ave-Maria' },
+    });
+    for (const changes of [
+      { diplomatic: 'salva' },
+      { normalized: 'salva' },
+      { translation: 'salva' },
+      { notes: 'nota' },
+      { raw: 'amen' },
+      { translations: { pt: 'salva' } },
+      { aiInput: { tentativeReading: '', meaning: '', constraints: 'instrução' } },
+      { locators: { printedPage: '30' } },
+      { canvas: { fragments: [{ id: 'saved', raw: 'amen', x: 0, y: 0 }], positions: {} } },
+      { workflow: { stage: 'complete' as const, updatedAt: new Date().toISOString() } },
+    ]) {
+      const saved = { ...blank, ...changes };
+      expect(prefillEmptyNextPassage(previous, next, donor, saved)).toBe(saved);
+    }
+    expect(prefillEmptyNextPassage(previous, { ...next, sourceId: 'other' }, donor, blank)).toBe(
+      blank,
+    );
+    expect(prefillEmptyNextPassage(previous, { ...next, ordinal: 3 }, donor, blank)).toBe(blank);
+    expect(
+      prefillEmptyNextPassage(previous, { ...next, diplomatic: 'Source text' }, donor, blank),
+    ).toBe(blank);
+  });
   it('restores the first draft in an empty source without borrowing another source witness', () => {
     const source = project();
     const catalogue = { id: 'manuscrito', title: 'Meu manuscrito', year: '1750' };
@@ -77,7 +153,7 @@ describe('next-passage shells', () => {
     draft.pending.sourceId = 'missing';
     expect(projectWithPending(source, envelope).passages).toEqual(source.passages);
   });
-  it('continues the latest edited page and section, clearing only the line locator', () => {
+  it('continues the latest edited page, section and literal line locator without incrementing', () => {
     const previous = project().passages[1];
     const draft = {
       ...createDraft(previous),
@@ -92,14 +168,14 @@ describe('next-passage shells', () => {
     expect(nextPassageLocators(previous, draft)).toEqual({
       printedPage: '21–22',
       folio: '',
-      line: '',
+      line: '9–12',
       section: 'Nova seção',
       subsection: 'Perguntas',
     });
     expect(nextPassageLocators(previous)).toEqual({
       printedPage: '20',
       folio: '10v',
-      line: '',
+      line: '4–8',
       section: 'Doutrina',
       subsection: 'Orações',
     });

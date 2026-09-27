@@ -223,9 +223,10 @@ class EvidenceSyncTests(unittest.TestCase):
         fixture = self.fixture(); archive = self.pack(fixture)
         remote = Remote(); calls = []
         with patch('evidence_sync.prepare_local_bundle', side_effect=lambda path: (calls.append('prepare') or archive)), \
-                patch.object(remote, 'prepare_release', side_effect=lambda ref, evidence: (calls.append(('preflight', evidence)) or 'a' * 40)), \
+                patch('desktop_sync.prepare_local_bundle', return_value=None), \
+                patch.object(remote, 'prepare_release', side_effect=lambda ref, evidence, desktop: (calls.append(('preflight', evidence)) or 'a' * 40)), \
                 patch.object(remote, 'upload', side_effect=lambda file, target: calls.append(('upload', target))), \
-                patch.object(remote, 'deploy_release', side_effect=lambda ref, target: calls.append(('release', target))):
+                patch.object(remote, 'deploy_release', side_effect=lambda ref, target, desktop: calls.append(('release', target))):
             remote.deploy()
         self.assertEqual(calls[0], 'prepare')
         self.assertEqual(calls[1], ('preflight', True))

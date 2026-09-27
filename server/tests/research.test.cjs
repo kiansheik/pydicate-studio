@@ -59,7 +59,8 @@ test('provider keys are encrypted per user/provider, not returned, and generatio
  const audit=(await store.db.query('SELECT * FROM audit')).rows;assert.ok(!JSON.stringify(audit).includes(secret));
 });
 test('migration checksum history is stable and startup rejects altered schema history',async t=>{
- const {store}=await setup(t);await store.db.migrate();const rows=(await store.db.query('SELECT * FROM schema_migrations')).rows;assert.equal(rows.length,3);
+ const {store}=await setup(t);await store.db.migrate();const rows=(await store.db.query('SELECT * FROM schema_migrations ORDER BY version')).rows;
+ assert.deepEqual(rows.map(row=>row.version),['001_collaboration.sql','002_submissions.sql','003_identity.sql','004_desktop_imports.sql']);
  await store.db.query("UPDATE schema_migrations SET checksum='bad' WHERE version=$1",[rows[0].version]);
  await assert.rejects(store.db.migrate(),/checksum changed/);
 });

@@ -106,7 +106,7 @@ test('a later pending line can be reviewed while the first remains an unfinished
   );
 });
 
-test('one click opens an ordinary empty next-passage workspace at the last edited book location', async ({
+test('one click opens the next passage with prior reading context and an empty analysis tree', async ({
   page,
 }) => {
   await workspace(page);
@@ -118,6 +118,13 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
   await page.getByLabel('Subseção da passagem', { exact: true }).fill('Orações');
   await page.getByLabel('Linhas no texto da passagem', { exact: true }).fill('10–15');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura anterior');
+  await page.getByLabel('Oração (opcional) da passagem', { exact: true }).fill('Pai-nosso');
+  await page.getByLabel('Tradução em português', { exact: true }).fill('Nosso pai');
+  await page.getByLabel('Tradução em inglês', { exact: true }).fill('Our father');
+  await page.getByLabel('Grafia provável em Navarro', { exact: true }).fill('tuba');
+  await page.getByLabel('Significado provável', { exact: true }).fill('pai');
+  await page.getByText('Orientações para a análise e leitura revisada', { exact: true }).click();
+  await page.getByLabel('Orientações linguísticas', { exact: true }).fill('Preservar grafia');
   await page.locator('.add-next-passage').click();
   await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0003');
   await expect(page.locator('.new-passage-badge')).toBeVisible();
@@ -130,7 +137,9 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
     page.getByRole('combobox', { name: 'Adicionar peça: buscar em tupi', exact: true }),
   ).toBeVisible();
   await expect(page.locator('[data-canvas-key]')).toHaveCount(0);
-  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
+    'Leitura anterior',
+  );
   await expect(
     page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
   ).toHaveValue('');
@@ -140,7 +149,8 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
     ['Fólio', '13v'],
     ['Seção', 'Doutrina'],
     ['Subseção', 'Orações'],
-    ['Linhas no texto', ''],
+    ['Linhas no texto', '10–15'],
+    ['Oração (opcional)', 'Pai-nosso'],
   ])
     await expect(page.getByLabel(`${label} da passagem`, { exact: true })).toHaveValue(value);
   await expect(
@@ -153,7 +163,10 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
   expect(envelope.drafts[id]).toMatchObject({
     pending: { previousPassageId: 'passage-b', ordinal: 3 },
     canvas: { layout: 'bottom-up', fragments: [], positions: {} },
+    translations: { pt: 'Nosso pai', en: 'Our father' },
+    aiInput: { tentativeReading: 'tuba', meaning: 'pai', constraints: 'Preservar grafia' },
   });
+  expect(envelope.drafts[id].workflow).toBeUndefined();
   expect(envelope.drafts['passage-b'].diplomatic).toBe('Leitura anterior');
   const requests = await page.evaluate(() => window.__nextControl.requests);
   expect(
@@ -170,6 +183,42 @@ test('one click opens an ordinary empty next-passage workspace at the last edite
     previousPassageId: 'passage-b',
     newPassageGuide: true,
   });
+});
+
+test('advancing into an empty existing passage carries context once and preserves subsequent saved edits', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&empty-next');
+  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura de continuação');
+  await page.getByLabel('Tradução em português', { exact: true }).fill('Tradução');
+  await page.getByLabel('Tradução em inglês', { exact: true }).fill('Translation');
+  await contextFields(page);
+  await page.getByLabel('Página impressa da passagem', { exact: true }).fill('2');
+  await page.getByLabel('Oração (opcional) da passagem', { exact: true }).fill('Ave-Maria');
+  await page.getByLabel('Grafia provável em Navarro', { exact: true }).fill('tuba');
+  await page.getByLabel('Significado provável', { exact: true }).fill('pai');
+  await page.getByText('Orientações para a análise e leitura revisada', { exact: true }).click();
+  await page.getByLabel('Orientações linguísticas', { exact: true }).fill('Conservar o texto');
+  await page.getByRole('button', { name: 'Próxima passagem', exact: true }).click();
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
+    'Leitura de continuação',
+  );
+  await expect
+    .poll(async () => (await saved(page)).drafts['passage-b']?.translations?.en)
+    .toBe('Translation');
+  expect((await saved(page)).drafts['passage-b']).toMatchObject({
+    raw: '',
+    locators: { printedPage: '2', prayerName: 'Ave-Maria' },
+  });
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura própria salva');
+  await page.getByRole('button', { name: 'Passagem anterior', exact: true }).click();
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Mudança anterior');
+  await page.getByRole('button', { name: 'Próxima passagem', exact: true }).click();
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
+    'Leitura própria salva',
+  );
+  expect((await saved(page)).drafts['passage-b'].workflow).toBeUndefined();
 });
 
 test('repeated pending passages inherit cumulative locators, retain normal undo, and reopen the selected shell', async ({
@@ -201,7 +250,7 @@ test('repeated pending passages inherit cumulative locators, retain normal undo,
   expect(second).not.toBe(first);
   await expect(
     page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
-  ).toHaveValue('');
+  ).toHaveValue('Leitura só desta linha');
   await contextFields(page);
   await expect(page.getByLabel('Página impressa da passagem', { exact: true })).toHaveValue('28');
   await expect(page.getByLabel('Seção da passagem', { exact: true })).toHaveValue('Novo capítulo');

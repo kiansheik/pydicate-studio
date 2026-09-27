@@ -247,6 +247,7 @@ function envelope(value) {
         'line',
         'section',
         'subsection',
+        'prayerName',
       ]);
       Object.values(draft.locators).forEach((value) => string(value, 'localização', 1000));
     }
