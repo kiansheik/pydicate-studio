@@ -458,17 +458,45 @@ export function useStudio() {
     const selected =
       current.project.passages.find((p) => p.id === current.selectedId) ??
       current.project.passages[0];
-    const previous = current.envelope.drafts[selected.id];
-    if ((operation.current && !automaticRefresh.current) || !current.ready || !previous) return;
-    if (expectedRevision && previous.revisionId !== expectedRevision) return;
-    trackEdit(Object.keys(changes));
-    redoHistory.current[selected.id] = [];
-    history.current[selected.id] = [...(history.current[selected.id] ?? []), previous].slice(-60);
-    replaceEnvelope({
-      ...current.envelope,
-      drafts: { ...current.envelope.drafts, [selected.id]: updateDraft(previous, changes) },
-    });
+    editPassages([{ passageId: selected.id, changes, expectedRevision }]);
+  }
+
+  /**
+   * One envelope write for a whole set of passages. Calling edit() in a loop would not work:
+   * each call reads the same pre-update envelope from the ref, so only the last would
+   * survive. Each entry keeps its own revision guard, and the passages that fail one are
+   * reported back rather than silently skipped.
+   */
+  function editPassages(
+    edits: {
+      passageId: string;
+      changes: Parameters<typeof updateDraft>[1];
+      expectedRevision?: string;
+    }[],
+  ) {
+    const current = latest.current;
+    if ((operation.current && !automaticRefresh.current) || !current.ready) return [];
+    const drafts = { ...current.envelope.drafts };
+    const fields = new Set<string>();
+    const applied: string[] = [];
+    for (const entry of edits) {
+      const previous = drafts[entry.passageId];
+      if (!previous) continue;
+      if (entry.expectedRevision && previous.revisionId !== entry.expectedRevision) continue;
+      redoHistory.current[entry.passageId] = [];
+      history.current[entry.passageId] = [
+        ...(history.current[entry.passageId] ?? []),
+        previous,
+      ].slice(-60);
+      drafts[entry.passageId] = updateDraft(previous, entry.changes);
+      Object.keys(entry.changes).forEach((field) => fields.add(field));
+      applied.push(entry.passageId);
+    }
+    if (!applied.length) return [];
+    trackEdit([...fields]);
+    replaceEnvelope({ ...current.envelope, drafts });
     setVerification('');
+    return applied;
   }
 
   function insertPiece(raw: string, expectedRevision: string) {
@@ -1302,6 +1330,7 @@ export function useStudio() {
     selectedId,
     setSelectedId: selectPassage,
     edit,
+    editPassages,
     insertPiece,
     setWorkflow,
     retryEvaluation: () => setRenderAttempt((attempt) => attempt + 1),

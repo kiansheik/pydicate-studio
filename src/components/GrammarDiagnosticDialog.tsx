@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { copyText } from '../domain/clipboard';
 import { Send, X } from 'lucide-react';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import { grammarDiagnostic } from '../domain/grammar-diagnostic';
@@ -201,8 +202,7 @@ export function GrammarDiagnosticDialog({
             disabled={busy || (mode === 'engine' && (!intendedSurface.trim() || !baseline))}
             onClick={async () => {
               try {
-                if (window.studio?.copyText) await window.studio.copyText(prompt);
-                else await navigator.clipboard.writeText(prompt);
+                await copyText(prompt);
                 setStatus(
                   'Prompt copiado. Cole no seu agente de código para investigar a gramática.',
                 );

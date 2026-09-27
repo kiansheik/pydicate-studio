@@ -284,6 +284,12 @@ export const emptyAnalysis = (): AnalysisListing => ({
   candidates: [],
   background: { running: false, detail: '' },
 });
+/** analysis_submit_batch reports failures per passage instead of rejecting the whole set. */
+export interface BatchError {
+  passageId: string;
+  message: string;
+  code?: string;
+}
 export function analysisError(error: unknown): string {
   if (typeof error === 'string') return error;
   if (error && typeof error === 'object' && 'message' in error) return String(error.message);
