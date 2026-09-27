@@ -151,6 +151,31 @@ class EvidenceSyncTests(unittest.TestCase):
         self.assertEqual(passage_mapping([item], [{**current[0], 'sourceFileFingerprint': 'old-file'}])['old']['id'], 'new-a')
         self.assertEqual(passage_mapping([item, {**item, 'id': 'another-old'}], [current[0]]), {})
 
+    def test_identical_source_bytes_match_across_python_ast_fingerprint_versions(self):
+        fixture = self.fixture(); root, _, remote, project, hosted, original, _ = fixture
+        source_hash = 'sha256:' + hashlib.sha256(b'f(a)\n').hexdigest()
+        project['passages'][0].update(sourceFileFingerprint=source_hash, sourceFingerprint='sha256:python314')
+        hosted['passages'][0].update(sourceFileFingerprint=source_hash, sourceFingerprint='sha256:python311')
+        archive = self.pack(fixture)
+        report = import_bundle(archive, remote, root, project=hosted)
+        self.assertEqual(report['passagesAdded'], 1)
+        self.assertEqual(report['unmatchedPassages'], [])
+        saved = json.loads(self.hosted_manifest(remote, hosted).read_text())
+        self.assertEqual(saved['passages']['passage:server'], original['passages']['passage:local'])
+
+    def test_exact_file_identity_never_allows_changed_files_or_colliding_passages(self):
+        source_hash = 'sha256:' + hashlib.sha256(b'f(a)\nf(a)\n').hexdigest()
+        incoming = {'id': 'passage:same-id', 'sourceId': 'book', 'ordinal': 1,
+                    'sourceFileFingerprint': source_hash, 'sourceFingerprint': 'sha256:python314'}
+        current = {**incoming, 'sourceFingerprint': 'sha256:python311'}
+        self.assertEqual(passage_mapping([incoming], [current]), {incoming['id']: current})
+        changed = {**current, 'sourceFileFingerprint': 'sha256:' + '0' * 64}
+        self.assertEqual(passage_mapping([incoming], [changed]), {}, 'same UUID/ordinal cannot attach evidence after source content changes')
+        self.assertEqual(passage_mapping([incoming], [{**current, 'sourceId': 'another-book'}]), {})
+        self.assertEqual(passage_mapping([incoming, {**incoming, 'id': 'passage:duplicate'}], [current]), {})
+        self.assertEqual(passage_mapping([incoming], [current, {**current, 'id': 'passage:duplicate'}]), {})
+        self.assertEqual(passage_mapping([{**incoming, 'sourceFileFingerprint': ''}], [{**current, 'sourceFileFingerprint': ''}]), {})
+
     def test_checksum_missing_files_extra_members_and_traversal_fail_before_writes(self):
         for kind in ('corrupt', 'missing', 'extra', 'traversal', 'duplicate', 'symlink'):
             with self.subTest(kind=kind):

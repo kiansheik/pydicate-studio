@@ -96,10 +96,16 @@ passage/asset/page/zoom/rotation/width/attempt, canvas busy/current-page markers
 and disables drawing until current metadata and pixels finish. The private
 benchmark now requires those markers; final measured results follow below.
 
-The evidence import added four newly matchable entries and still retained 63
-historical passage links/four guides as unmatched. Publishing the new corpus
-does not itself reconstruct old evidence identities; all bytes and original
-associations remain in the private archive, with no ordinal-only reassignment.
+Follow-up investigation corrected that initial interpretation of 63 unmatched
+links: desktop Python 3.14 omits empty AST fields while server Python 3.11 includes
+them, changing syntax/editorial fingerprints for identical source bytes. Remote
+aggregate checks prove all 105 source-file hashes/ordinals are identical; 100
+of 102 desktop evidence IDs remain current. The narrow importer fix accepts a
+unique exact source-file SHA + source + ordinal match before AST fingerprints,
+retaining changed-file safeguards, server evidence priority and collision guards.
+Thirteen import tests pass, including a full bundle with different Python-style
+fingerprints and negative changed-file/duplicate/source-isolation cases. Two
+historical IDs remain genuinely absent; no ordinal-only reassignment is made.
 Disposable PostgreSQL was stopped; its logs/data remain under
 `/private/tmp/studio-pdf-pg-0z6izpxm/`.
 
@@ -117,3 +123,15 @@ reconciliation. No ground truth is automatically approved.
 Exercise the live contributor demo using another source PDF; inspect any remaining
 slow interaction with network timing and verify its exact saved evidence rather
 than regenerating source or ground truth.
+
+
+## Explicit readiness follow-up
+
+PR #7 merged and deployed as `ae4087b22465ee8f78cd9621e9e43f9df6434f9e`.
+The 14 existing PDF tests pass with explicit canvas readiness; the reuse and new
+delayed-metadata cases passed three runs each. Strict live 10 Mbps benchmark
+requires completed selected-page pixels and enabled drawing: cold PDF 3.08 s,
+passage 17 1.72 s, passage 18 3.61 s, next physical page 1.13 s, cached return
+453 ms. Reload including full application startup took 5.22 s with zero PDF
+requests. Total PDF traffic remains 1,175,699 B; original selection/drafts stayed
+unchanged. Report: `.local/vps-qa/pdf-performance-2026-09-27T16-39-54.349Z.json`.

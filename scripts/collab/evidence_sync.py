@@ -213,12 +213,21 @@ def passage_mapping(incoming, current):
     """Never attach a crop by ordinal alone or carry pending desktop identities over."""
     result = {}
     for item in incoming:
+        # Identical source bytes and ordinal identify the same statement even
+        # across Python versions: ast.dump changed its empty-field defaults in
+        # 3.14, so syntax/editorial fingerprints are not portable by themselves.
+        # The full-file SHA is essential; an ordinal in an edited file is not
+        # evidence of identity, and neither is a reused passage UUID alone.
+        identical_file = [p for p in current if p['sourceId'] == item['sourceId'] and
+                          re.fullmatch(r'sha256:[a-f0-9]{64}', item['sourceFileFingerprint']) and
+                          p['sourceFileFingerprint'] == item['sourceFileFingerprint'] and
+                          p['ordinal'] == item['ordinal']]
         candidates = [p for p in current if p['sourceId'] == item['sourceId'] and
                       p['sourceFingerprint'] == item['sourceFingerprint']]
         exact = [p for p in candidates if p['id'] == item['id']]
         same_file = [p for p in candidates if p['sourceFileFingerprint'] == item['sourceFileFingerprint'] and
                      p['ordinal'] == item['ordinal']]
-        selected = exact if len(exact) == 1 else same_file if len(same_file) == 1 else candidates
+        selected = identical_file if len(identical_file) == 1 else exact if len(exact) == 1 else same_file if len(same_file) == 1 else candidates
         if len(selected) == 1:
             result[item['id']] = selected[0]
     # Two old identities must not collapse onto one new entry.
