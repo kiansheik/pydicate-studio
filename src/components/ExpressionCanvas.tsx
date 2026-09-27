@@ -60,6 +60,7 @@ import {
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type { RenderResult } from '../domain/types';
 import { track } from '../domain/usage';
+import { useAdvancedTools } from '../domain/preferences';
 import { PredicatePalette } from './PredicatePalette';
 import { PieceSearch, type PieceSearchHandle } from './PieceSearch';
 import { canvasEdgePath, layoutCanvasTree } from '../domain/canvas-layout';
@@ -347,6 +348,9 @@ export function ExpressionCanvas({
   const [operation, setOperation] = useState('*');
   const [operationSide, setOperationSide] = useState<'left' | 'right'>('right');
   const [advanced, setAdvanced] = useState(false);
+  // Reading direction was never switched in a month of recorded work; it keeps its place
+  // under the secondary tools instead of two wide buttons beside the search field.
+  const advancedTools = useAdvancedTools();
   const [staged, setStaged] = useState<{
     address: CanvasAddress;
     session: string;
@@ -1171,6 +1175,24 @@ export function ExpressionCanvas({
     : { raw: '', message: '' };
   const viewWidth = dimensions.width / camera.zoom;
   const viewHeight = dimensions.height / camera.zoom;
+  // Connecting, detaching and adding are the structural edits the usage log records most
+  // often; the keyboard reaches them through the same code path as the context menu.
+  function startConnect(address: CanvasAddress, code: string) {
+    const target = isCanvasHole(code);
+    setStaged({ address, session, target });
+    setMenu(null);
+    setNotice(
+      target
+        ? 'Selecione a peça que preencherá este encaixe. Esc cancela.'
+        : 'Selecione um encaixe para ligar, ou outra peça para trocar. Esc cancela.',
+    );
+  }
+  function openPaletteAt(position: Positioned) {
+    setMenu(null);
+    if (isCanvasHole(position.node.expression?.code ?? ''))
+      setPalette({ target: bound(position.address), x: position.x, y: position.y });
+    else setPalette({ x: camera.x, y: camera.y, initialMode: 'types' });
+  }
   const menuAction = (type: 'detach' | 'duplicate' | 'remove' | 'make-main') => {
     if (!menu) return;
     commit({
@@ -1239,6 +1261,26 @@ export function ExpressionCanvas({
         if ((event.shiftKey && event.key === 'F10') || event.key === 'ContextMenu') {
           event.preventDefault();
           openMenu(selectedPosition);
+          return;
+        }
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        const shortcut = event.key.toLowerCase();
+        if (shortcut === 'c') {
+          event.preventDefault();
+          startConnect(
+            bound(selectedPosition.address),
+            selectedPosition.node.expression?.code ?? '',
+          );
+        } else if (shortcut === 'e') {
+          event.preventDefault();
+          commit({
+            type: 'detach',
+            source: bound(selectedPosition.address),
+            position: { x: selectedPosition.x + 80, y: selectedPosition.y + 200 },
+          });
+        } else if (shortcut === 'a') {
+          event.preventDefault();
+          openPaletteAt(selectedPosition);
         }
       }}
     >
@@ -1359,18 +1401,22 @@ export function ExpressionCanvas({
           {query && <small>{matches.size}</small>}
           <button disabled={!matches.size}>Ir</button>
         </form>
-        <button
-          aria-pressed={orientation === 'bottom-up'}
-          onClick={() => changeLayout('bottom-up')}
-        >
-          De baixo para cima
-        </button>
-        <button
-          aria-pressed={orientation === 'horizontal'}
-          onClick={() => changeLayout('horizontal')}
-        >
-          Da esquerda para a direita
-        </button>
+        {advancedTools && (
+          <>
+            <button
+              aria-pressed={orientation === 'bottom-up'}
+              onClick={() => changeLayout('bottom-up')}
+            >
+              De baixo para cima
+            </button>
+            <button
+              aria-pressed={orientation === 'horizontal'}
+              onClick={() => changeLayout('horizontal')}
+            >
+              Da esquerda para a direita
+            </button>
+          </>
+        )}
         <button onClick={() => setCollapsed(new Set())}>Expandir tudo</button>
         <button
           onClick={() => {
@@ -1843,18 +1889,55 @@ export function ExpressionCanvas({
               }
             }}
           >
-            {props.onAskAI && (
+            <button
+              role="menuitem"
+              disabled={!menuPosition?.piece.root}
+              onClick={() => startConnect(menu.address, menuPosition?.node.expression?.code ?? '')}
+            >
+              Conectar ou trocar <kbd>C</kbd>
+            </button>
+            {staged && menuPosition && (
+              <button role="menuitem" onClick={() => connectTo(menuPosition)}>
+                Conectar aqui
+              </button>
+            )}
+            <button role="menuitem" onClick={() => menuAction('remove')}>
+              Remover trecho <kbd>⌫</kbd>
+            </button>
+            {menuRemovalChoices.length > 0 && (
               <button
                 role="menuitem"
-                disabled={!!menu.address.fragmentId || !menuPosition?.piece.root}
                 onClick={() => {
-                  props.onAskAI?.(menu.address.nodeId);
+                  setRemovalPanel({
+                    address: menu.address,
+                    session,
+                    fragmentIds: Object.fromEntries(
+                      menuRemovalChoices.map(({ node }) => [
+                        node.id,
+                        'fragment-' + globalThis.crypto.randomUUID(),
+                      ]),
+                    ),
+                    position: {
+                      x: (menuPosition?.x ?? camera.x) + 80,
+                      y: (menuPosition?.y ?? camera.y) + 190,
+                    },
+                  });
+                  setKeptChildId(menuRemovalChoices[0].node.id);
                   setMenu(null);
                 }}
               >
-                Perguntar à IA sobre este constituinte
+                Retirar só a operação…
               </button>
             )}
+            <button
+              role="menuitem"
+              disabled={
+                !menuPosition?.piece.root || isCanvasHole(menuPosition.node.expression?.code ?? '')
+              }
+              onClick={() => menuAction('detach')}
+            >
+              Soltar trecho <kbd>E</kbd>
+            </button>
             <button
               role="menuitem"
               disabled={!menuPosition?.piece.root}
@@ -1894,6 +1977,28 @@ export function ExpressionCanvas({
             >
               Imperativo
             </button>
+            {props.onAskAI && (
+              <button
+                role="menuitem"
+                disabled={!!menu.address.fragmentId || !menuPosition?.piece.root}
+                onClick={() => {
+                  props.onAskAI?.(menu.address.nodeId);
+                  setMenu(null);
+                }}
+              >
+                Perguntar à IA sobre este constituinte
+              </button>
+            )}
+            <button
+              role="menuitem"
+              onClick={() => {
+                setSelected(canvasPositionKey(menu.address));
+                setAdvanced(true);
+                setMenu(null);
+              }}
+            >
+              Editar esta parte
+            </button>
             <button
               role="menuitem"
               disabled={!menuPosition?.piece.root}
@@ -1910,75 +2015,12 @@ export function ExpressionCanvas({
             </button>
             <button
               role="menuitem"
-              onClick={() => {
-                setSelected(canvasPositionKey(menu.address));
-                setAdvanced(true);
-                setMenu(null);
-              }}
-            >
-              Editar esta parte
-            </button>
-            <button
-              role="menuitem"
               disabled={
                 !menuPosition?.piece.root || isCanvasHole(menuPosition.node.expression?.code ?? '')
               }
               onClick={() => menuAction('duplicate')}
             >
               Duplicar trecho <kbd>⌘D</kbd>
-            </button>
-            <button
-              role="menuitem"
-              disabled={
-                !menuPosition?.piece.root || isCanvasHole(menuPosition.node.expression?.code ?? '')
-              }
-              onClick={() => menuAction('detach')}
-            >
-              Soltar trecho
-            </button>
-            {menuRemovalChoices.length > 0 && (
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setRemovalPanel({
-                    address: menu.address,
-                    session,
-                    fragmentIds: Object.fromEntries(
-                      menuRemovalChoices.map(({ node }) => [
-                        node.id,
-                        'fragment-' + globalThis.crypto.randomUUID(),
-                      ]),
-                    ),
-                    position: {
-                      x: (menuPosition?.x ?? camera.x) + 80,
-                      y: (menuPosition?.y ?? camera.y) + 190,
-                    },
-                  });
-                  setKeptChildId(menuRemovalChoices[0].node.id);
-                  setMenu(null);
-                }}
-              >
-                Retirar só a operação…
-              </button>
-            )}
-            <button role="menuitem" onClick={() => menuAction('remove')}>
-              Remover trecho <kbd>⌫</kbd>
-            </button>
-            <button
-              role="menuitem"
-              disabled={!menuPosition?.piece.root}
-              onClick={() => {
-                const target = isCanvasHole(menuPosition?.node.expression?.code ?? '');
-                setStaged({ address: menu.address, session, target });
-                setMenu(null);
-                setNotice(
-                  target
-                    ? 'Selecione a peça que preencherá este encaixe. Esc cancela.'
-                    : 'Selecione um encaixe para ligar, ou outra peça para trocar. Esc cancela.',
-                );
-              }}
-            >
-              Conectar ou trocar
             </button>
             <button
               role="menuitem"
@@ -1991,11 +2033,6 @@ export function ExpressionCanvas({
             >
               Trocar com outra peça
             </button>
-            {staged && menuPosition && (
-              <button role="menuitem" onClick={() => connectTo(menuPosition)}>
-                Conectar aqui
-              </button>
-            )}
             <button
               role="menuitem"
               disabled={
