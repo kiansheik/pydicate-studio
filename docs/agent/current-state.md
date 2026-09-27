@@ -42,12 +42,12 @@ sees no queue calls/API/browser errors, restores selection and preserves drafts.
 merged through PR #5 after its focused compiled contributor workflow passed. See the
 [handoff](session-handoffs/2026-09-27-main-deployment.md).
 
-The hosted PDF import matched 39 entries and retained 63 unmatched entries and
-four unmatched predecessor guides. Server corpus is clean at the same Git commit
-as desktop; desktop's unpublished source changes explain 59 changed expressions
-and two additional passages, plus two older orphan identities. Complete PDF and
-original evidence remain in the private import archive. No local corpus edits
-were published or references approved by this app deployment.
+The initial hosted import matched 39 entries and retained 63 entries/four guides.
+The earlier attribution to 59 changed expressions was incorrect: cross-version
+Python AST serialization changed those fingerprints without proving text changes.
+After the user's corpus publication, exact file hashes/ordinals prove 100 of 102
+evidence entries match. The portable importer repair is described above. Complete
+PDFs and original evidence remain preserved; no reference approval is inferred.
 
 ## Deployment upload progress and cancellation
 
@@ -83,8 +83,8 @@ deployment window, preserving hosted uploads/regions. Overrides are
 `LOCAL_STUDIO_STATE` and `LOCAL_PROJECT_PARENT`. Changed or ambiguous historical
 associations remain in a retained archive/report. Local real-PDF roundtrip:
 84,734,099 bytes, 100 evidence entries mapped, two retained unmatched. The
-subsequent live deployment matched 39 and retained 63 because desktop corpus edits
-are unpublished; complete bytes/evidence remain preserved. App changes are now
+initial live deployment matched 39 and retained 63. Cross-version AST fingerprints
+caused most mismatches; the exact-file portability fix is documented above. App changes are now
 merged into main and deployed; see the main-deployment section above. See the
 [source workflow handoff](session-handoffs/2026-09-27-multiple-sources-pdfs.md)
 and [browser contributor guide](../collab-contributor.md).
