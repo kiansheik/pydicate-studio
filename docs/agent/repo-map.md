@@ -2,6 +2,12 @@
 
 ## Hosted collaboration and deployment
 
+- `server/desktop-evidence-import.cjs`: stopped-server reconciliation of persisted
+  PDF working copies against exact saved baselines; immutable original archive,
+  canonical deletions, content-based repeat protection and conservative conflicts.
+  `reconcileEvidenceCache` in `src/domain/evidence.ts` prevents pristine browser
+  caches from reviving superseded saved rectangles.
+
 - `scripts/collab/desktop_sync.py`, `read_local_storage.cjs`: read-only allowlisted
   desktop research snapshot, isolated Chromium storage extraction, deterministic
   archive and verified extraction. `ops.py` transfers after release preflight;

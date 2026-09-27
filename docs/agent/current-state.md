@@ -1,5 +1,20 @@
 # Current state
 
+## Canonical desktop PDF corrections
+
+The first research restoration archived PDF working copies but left older saved
+rectangles active. The user's Salve Rainha examples (Araújo 18/19) proved that
+persisted desktop corrections had removed page-37 boxes. The stopped-server
+import now reconciles verified working copies against their exact saved baseline,
+including removals/empty regions. A durable content-based receipt prevents later
+deployments from replaying them over subsequent online edits. Pristine browser
+caches adopt corrected server geometry; actual local edits remain protected.
+Real-data rehearsal applies 26 corrections (18 remove page 37); two historical
+buffers and one legacy buffer without a baseline remain archived. See the
+[handoff](session-handoffs/2026-09-27-canonical-pdf-evidence.md) for validation and
+live rollout results. The earlier 1,167-field parity check covered passage drafts,
+not PDF working-copy precedence, and was insufficient to establish full fidelity.
+
 ## Desktop research restoration and passage continuity
 
 The previous deployment migrated PDFs and Git sources but omitted desktop draft

@@ -83,6 +83,75 @@ async function guideFixture(
   return { fixture, assetId: attached.asset!.id, revision: attached.revision };
 }
 
+for (const edited of [false, true]) {
+  test(`server region corrections ${edited ? 'preserve actual unsaved edits' : 'replace a cached old saved region'}`, async ({
+    page,
+  }) => {
+    const directory = await mkdtemp(join(tmpdir(), 'studio-evidence-canonical-'));
+    try {
+      let saves = 0;
+      const { fixture, assetId, revision } = await guideFixture(page, directory, (method) => {
+        if (method === 'evidence_save') saves++;
+      });
+      const wrong = { id: 'old-wrong', assetId, pageIndex: 0, rect: [30, 40, 90, 100] };
+      const correct = { id: 'correct', assetId, pageIndex: 1, rect: [30, 40, 90, 100] };
+      const before = (await fixture.service.invoke('evidence_save', {
+        ...params,
+        assetId,
+        expectedRevision: revision,
+        regions: [wrong, correct],
+        view: { pageIndex: 0, zoom: 1, rotation: 0 },
+      })) as EvidenceStatus;
+      const after = (await fixture.service.invoke('evidence_save', {
+        ...params,
+        assetId,
+        expectedRevision: before.revision,
+        regions: [correct],
+        view: { pageIndex: 1, zoom: 1, rotation: 0 },
+      })) as EvidenceStatus;
+      const key =
+        'pydicate-studio:evidence-draft:v1:' +
+        JSON.stringify([params.projectId, params.sourceId, params.passageId]);
+      await page.addInitScript(
+        ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
+        {
+          key,
+          value: {
+            assetId,
+            revision: before.revision,
+            regions: edited ? [{ ...wrong, rect: [35, 45, 95, 105] }] : [wrong, correct],
+            view: { pageIndex: 0, zoom: 1, rotation: 0 },
+            baseline: JSON.stringify(before.passage),
+          },
+        },
+      );
+      await page.goto('/tests/pdf-harness.html');
+      await ready(page);
+      await expect(
+        page.getByRole('button', { name: `Região 1 · PDF ${edited ? 1 : 2}`, exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: /^Região 2/ })).toHaveCount(0);
+      if (edited)
+        await expect(
+          page.getByText(
+            'Há regiões locais não salvas e a evidência mudou. Exporte o rascunho antes de recarregar.',
+            { exact: true },
+          ),
+        ).toBeVisible();
+      else
+        await expect(
+          page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true }),
+        ).toHaveCount(0);
+      expect(
+        ((await fixture.service.invoke('evidence_status', params)) as EvidenceStatus).passage,
+      ).toEqual(after.passage);
+      expect(saves).toBe(0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
+
 for (const target of ['Fonte Bettendorff', 'Outro projeto']) {
   test(`switching to ${target} never requests the previous source's PDF`, async ({ page }) => {
     const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-source-switch-'));

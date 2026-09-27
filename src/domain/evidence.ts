@@ -28,6 +28,30 @@ export interface WorkingEvidence {
   inheritedFrom?: { passageId: string; ordinal: number };
   guide?: EvidenceGuide;
 }
+/** A cached view of saved rectangles must not resurrect superseded evidence. */
+export function reconcileEvidenceCache(
+  cached: WorkingEvidence,
+  saved: WorkingEvidence,
+): WorkingEvidence {
+  if (cached.baseline === undefined || cached.assetId !== saved.assetId) return cached;
+  try {
+    const baseline = JSON.parse(cached.baseline);
+    if (baseline !== null && !Array.isArray(baseline?.regions)) return cached;
+    const geometry = (regions: EvidenceRegion[]) =>
+      regions.map(({ id, assetId, pageIndex, rect }) => ({ id, assetId, pageIndex, rect }));
+    const previous = (baseline?.regions || []).filter(
+      (region: EvidenceRegion) => region.assetId === cached.assetId,
+    );
+    if (
+      JSON.stringify(geometry(cached.regions)) !== JSON.stringify(geometry(previous)) ||
+      JSON.stringify(cached.guide ?? null) !== JSON.stringify(baseline?.guide ?? null)
+    )
+      return cached;
+    return { ...saved, view: { ...cached.view } };
+  } catch {
+    return cached;
+  }
+}
 export function validEvidenceGuide(value: unknown, assetId: string): value is EvidenceGuide {
   if (!value || typeof value !== 'object') return false;
   const guide = value as EvidenceGuide;

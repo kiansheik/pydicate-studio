@@ -19,6 +19,7 @@ import {
   viewportRect,
   guideEvidence,
   validWorkingEvidence,
+  reconcileEvidenceCache,
   type EvidencePointer,
   type EvidenceStatus,
   type EvidenceView,
@@ -266,11 +267,11 @@ export function PdfEvidence({
           cached.baseline === JSON.stringify(next.passage) &&
           JSON.stringify(cached.view) === JSON.stringify(savedView);
         if (validCache) {
-          nextWorking = { ...cached };
+          nextWorking = reconcileEvidenceCache(cached, nextWorking);
           restored = true;
-          if (cached.baseline === JSON.stringify(next.passage))
+          if (nextWorking.baseline === JSON.stringify(next.passage))
             nextWorking.revision = next.revision;
-          else if (cached.revision !== next.revision)
+          else if (nextWorking.revision !== next.revision)
             setError(
               'Há regiões locais não salvas e a evidência mudou. Exporte o rascunho antes de recarregar.',
             );
