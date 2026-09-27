@@ -101,9 +101,15 @@ other projects remain preserved, without replacing the shared workspace. Repeat 
 do not duplicate changes. Migration revisions have explicit desktop provenance and do
 not invent a human author, approval, or resumed AI attempt.
 
+Persisted desktop PDF working copies also become active evidence when the hosted
+regions still match the copy's exact saved baseline. Removed rectangles and empty
+region lists are authoritative. Different online evidence, ambiguous origins and
+unmapped historical passages remain untouched and are reported. A content-based
+receipt prevents repeat deployments from replaying a correction over later edits.
+
 Administrators can open **Histórico do desktop** in the collaboration panel to read original
 drafts, conversations, note versions and other records, including unresolved links. Browser
-buffers/preferences can be restored to that administrator's browser without overwriting
+Unresolved browser buffers/preferences can be restored to that administrator's browser without overwriting
 existing local work; old AI retry records remain historical. Shared migrated draft progress
 is available to ordinary collaborators in the usual editor.
 

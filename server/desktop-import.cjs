@@ -263,6 +263,9 @@ async function main() {
     if (inspector.project.id !== project.id) throw new Error('Current project identity changed during desktop import.');
     const report = await importDesktopDrafts(store, { ...bundle, targetProject: project, dryRun });
     const receipt = { ...report }; delete receipt.originalEnvelope;
+    const { importDesktopEvidence } = require('./desktop-evidence-import.cjs');
+    receipt.evidence = await importDesktopEvidence({ directory, manifest: bundle.manifest, receipt,
+      project, stateDirectory: settings.stateDirectory, dryRun });
     if (!dryRun) {
       const { importDesktopLexicalNotes } = require('./desktop-lexical-import.cjs');
       receipt.lexicalNotes = await importDesktopLexicalNotes({ directory, manifest: bundle.manifest, receipt,
@@ -274,6 +277,7 @@ async function main() {
     }
     console.log(JSON.stringify({ snapshotSha256: report.snapshotSha256, projectId: report.projectId, counts: report.counts,
       conflicts: report.conflicts.length, staleDrafts: report.staleDrafts.length, lexicalNotes: receipt.lexicalNotes?.counts,
+      evidence: receipt.evidence,
       alreadyImported: !!report.alreadyImported, dryRun }));
   } finally { await inspector?.close(); await runtime?.close(); await store.close(); }
 }

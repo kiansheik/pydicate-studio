@@ -1,5 +1,17 @@
 # Work log
 
+## 2026-09-27 - Restore canonical desktop PDF corrections
+
+User-reported page-37 regressions exposed an incomplete restoration: persisted
+desktop PDF working copies were only historical, while old committed regions
+remained active. Verified exact baselines for 26 current corrections, including
+both supplied Salve Rainha examples; 18 remove an unwanted page-37 rectangle.
+Added baseline-checked active import, durable repeat protection and browser cache
+reconciliation. Existing online edits, actual unsaved browser edits and ambiguous
+historical records remain preserved. Sixteen recovery integration/storage tests,
+eight domain tests, eleven evidence-service tests and eighteen PDF browser tests
+pass. See [handoff](session-handoffs/2026-09-27-canonical-pdf-evidence.md).
+
 ## 2026-09-27 - Restore desktop research before further authoring
 
 Traced missing hosted completion flags to an incomplete migration: PDF evidence

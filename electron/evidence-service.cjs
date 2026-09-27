@@ -495,4 +495,13 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
   };
 }
 
-module.exports = { createEvidenceService, MAX_PDF_BYTES };
+function validateEvidenceLocation(value, assetId) {
+  return {
+    regions: regions(value.regions, fingerprint(assetId)),
+    view: view(value.view),
+    viewAssetId: assetId,
+    ...(value.guide !== undefined ? { guide: guide(value.guide, assetId) } : {}),
+  };
+}
+
+module.exports = { createEvidenceService, MAX_PDF_BYTES, validateEvidenceLocation };

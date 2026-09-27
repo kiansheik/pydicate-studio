@@ -3,6 +3,7 @@ import {
   guideEvidence,
   inheritEvidence,
   validWorkingEvidence,
+  reconcileEvidenceCache,
   type WorkingEvidence,
 } from './evidence';
 
@@ -12,6 +13,39 @@ const working: WorkingEvidence = {
   regions: [{ id: 'region-a', assetId: 'pdf-a', pageIndex: 1, rect: [1, 2, 30, 40] }],
   view: { pageIndex: 1, zoom: 1.5, rotation: 90 },
 };
+describe('cached evidence precedence', () => {
+  const baseline = { regions: working.regions, view: working.view, viewAssetId: working.assetId };
+  const cached = { ...working, baseline: JSON.stringify(baseline) };
+  const corrected = {
+    ...working,
+    revision: 20,
+    regions: [],
+    baseline: JSON.stringify({ ...baseline, regions: [] }),
+  };
+  it('uses corrected server regions when the cache only preserved the earlier saved boxes', () => {
+    const next = reconcileEvidenceCache(
+      { ...cached, view: { ...working.view, zoom: 2 } },
+      corrected,
+    );
+    expect(next.regions).toEqual([]);
+    expect(next.revision).toBe(20);
+    expect(next.view.zoom).toBe(2);
+  });
+  it('preserves actual unsaved region edits and clears when server evidence changes', () => {
+    for (const regions of [
+      [],
+      [{ ...working.regions[0], rect: [2, 3, 40, 50] as [number, number, number, number] }],
+    ]) {
+      const edited = { ...cached, regions };
+      expect(reconcileEvidenceCache(edited, corrected)).toBe(edited);
+    }
+  });
+  it('preserves legacy caches and independently edited guides without proof of an unchanged baseline', () => {
+    expect(reconcileEvidenceCache(working, corrected)).toBe(working);
+    const guided = { ...cached, guide: { assetId: working.assetId, fromPassageId: 'previous' } };
+    expect(reconcileEvidenceCache(guided, corrected)).toBe(guided);
+  });
+});
 describe('PDF location inheritance', () => {
   it('copies geometry and view with new identities and explicit unconfirmed origin', () => {
     const original = JSON.stringify(working);
