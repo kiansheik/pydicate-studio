@@ -61,6 +61,8 @@ class CorpusCopyTests(unittest.TestCase):
 
     def passage(self,ordinal=67):return self.project['passages'][ordinal-1]
 
+    def source_passages(self):return [p for p in self.project['passages'] if p['sourceId']=='araujo_catecismo_1686']
+
     def test_pt_en_translations_source_roundtrip_clear_and_legacy_separation(self):
         passage=self.passage(67); identifier=passage['id']; original=passage['sourceFingerprint']
         values={'pt':"  primeira\n\nsegunda\u2028terceira  ", 'en':'first\nsecond'}
@@ -87,13 +89,13 @@ class CorpusCopyTests(unittest.TestCase):
         values={'pt':'Pessoa.','en':'Person.'}
         preview=self.adapter.invoke('source_new_preview',{'sourceId':'araujo_catecismo_1686','raw':'apiti','metadata':{'translations':values}})
         self.project=self.adapter.invoke('source_apply',preview)
-        current=self.project['passages'][-1]
+        current=next(p for p in self.project['passages'] if p['id']==preview['passageId'])
         self.assertEqual(current['translations'],values)
         self.assertEqual(current['translation'],'')
         self.assertEqual(source_entries(self.path)[-1]['studio']['translations'],values)
 
     def test_full_count_actual_inherited_metadata_and_noop_bytes(self):
-        entries=source_entries(self.path);self.assertEqual(len(entries),len(self.project['passages']));self.assertEqual(self.passage(82)['witness']['printedPage'],'6')
+        entries=source_entries(self.path);self.assertEqual(len(entries),len(self.source_passages()));self.assertEqual(self.passage(82)['witness']['printedPage'],'6')
         for passage in self.project['passages']:
             preview=self.adapter.invoke('source_preview',{'passageId':passage['id'],'raw':passage['sourceExpression']});self.assertEqual(preview['diff'],'')
         self.assertEqual(self.path.read_bytes(),self.original)
@@ -157,7 +159,7 @@ class CorpusCopyTests(unittest.TestCase):
         self.assertIn('Navarro',lexical['diff']);self.project=self.adapter.invoke('source_apply',lexical)
         inspected=self.adapter.invoke('lexicon_inspect',{'name':lexical['name'],'passageId':self.project['passages'][66]['id']});self.assertEqual(inspected['runtimeType'],'Noun')
         new=self.adapter.invoke('source_new_preview',{'raw':lexical['name'],'sourceId':'araujo_catecismo_1686'});self.project=self.adapter.invoke('source_apply',new)
-        self.assertEqual(len(self.project['passages']),original_count+1);self.assertEqual(self.project['passages'][-1]['id'],new['passageId'])
+        self.assertEqual(len(self.project['passages']),original_count+1);self.assertEqual(self.source_passages()[-1]['id'],new['passageId'])
 
     def test_gloss_edit_preserves_lexical_identity_and_class(self):
         passage=self.passage()
@@ -184,7 +186,7 @@ class CorpusCopyTests(unittest.TestCase):
         records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
         # The contributor may already have approved every source line. Leave
         # one deliberate pending reference in this disposable fixture.
-        count=min(len(original.splitlines()),len(self.project['passages'])-1)
+        count=min(len(original.splitlines()),len(self.source_passages())-1)
         before=b''.join(original.splitlines(keepends=True)[:count]);records.write_bytes(before)
         self.project=self.adapter.refresh_project();passage=self.passage(count+1)
         rendered=self.adapter.invoke('evaluate_expression',{'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'review','engineFingerprint':self.project['engineFingerprint']})
@@ -198,7 +200,7 @@ class CorpusCopyTests(unittest.TestCase):
         records=self.corpus/'ground_truth/records/historic/araujo_catecismo_1686.jsonl';original=records.read_bytes()
         # Construct an actual gap in this disposable copy; the user's saved
         # reference count can grow between runs.
-        ordinal=len(self.project['passages']);before=b''.join(original.splitlines(keepends=True)[:ordinal-2])
+        ordinal=len(self.source_passages());before=b''.join(original.splitlines(keepends=True)[:ordinal-2])
         try:
             records.write_bytes(before);self.project=self.adapter.refresh_project();passage=self.passage(ordinal)
             self.assertLess(len(before.splitlines())+1,ordinal)

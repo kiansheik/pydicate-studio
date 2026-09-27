@@ -117,6 +117,7 @@ class PythonWorker {
         'node_definition',
         'source_preview',
         'source_new_preview',
+        'source_create',
         'source_apply',
         'source_recover',
         'source_recovery_list',

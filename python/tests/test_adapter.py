@@ -87,12 +87,18 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(passage["sourceExpression"], "-(+nde * apiti * moro).imp()")
         self.assertIsNone(passage["analysis"])
 
-    def test_empty_or_unreadable_project_preserves_active_project_and_registry(self):
+    def test_empty_source_is_available_without_manufacturing_passages(self):
+        self.source.write_text('l = []\n', encoding='utf-8')
+        project=self.adapter().open_project(str(self.root))
+        self.assertEqual(project['passages'],[])
+        self.assertEqual(project['sources'],[{'id':'example','title':'example','year':'','fileName':'example.tu.py','passageCount':0}])
+
+    def test_unreadable_project_preserves_active_project_and_registry(self):
         adapter = self.adapter()
         original = adapter.open_project(str(self.root))
         registry = next((self.root / "studio-state").glob("*.ids.json"))
         original_registry = registry.read_bytes()
-        for source in ("l = []\n", "l = [\n"):
+        for source in ("l = [\n",):
             with self.subTest(source=source):
                 self.source.write_text(source, encoding="utf-8")
                 with self.assertRaises(AdapterError) as caught:
@@ -100,6 +106,24 @@ class AdapterTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, "NO_PASSAGES")
                 self.assertIs(adapter.project, original)
                 self.assertEqual(registry.read_bytes(), original_registry)
+
+    def test_create_source_persists_metadata_and_never_replaces_existing_files(self):
+        adapter=self.adapter();project=adapter.open_project(str(self.root))
+        original=self.source.read_bytes();records=self.records.read_bytes()
+        created=adapter.invoke('source_create',{'projectId':project['id'],'sourceId':'catecismo_2','title':'Outro catecismo','year':'1700'})
+        self.assertEqual(created['passages'],project['passages'])
+        description=next(s for s in created['sources'] if s['id']=='catecismo_2')
+        self.assertEqual(description['title'],'Outro catecismo');self.assertEqual(description['passageCount'],0)
+        self.assertIn(description,self.adapter().open_project(str(self.root))['sources'])
+        with self.assertRaises(AdapterError) as error:adapter.invoke('source_create',{'sourceId':'example','title':'Overwrite'})
+        self.assertEqual(error.exception.code,'SOURCE_EXISTS')
+        for source_id in ('../outside','lexicon','l','class','a\nb','has-dash'):
+            with self.subTest(source_id=source_id),self.assertRaises(AdapterError):
+                adapter.invoke('source_create',{'sourceId':source_id,'title':'Bad source'})
+        for title in ('','bad\ncomment','bad\u2028comment'):
+            with self.subTest(title=title),self.assertRaises(AdapterError):
+                adapter.invoke('source_create',{'sourceId':'bad_source','title':title})
+        self.assertEqual(self.source.read_bytes(),original);self.assertEqual(self.records.read_bytes(),records)
 
     def test_uuid_survives_restart_and_insertion_without_ordinal_identity(self):
         adapter = self.adapter()

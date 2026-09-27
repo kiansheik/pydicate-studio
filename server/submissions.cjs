@@ -3,8 +3,8 @@ const {randomUUID,createHash}=require('node:crypto');
 const {fault,identifier,passageKey,text}=require('./store.cjs');
 const snapshotHash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 class Submissions {
-  constructor(store){this.store=store;}
-  async submit(user,{passageId,revisionId},project){
+  constructor(store,{readEvidence=null}={}){this.store=store;this.readEvidence=readEvidence;}
+  async submit(user,{passageId,revisionId},project,context={}){
     identifier(passageId);identifier(revisionId);
     return this.store.transaction(async()=>{
       await this.store.assertUser(user);
@@ -19,8 +19,17 @@ class Submissions {
       const source=project.passages.find(p=>p.id===passageId);
       if(source && source.sourceFingerprint!==draft.sourceFingerprint)throw fault(409,'STALE_SUBMISSION','A fonte mudou. Reconcilie e salve uma nova versão antes de enviar.');
       const sourceId=source?.sourceId??draft.pending?.sourceId;
-      if(!sourceId||!project.passages.some(p=>p.sourceId===sourceId))throw fault(409,'SOURCE_MISSING','Fonte desconhecida; recarregue o projeto.');
+      const sourceDescriptor=project.sources?.find(s=>s.id===sourceId);
+      if(!sourceId||(!sourceDescriptor&&!project.passages.some(p=>p.sourceId===sourceId)))throw fault(409,'SOURCE_MISSING','Fonte desconhecida; recarregue o projeto.');
+      const evidenceStatus=await this.readEvidence?.({projectId:project.id,sourceId,passageId:passageKey(passageId)},user,context);
+      const regions=evidenceStatus?.passage?.regions?.filter(region=>region.assetId===evidenceStatus.asset?.id)||[];
+      // Capture only this passage's saved crops. A selected source PDF or an
+      // inherited predecessor guide is not evidence authored for this passage.
+      const evidence=regions.length?{version:1,assetId:evidenceStatus.asset.id,passageId:passageKey(passageId),
+        manifestRevision:evidenceStatus.revision,regions,view:evidenceStatus.passage.view}:null;
       const snapshot={format:'pydicate-submission',version:1,projectId:project.id,passageId,sourceId,
+        ...(sourceDescriptor?{source:{id:sourceDescriptor.id,title:sourceDescriptor.title,year:sourceDescriptor.year}}:{}),
+        ...(evidence?{evidence}:{}),
         draft,original:source?{id:source.id,sourceExpression:source.sourceExpression,sourceFingerprint:source.sourceFingerprint,ordinal:source.ordinal}:null,
         engineFingerprint:project.engineFingerprint,context:this.store.context};
       const id=randomUUID(),sha=snapshotHash(snapshot);

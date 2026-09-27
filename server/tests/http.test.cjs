@@ -14,6 +14,7 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     fs.writeFileSync(path.join(settings.distDirectory, 'index.html'), '<!doctype html><html><head></head><body>actual app slot</body></html>');
     const runtime = { project, hasPassage: id => id === 'passage:a', passage: id => { if (id !== 'passage:a')
             throw Object.assign(new Error('Missing'), { status: 404 }); return id; }, validateChanges: () => { }, refresh: async () => project,
+        upload: async (filename, params, ctx) => { assert.equal(ctx.user.role,'contributor'); assert.equal(params.expectedRevision,4); assert.match(fs.readFileSync(filename,'utf8'),/^%PDF-/); return {uploaded:true}; },
         invoke: async (method, params, ctx) => { authorizeMethod(method, ctx.user.role); if (method === 'evidence_bytes')
             return new TextEncoder().encode('%PDF-test').buffer; return { method, projectId: project.id }; } };
     const auth = new Auth(store, settings), app = createHttp({ config: settings, store, auth, runtime });
@@ -54,7 +55,11 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     const pdf = await post('/api/invoke', { method: 'evidence_bytes', params: { passageId: 'passage:a' } }, user);
     assert.equal(pdf.headers.get('content-type'), 'application/pdf');
     assert.equal(await pdf.text(), '%PDF-test');
-    assert.equal((await post('/api/pdf', {}, user)).status, 403);
+    assert.equal((await post('/api/pdf', {}, user)).status, 400);
+    const uploaded=await fetch(settings.origin+'/api/pdf',{method:'POST',headers:{'Content-Type':'application/pdf',Origin:settings.origin,
+        'X-Studio-Client':'integration-tab',Cookie:user.cookie,'X-CSRF-Token':user.csrf,
+        'X-Studio-Evidence':JSON.stringify({sourceId:'araujo',passageId:'passage:a',expectedRevision:4})},body:'%PDF-fixture'});
+    assert.equal(uploaded.status,200);assert.deepEqual(await uploaded.json(),{uploaded:true});
     await post('/api/admin/user', { id: 'contributor', role: 'contributor', disabled: true }, admin);
     assert.equal((await post('/api/drafts/load', { projectId: project.id }, user)).status, 401);
 });

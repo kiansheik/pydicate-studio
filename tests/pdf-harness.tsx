@@ -1,10 +1,12 @@
 import { createRoot } from 'react-dom/client';
 import { useRef, useState } from 'react';
 import { PdfEvidence, type EvidencePreparation } from '../src/components/PdfEvidence';
+import type { EvidencePointer } from '../src/domain/evidence';
 
 function Harness() {
   const guideMode = new URLSearchParams(location.search).has('guide');
   const [pointers, setPointers] = useState(0);
+  const [lastPointer, setLastPointer] = useState<EvidencePointer | null>(null);
   const [hidden, setHidden] = useState(false);
   const preparation = useRef<EvidencePreparation>(null);
   const [prepared, setPrepared] = useState('');
@@ -13,6 +15,8 @@ function Harness() {
   );
   function choosePassage(id: string) {
     if (guideMode) localStorage.setItem('pdf-harness-passage', id);
+    setPointers(0);
+    setLastPointer(null);
     setPassage(id);
   }
   return (
@@ -53,10 +57,14 @@ function Harness() {
           printedPage="26–27"
           folio="13v"
           lineLocator="4–9"
-          onEvidence={() => setPointers((count) => count + 1)}
+          onEvidence={(pointer) => {
+            if (pointer) setPointers((count) => count + 1);
+            setLastPointer(pointer);
+          }}
         />
       </div>
       <output id="evidence-pointers">{pointers}</output>
+      <output id="evidence-pointer">{JSON.stringify(lastPointer)}</output>
     </main>
   );
 }

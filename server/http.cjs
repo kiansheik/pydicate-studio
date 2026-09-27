@@ -8,7 +8,7 @@ const { fault, identifier, passageKey } = require('./store.cjs');
 const { RateLimiter } = require('./auth.cjs');
 const UI_EVENTS = new Set(`navigation.passage navigation.mode navigation.projection navigation.search editor.batch
 editor.selection editor.operation editor.undo editor.redo draft.save source.preview source.apply source.conflict
-review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.resize ui.error usage.export`.split(/\s+/));
+review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export`.split(/\s+/));
 const POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ico': 'image/x-icon' };
 async function body(req, limit = 1000000, binary = false) {
@@ -46,7 +46,9 @@ function createHttp({ config, store, auth, runtime }) {
     const identity = new (require("./identity.cjs").AcademiaIdentity)(store,auth,config.identity);
     auth.identity=identity;
     const { ProviderVault } = require('./provider-vault.cjs');
-    const submissions = new (require('./submissions.cjs').Submissions)(store);
+    const submissions = new (require('./submissions.cjs').Submissions)(store, {
+        readEvidence: (params, user, context) => runtime.invoke('evidence_status', params, {user, clientId: context.clientId}),
+    });
     const vault = new ProviderVault(store, config.vaultKeyFile);
     const streams = new Set(), people = new Map(), limiter = new RateLimiter(store.now);
     let uploading = false;
@@ -200,15 +202,18 @@ function createHttp({ config, store, auth, runtime }) {
                 return json(res, 200, await store.report(integer(url.searchParams.get('days') ?? 7, 0, 365000)));
             }
             if (route === '/api/pdf' && req.method === 'POST') {
-                if (session.user.role === 'contributor')
-                    throw fault(403, 'REVIEWER_REQUIRED', 'Um revisor deve vincular o PDF.');
                 if (uploading)
                     throw fault(429, 'UPLOAD_BUSY', 'Outro PDF está sendo recebido.');
                 uploading = true;
                 let filename;
                 try {
-                    const metadata = JSON.parse(String(req.headers['x-studio-evidence'] || ''));
-                    await runtime.passage(metadata.passageId, true);
+                    let metadata;
+                    try {
+                        metadata = JSON.parse(String(req.headers['x-studio-evidence'] || ''));
+                        if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) throw new Error();
+                    } catch { throw fault(400, 'PDF_METADATA', 'Informe a fonte, a passagem e a revisão do PDF.'); }
+                    const uploadParams = {sourceId: identifier(metadata.sourceId), passageId: identifier(metadata.passageId),
+                        replace: metadata.replace === true, expectedRevision: integer(metadata.expectedRevision)};
                     const data = await body(req, 100 * 1024 * 1024, true);
                     if (!data.subarray(0, 1024).includes(Buffer.from('%PDF-')))
                         throw fault(400, 'PDF_INVALID', 'PDF inválido.');
@@ -221,7 +226,7 @@ function createHttp({ config, store, auth, runtime }) {
                         throw fault(413, 'PDF_QUOTA', 'O limite de PDFs foi atingido. A administração deve arquivar os testemunhos antigos.');
                     filename = path.join(directory, randomUUID() + '.pdf');
                     await fs.writeFile(filename, data, { mode: 0o600, flag: 'wx' });
-                    const result = await runtime.upload(filename, { sourceId: identifier(metadata.sourceId), passageId: metadata.passageId, replace: metadata.replace === true }, context(req, session));
+                    const result = await runtime.upload(filename, uploadParams, context(req, session));
                     filename = null;
                     return json(res, 200, result);
                 }
@@ -259,7 +264,7 @@ function createHttp({ config, store, auth, runtime }) {
                 }
                 if(route==='/api/submit') {
                     limiter.hit('submit:'+session.user.id,30,60000);
-                    const result=await submissions.submit(session.user,input,runtime.project);
+                    const result=await submissions.submit(session.user,input,runtime.project,context(req,session));
                     emit({type:'submissions-change'});return json(res,200,result);
                 }
                 if(route==='/api/submission/review') { const result=await submissions.review(session.user,input);emit({type:'submissions-change'});return json(res,200,result); }

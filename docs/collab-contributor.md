@@ -27,19 +27,28 @@ login de Codex/Claude para o site.
 
 ## Sua primeira contribuição
 
-1. Abra **Equipe e comentários** e confira quem está ativo. Escolha uma passagem e use
+1. No painel esquerdo, escolha a **Fonte**. Para trazer outro documento, clique em
+   **Nova fonte**, informe título, ano opcional e nome do arquivo `.tu.py`.
+   A primeira passagem abre como rascunho; **Adicionar próxima passagem** continua
+   a fonte selecionada. Você também pode inserir antes ou depois de uma passagem.
+2. Abra **Equipe e comentários** e confira quem está ativo. Escolha uma passagem e use
    **Reservar passagem**. A reserva é da pessoa e da aba, renovada enquanto há atividade;
    não é uma aprovação nem uma promessa automática de pagamento.
-2. Consulte **Fonte** e o PDF vinculado pelo revisor. Confira a página física, a página impressa
+3. Em **Fonte**, use **Vincular PDF à fonte** para enviar seu PDF (até 100 MiB),
+   ou consulte o testemunho já vinculado. Uma fonte compartilha seu PDF entre as
+   passagens; substituir um testemunho existente exige um revisor.
+   Marque seu trecho e clique em **Salvar regiões**. Confira a página física, a página impressa
    e as regiões correspondentes. Nunca invente uma leitura para contornar um trecho ilegível:
    registre a dúvida em notas e comentários.
-3. Trabalhe em **Árvore**, **Construção** ou **Código**. O servidor executa o motor real.
+4. Registre a transcrição e a tradução. Monte a análise em **Árvore**, **Construção**
+   ou **Código**. O servidor executa o motor real.
    Observe a confirmação de salvamento. Texto incompleto continua sendo rascunho, não erro perdido.
-4. Discuta a leitura nos comentários da passagem. Para responder a uma discussão, informe seu
+5. Discuta a leitura nos comentários da passagem. Para responder a uma discussão, informe seu
    número. As outras pessoas veem comentários e presença; alterações de outra pessoa no editor
    exigem **Carregar estado compartilhado**. Não existe mesclagem automática de teclas/árvores.
-5. Quando a versão estiver salva, clique em **Enviar última versão salva para revisão**. Isso
-   congela uma cópia atribuída a você. Continuar editando não altera a versão já enviada.
+6. Clique em **Enviar para revisão**, no editor (ou **Enviar última versão salva para revisão**
+   em **Equipe e comentários**). Isso congela uma cópia atribuída a você, com a análise,
+   descrição da fonte e regiões salvas do PDF. Continuar editando não altera a versão já enviada.
    Você pode enviar outra revisão corrigida. Consulte **Contribuições enviadas** para ver o estado.
 
 O revisor pode pedir correções ou marcar uma contribuição pronta para revisão local. O mantenedor

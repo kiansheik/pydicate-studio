@@ -29,6 +29,32 @@ test('review decisions bind exact snapshots, and submissions never confer editor
  await assert.rejects(service.review(admin,{id:item.id,event:'ready',snapshotSha256:'wrong'}),{code:'SUBMISSION_CHANGED'});
  await service.review(admin,{id:item.id,event:'ready',snapshotSha256:item.snapshotSha256});assert.equal((await service.list(user)).submissions[0].status,'ready');
 });
+test('first passage submission carries portable new source metadata without creating a reference',async t=>{
+ const {store,user,project,service}=await fixture(t);
+ project.sources=[{id:'new_witness',title:'Novo testemunho',year:'1700',fileName:'new_witness.tu.py',passageCount:0}];
+ const id='pending:'+randomUUID(),revisionId=randomUUID();
+ const draft={passageId:id,revisionId,sourceFingerprint:'pending',raw:'amen',diplomatic:'Amen',normalized:'',translation:'',notes:'',analysis:null,updatedAt:new Date().toISOString(),pending:{sourceId:'new_witness',ordinal:1}};
+ await store.patch(project.id,[{id,version:0,draft}],user,'alice-tab');
+ const submitted=await service.submit(user,{passageId:id,revisionId},project);
+ const snapshot=JSON.parse((await service.get(submitted.id)).snapshot);
+ assert.deepEqual(snapshot.source,{id:'new_witness',title:'Novo testemunho',year:'1700'});
+ assert.equal(snapshot.original,null);assert.equal(snapshot.sourceId,'new_witness');
+ assert.equal(snapshot.draft.raw,'amen');assert.equal(snapshot.draft.acceptedReference,undefined);
+});
+test('submission freezes saved own PDF regions and omits inherited-only evidence',async t=>{
+ const {store,user,project,draft}=await fixture(t);
+ const assetId='a'.repeat(64),region={id:randomUUID(),assetId,pageIndex:3,rect:[10,20,30,40]};
+ let status={asset:{id:assetId},revision:7,passage:{regions:[region],view:{pageIndex:3,rotation:0,zoom:1}}};
+ const service=new Submissions(store,{readEvidence:async params=>{assert.equal(params.passageId,'passage:a');return status;}});
+ const submitted=await service.submit(user,{passageId:'passage:a',revisionId:draft.revisionId},project);
+ region.rect[0]=999;
+ const saved=JSON.parse((await service.get(submitted.id)).snapshot).evidence;
+ assert.equal(saved.manifestRevision,7);assert.equal(saved.assetId,assetId);assert.equal(saved.regions[0].rect[0],10);
+ const next={...draft,revisionId:randomUUID()};await store.patch(project.id,[{id:'passage:a',version:2,draft:next}],user,'alice-tab');
+ status={asset:{id:assetId},revision:8,passage:null,inherited:{regions:[region]}};
+ const inherited=await service.submit(user,{passageId:'passage:a',revisionId:next.revisionId},project);
+ assert.equal(JSON.parse((await service.get(inherited.id)).snapshot).evidence,undefined);
+});
 test('durable merge digests retry failed SMTP and do not resend acknowledged batches',async t=>{
  const {store,user,project,draft,service}=await fixture(t);const item=await service.submit(user,{passageId:'passage:a',revisionId:draft.revisionId},project);
  await store.db.query('INSERT INTO merge_notifications(submission_id,user_id,commit_sha,merged_at) VALUES($1,$2,$3,$4)',[item.id,user.id,'a'.repeat(40),store.now()-86400001]);

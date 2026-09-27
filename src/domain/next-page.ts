@@ -1,4 +1,5 @@
 import type { Draft, DraftEnvelope, Passage, StudioProject } from './types';
+import { emptySourcePassage, projectSources } from './sources';
 
 /** Continue the same book location; turning the physical PDF page is explicit. */
 export function nextPassageLocators(
@@ -42,8 +43,11 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
     attempts = 0;
     const sourceId = draft.pending?.sourceId ?? 'araujo_catecismo_1686';
     const siblings = passages.filter((passage) => passage.sourceId === sourceId);
+    const source = projectSources(project).find((item) => item.id === sourceId);
     const previous =
-      passages.find((p) => p.id === draft.pending?.previousPassageId) ?? siblings.at(-1);
+      siblings.find((p) => p.id === draft.pending?.previousPassageId) ??
+      siblings.at(-1) ??
+      (source ? emptySourcePassage(source) : undefined);
     if (!previous) continue;
     const locators = draft.locators ?? nextPassageLocators(previous);
     const insertion = beforeId ? passages.findIndex((p) => p.id === beforeId) : -1;
@@ -51,7 +55,7 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
       ...previous,
       id: draft.passageId,
       legacyId: draft.passageId,
-      ordinal: Math.max(...siblings.map((passage) => passage.ordinal)) + 1,
+      ordinal: Math.max(0, ...siblings.map((passage) => passage.ordinal)) + 1,
       title: draft.normalized || draft.diplomatic || 'Nova passagem',
       sourceExpression: '',
       sourceFingerprint: 'pending',

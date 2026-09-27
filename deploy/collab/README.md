@@ -28,7 +28,9 @@ reviewed commit SHA. The app checkout is downloaded on the server from GitHub—
 uncommitted laptop files. Fresh workspace initialization downloads **oldtupicorpus and nhe-enga**
 from the tested revisions in `dependencies.json`. nhe-enga uses a sparse checkout that includes
 Pydicate, Tupi, dictionary resources and runtime imports, not the multi-GB scan collection.
-The actual witness PDF is uploaded by a reviewer; it is not invented from an empty clone.
+Install and update also transfer the PDFs already attached in the deploying laptop's Studio
+project, including saved source associations and passage regions. An empty desktop profile
+has no PDFs to transfer; contributors can upload their own PDFs in the browser.
 
 The same defaults as Neologismo are in the Makefile:
 
@@ -45,6 +47,42 @@ Override them as make variables or environment values. Use the **actual SSH VPS 
 apex is proxied or points elsewhere. The key stays on your laptop; SSH agent forwarding is not
 used. Verify the server fingerprint and establish known_hosts before installation.
 `make collab-ssh`, `collab-logs` and `collab-psql` reuse that same connection.
+
+### Desktop PDFs accompany each update
+
+`make collab-install`, `make collab-redeploy` and `make collab-deploy` automatically read the
+native `pydicate-studio` desktop profile and its last opened workspace. On macOS this is
+`~/Library/Application Support/pydicate-studio`; on Linux, `$XDG_CONFIG_HOME/pydicate-studio`
+(normally `~/.config/pydicate-studio`); on Windows, `%APPDATA%/pydicate-studio`. For a different
+profile/workspace:
+
+```sh
+make collab-deploy STUDIO_REF=REVIEWED_COMMIT \
+  LOCAL_STUDIO_STATE="$HOME/Library/Application Support/pydicate-studio" \
+  LOCAL_PROJECT_PARENT="$HOME/code"
+```
+
+The source of truth is `evidence/assets/` plus that project's `evidence/sources/` manifests.
+All attached/retained managed PDFs for that project are included, even if the original file
+has moved. To include another local PDF, attach it to its source in desktop Studio first.
+The deployment does not scan unrelated folders, copy other desktop projects or publish
+local `.tu.py` edits. A missing default profile is reported and skipped; an explicitly
+configured missing profile, invalid manifest or corrupt managed PDF stops before deployment.
+
+Transfer checks SHA-256 and byte counts, rejects unsafe archive paths/links, and remaps the
+desktop project identity to the hosted workspace. The application is stopped during import,
+inside the normal deployment backup window. Existing hosted PDF selections, uploads and
+saved passage regions are preserved; missing assets/regions are added. Exact passage identity
+and content, unique matching content, or an identical source file and ordinal establish crop
+associations. Changed/ambiguous passages, desktop-only pending lines and sources absent from
+the server are retained for review instead of being attached to another line. Guide links are
+remapped only when their preceding passage is also identifiable.
+
+The private `data/evidence-imports/<bundle-sha256>.tar` and adjacent `.report.json` retain the
+complete portable input and report imported/conflicting/unmatched evidence. Original laptop
+file paths are removed from the portable metadata. Identical reruns retain the same archive
+and leave evidence revisions unchanged. These archives are covered by full backups. PDF sync
+does not grant editorial approval or create saved ground-truth references.
 
 The installer creates dedicated persistent `workspace/`, `data/`, `config/`, release directories,
 and PostgreSQL 17 on a private Docker network. The application DB role is not a superuser.
@@ -71,6 +109,25 @@ make collab-deploy             # remote main after this PR is merged
 # Or an exact reviewed app build:
 make collab-deploy STUDIO_REF=FULL_COMMIT_SHA
 ```
+
+Before uploading PDFs, deployment fetches the requested ref and checks that it
+contains the server installer, configuration and PDF importer. It then pins that
+full commit SHA for the rest of the operation, so a branch update during transfer
+cannot change the application being deployed. A release without collaboration
+support stops before the upload and leaves the running application intact.
+
+The PDF upload shows a terminal progress bar with transferred bytes, percentage,
+speed and estimated time remaining. When output is redirected, progress is written
+as periodic lines. The upload ETA covers the transfer only: server checkout, image
+build, backups, source synchronization, migrations, PDF import and health checks
+have separate status messages and retain their command output. Those phases do not
+have a reliable total duration, so no overall percentage or ETA is invented.
+An upload with no byte progress for 180 seconds stops before deployment; SSH
+connection setup is bounded to 15 seconds and keepalives detect broken links.
+Ctrl-C cancels the local upload cleanly. Bytes shown are handed to SSH; its exit
+status and the server's SHA-256 must both succeed before the release is updated.
+The local upload display works immediately from this checkout. New server phase
+labels require deploying a published `STUDIO_REF` containing the updated host script.
 
 The app builds while the old instance runs. It then pauses the app for a full safety checkpoint,
 fast-forwards **clean compatible** corpus/grammar branches, migrates PostgreSQL, starts the new

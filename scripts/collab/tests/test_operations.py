@@ -108,6 +108,16 @@ class OperationsTests(unittest.TestCase):
         self.assertIn(host.workspace/'nhe-enga/.git/FETCH_HEAD',owned)
         self.assertIn(repo/'.git/index',owned)
         self.assertFalse(any(args[0]=='up' and args[-1]=='studio' for args in commands))
+    def test_deploy_imports_pdf_evidence_after_migration_before_restart(self):
+        host,repo,g=self.local_fetch_fixture()
+        with self.root_workspace_operation(host) as (owned,commands):
+            with patch.object(host,'import_evidence',side_effect=lambda file:commands.append(('evidence-import',file))):
+                host.deploy(evidence='managed-pdfs.tar')
+        imported=commands.index(('evidence-import','managed-pdfs.tar'))
+        migrated=commands.index(('run','--rm','--no-deps','studio','node','server/migrate.cjs'))
+        self.assertLess(commands.index(('stop','studio')),migrated)
+        self.assertLess(migrated,imported)
+        self.assertLess(imported,commands.index(('up','-d','--wait','studio')))
     def test_collect_restores_git_ownership_even_when_review_is_rejected(self):
         for accepted in (False,True):
             with self.subTest(accepted=accepted):

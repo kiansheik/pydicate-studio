@@ -59,9 +59,12 @@
     const file=await new Promise(resolve=>{input.onchange=()=>resolve(input.files?.[0]??null);input.oncancel=()=>resolve(null);input.click();});
     if(!file)return null;
     if(file.size>100*1024*1024)throw new Error('Escolha um PDF de até 100 MiB.');
-    return request('/api/pdf',file,{binary:true,headers:{'Content-Type':'application/pdf','X-Studio-Evidence':JSON.stringify({sourceId:params.sourceId,passageId:params.passageId,replace:params.replace===true})}});
+    return request('/api/pdf',file,{binary:true,headers:{'Content-Type':'application/pdf','X-Studio-Evidence':JSON.stringify({sourceId:params.sourceId,passageId:params.passageId,replace:params.replace===true,expectedRevision:params.expectedRevision})}});
   }
   window.studio=Object.freeze({
+    runtime:'collaborative',
+    capabilities:Object.freeze({analysis:false,get sourceReview(){return ['reviewer','admin'].includes(identity?.user?.role);}}),
+    submitContribution:()=>window.collab.submit(),
     invoke:async(method,params={})=>{
       if(method==='evidence_attach'||method==='evidence_relocate'){
         if(method==='evidence_relocate')throw new Error('Peça à administração para recuperar o PDF do backup no servidor.');

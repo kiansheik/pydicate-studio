@@ -35,6 +35,7 @@ test('generic authoring operations cross the Python worker boundary and unknown 
       'evaluate_expression',
       'source_preview',
       'source_new_preview',
+      'source_create',
       'source_apply',
       'source_recover',
       'lexicon_search',

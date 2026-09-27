@@ -2,6 +2,7 @@
 """Laptop entrypoint. Uses the existing Neologismo SSH identity; never forwards keys to the app."""
 from __future__ import annotations
 import argparse, hashlib, json, os, pathlib, re, shlex, shutil, subprocess, sys, tarfile, tempfile
+from progress import upload_file
 
 HERE=pathlib.Path(__file__).resolve().parents[2]
 URL='https://github.com/kiansheik/pydicate-studio.git'
@@ -28,8 +29,12 @@ class Remote:
         self.identity=pathlib.Path(os.getenv('SSH_IDENTITY',str(pathlib.Path.home()/'.ssh/neologismotupi_ed25519'))).expanduser()
         self.port=int(os.getenv('SSH_PORT','22'))
         if not 1<=self.port<=65535:raise ValueError('Invalid SSH port')
+    def ssh_flags(self):
+        return ['ssh','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes',
+                '-o','ConnectTimeout=15','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=3',
+                '-p',str(self.port),'-i',str(self.identity)]
     def ssh(self,args,*,data=None,stdout=None,interactive=False):
-        flags=['ssh','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes','-p',str(self.port),'-i',self.identity]
+        flags=self.ssh_flags()
         if interactive:flags+=['-t']
         else:flags+=['-o','BatchMode=yes']
         return command([*flags,f'{self.user}@{self.host}',shlex.join([str(x) for x in args])],input=data,stdout=stdout)
@@ -38,18 +43,40 @@ class Remote:
     def deploy(self):
         ref=os.getenv('STUDIO_REF','main')
         if not re.fullmatch(r'[A-Za-z0-9_./-]+',ref) or ref.startswith('-') or '..' in ref:raise ValueError('Invalid STUDIO_REF')
-        # Only server configuration and a fixed trusted public repository cross this boundary.
+        # Snapshot managed PDFs before any remote mutation. Never copy desktop
+        # preferences, provider credentials or arbitrary local source changes.
+        from evidence_sync import prepare_local_bundle
+        print('[deploy] Preparing local PDFs and source evidence…',flush=True)
+        with tempfile.TemporaryDirectory(prefix='studio-deploy-evidence-') as temporary:
+            bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar')
+            sha=self.prepare_release(ref,bool(bundle))
+            incoming=''
+            if bundle:
+                incoming=self.root+'/incoming/evidence-'+os.urandom(12).hex()+'.tar'
+                self.upload(bundle,incoming)
+            self.deploy_release(sha,incoming)
+    def prepare_release(self,ref,evidence=False):
+        print(f'[deploy] Checking published Studio release {ref} before upload…',flush=True)
         script=r'''set -euo pipefail
-root=$1; ref=$2; url=$3; public=$4; smtp=$5; neo=$6
+root=$1; ref=$2; url=$3; evidence=$4
 for tool in python3 git docker flock; do command -v "$tool" >/dev/null || { echo "Install required server tool: $tool" >&2; exit 1; }; done
 docker compose version >/dev/null
 mkdir -p "$root/releases"
 exec 9>"$root/deploy.lock"; flock -n 9
 stage=$(mktemp -d "$root/releases/.incoming.XXXXXX")
-git clone --filter=blob:none --no-checkout "$url" "$stage/app"
-git -C "$stage/app" fetch origin "$ref"
-git -C "$stage/app" checkout --detach FETCH_HEAD
+trap 'rm -rf -- "$stage"' EXIT
+echo '[deploy] Fetching Studio release…' >&2
+git clone --filter=blob:none --no-checkout "$url" "$stage/app" >&2
+git -C "$stage/app" fetch origin "$ref" >&2
+git -C "$stage/app" checkout --detach FETCH_HEAD >&2
 sha=$(git -C "$stage/app" rev-parse HEAD)
+for file in scripts/collab/host.py deploy/collab/compose.yml deploy/collab/Dockerfile deploy/collab/dependencies.json; do
+  test -f "$stage/app/$file" || { echo "Selected release $ref ($sha) lacks $file. Publish the collaboration changes or choose a compatible STUDIO_REF." >&2; exit 1; }
+done
+if test "$evidence" = 1; then
+  test -f "$stage/app/scripts/collab/evidence_sync.py" || { echo 'Selected release does not support desktop PDF import; publish the PDF changes first.' >&2; exit 1; }
+  python3 -B "$stage/app/scripts/collab/host.py" --help | grep -q -- --evidence || { echo 'Selected release does not accept desktop PDF evidence.' >&2; exit 1; }
+fi
 destination="$root/releases/$sha"
 if test -e "$destination"; then
   test "$(git -C "$destination" rev-parse HEAD)" = "$sha"
@@ -57,9 +84,30 @@ if test -e "$destination"; then
 else
   mv "$stage/app" "$destination"
 fi
-python3 "$destination/scripts/collab/host.py" install --root "$root" --public-url "$public" --smtp "$smtp" --neo-path "$neo"
+printf '%s\n' "$sha"
 '''
-        self.ssh(['bash','-s','--',self.root,ref,URL,os.getenv('COLLAB_PUBLIC_URL','https://studio.academiatupi.com'),os.getenv('SMTP_MODE','relay'),os.getenv('NEOLOGISMO_PATH','/srv/nheenga-neologismos')],data=script.encode())
+        result=self.ssh(['bash','-s','--',self.root,ref,URL,'1' if evidence else '0'],data=script.encode(),stdout=subprocess.PIPE)
+        sha=result.stdout.decode().strip()
+        if not re.fullmatch(r'[a-f0-9]{40}',sha):raise ValueError('Server did not return one validated release SHA')
+        print(f'[deploy] Published release verified: {sha}',flush=True)
+        return sha
+    def deploy_release(self,sha,evidence=''):
+        if not re.fullmatch(r'[a-f0-9]{40}',sha):raise ValueError('Deploy requires a preflighted full release SHA')
+        print(f'[deploy] Opening server deployment for {sha}…',flush=True)
+        script=r'''set -euo pipefail
+root=$1; sha=$2; public=$3; smtp=$4; neo=$5; evidence=$6
+exec 9>"$root/deploy.lock"; flock -n 9
+destination="$root/releases/$sha"
+test "$(git -C "$destination" rev-parse HEAD)" = "$sha"
+test -z "$(git -C "$destination" status --porcelain)"
+test -f "$destination/scripts/collab/host.py"
+args=(install --root "$root" --public-url "$public" --smtp "$smtp" --neo-path "$neo")
+if test -n "$evidence"; then args+=(--evidence "$evidence"); fi
+echo '[deploy] Preparing server workspace and application…'
+python3 -u "$destination/scripts/collab/host.py" "${args[@]}"
+if test -n "$evidence"; then rm -- "$evidence"; fi
+'''
+        self.ssh(['bash','-s','--',self.root,sha,os.getenv('COLLAB_PUBLIC_URL','https://studio.academiatupi.com'),os.getenv('SMTP_MODE','relay'),os.getenv('NEOLOGISMO_PATH','/srv/nheenga-neologismos'),evidence],data=script.encode())
     def download(self,remote,local,directory=False):
         local=pathlib.Path(local).expanduser().resolve();local.parent.mkdir(parents=True,exist_ok=True)
         if local.exists():raise ValueError('Destination already exists; use a new backup filename.')
@@ -87,12 +135,14 @@ python3 "$destination/scripts/collab/host.py" install --root "$root" --public-ur
     def upload(self,local,remote):
         source=pathlib.Path(local).expanduser().resolve()
         # Upload only into dedicated staging; passwords are not command-line arguments.
+        print(f'[deploy] Connecting to {self.host} for upload…',flush=True)
         self.ssh(['mkdir','-p',str(pathlib.PurePosixPath(remote).parent)])
-        with source.open('rb') as f:
-            flags=['ssh','-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes','-p',str(self.port),'-i',self.identity,f'{self.user}@{self.host}']
-            command([*flags,shlex.join(['sh','-c','umask 077; set -C; cat > "$1"','sh',remote])],stdin=f)
+        flags=[*self.ssh_flags(),'-o','BatchMode=yes',f'{self.user}@{self.host}']
+        upload_file([*flags,shlex.join(['sh','-c','umask 077; set -C; cat > "$1"','sh',remote])],source)
+        print('[deploy] Verifying uploaded SHA-256 checksum…',flush=True)
         result=self.ssh(['sha256sum',remote],stdout=subprocess.PIPE).stdout.decode().split()[0]
         if checksum(source)!=result:raise ValueError('Upload checksum mismatch')
+        print('[deploy] Upload verified.',flush=True)
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('action');args=p.parse_args();os.umask(0o077)
@@ -149,4 +199,5 @@ def main():
 
 if __name__=='__main__':
     try:main()
+    except KeyboardInterrupt:print('\nOperation cancelled.',file=sys.stderr);sys.exit(130)
     except Exception as error:print(f'Operation stopped: {error}',file=sys.stderr);sys.exit(1)

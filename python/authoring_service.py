@@ -74,7 +74,7 @@ class AuthoringService:
             result.update(engineFingerprint=fingerprint, documentationFingerprint=docs_fingerprint)
             self.adapter.learning_library_cache = result
             return result
-        allowed={'node_definition','composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve'}
+        allowed={'source_create','node_definition','composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve'}
         if method not in allowed: self.error('Operação indisponível.','UNKNOWN_METHOD')
         if not isinstance(params,dict): self.error('Parâmetros inválidos.')
         return getattr(self,method)(params)
@@ -372,15 +372,33 @@ class AuthoringService:
         for start,end,replacement in sorted(changes,key=lambda x:x[0],reverse=True): text=text[:start]+replacement+text[end:]
         return self._preview(path,before,text.encode('utf-8'),extra_changes=lexical_changes,passageId=passage['id'],raw=raw,lexicalAdditions=lexical_additions,diagnostics=lexical_diagnostics,definitionRepairs=definition_repairs,reviewSummary=review_summary)
 
+    def source_create(self,params):
+        self.fresh(params)
+        if params.get('projectId',self.adapter.project['id']) != self.adapter.project['id']:
+            self.error('O projeto mudou. Atualize a seleção.', 'STALE_PROJECT')
+        from source_catalog import creation_metadata, scaffold
+        try: metadata=creation_metadata(params.get('sourceId'),params.get('title'),params.get('year',''))
+        except ValueError as error:self.error(str(error))
+        path=self.corpus/'historic'/(metadata['id']+'.tu.py')
+        if any(p.name.casefold()==path.name.casefold() for p in path.parent.iterdir()):
+            self.error('Já existe uma fonte com este identificador. Escolha outro nome.', 'SOURCE_EXISTS')
+        # Exclusive creation cannot replace a corpus file or follow a symlink.
+        try:
+            with path.open('x',encoding='utf-8',newline='\n') as handle:
+                handle.write(scaffold(metadata))
+                handle.flush();os.fsync(handle.fileno())
+        except FileExistsError:self.error('A fonte já foi criada. Atualize o projeto.', 'SOURCE_EXISTS')
+        return self.adapter.refresh_project()
+
     def source_new_preview(self,params):
-        self.fresh(); source_id=params.get('sourceId','araujo_catecismo_1686')
-        if source_id!='araujo_catecismo_1686': self.error('Este marco cria passagens em Araújo.')
+        context=self.structure_context(params);self.fresh(params);source_id=context['sourceId']
         raw=params.get('raw','')
         if isinstance(raw,str) and not raw.strip(): self.error('O rascunho ainda não tem uma árvore. Use a proposta de IA no rascunho ou adicione uma peça antes de revisar.', 'EMPTY_EXPRESSION')
         if not isinstance(raw,str) or not expression_tree(raw)['capabilities']['parse']: self.error('A nova expressão precisa ter sintaxe válida; texto incompleto pode ser salvo como rascunho.')
         if contains_slots(raw): self.error('Conecte todos os lugares vazios antes de aplicar à fonte. A construção incompleta pode continuar no rascunho.', 'UNRESOLVED_SLOTS')
         path=self.corpus/'historic'/f'{source_id}.tu.py'; before=path.read_bytes(); text=before.decode('utf-8')
-        tree=ast.parse(text); anchor=next((s for s in tree.body if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id==source_id for t in s.targets)),None)
+        from source_catalog import collection_context
+        _,anchor=collection_context(text,source_id)
         offset=sum(map(len,text.splitlines(keepends=True)[:anchor.lineno-1])) if anchor else len(text)
         passage_id=params.get('newPassageId')
         if passage_id is None:passage_id='passage:'+str(uuid.uuid4())
@@ -515,8 +533,8 @@ class AuthoringService:
                 self.error('Passagem não encontrada; atualize o projeto.', 'PASSAGE_NOT_FOUND')
         source = params.get('sourceId')
         if source is None and not params.get('passageId'):
-            source = self.adapter.project['passages'][0]['sourceId']
-        if source not in {p['sourceId'] for p in self.adapter.project['passages']}:
+            source = next(iter(self.adapter.project.get('sources',[])),{}).get('id')
+        if source not in {p['id'] for p in self.adapter.project.get('sources',[])}:
             self.error('Fonte da nova passagem não encontrada; atualize o projeto.', 'PASSAGE_NOT_FOUND')
         if params.get('beforePassageId') is not None:
             target=next((p for p in self.adapter.project['passages'] if p['id']==params['beforePassageId'] and p['sourceId']==source),None)
@@ -526,9 +544,8 @@ class AuthoringService:
         # after the final collection alias. Unsaved passages use this namespace
         # for evaluation, lexical search and constructor creation alike.
         path=self.corpus/'historic'/f'{source}.tu.py'
-        anchor=next((statement for statement in ast.parse(path.read_text(encoding='utf-8')).body
-                     if isinstance(statement,ast.Assign) and isinstance(statement.value,ast.Name)
-                     and statement.value.id=='l' and any(isinstance(target,ast.Name) and target.id==source for target in statement.targets)),None)
+        from source_catalog import collection_context
+        _,anchor=collection_context(path.read_text(encoding='utf-8'),source)
         return {'sourceId': source, 'line': anchor.lineno if anchor else 10**9}
 
     def structure_index(self, params):
@@ -680,8 +697,8 @@ class AuthoringService:
         if not isinstance(headword,str) or not headword.strip() or not isinstance(definition,str): self.error('Forma e definição são necessárias.')
         if category not in {'Noun','Verb','ProperNoun','Adverb','Postposition','Interjection','Number','Particle'}: self.error('Revise a classe lexical antes de criar.')
         if scope not in {'source','shared'}: self.error('Escolha escopo da fonte ou léxico compartilhado.')
-        passage=self.passage(params) if params.get('passageId') else next(p for p in self.adapter.project['passages'] if p['sourceId']=='araujo_catecismo_1686')
-        path=self.corpus/'historic/lexicon.tu.py' if scope=='shared' else self.source(passage)
+        context=self.structure_context(params)
+        path=self.corpus/'historic/lexicon.tu.py' if scope=='shared' else self.corpus/'historic'/f"{context['sourceId']}.tu.py"
         before=path.read_bytes(); text=before.decode('utf-8')
         review_summary={'kind':'lexicon','fields':[{'label':'Palavra','after':headword},*([{'label':'Significado','after':definition}] if definition else []),{'label':'Disponível em','after':'Léxico compartilhado' if scope=='shared' else 'Nesta fonte'}]}
         identity='lexical:'+str(uuid.uuid5(uuid.NAMESPACE_URL,json.dumps({'project':self.adapter.project['id'],'headword':headword,'definition':definition,'category':category,'provenance':params.get('provenance'),'scope':scope},sort_keys=True,ensure_ascii=False)))
@@ -694,7 +711,7 @@ class AuthoringService:
         note={'id':identity,'name':name,'scope':scope,'provenance':params.get('provenance')}
         definition_text='\n# @note studio-lexical:v1 '+json.dumps(note,ensure_ascii=False)+'\n'+name+' = '+category+'('+repr(headword)+', definition='+repr(definition)+')\n\n'
         tree=ast.parse(text)
-        anchor=next((s for s in tree.body if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id in {'l','__all__',passage['sourceId']} for t in s.targets)),None)
+        anchor=next((s for s in tree.body if isinstance(s,ast.Assign) and any(isinstance(t,ast.Name) and t.id in {'l','__all__',context['sourceId']} for t in s.targets)),None)
         offset=sum(map(len,text.splitlines(keepends=True)[:anchor.lineno-1])) if anchor else len(text)
         return self._preview(path,before,(text[:offset]+definition_text+text[offset:]).encode('utf-8'),name=name,lexicalId=identity,scope=scope,affectedUses=[],reviewSummary=review_summary)
 

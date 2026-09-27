@@ -69,6 +69,11 @@ def materialize(data,parent,worker):
         if is_new:
             reserved=snapshot['passageId'].replace('pending:','passage:',1)
             if any(p['id']==reserved for p in passages):raise ValueError('This new passage is already present. Do not import/pay it twice.')
+            if not any(source['id']==source_id for source in project.get('sources',[])) and not any(p['sourceId']==source_id for p in passages):
+                source=snapshot.get('source')
+                if not isinstance(source,dict) or source.get('id')!=source_id:raise ValueError('New source metadata is missing; reconcile the submission manually.')
+                project=worker.project=worker.call('source_create',{'sourceId':source_id,'title':source.get('title'),'year':source.get('year','')})
+                passages=project['passages']
             selected=next((p for p in reversed(passages) if p['sourceId']==source_id),None)
         else:
             selected=next((p for p in passages if p['id']==original['id']),None)
@@ -77,12 +82,15 @@ def materialize(data,parent,worker):
                 if len(candidates)!=1:raise ValueError('Ambiguous or changed original passage; manual reconciliation required.')
                 selected=candidates[0]
             if selected['sourceFingerprint']!=original['sourceFingerprint']:raise ValueError('Upstream passage changed; review/rebase the submission instead of overwriting it.')
-        if selected is None:raise ValueError('Source is not available in the selected main branches.')
+        if selected is None and not is_new:raise ValueError('Source is not available in the selected main branches.')
         raw=draft['raw'];revision=draft['revisionId']
-        evaluated=worker.call('evaluate_expression',{'passageId':selected['id'],'sourceId':source_id,'raw':raw,'revisionId':revision,'engineFingerprint':project['engineFingerprint']})
-        if evaluated.get('evaluationStatus')=='partial' or evaluated.get('failures'):raise ValueError('Evaluation is partial or failed. Fix the proposal before publishing source.')
         metadata={**draft.get('locators',{}),**{k:draft[k] for k in ('diplomatic','normalized','translation','translations','notes') if k in draft}}
-        params={'passageId':selected['id'],'sourceId':source_id,'raw':raw,'metadata':metadata}
+        if snapshot.get('evidence'):
+            evidence=snapshot['evidence'];expected_id=reserved if is_new else selected['id']
+            if evidence.get('version')!=1 or evidence.get('passageId')!=expected_id or not re.fullmatch(r'[a-f0-9]{64}',evidence.get('assetId','')):
+                raise ValueError('Invalid evidence identity in the submitted snapshot.')
+            metadata['evidence']={key:evidence[key] for key in ('version','assetId','passageId')}
+        params={'passageId':snapshot['passageId'] if is_new else selected['id'],'sourceId':source_id,'raw':raw,'metadata':metadata}
         if is_new:
             params['newPassageId']=reserved
             before=draft.get('pending',{}).get('beforePassageId')
@@ -91,6 +99,8 @@ def materialize(data,parent,worker):
                 before=before.replace('pending:','passage:',1)
                 if not any(p['id']==before for p in passages):raise ValueError('Insertion anchor is not in this batch/main. Import its prerequisite or reconcile manually.')
                 params['beforePassageId']=before
+        evaluated=worker.call('evaluate_expression',{**params,'revisionId':revision,'engineFingerprint':project['engineFingerprint']})
+        if evaluated.get('evaluationStatus')=='partial' or evaluated.get('failures'):raise ValueError('Evaluation is partial or failed. Fix the proposal before publishing source.')
         preview=worker.call('source_new_preview' if is_new else 'source_preview',params)
         if not preview.get('diff','').strip() and not any(f.get('diff','').strip() for f in preview.get('files',[])):raise ValueError('Proposal has no source changes; check for duplicate import.')
         worker.project=worker.call('source_apply',{'previewId':preview['previewId'],'sourceFingerprint':preview['sourceFingerprint']})

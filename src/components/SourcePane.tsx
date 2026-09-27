@@ -13,7 +13,7 @@ export function SourcePane({
   analyzing,
 }: {
   studio: Studio;
-  onEvidence?: (value: EvidencePointer) => void;
+  onEvidence?: (value: EvidencePointer | null) => void;
   preparationRef?: Ref<EvidencePreparation>;
   onAnalyze?: () => void;
   analyzing?: boolean;
@@ -302,7 +302,7 @@ export function SourcePane({
         </label>
         <label>
           <span>
-            Grafia provável em Navarro <span className="subtle">· hipótese para a IA</span>
+            Grafia provável em Navarro <span className="subtle">· hipótese de leitura</span>
           </span>
           <textarea
             aria-label="Grafia provável em Navarro"
@@ -346,7 +346,7 @@ export function SourcePane({
             rows={3}
             value={draft?.translation ?? ''}
             disabled={disabled}
-            placeholder="Escreva sua tradução ou revise uma sugestão da IA…"
+            placeholder="Escreva sua tradução…"
             onChange={(event) => edit({ translation: event.target.value })}
           />
           <span className="field-hint">
@@ -398,18 +398,9 @@ export function SourcePane({
           Uma leitura já é uma contribuição. Você pode salvar sem completar a análise.
         </p>
         {onAnalyze && (
-          <button
-            className="button primary"
-            disabled={disabled || analyzing || passage.sourceId !== 'araujo_catecismo_1686'}
-            onClick={onAnalyze}
-          >
+          <button className="button primary" disabled={disabled || analyzing} onClick={onAnalyze}>
             {analyzing ? 'Salvando entrada…' : 'Salvar e analisar'}
           </button>
-        )}
-        {passage.sourceId !== 'araujo_catecismo_1686' && onAnalyze && (
-          <p className="field-hint">
-            A análise assistida está disponível para Araújo nesta versão.
-          </p>
         )}
       </div>
     </section>

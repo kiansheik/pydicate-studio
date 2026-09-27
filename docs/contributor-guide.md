@@ -1,6 +1,22 @@
 # Contribuir com o Pydicate Studio
 
-O Studio reúne a leitura do Catecismo de Araújo, o dicionário local, a árvore Pydicate e propostas de IA. Seu rascunho e as propostas da IA ficam disponíveis para revisão. Ao aceitar a revisão da passagem, o Studio salva a fonte e registra a forma revisada como ground truth.
+O Studio reúne fontes históricas, o dicionário, a árvore Pydicate e, no desktop, propostas de IA. Seu rascunho fica disponível para revisão. Ao aceitar a revisão da passagem, o revisor salva a fonte e pode registrar a forma revisada como ground truth.
+
+## Escolher ou criar uma fonte
+
+Use **Fonte**, no painel esquerdo, para alternar entre os documentos do projeto.
+**Nova fonte** pede o título, o ano opcional e o nome do arquivo `.tu.py`; cria
+o arquivo vazio e abre a primeira passagem como rascunho. Em **Fonte**, à direita,
+use **Vincular PDF à fonte**, marque o trecho e clique em **Salvar regiões**.
+Preencha a transcrição, tradução e dúvidas. Você pode salvar a leitura antes
+de montar a árvore.
+
+**Adicionar próxima passagem** continua a fonte selecionada. **Inserir antes**
+e **Inserir depois** acrescentam uma linha na posição desejada. Os rascunhos
+continuam disponíveis ao trocar de fonte e reabrir o projeto. No navegador,
+**Enviar para revisão** preserva uma versão da análise e das regiões salvas;
+somente revisores publicam na fonte e aprovam ground truth. Veja o
+[fluxo colaborativo](collab-contributor.md).
 
 ## Passagem que continua em outra página
 

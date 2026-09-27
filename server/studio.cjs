@@ -4,7 +4,7 @@ const { spawn } = require('node:child_process');
 const { fault, identifier } = require('./store.cjs');
 // Deliberately NOT the entire desktop bridge. New desktop methods stay denied.
 const READ = new Set(`render learning_library parse_expression evaluate_expression predicate_catalog
-predicate_create composition_define node_definition source_preview source_new_preview
+predicate_create composition_define node_definition source_preview source_new_preview source_create
 lexicon_search structure_search structure_resolve lexicon_inspect lexicon_create lexicon_update
 dictionary_search dictionary_lookup dictionary_entry_get dictionary_predicate assistant_context
 reference_verify reference_status passage_lexicon evidence_status evidence_bytes evidence_save
@@ -75,17 +75,35 @@ async function createStudio(config, store, emit = () => { }) {
         adoptProject: value => { project = validate.project(value); store.context = {projectId:project.id,engineFingerprint:project.engineFingerprint,appRelease:config.release||'development'}; },
         chooseFile: async () => pickedFile,
     });
-    const hasPassage = async (id) => project.passages.some(p => p.id === id) || !!(await store.snapshot(project.id)).envelope?.drafts[id];
+    const hasPassage = async (id) => {
+        if (project.passages.some(p => p.id === id)) return true;
+        const drafts = (await store.snapshot(project.id)).envelope?.drafts || {};
+        return !!(drafts[id] || drafts[id.replace(/^passage:/, 'pending:')]);
+    };
     async function passage(id, pending = false) {
         identifier(id);
         if (!await hasPassage(id) && !(pending && /^pending:[a-f0-9-]{36}$/.test(id)))
             throw fault(404, 'PASSAGE_MISSING', 'Passagem desconhecida.');
         return id;
     }
+    async function evidenceContext(params) {
+        if (!project.sources?.some(s => s.id === params.sourceId) && !project.passages.some(p => p.sourceId === params.sourceId))
+            throw fault(400, 'SOURCE_MISSING', 'Fonte desconhecida.');
+        const sourcePassage = project.passages.find(p => p.id === params.passageId);
+        // PDF evidence already uses the reserved publication UUID before the
+        // draft's first autosave. Resolve its pending alias for validation only.
+        const draftId = sourcePassage ? params.passageId : String(params.passageId).replace(/^passage:/, 'pending:');
+        await passage(draftId, true);
+        const draft = (await store.snapshot(project.id)).envelope?.drafts[draftId];
+        if ((sourcePassage && sourcePassage.sourceId !== params.sourceId) ||
+            (draft?.pending && draft.pending.sourceId !== params.sourceId))
+            throw fault(400, 'SOURCE_MISMATCH', 'A passagem pertence a outra fonte.');
+        return draftId;
+    }
     async function validateChanges(changes) {
         if (!Array.isArray(changes))
             throw fault(400, 'INVALID_PATCH', 'Alterações inválidas.');
-        const sources = new Set(project.passages.map(p => p.sourceId));
+        const sources = new Set([...(project.sources || []).map(s => s.id), ...project.passages.map(p => p.sourceId)]);
         for (const change of changes) {
             await passage(change.id, true);
             if (change.draft?.pending && !sources.has(change.draft.pending.sourceId))
@@ -111,8 +129,10 @@ async function createStudio(config, store, emit = () => { }) {
             }
             params.projectId = project.id;
             let target = params.passageId;
-            if (target)
-                await passage(target, true);
+            if (target) {
+                if (method.startsWith('evidence_')) target = await evidenceContext(params);
+                else await passage(target, true);
+            }
             if (method === 'source_apply') {
                 const preview = previews.get(params.previewId);
                 if (!preview || preview.userId !== user.id || preview.clientId !== context.clientId || preview.expires < store.now())
@@ -141,7 +161,7 @@ async function createStudio(config, store, emit = () => { }) {
                 if (method === 'source_apply')
                     previews.delete(params.previewId);
                 await store.audit(user.id, 'operation.' + method, target ?? null, 'succeeded', Math.round(performance.now() - started));
-                if (['source_apply', 'reference_approve'].includes(method))
+                if (['source_apply', 'source_create', 'reference_approve'].includes(method))
                     emit({ type: 'source-change', projectId: project.id });
                 return result;
             }
@@ -162,17 +182,22 @@ async function createStudio(config, store, emit = () => { }) {
         upload: (file, params, context) => queue.run(context.user.id, async () => {
             if(store.db.unavailable) throw fault(503, 'DATABASE_UNAVAILABLE', 'Banco de dados indisponível.');
             const user = await store.assertUser(context.user);
-            if (user.role === 'contributor')
-                throw fault(403, 'REVIEWER_REQUIRED', 'Um revisor deve vincular o PDF.');
-            await passage(params.passageId, true);
-            if (!project.passages.some(p => p.sourceId === params.sourceId))
-                throw fault(400, 'SOURCE_MISSING', 'Fonte desconhecida.');
+            if (user.role === 'contributor' && params.replace === true)
+                throw fault(403, 'REVIEWER_REQUIRED', 'Um revisor deve substituir o PDF já vinculado à fonte.');
+            const draftId = await evidenceContext(params);
+            await store.assertClaim(draftId, user, context.clientId, true);
             pickedFile = file;
             try {
                 const result = await service.invoke('evidence_attach', { ...params, projectId: project.id });
                 await store.audit(user.id, 'evidence.attach', params.passageId);
                 emit({ type: 'evidence-change', projectId: project.id, sourceId: params.sourceId });
                 return result;
+            }
+            catch (error) {
+                await store.audit(user.id, 'evidence.attach', params.passageId, 'failed');
+                error.status ||= 422;
+                error.code ||= 'EVIDENCE_ERROR';
+                throw error;
             }
             finally {
                 pickedFile = null;

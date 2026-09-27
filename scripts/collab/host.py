@@ -78,6 +78,7 @@ class Host:
             run(['git','-C',temp,'checkout','-b','server/work',pins[name]])
             temp.rename(dest)
     def prepare(self, public_url, smtp, neo_path):
+        print('[server] Preparing workspace repositories and configuration...',flush=True)
         self.clone_dependencies()
         self.config.mkdir(exist_ok=True,mode=0o700);self.data.mkdir(exist_ok=True,mode=0o700)
         for name in ('postgres-password','postgres-admin-password','provider-vault-key','neo-identity-secret'):
@@ -110,46 +111,85 @@ class Host:
         # No secrets are regenerated or copied from other applications on redeployment.
         self.application_ownership(self.data,self.workspace)
         run(['docker','network','inspect','caddy_edge'],capture=True)
-    def deploy(self, initial=False):
+    def deploy(self, initial=False, evidence=None):
+        print('[server] Building Studio image (existing service stays available)...',flush=True)
         self.compose('build','studio') # Existing service stays up during build.
+        print('[server] Starting PostgreSQL and waiting for health...',flush=True)
         self.compose('up','-d','--wait','postgres')
         # Take a full pre-update checkpoint if this deployment already has an account DB.
-        if not initial:self.checkpoint(self.root/'backups'/('predeploy-'+stamp()),restart=False)
+        if not initial:
+            print('[server] Creating full pre-deploy backup; Studio will pause...',flush=True)
+            self.checkpoint(self.root/'backups'/('predeploy-'+stamp()),restart=False)
+        print('[server] Stopping Studio for source updates and database migrations...',flush=True)
         self.compose('stop','studio')
         try:
             with self.workspace_writes():
                 for name in (() if initial else ('nhe-enga','oldtupicorpus')):
+                    print('[server] Synchronizing '+name+'...',flush=True)
                     repo=self.workspace/name
                     if git(repo,'status','--porcelain'):
-                        print(name+': uncommitted server work preserved; upstream sync deferred.')
+                        print(name+': uncommitted server work preserved; upstream sync deferred.',flush=True)
                         continue
                     run(['git','-c','safe.directory='+str(repo),'-C',repo,'fetch','origin','main'])
                     ancestor=subprocess.run(['git','-c','safe.directory='+str(repo),'-C',repo,'merge-base','--is-ancestor','HEAD','origin/main']).returncode==0
                     if ancestor:run(['git','-c','safe.directory='+str(repo),'-C',repo,'merge','--ff-only','origin/main'])
-                    else:print(name+': unmerged server commits preserved; upstream sync deferred.')
+                    else:print(name+': unmerged server commits preserved; upstream sync deferred.',flush=True)
+            print('[server] Applying database migrations...',flush=True)
             self.compose('run','--rm','--no-deps','studio','node','server/migrate.cjs')
+            if evidence:
+                print('[server] Importing desktop PDFs and saved evidence...',flush=True)
+                self.import_evidence(evidence)
+            print('[server] Starting Studio and waiting for health...',flush=True)
             self.compose('up','-d','--wait','studio')
         except Exception:
-            print('Deployment failed. Data and old release directories are preserved. Inspect before restarting.',file=sys.stderr);raise
+            print('Deployment failed. Data and old release directories are preserved. Inspect before restarting.',file=sys.stderr,flush=True);raise
         link=self.root/'current';temporary=self.root/'.current-next'
         temporary.unlink(missing_ok=True);temporary.symlink_to(HERE);temporary.replace(link)
         release={'studio':git(HERE,'rev-parse','HEAD'), **{name:git(self.workspace/name,'rev-parse','HEAD') for name in ('oldtupicorpus','nhe-enga')}}
         write_json(self.root/'release.json',release)
+        print('[server] Verifying publication receipts...',flush=True)
         self.compose('exec','-T','studio','node','server/publication.cjs','verify')
+        print('[server] Deployment complete; Studio is healthy.',flush=True)
+    def import_evidence(self, archive):
+        # deploy() holds the operation lock and has stopped the application.
+        # Retain the exact portable input alongside its reconciliation report.
+        archive=pathlib.Path(archive)
+        if archive.is_symlink() or not archive.is_file():raise ValueError('Expected a regular evidence archive')
+        directory=self.data/'evidence-imports'
+        if directory.is_symlink():raise ValueError('Evidence import directory must not be a symlink')
+        directory.mkdir(exist_ok=True,mode=0o700)
+        destination=directory/(sha(archive)+'.tar')
+        if destination.is_symlink():raise ValueError('Evidence import archive must not be a symlink')
+        if destination.exists():
+            if sha(destination)!=destination.stem:raise ValueError('Retained evidence archive checksum mismatch')
+        else:
+            with tempfile.NamedTemporaryFile(prefix='.incoming-',dir=directory) as target:
+                with archive.open('rb') as source:shutil.copyfileobj(source,target)
+                target.flush();os.fsync(target.fileno())
+                if sha(pathlib.Path(target.name))!=destination.stem:raise ValueError('Evidence archive changed during staging')
+                os.link(target.name,destination)
+        self.application_ownership(directory)
+        self.compose('run','--rm','--no-deps','studio','python3','scripts/collab/evidence_sync.py',
+                     '--archive','/data/evidence-imports/'+destination.name,'--state','/data','--parent','/workspace')
     def checkpoint(self,dest,restart=True):
         dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
+        print('[server] Backup: checking persistent state...',flush=True)
         for root in (self.data,self.workspace,self.config):
             for base,dirs,files in os.walk(root):
                 if any((pathlib.Path(base)/name).is_symlink() for name in dirs+files):raise ValueError('Symlink in backup state: inspect and replace it with an ordinary contained file before backup.')
         with self.stopped(restart=restart):
+            print('[server] Backup: exporting PostgreSQL...',flush=True)
             with open(dest/'database.dump','wb') as out:self.compose('exec','-T','postgres','pg_dump','-U','studio_app','-d','studio_prod','-Fc','--no-owner','--no-acl',stdout=out)
+            print('[server] Backup: compressing workspace, PDFs and configuration...',flush=True)
             with tarfile.open(dest/'workspace-state.tar.gz','w:gz') as archive:
                 for name in ('data','workspace','config'):
                     archive.add(self.root/name,arcname=name,recursive=True)
+            print('[server] Backup: calculating checksums...',flush=True)
             manifest={'format':'pydicate-full-backup','version':1,'at':stamp(),'release':json.loads((self.root/'release.json').read_text()).get('studio') if (self.root/'release.json').exists() else git(HERE,'rev-parse','HEAD'),
               'repositories':{name:git(self.workspace/name,'rev-parse','HEAD') for name in ('oldtupicorpus','nhe-enga')},
               'private':True,'includesCredentials':True,'files':{name:sha(dest/name) for name in ('database.dump','workspace-state.tar.gz')}}
             write_json(dest/'manifest.json',manifest)
+        print('[server] Backup complete.',flush=True)
         return dest
     def backup(self, destination, full):
         dest=pathlib.Path(destination)
@@ -254,11 +294,12 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('action');parser.add_argument('--root',required=True)
     parser.add_argument('--public-url',default='https://studio.academiatupi.com');parser.add_argument('--smtp',default='relay')
     parser.add_argument('--neo-path',default='/srv/nheenga-neologismos');parser.add_argument('--file');parser.add_argument('--repo',default='oldtupicorpus')
+    parser.add_argument('--evidence',help='Private managed-PDF bundle prepared on the deploying laptop')
     parser.add_argument('--neo-env',default='/srv/nheenga-neologismos/deploy/env/api.env');parser.add_argument('--mode',default='off');parser.add_argument('--review-sha',default='');parser.add_argument('--confirm',default='');parser.add_argument('--email');parser.add_argument('--name',default='Administrator')
     args=parser.parse_args();os.umask(0o077);host=Host(args.root)
     with host.lock():
-        if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists())
-        elif args.action=='redeploy':host.deploy()
+        if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence)
+        elif args.action=='redeploy':host.deploy(evidence=args.evidence)
         elif args.action=='backup':host.backup(args.file,True)
         elif args.action=='db-backup':host.backup(args.file,False)
         elif args.action=='db-restore':host.restore_database(args.file,args.confirm)

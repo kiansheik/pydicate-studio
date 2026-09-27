@@ -7,6 +7,7 @@ const { createLexicalNotesService } = require('./lexical-notes-service.cjs');
 const { createAnalysisService } = require('./analysis-service.cjs');
 const { createParserLabService } = require('./parser-lab-service.cjs');
 const METHODS = new Set([
+  'source_create',
   'learning_library',
   'parse_expression',
   'evaluate_expression',
@@ -316,11 +317,14 @@ function createNextService(options) {
     if (!getWorker() || !getProject()) throw new Error('Abra o projeto local.');
     const execute = async () => {
       const result = await workerRequest(method, params);
-      if (method === 'source_apply') options.adoptProject(result);
+      if (method === 'source_apply' || method === 'source_create') options.adoptProject(result);
       if (method === 'reference_approve' && result?.project) options.adoptProject(result.project);
       return result;
     };
-    if ((method === 'source_apply' || method === 'reference_approve') && options.duringProjectWrite)
+    if (
+      ['source_apply', 'source_create', 'reference_approve'].includes(method) &&
+      options.duringProjectWrite
+    )
       return options.duringProjectWrite(execute);
     return execute();
   }
