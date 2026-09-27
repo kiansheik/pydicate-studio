@@ -1,8 +1,40 @@
 # Current state
 
+## Expand all restores the complete tree layout
+
+Bottom-up branches now pack against their occupied widths at each depth, so
+short leaf branches sit close to deep siblings instead of reserving unused
+columns beside their descendants. Parents remain centered over immediate inputs;
+wrapped-result heights and the 70-unit minimum sibling gap remain intact. See
+[spacing handoff](session-handoffs/2026-09-27-compact-tree-spacing.md).
+
+**Expandir tudo** now expands, restores automatic node placement and fits the
+result in one action. Previously it revealed every branch while keeping saved
+coordinates that could overlap leaves and cross parent/child connections;
+the separate **Organizar árvore** fix did not repair that workflow. Source,
+results, loose pieces and orientation remain intact. Resetting saved positions
+is one undoable edit; repeated expansion adds no redundant edit. Individual
+branch expansion retains manual placement. See the
+[follow-up handoff](session-handoffs/2026-09-27-expand-all-layout.md).
+
+## Tree camera regression review and layout recovery
+
+Initial framing now waits for a visible, measured viewport and settled piece
+evaluation. Hidden mounted panes cannot lock in a tiny frame. Fullscreen reads
+its actual drawing area and restores the previous camera on exit; navigation
+during initial evaluation prevents a late camera takeover. Ordinary selection,
+zoom, resizing and structural edits retain the steady-camera behavior.
+
+The reported crossed/overlapping branches matched saved manual node positions,
+with corresponding position-edit events in the local profile; source connections
+were intact. **Organizar árvore** restores automatic node placement as one
+undoable layout edit. Alt-drag or middle-button drag pans even from a node without
+moving that subtree. Existing drafts are not silently rearranged. See the
+[review handoff](session-handoffs/2026-09-26-canvas-regression-review.md).
+
 ## Steady tree-editor camera
 
-The canvas frames a tree once and then leaves the camera to the contributor.
+The canvas frames a ready tree once in its measured viewport and then leaves the camera to the contributor.
 Viewport resizes, scrollbars and sub-pixel reflows no longer refit; fullscreen
 and **Ajustar** are the deliberate ways to reframe. Adding, detaching or
 combining a piece, and jumping to a search match, pan by the smallest amount that

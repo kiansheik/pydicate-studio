@@ -72,6 +72,7 @@ async function openCanvas(
   canvas: CanvasState = { fragments: [], positions: {} },
   dictionary = false,
   beforeOpen?: () => Promise<void>,
+  options: { fit?: boolean; hidden?: boolean; withoutEvidence?: boolean } = {},
 ) {
   const requests: { method: string; params: Record<string, unknown> }[] = [];
   await page.route('**/__canvas_rpc', async (route) => {
@@ -125,24 +126,31 @@ async function openCanvas(
         },
       });
     },
-    { ...run('fixture', { raw }), canvas } as CanvasFixture,
+    {
+      ...run('fixture', { raw }),
+      ...(options.withoutEvidence ? { evaluatedRoot: undefined } : {}),
+      canvas,
+      hidden: options.hidden,
+    } as CanvasFixture,
   );
   await beforeOpen?.();
   await page.goto('/tests/canvas-harness.html');
-  await ready(page);
+  if (options.hidden) await expect(page.locator('#canvas-ready')).toHaveText('ready');
+  else await ready(page, options.fit);
   return requests;
 }
 const svg = (page: Page) =>
   page.getByRole('group', { name: 'Diagrama interativo das operações Pydicate' });
 const card = (page: Page, key: string) => svg(page).locator(`[data-canvas-key="${key}"]`);
 const node = (page: Page, key: string) => card(page, key).locator(':scope > [aria-pressed]');
-async function ready(page: Page) {
+async function ready(page: Page, fit = true) {
   await expect(page.locator('#canvas-ready')).toHaveText('ready');
   await expect(svg(page)).toBeVisible();
-  await page
-    .locator('.expression-canvas > .canvas-toolbar')
-    .getByRole('button', { name: 'Ajustar', exact: true })
-    .click();
+  if (fit)
+    await page
+      .locator('.expression-canvas > .canvas-toolbar')
+      .getByRole('button', { name: 'Ajustar', exact: true })
+      .click();
 }
 async function menu(page: Page, key: string, action: RegExp | string) {
   await node(page, key).click({ button: 'right' });
@@ -955,15 +963,27 @@ test('optional operation arguments are previewed and committed as the same engin
 
 test('a restored sole loose tree automatically becomes the principal tree', async ({ page }) => {
   const raw = '(emi * tym)';
-  await openCanvas(page, '', {
-    layout: 'bottom-up',
-    fragments: [{ id: 'only', raw, x: 300, y: 200 }],
-    positions: {},
-  });
+  await page.setViewportSize({ width: 620, height: 800 });
+  await openCanvas(
+    page,
+    '',
+    {
+      layout: 'bottom-up',
+      fragments: [{ id: 'only', raw, x: 300, y: 200 }],
+      positions: {},
+    },
+    false,
+    undefined,
+    { fit: false },
+  );
   await expect(page.locator('#canvas-raw')).toHaveText(raw);
   await expect.poll(() => page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
   await expect(card(page, 'main:root')).toContainText('temityma');
   await expect(card(page, 'only:root')).toHaveCount(0);
+  await expectTreeInsideViewport(page);
+  const automatic = await svg(page).getAttribute('viewBox');
+  await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await expect(svg(page)).toHaveAttribute('viewBox', automatic!);
   await page.reload();
   await ready(page);
   await expect(page.locator('#canvas-raw')).toHaveText(raw);
@@ -2326,9 +2346,153 @@ test('the actual workspace highlights RESULTADO ATUAL from selected tree nodes w
 
 const tools = (page: Page) => page.locator('.expression-canvas > .canvas-toolbar .runtime-tools');
 const zoomReading = (page: Page) => tools(page).locator('output');
+async function expectTreeInsideViewport(page: Page) {
+  await expect
+    .poll(() =>
+      svg(page).evaluate((element) => {
+        const viewport = element.getBoundingClientRect();
+        return [...element.querySelectorAll('[data-canvas-key]')].every((node) => {
+          const box = node.getBoundingClientRect();
+          return (
+            box.width > 0 &&
+            box.left >= viewport.left &&
+            box.right <= viewport.right &&
+            box.top >= viewport.top &&
+            box.bottom <= viewport.bottom
+          );
+        });
+      }),
+    )
+    .toBe(true);
+}
+
+for (const layout of ['horizontal', 'bottom-up'] as const) {
+  test(`the first ${layout} tree fits its measured pane without pressing Ajustar`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 620, height: 800 });
+    await openCanvas(
+      page,
+      '(emi * tym) + no',
+      { layout, fragments: [], positions: {} },
+      false,
+      undefined,
+      { fit: false },
+    );
+    await expectTreeInsideViewport(page);
+    const automatic = await svg(page).getAttribute('viewBox');
+    await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+    await expect(svg(page)).toHaveAttribute('viewBox', automatic!);
+  });
+}
+
+test('a tree mounted in a hidden pane waits for the visible pane before framing', async ({
+  page,
+}) => {
+  await openCanvas(page, '(emi * tym) + no', { fragments: [], positions: {} }, false, undefined, {
+    hidden: true,
+    fit: false,
+  });
+  await expect(svg(page)).toBeHidden();
+  // Workspace panes stay mounted under display:none when another pane is active.
+  await page.evaluate(() => window.canvasSetPaneVisible(true));
+  await expect(svg(page)).toBeVisible();
+  await expectTreeInsideViewport(page);
+  const automatic = await svg(page).getAttribute('viewBox');
+  await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await expect(svg(page)).toHaveAttribute('viewBox', automatic!);
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  const chosen = await svg(page).getAttribute('viewBox');
+  await page.evaluate(() => window.canvasSetPaneVisible(false));
+  await expect(svg(page)).toBeHidden();
+  await page.evaluate(() => window.canvasSetPaneVisible(true));
+  await expect(svg(page)).toHaveAttribute('viewBox', chosen!);
+});
+
+test('fullscreen frames with the new dimensions and restores the contributor frame on exit', async ({
+  page,
+}) => {
+  const measuredViewport = () =>
+    expect
+      .poll(() =>
+        svg(page).evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const view = (element as SVGSVGElement).viewBox.baseVal;
+          return Math.abs(view.width / view.height - bounds.width / bounds.height);
+        }),
+      )
+      .toBeLessThan(0.005);
+  await openCanvas(page, '(emi * tym) + no');
+  await page.locator('main').evaluate((element) => {
+    element.style.maxWidth = '700px';
+  });
+  await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  await measuredViewport();
+  const original = await framing(page);
+  const zoom = await zoomReading(page).textContent();
+  await tools(page).getByRole('button', { name: 'Árvore em tela cheia' }).click();
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+  await measuredViewport();
+  await expectTreeInsideViewport(page);
+  const automatic = await svg(page).getAttribute('viewBox');
+  await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await expect(svg(page)).toHaveAttribute('viewBox', automatic!);
+  await tools(page).getByRole('button', { name: 'Árvore em tela cheia' }).click();
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+  await measuredViewport();
+  await expect(zoomReading(page)).toHaveText(zoom!);
+  await expect.poll(() => framing(page)).toEqual(original);
+});
+
 async function framing(page: Page) {
   const [x, y, width, height] = (await svg(page).getAttribute('viewBox'))!.split(' ').map(Number);
   return { x: x + width / 2, y: y + height / 2, width, height };
+}
+
+for (const action of ['navigation', 'explicit Ajustar'] as const) {
+  test(`finishing the first evaluation preserves ${action} made while it was loading`, async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const opening = openCanvas(
+      page,
+      '(emi * tym) + no',
+      { fragments: [], positions: {} },
+      false,
+      async () => {
+        await page.route('**/__canvas_rpc', async (route) => {
+          const request = route.request().postDataJSON();
+          if (request.method !== 'evaluate_expression' || request.params.includeMorphology)
+            return route.fallback();
+          await held;
+          await route.fallback();
+        });
+      },
+      { fit: false, withoutEvidence: true },
+    );
+    await expect(card(page, 'main:root/left')).toBeAttached();
+    if (action === 'explicit Ajustar') {
+      await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+    } else {
+      await tools(page).getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+      const bounds = (await svg(page).boundingBox())!;
+      await page.mouse.move(bounds.x + bounds.width - 15, bounds.y + bounds.height - 15);
+      await page.mouse.down();
+      await page.mouse.move(bounds.x + bounds.width - 240, bounds.y + bounds.height - 120, {
+        steps: 5,
+      });
+      await page.mouse.up();
+    }
+    const chosen = await svg(page).getAttribute('viewBox');
+    release();
+    await opening;
+    await expect(card(page, 'main:root')).toHaveAttribute('data-evaluation-state', 'ok');
+    await expect(svg(page)).toHaveAttribute('viewBox', chosen!);
+  });
 }
 async function visibleNodeKey(page: Page, except: string) {
   const key = await svg(page).evaluate((element) => {
@@ -2417,4 +2581,325 @@ test('resizing the desk keeps the contributor frame instead of refitting the who
   expect(after.x).toBeCloseTo(before.x, 1);
   expect(after.y).toBeCloseTo(before.y, 1);
   await expect(zoomReading(page)).toHaveText(zoom);
+});
+
+test('organizing an overlapping saved tree restores its layout in one undoable edit', async ({
+  page,
+}) => {
+  const raw = 'abá * (mbae / katu)';
+  const canvas: CanvasState = {
+    layout: 'bottom-up',
+    fragments: [{ id: 'kept', raw: 'tym', x: 1200, y: 80 }],
+    positions: {
+      'main:root/right': { x: 179, y: 105 },
+      'main:root/right/left': { x: -38, y: 350 },
+      'main:root/right/right': { x: 274, y: 350 },
+      'kept:root': { x: 1450, y: 120 },
+    },
+  };
+  const requests = await openCanvas(page, raw, canvas);
+  await expect(card(page, 'kept:root')).toHaveAttribute('data-evaluation-state', 'ok');
+  const outputs = () =>
+    svg(page).evaluate((element) =>
+      [...element.querySelectorAll<SVGGElement>('[data-canvas-key]')].map((group) => ({
+        key: group.getAttribute('data-canvas-key'),
+        state: group.getAttribute('data-evaluation-state'),
+        text: group.querySelector('.runtime-result-text, .runtime-leaf-result')?.textContent,
+      })),
+    );
+  const results = await outputs();
+  const evaluations = () =>
+    requests.filter(
+      ({ method, params }) => method === 'evaluate_expression' && !params.includeMorphology,
+    ).length;
+  const evaluationCount = evaluations();
+  const aba = (await node(page, 'main:root/left').boundingBox())!;
+  const mbae = (await node(page, 'main:root/right/left').boundingBox())!;
+  expect(mbae.x).toBeLessThan(aba.x + aba.width);
+  expect(mbae.x + mbae.width).toBeGreaterThan(aba.x);
+  expect(mbae.y).toBeLessThan(aba.y + aba.height);
+  expect(mbae.y + mbae.height).toBeGreaterThan(aba.y);
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+
+  await page.getByRole('button', { name: 'Organizar árvore', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.canvasSnapshot))
+    .toEqual({
+      raw,
+      canvas: { ...canvas, positions: {} },
+    });
+  await expect(page.locator('#canvas-history')).toHaveText('1');
+  expect(await outputs()).toEqual(results);
+  expect(evaluations()).toBe(evaluationCount);
+
+  const keys = [
+    'main:root',
+    'main:root/left',
+    'main:root/right',
+    'main:root/right/left',
+    'main:root/right/right',
+  ];
+  const boxes = await Promise.all(keys.map(async (key) => (await node(page, key).boundingBox())!));
+  for (let first = 0; first < boxes.length; first++) {
+    for (let second = first + 1; second < boxes.length; second++) {
+      const a = boxes[first];
+      const b = boxes[second];
+      const overlapping =
+        a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+      expect(overlapping, `${keys[first]} overlaps ${keys[second]}`).toBe(false);
+    }
+  }
+  for (const [parent, child] of [
+    [0, 1],
+    [0, 2],
+    [2, 3],
+    [2, 4],
+  ]) {
+    expect(boxes[parent].y + boxes[parent].height).toBeLessThan(boxes[child].y);
+  }
+  await expectTreeInsideViewport(page);
+
+  await tools(page).getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.canvasSnapshot)).toEqual({ raw, canvas });
+  await expect(page.locator('#canvas-history')).toHaveText('0');
+  expect(await outputs()).toEqual(results);
+});
+
+for (const gesture of ['Alt + left drag', 'middle-button drag'] as const) {
+  test(`${gesture} over a node pans without moving or editing the tree`, async ({ page }) => {
+    const requests = await openCanvas(page, '(emi * tym) + no', {
+      layout: 'bottom-up',
+      fragments: [],
+      positions: { 'main:root': { x: 410, y: 100 } },
+    });
+    const original = await page.evaluate(() => window.canvasSnapshot);
+    const view = await svg(page).getAttribute('viewBox');
+    const zoom = await zoomReading(page).textContent();
+    const transforms = () =>
+      svg(page)
+        .locator('[data-canvas-key]')
+        .evaluateAll((groups) =>
+          groups.map((group) => [
+            group.getAttribute('data-canvas-key'),
+            group.getAttribute('transform'),
+          ]),
+        );
+    const positions = await transforms();
+    const evaluationCount = requests.filter(
+      ({ method, params }) => method === 'evaluate_expression' && !params.includeMorphology,
+    ).length;
+    const start = await center(node(page, 'main:root'));
+    const button = gesture === 'middle-button drag' ? 'middle' : 'left';
+    if (button === 'left') await page.keyboard.down('Alt');
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down({ button });
+    await page.mouse.move(start.x + 110, start.y + 45, { steps: 5 });
+    await page.mouse.up({ button });
+    if (button === 'left') await page.keyboard.up('Alt');
+    await expect(svg(page)).not.toHaveAttribute('viewBox', view!);
+    await expect(zoomReading(page)).toHaveText(zoom!);
+    expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(original);
+    expect(await transforms()).toEqual(positions);
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+    expect(
+      requests.filter(
+        ({ method, params }) => method === 'evaluate_expression' && !params.includeMorphology,
+      ),
+    ).toHaveLength(evaluationCount);
+  });
+}
+
+// Captured from the reported 12-node tree; no test reads or writes the real profile.
+const crossedExpansionFixture = {
+  raw: '(((((((((abá) * ((mbae) / ((katu)))))))) * ((moasy))).base_nominal()) * (obaixuara)) @ (((((ioausuba)))))',
+  positions: {
+    'main:root/left/left/receiver': {
+      x: 70.23003842338207,
+      y: 847.050755832729,
+    },
+    'main:root/left/left': {
+      x: 82.23003842338207,
+      y: 602.050755832729,
+    },
+    'main:root/left/right': {
+      x: 332.2300384233821,
+      y: 602.050755832729,
+    },
+    'main:root/left': {
+      x: 207.23003842338207,
+      y: 339.05075583272895,
+    },
+    'main:root/right': {
+      x: 665.2796580682979,
+      y: 300.40831073966393,
+    },
+    'main:root': {
+      x: 349.2796580682979,
+      y: 37.40831073966394,
+    },
+    'main:root/left/left/receiver/left/right/left': {
+      x: -487.528807078031,
+      y: 1273.7585004946027,
+    },
+    'main:root/left/left/receiver/left/right/right': {
+      x: -175.52880707803095,
+      y: 1273.7585004946027,
+    },
+    'main:root/left/left/receiver/left/right': {
+      x: -270.528807078031,
+      y: 1028.7585004946025,
+    },
+    'main:root/left/left/receiver/left/left': {
+      x: -402.4879737859839,
+      y: 1285.8072249963461,
+    },
+    'main:root/left/left/receiver/left': {
+      x: -33.487973785983925,
+      y: 1040.8072249963461,
+    },
+  },
+};
+
+for (const orientation of ['bottom-up', 'horizontal'] as const) {
+  test(`Expandir tudo restores the ${orientation} saved tree without a separate organize action`, async ({
+    page,
+  }, testInfo) => {
+    const raw = orientation === 'bottom-up' ? crossedExpansionFixture.raw : 'abá * (mbae / katu)';
+    const canvas: CanvasState = {
+      layout: orientation,
+      fragments: [{ id: 'kept', raw: 'tym', x: 2600, y: 80 }],
+      positions:
+        orientation === 'bottom-up'
+          ? crossedExpansionFixture.positions
+          : {
+              'main:root/right': { x: 179, y: 105 },
+              'main:root/right/left': { x: -38, y: 350 },
+              'main:root/right/right': { x: 274, y: 350 },
+            },
+    };
+    const requests = await openCanvas(page, raw, canvas);
+    await expect(card(page, 'kept:root')).toHaveAttribute('data-evaluation-state', 'ok');
+    const original = await page.evaluate(() => window.canvasSnapshot);
+    const evaluatedRoot = await page.evaluate(() => window.canvasFixture.evaluatedRoot!);
+    const expectedNodes = flattenNodes(evaluatedRoot);
+    expect(expectedNodes).toHaveLength(orientation === 'bottom-up' ? 12 : 5);
+    const evaluationCount = requests.filter(
+      ({ method, params }) => method === 'evaluate_expression' && !params.includeMorphology,
+    ).length;
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+
+    await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
+    await expect(svg(page).locator('[data-piece-id="main"]')).toHaveCount(expectedNodes.length);
+    await expectTreeInsideViewport(page);
+    await svg(page).screenshot({ path: testInfo.outputPath(`expanded-${orientation}.png`) });
+
+    const boxes = await svg(page).evaluate((element) =>
+      [...element.querySelectorAll<SVGGElement>('[data-canvas-key] > [aria-pressed]')].map(
+        (group) => {
+          const box = group.getBoundingClientRect();
+          return {
+            key: group.parentElement!.getAttribute('data-canvas-key')!,
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+          };
+        },
+      ),
+    );
+    for (let first = 0; first < boxes.length; first++) {
+      for (let second = first + 1; second < boxes.length; second++) {
+        const a = boxes[first],
+          b = boxes[second];
+        const overlaps =
+          a.x < b.x + b.width &&
+          b.x < a.x + a.width &&
+          a.y < b.y + b.height &&
+          b.y < a.y + a.height;
+        expect(overlaps, `${a.key} overlaps ${b.key} after Expandir tudo`).toBe(false);
+      }
+    }
+    const byKey = new Map(boxes.map((box) => [box.key, box]));
+    for (const parent of expectedNodes) {
+      const parentBox = byKey.get('main:' + parent.id)!;
+      for (const { node: child } of parent.children) {
+        const childBox = byKey.get('main:' + child.id)!;
+        if (orientation === 'bottom-up')
+          expect(parentBox.y + parentBox.height).toBeLessThan(childBox.y);
+        else expect(parentBox.x + parentBox.width).toBeLessThan(childBox.x);
+      }
+      for (let index = 1; index < parent.children.length; index++) {
+        const previous = byKey.get('main:' + parent.children[index - 1].node.id)!;
+        const next = byKey.get('main:' + parent.children[index].node.id)!;
+        if (orientation === 'bottom-up') expect(previous.x + previous.width).toBeLessThan(next.x);
+        else expect(previous.y + previous.height).toBeLessThan(next.y);
+      }
+      expect(parent.evaluation?.status).toBe('ok');
+      await expect(card(page, 'main:' + parent.id)).toHaveAttribute('data-evaluation-state', 'ok');
+      if (parent.evaluation?.status === 'ok') {
+        expect(
+          await node(page, 'main:' + parent.id)
+            .locator('title')
+            .textContent(),
+        ).toContain(': ' + parent.evaluation.surface);
+      }
+    }
+    await expect
+      .poll(() => page.evaluate(() => window.canvasSnapshot))
+      .toEqual({
+        raw,
+        canvas: { ...canvas, positions: {} },
+      });
+    await expect(page.locator('#canvas-history')).toHaveText('1');
+    const outputs = () =>
+      svg(page).locator('[data-canvas-key] > [aria-pressed] > title').allTextContents();
+    const evaluationOutputs = await outputs();
+    const expandedFrame = await svg(page).getAttribute('viewBox');
+    await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
+    await expect(page.locator('#canvas-history')).toHaveText('1');
+    await expect(svg(page)).toHaveAttribute('viewBox', expandedFrame!);
+    expect(await outputs()).toEqual(evaluationOutputs);
+    expect(
+      requests.filter(
+        ({ method, params }) => method === 'evaluate_expression' && !params.includeMorphology,
+      ),
+    ).toHaveLength(evaluationCount);
+
+    await tools(page)
+      .getByRole('button', { name: 'Desfazer edição na árvore', exact: true })
+      .click();
+    await expect.poll(() => page.evaluate(() => window.canvasSnapshot)).toEqual(original);
+    await expect(page.locator('#canvas-history')).toHaveText('0');
+    expect(await outputs()).toEqual(evaluationOutputs);
+  });
+}
+
+test('expanding one branch preserves saved manual positions and edit history', async ({ page }) => {
+  const canvas: CanvasState = {
+    layout: 'bottom-up',
+    fragments: [],
+    positions: {
+      'main:root': { x: 300, y: 90 },
+      'main:root/left': { x: 240, y: 340 },
+      'main:root/right': { x: 560, y: 340 },
+    },
+  };
+  await openCanvas(page, 'emi * tym', canvas);
+  const transforms = () =>
+    svg(page)
+      .locator('[data-canvas-key]')
+      .evaluateAll((groups) =>
+        groups.map((group) => [
+          group.getAttribute('data-canvas-key'),
+          group.getAttribute('transform'),
+        ]),
+      );
+  const positions = await transforms();
+  await card(page, 'main:root').getByRole('button', { name: 'Recolher *', exact: true }).click();
+  await expect(card(page, 'main:root/left')).toHaveCount(0);
+  await card(page, 'main:root').getByRole('button', { name: 'Expandir *', exact: true }).click();
+  await expect(card(page, 'main:root/left')).toHaveCount(1);
+  expect(await transforms()).toEqual(positions);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: 'emi * tym', canvas });
+  await expect(page.locator('#canvas-history')).toHaveText('0');
 });

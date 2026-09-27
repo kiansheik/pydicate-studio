@@ -15,6 +15,14 @@ The primary Árvore is a forest of exact Pydicate source expressions. The main e
 - Reuse pieces through the shared rendered-Tupi picker, including previously authored unnamed subexpressions. Direct code entry remains available.
 - Delete/Backspace removes the selected scope; Command/Ctrl-D duplicates it. Command/Ctrl-Z and Shift-Command/Ctrl-Z undo and redo. Editing text does not trigger canvas shortcuts.
 - Drag the background to pan; use the focused wheel to zoom. Search, branch chevrons, overview, fullscreen and SVG export remain available. Detailed source editing is collapsed initially.
+- Alt-drag or middle-button drag pans from anywhere in the diagram, including cards, without moving or connecting a subtree. **Organizar árvore** removes manual node positions and restores the automatic layout in one undoable edit, preserving source, results and loose pieces. **Ajustar** only frames the current arrangement.
+- **Expandir tudo** opens all branches, restores automatic node placement and fits the complete tree. Clearing saved node positions is one undoable layout edit; repeating the command with no overrides does not add history. Individual branch chevrons retain manual placement.
+
+The first frame waits for a visible viewport and settled piece evaluation.
+Hidden workspace panes do not supply a zero-sized frame; navigation during
+loading takes precedence over initial framing. Ordinary resizes preserve the
+camera. Fullscreen fits its measured drawing area and restores the previous
+camera when closed.
 
 ## Preview before applying
 

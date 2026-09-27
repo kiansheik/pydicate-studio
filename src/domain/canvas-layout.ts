@@ -19,8 +19,8 @@ export function layoutCanvasTree(
   const horizontal = layoutRuntimeTree(graph, collapsed);
   if (orientation === 'horizontal') return horizontal;
   const positions = new Map<string, TreePosition>();
-  // A long output only enlarges its own depth band. Reserve subtree widths
-  // too: a wide operation above a narrow operand must not invade its sibling.
+  // Keep vertical space for wrapped results. Horizontal space follows each
+  // branch's contour at the depths it actually occupies, not its total width.
   const depthHeights = new Map<number, number>();
   for (const { depth, node } of horizontal.positions.values())
     depthHeights.set(depth, Math.max(depthHeights.get(depth) ?? NODE_HEIGHT, treeNodeHeight(node)));
@@ -28,32 +28,43 @@ export function layoutCanvasTree(
   for (let depth = 1; depth <= Math.max(...depthHeights.keys()); depth++)
     depthY.set(depth, depthY.get(depth - 1)! + depthHeights.get(depth - 1)! + 115);
   const gap = 70;
-  const widths = new Map<string, number>();
-  function measure(id: string): number {
+  const childOffsets = new Map<string, { id: string; x: number }[]>();
+  function measure(id: string): { left: number[]; right: number[] } {
     const original = horizontal.positions.get(id)!;
     const children = collapsed.has(id) ? [] : original.children;
-    const childWidth =
-      children.reduce((sum, child) => sum + measure(child), 0) +
-      Math.max(0, children.length - 1) * gap;
-    const width = Math.max(treeNodeWidth(original.node), childWidth);
-    widths.set(id, width);
-    return width;
-  }
-  function place(id: string, depth: number, left: number) {
-    const original = horizontal.positions.get(id)!;
-    const children = collapsed.has(id) ? [] : original.children;
-    const width = widths.get(id)!;
-    const childWidth =
-      children.reduce((sum, child) => sum + widths.get(child)!, 0) +
-      Math.max(0, children.length - 1) * gap;
-    let childLeft = left + (width - childWidth) / 2;
+    const left: number[] = [];
+    const right: number[] = [];
+    const offsets: { id: string; x: number }[] = [];
     for (const child of children) {
-      place(child, depth + 1, childLeft);
-      childLeft += widths.get(child)! + gap;
+      const contour = measure(child);
+      let x = 0;
+      for (let depth = 0; depth < Math.min(right.length, contour.left.length); depth++)
+        x = Math.max(x, right[depth] + gap - contour.left[depth]);
+      offsets.push({ id: child, x });
+      for (let depth = 0; depth < contour.left.length; depth++) {
+        left[depth] = Math.min(left[depth] ?? Infinity, contour.left[depth] + x);
+        right[depth] = Math.max(right[depth] ?? -Infinity, contour.right[depth] + x);
+      }
     }
+    // Centre an operation over its immediate inputs, even when one input has
+    // many descendants and the other is just a short leaf branch.
+    const centre = offsets.length ? (offsets[0].x + offsets.at(-1)!.x) / 2 : 0;
+    childOffsets.set(
+      id,
+      offsets.map((child) => ({ ...child, x: child.x - centre })),
+    );
+    const halfWidth = treeNodeWidth(original.node) / 2;
+    return {
+      left: [-halfWidth, ...left.map((x) => x - centre)],
+      right: [halfWidth, ...right.map((x) => x - centre)],
+    };
+  }
+  function place(id: string, depth: number, centre: number) {
+    const original = horizontal.positions.get(id)!;
+    for (const child of childOffsets.get(id)!) place(child.id, depth + 1, centre + child.x);
     positions.set(id, {
       ...original,
-      x: left + (width - treeNodeWidth(original.node)) / 2,
+      x: centre - treeNodeWidth(original.node) / 2,
       y: depthY.get(depth)!,
     });
   }

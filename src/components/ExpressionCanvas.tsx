@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -167,7 +167,7 @@ export function ExpressionCanvas({
   evaluatedRoot,
   ...props
 }: ExpressionCanvasProps) {
-  const saved = canvas ?? emptyCanvas();
+  const saved = useMemo(() => canvas ?? emptyCanvas(), [canvas]);
   const orientation = saved.layout ?? 'bottom-up';
   const evaluationContext = `${props.passageId}:${props.sourceId}:${props.engineFingerprint}`;
   const [fragmentResults, setFragmentResults] = useState<Record<string, FragmentResult>>({});
@@ -367,7 +367,10 @@ export function ExpressionCanvas({
   } | null>(null);
   const [notice, setNotice] = useState('');
   const [camera, setCamera] = useState({ x: 500, y: 280, zoom: 1 });
-  const [dimensions, setDimensions] = useState({ width: 900, height: 520 });
+  const [dimensions, setDimensions] = useState<ViewSize>({ width: 0, height: 0 });
+  const latestCamera = useRef(camera);
+  latestCamera.current = camera;
+  const beforeFullscreen = useRef<typeof camera | null>(null);
   const [dragPreview, setDragPreview] = useState<{
     keys: string[];
     dx: number;
@@ -392,7 +395,6 @@ export function ExpressionCanvas({
   const pieceSearch = useRef<PieceSearchHandle>(null);
   const firstLayout = useRef(false);
   const framed = useRef(false);
-  const firstEvidence = useRef(false);
   const knownFragments = useRef(new Set(saved.fragments.map((fragment) => fragment.id)));
   const [focusPiece, setFocusPiece] = useState<string | null>(null);
   const [fitRequested, setFitRequested] = useState(0);
@@ -585,16 +587,36 @@ export function ExpressionCanvas({
     width: layout.width,
     height: layout.height,
   };
+  function measureViewport() {
+    const bounds = svg.current?.getBoundingClientRect();
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
+    const next = { width: Math.round(bounds.width), height: Math.round(bounds.height) };
+    setDimensions((value) =>
+      value.width === next.width && value.height === next.height ? value : next,
+    );
+    return next;
+  }
   function fit() {
-    framed.current = true;
+    // Read the actual drawing area here: fullscreen changes precede ResizeObserver.
+    const size = measureViewport();
+    if (!size) return;
+    claimCamera();
     setCamera((value) => {
-      const next = fitCamera(extent, dimensions);
+      const next = fitCamera(extent, size);
       return sameCamera(value, next) ? value : next;
     });
+  }
+  function claimCamera() {
+    // Navigation during a slow first evaluation must also win over its eventual result.
+    firstLayout.current = true;
+    framed.current = true;
+    setFocusPiece(null);
+    setFocusSelection(null);
   }
   /** Bring a node into view without taking the camera away from the contributor:
    * the zoom they chose is kept and the pan is the smallest one that works. */
   function reveal(point: Positioned, margin = 80) {
+    if (!dimensions.width || !dimensions.height) return;
     setCamera((value) =>
       revealCamera(
         value,
@@ -609,23 +631,17 @@ export function ExpressionCanvas({
       ),
     );
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = viewport.current;
     if (!element) return;
+    measureViewport();
     let frame = 0;
     // Whole pixels only, and never a repeat: a scrollbar appearing beside the desk
     // or a sub-pixel reflow must not reach the camera at all.
-    const observer = new ResizeObserver(([entry]) => {
-      const next: ViewSize = {
-        width: Math.max(250, Math.round(entry.contentRect.width)),
-        height: Math.max(260, Math.round(entry.contentRect.height)),
-      };
+    const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() =>
-        setDimensions((value) =>
-          value.width === next.width && value.height === next.height ? value : next,
-        ),
-      );
+      // Hidden workspace panes remain mounted. Never treat their zero size as a frame.
+      frame = requestAnimationFrame(measureViewport);
     });
     observer.observe(element);
     return () => {
@@ -634,7 +650,14 @@ export function ExpressionCanvas({
     };
   }, []);
   useEffect(() => {
-    if (firstLayout.current || !pieces.some((piece) => piece.root)) return;
+    if (
+      firstLayout.current ||
+      !dimensions.width ||
+      !dimensions.height ||
+      !pieces.length ||
+      pieces.some((piece) => piece.pending || (!piece.root && !piece.error))
+    )
+      return;
     firstLayout.current = true;
     const main = pieces.find((piece) => piece.id === 'main');
     if (main?.graph)
@@ -645,13 +668,9 @@ export function ExpressionCanvas({
           ),
         ),
       );
-    setFocusPiece('main');
+    // Promotion above may already have queued the new main root in this commit.
+    setFocusPiece((value) => value ?? main?.id ?? pieces[0].id);
   }, [pieces, dimensions]);
-  useEffect(() => {
-    if (firstEvidence.current || !evaluatedRoot) return;
-    firstEvidence.current = true;
-    if (!focusPiece) setFocusPiece('main');
-  }, [evaluatedRoot]);
   useEffect(() => {
     const newPiece = saved.fragments.find((fragment) => !knownFragments.current.has(fragment.id));
     knownFragments.current = new Set(saved.fragments.map((fragment) => fragment.id));
@@ -672,15 +691,25 @@ export function ExpressionCanvas({
     const element = container.current;
     if (!element) return;
     const refit = () => {
-      if (document.fullscreenElement === element) setFitRequested((value) => value + 1);
+      if (document.fullscreenElement === element) {
+        beforeFullscreen.current = latestCamera.current;
+        setFitRequested((value) => value + 1);
+      } else if (beforeFullscreen.current) {
+        measureViewport();
+        setCamera(beforeFullscreen.current);
+        beforeFullscreen.current = null;
+      }
     };
     document.addEventListener('fullscreenchange', refit);
     return () => document.removeEventListener('fullscreenchange', refit);
   }, []);
   useEffect(() => {
-    if (!focusPiece) return;
+    if (!focusPiece || !dimensions.width || !dimensions.height) return;
     const point = layout.positions.get(focusPiece + ':root');
     if (!point || point.piece.pending) return;
+    // A promoted loose tree can render its new source before parsing starts.
+    if (!point.piece.root && !point.piece.error) return;
+    if (!framed.current && (!firstLayout.current || pieces.some((piece) => piece.pending))) return;
     // Only the very first tree is framed for the contributor. Afterwards a new or
     // combined piece is merely brought into view, so their zoom and place survive.
     if (!framed.current) fit();
@@ -780,6 +809,7 @@ export function ExpressionCanvas({
     const wheel = (event: WheelEvent) => {
       if (document.activeElement !== element && !element.contains(document.activeElement)) return;
       event.preventDefault();
+      claimCamera();
       const bounds = element.getBoundingClientRect();
       const delta =
         event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1);
@@ -960,6 +990,13 @@ export function ExpressionCanvas({
     setFitRequested((value) => value + 1);
     track('editor.operation', { action: 'canvas.layout', category: layout });
   }
+  function organize() {
+    if (Object.keys(saved.positions).length) {
+      props.onChangeCanvas({ raw, canvas: { ...saved, positions: {} } });
+      track('editor.operation', { action: 'canvas.organize' });
+    }
+    setFitRequested((value) => value + 1);
+  }
   function openMenu(position: Positioned, client?: CanvasPoint) {
     select(position);
     const bounds = viewport.current?.getBoundingClientRect();
@@ -1017,6 +1054,7 @@ export function ExpressionCanvas({
   function startDrag(position: Positioned, event: React.PointerEvent<SVGGElement>) {
     if (event.button !== 0 || staged || (!position.piece.root && position.piece.id === 'main'))
       return;
+    claimCamera();
     event.stopPropagation();
     event.currentTarget.focus({ preventScroll: true });
     select(position);
@@ -1027,6 +1065,21 @@ export function ExpressionCanvas({
       camera,
       address: bound(position.address),
       keys: descendants(position),
+      session,
+      moved: false,
+    };
+    svg.current?.setPointerCapture(event.pointerId);
+  }
+  function startPan(event: React.PointerEvent<SVGSVGElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    claimCamera();
+    svg.current?.focus({ preventScroll: true });
+    setMenu(null);
+    drag.current = {
+      pointer: event.pointerId,
+      client: { x: event.clientX, y: event.clientY },
+      camera,
       session,
       moved: false,
     };
@@ -1604,8 +1657,8 @@ export function ExpressionCanvas({
       api,
     ],
   );
-  const viewWidth = dimensions.width / camera.zoom;
-  const viewHeight = dimensions.height / camera.zoom;
+  const viewWidth = Math.max(1, dimensions.width) / camera.zoom;
+  const viewHeight = Math.max(1, dimensions.height) / camera.zoom;
   // Connecting, detaching and adding are the structural edits the usage log records most
   // often; the keyboard reaches them through the same code path as the context menu.
   function startConnect(address: CanvasAddress, code: string) {
@@ -1771,14 +1824,20 @@ export function ExpressionCanvas({
           </button>
           <button
             aria-label="Diminuir árvore"
-            onClick={() => setCamera((value) => ({ ...value, zoom: clampZoom(value.zoom / 1.25) }))}
+            onClick={() => {
+              claimCamera();
+              setCamera((value) => ({ ...value, zoom: clampZoom(value.zoom / 1.25) }));
+            }}
           >
             <Minus size={15} />
           </button>
           <output aria-label="Zoom da árvore">{Math.round(camera.zoom * 100)}%</output>
           <button
             aria-label="Ampliar árvore"
-            onClick={() => setCamera((value) => ({ ...value, zoom: clampZoom(value.zoom * 1.25) }))}
+            onClick={() => {
+              claimCamera();
+              setCamera((value) => ({ ...value, zoom: clampZoom(value.zoom * 1.25) }));
+            }}
           >
             <Plus size={15} />
           </button>
@@ -1844,12 +1903,22 @@ export function ExpressionCanvas({
           </>
         )}
         <button
+          title="Expandir todos os ramos e restaurar a disposição automática da árvore"
           onClick={() => {
             setCollapsed(new Set());
-            setFitRequested((value) => value + 1);
+            // Absolute placements from a collapsed or manually moved tree can
+            // cross branches and overlap newly revealed leaves. Reflow once here.
+            organize();
           }}
         >
           Expandir tudo
+        </button>
+        <button
+          title="Restaurar a disposição automática das peças sem alterar a expressão"
+          disabled={!Object.keys(saved.positions).length}
+          onClick={organize}
+        >
+          Organizar árvore
         </button>
         <button
           onClick={() => {
@@ -1870,7 +1939,8 @@ export function ExpressionCanvas({
           Visão geral
         </button>
         <span className="canvas-summary">
-          Botão direito: ações · arraste peças para ligar ou trocar · arraste o fundo para navegar
+          Botão direito: ações · arraste peças para ligar ou trocar · Alt + arraste ou botão do
+          meio: navegar
         </span>
       </div>
       <div className="runtime-viewport canvas-viewport" ref={viewport}>
@@ -1880,18 +1950,13 @@ export function ExpressionCanvas({
           tabIndex={0}
           aria-label="Diagrama interativo das operações Pydicate"
           viewBox={`${camera.x - viewWidth / 2} ${camera.y - viewHeight / 2} ${viewWidth} ${viewHeight}`}
+          onPointerDownCapture={(event) => {
+            // Panning from a card must not persist a subtree move or start a connection.
+            if (event.button === 1 || (event.button === 0 && event.altKey)) startPan(event);
+          }}
           onPointerDown={(event) => {
             if (event.button !== 0 || (event.target as Element).closest('[role=button]')) return;
-            svg.current?.focus();
-            setMenu(null);
-            drag.current = {
-              pointer: event.pointerId,
-              client: { x: event.clientX, y: event.clientY },
-              camera,
-              session,
-              moved: false,
-            };
-            svg.current?.setPointerCapture(event.pointerId);
+            startPan(event);
           }}
           onPointerMove={(event) => {
             const start = drag.current;

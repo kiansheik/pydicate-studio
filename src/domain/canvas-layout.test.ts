@@ -134,4 +134,44 @@ describe('canvas construction orientation', () => {
       layoutRuntimeTree(graph, new Set()),
     );
   });
+
+  it('places short leaf branches close to deep siblings without reserving empty columns', () => {
+    for (const mirrored of [false, true]) {
+      const children = mirrored ? ['leaf', 'branch'] : ['branch', 'leaf'];
+      const fixture: RuntimeGraph = {
+        ...graph,
+        nodes: [
+          node('root', 'binary'),
+          node('branch', 'binary'),
+          node('leaf'),
+          node('a'),
+          node('b'),
+          node('c'),
+        ],
+        edges: [
+          ...children.map((child) => ['root', child]),
+          ...['a', 'b', 'c'].map((child) => ['branch', child]),
+        ].map(([source, target], index) => ({
+          ...graph.edges[0],
+          id: String(index),
+          source,
+          target,
+          index,
+        })),
+      };
+      const layout = layoutCanvasTree(fixture, new Set(), 'bottom-up');
+      const first = layout.positions.get(children[0])!;
+      const second = layout.positions.get(children[1])!;
+      expect(second.x - first.x - treeNodeWidth(first.node)).toBeCloseTo(70);
+      const parent = layout.positions.get('root')!;
+      expect(parent.x + treeNodeWidth(parent.node) / 2).toBeCloseTo(
+        (first.x + treeNodeWidth(first.node) / 2 + second.x + treeNodeWidth(second.node) / 2) / 2,
+      );
+      const leaves = ['a', 'b', 'c'].map((id) => layout.positions.get(id)!);
+      for (let i = 1; i < leaves.length; i++)
+        expect(
+          leaves[i].x - leaves[i - 1].x - treeNodeWidth(leaves[i - 1].node),
+        ).toBeGreaterThanOrEqual(70);
+    }
+  });
 });
