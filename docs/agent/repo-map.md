@@ -2,6 +2,16 @@
 
 ## Hosted collaboration and deployment
 
+- `scripts/collab/desktop_sync.py`, `read_local_storage.cjs`: read-only allowlisted
+  desktop research snapshot, isolated Chromium storage extraction, deterministic
+  archive and verified extraction. `ops.py` transfers after release preflight;
+  `host.py` reconciles only after backup while Studio is stopped.
+- `server/desktop-import.cjs`, `desktop-lexical-import.cjs`, migration 004:
+  conservative cross-machine current draft/notebook restoration, immutable
+  receipts, conflict/orphan preservation and repeat-import protection.
+  `desktop-history.cjs` and its public viewer expose original private records to
+  administrators without constructing or resuming AI services.
+
 - `src/domain/pdf-document.ts`, `PdfEvidence.tsx`: authenticated original-byte
   ranges, seven-day bounded IndexedDB chunk cache, same-source document reuse,
   visible progress and retry. `tests/pdf-cache*` and `pdf-evidence.spec.ts` cover

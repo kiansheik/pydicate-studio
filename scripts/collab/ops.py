@@ -43,22 +43,29 @@ class Remote:
     def deploy(self):
         ref=os.getenv('STUDIO_REF','main')
         if not re.fullmatch(r'[A-Za-z0-9_./-]+',ref) or ref.startswith('-') or '..' in ref:raise ValueError('Invalid STUDIO_REF')
-        # Snapshot managed PDFs before any remote mutation. Never copy desktop
-        # preferences, provider credentials or arbitrary local source changes.
+        # Capture research state before any remote mutation. Credentials and
+        # arbitrary local source changes never enter the application workspace.
         from evidence_sync import prepare_local_bundle
+        from desktop_sync import prepare_local_bundle as prepare_research_bundle
         print('[deploy] Preparing local PDFs and source evidence…',flush=True)
         with tempfile.TemporaryDirectory(prefix='studio-deploy-evidence-') as temporary:
             bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar')
-            sha=self.prepare_release(ref,bool(bundle))
+            print('[deploy] Preparing saved desktop research and history…',flush=True)
+            desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar')
+            sha=self.prepare_release(ref,bool(bundle),bool(desktop))
             incoming=''
+            incoming_desktop=''
             if bundle:
                 incoming=self.root+'/incoming/evidence-'+os.urandom(12).hex()+'.tar'
                 self.upload(bundle,incoming)
-            self.deploy_release(sha,incoming)
-    def prepare_release(self,ref,evidence=False):
+            if desktop:
+                incoming_desktop=self.root+'/incoming/desktop-'+os.urandom(12).hex()+'.tar'
+                self.upload(desktop,incoming_desktop)
+            self.deploy_release(sha,incoming,incoming_desktop)
+    def prepare_release(self,ref,evidence=False,desktop=False):
         print(f'[deploy] Checking published Studio release {ref} before upload…',flush=True)
         script=r'''set -euo pipefail
-root=$1; ref=$2; url=$3; evidence=$4
+root=$1; ref=$2; url=$3; evidence=$4; desktop=$5
 for tool in python3 git docker flock; do command -v "$tool" >/dev/null || { echo "Install required server tool: $tool" >&2; exit 1; }; done
 docker compose version >/dev/null
 mkdir -p "$root/releases"
@@ -77,6 +84,12 @@ if test "$evidence" = 1; then
   test -f "$stage/app/scripts/collab/evidence_sync.py" || { echo 'Selected release does not support desktop PDF import; publish the PDF changes first.' >&2; exit 1; }
   python3 -B "$stage/app/scripts/collab/host.py" --help | grep -q -- --evidence || { echo 'Selected release does not accept desktop PDF evidence.' >&2; exit 1; }
 fi
+if test "$desktop" = 1; then
+  for file in scripts/collab/desktop_sync.py server/desktop-import.cjs; do
+    test -f "$stage/app/$file" || { echo "Selected release does not support desktop research migration; publish it first ($file missing)." >&2; exit 1; }
+  done
+  python3 -B "$stage/app/scripts/collab/host.py" --help | grep -q -- --desktop || { echo 'Selected release does not accept desktop research state.' >&2; exit 1; }
+fi
 destination="$root/releases/$sha"
 if test -e "$destination"; then
   test "$(git -C "$destination" rev-parse HEAD)" = "$sha"
@@ -86,16 +99,16 @@ else
 fi
 printf '%s\n' "$sha"
 '''
-        result=self.ssh(['bash','-s','--',self.root,ref,URL,'1' if evidence else '0'],data=script.encode(),stdout=subprocess.PIPE)
+        result=self.ssh(['bash','-s','--',self.root,ref,URL,'1' if evidence else '0','1' if desktop else '0'],data=script.encode(),stdout=subprocess.PIPE)
         sha=result.stdout.decode().strip()
         if not re.fullmatch(r'[a-f0-9]{40}',sha):raise ValueError('Server did not return one validated release SHA')
         print(f'[deploy] Published release verified: {sha}',flush=True)
         return sha
-    def deploy_release(self,sha,evidence=''):
+    def deploy_release(self,sha,evidence='',desktop=''):
         if not re.fullmatch(r'[a-f0-9]{40}',sha):raise ValueError('Deploy requires a preflighted full release SHA')
         print(f'[deploy] Opening server deployment for {sha}…',flush=True)
         script=r'''set -euo pipefail
-root=$1; sha=$2; public=$3; smtp=$4; neo=$5; evidence=$6
+root=$1; sha=$2; public=$3; smtp=$4; neo=$5; evidence=$6; desktop=$7
 exec 9>"$root/deploy.lock"; flock -n 9
 destination="$root/releases/$sha"
 test "$(git -C "$destination" rev-parse HEAD)" = "$sha"
@@ -103,11 +116,13 @@ test -z "$(git -C "$destination" status --porcelain)"
 test -f "$destination/scripts/collab/host.py"
 args=(install --root "$root" --public-url "$public" --smtp "$smtp" --neo-path "$neo")
 if test -n "$evidence"; then args+=(--evidence "$evidence"); fi
+if test -n "$desktop"; then args+=(--desktop "$desktop"); fi
 echo '[deploy] Preparing server workspace and application…'
 python3 -u "$destination/scripts/collab/host.py" "${args[@]}"
 if test -n "$evidence"; then rm -- "$evidence"; fi
+if test -n "$desktop"; then rm -- "$desktop"; fi
 '''
-        self.ssh(['bash','-s','--',self.root,sha,os.getenv('COLLAB_PUBLIC_URL','https://studio.academiatupi.com'),os.getenv('SMTP_MODE','relay'),os.getenv('NEOLOGISMO_PATH','/srv/nheenga-neologismos'),evidence],data=script.encode())
+        self.ssh(['bash','-s','--',self.root,sha,os.getenv('COLLAB_PUBLIC_URL','https://studio.academiatupi.com'),os.getenv('SMTP_MODE','relay'),os.getenv('NEOLOGISMO_PATH','/srv/nheenga-neologismos'),evidence,desktop],data=script.encode())
     def download(self,remote,local,directory=False):
         local=pathlib.Path(local).expanduser().resolve();local.parent.mkdir(parents=True,exist_ok=True)
         if local.exists():raise ValueError('Destination already exists; use a new backup filename.')

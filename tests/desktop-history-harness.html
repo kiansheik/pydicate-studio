@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/server/public/desktop-history.css" />
+  </head>
+  <body>
+    <aside id="collab-panel"></aside>
+    <script>
+      window.collab = {
+        me: async () => ({
+          user: { role: new URLSearchParams(location.search).get('role') || 'admin' },
+        }),
+        state: () => ({ selected: 'passage:current' }),
+        request: async (url) => {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('Não foi possível ler a cópia histórica.');
+          return response.json();
+        },
+      };
+    </script>
+    <script src="/server/public/desktop-storage.js"></script>
+    <script src="/server/public/desktop-history.js"></script>
+  </body>
+</html>

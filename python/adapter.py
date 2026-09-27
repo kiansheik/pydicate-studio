@@ -452,6 +452,11 @@ class ProjectAdapter:
                 cleared_fields=[directive for field,directive in [('diplomatic','diplomatic'),('normalized_target','target'),('translation','translation')] if directive in explicit_fields and source_metadata.get(field) is None]
                 if cleared_fields:relevant_metadata['clearedFields']=cleared_fields
                 translations = (entry.get('studio') or {}).get('translations')
+                prayer_name = (entry.get('studio') or {}).get('prayerName')
+                if prayer_name is not None:
+                    from studio_authoring import validate_prayer_name
+                    prayer_name = validate_prayer_name(prayer_name)
+                    if prayer_name: relevant_metadata['prayerName'] = prayer_name
                 if translations is not None:
                     from studio_authoring import validate_translations
                     translations = validate_translations(translations)
@@ -471,6 +476,7 @@ class ProjectAdapter:
                     "notes": "\n".join(str(note) for note in notes) if isinstance(notes, (list, tuple)) else "",
                     "witness": {"title": _string(location.get("witness")) or title,
                                 "year": source_description['year'],
+                                **({'prayerName': prayer_name} if prayer_name is not None else {}),
                                 "printedPage": page, "pdfPage": None, "region": None, "folio": location.get("folio_start"), "textualLine": location.get("line_start"), "section": location.get("section"), "subsection": location.get("subsection")},
                     "status": "analysis" if saved is not None else "untranscribed",
                     "analysis": None if entry["contextualOverride"] else parse_analysis(entry["expression"])})

@@ -1,5 +1,6 @@
 import type { Draft, DraftEnvelope, Passage, StudioProject } from './types';
 import { emptySourcePassage, projectSources } from './sources';
+import { createDraft, updateDraft } from './model';
 
 /** Continue the same book location; turning the physical PDF page is explicit. */
 export function nextPassageLocators(
@@ -12,7 +13,70 @@ export function nextPassageLocators(
     line: '',
     section: draft?.locators?.section ?? previous.witness.section ?? '',
     subsection: draft?.locators?.subsection ?? previous.witness.subsection ?? '',
+    ...((draft?.locators?.prayerName ?? previous.witness.prayerName) != null
+      ? { prayerName: draft?.locators?.prayerName ?? previous.witness.prayerName! }
+      : {}),
   };
+}
+
+/** Borrow editable reading context, never an analysis tree, evidence or approval. */
+export function nextPassageContext(previous: Passage, draft?: Draft) {
+  const reading = draft ?? createDraft(previous);
+  return {
+    diplomatic: reading.diplomatic,
+    normalized: reading.normalized,
+    translation: reading.translation,
+    ...(reading.translations ? { translations: { ...reading.translations } } : {}),
+    ...(reading.aiInput ? { aiInput: { ...reading.aiInput } } : {}),
+    locators: nextPassageLocators(previous, draft),
+  };
+}
+
+/** An existing passage with any authored material keeps its own draft intact. */
+export function prefillEmptyNextPassage(
+  previous: Passage,
+  next: Passage,
+  previousDraft: Draft | undefined,
+  nextDraft: Draft,
+): Draft {
+  if (
+    previous.sourceId !== next.sourceId ||
+    next.ordinal !== previous.ordinal + 1 ||
+    nextDraft.pending
+  )
+    return nextDraft;
+  const authored = (draft: Draft) =>
+    [draft.raw, draft.diplomatic, draft.normalized, draft.translation, draft.notes].some(
+      (value) => !!value?.length,
+    ) ||
+    Object.values(draft.translations ?? {}).some((value) => !!value?.length) ||
+    Object.values(draft.aiInput ?? {}).some((value) => !!value?.length) ||
+    !!draft.analysis ||
+    !!draft.workflow ||
+    !!draft.aiAcceptances?.length ||
+    !!draft.canvas?.fragments.length ||
+    !!Object.keys(draft.canvas?.positions ?? {}).length;
+  const baseline = createDraft(next);
+  if (authored(nextDraft) || authored(baseline) || next.acceptedReference !== null)
+    return nextDraft;
+  // Keep even a location-only edit, including an explicit clearing of a source locator.
+  if (
+    Object.entries(nextDraft.locators ?? {}).some(
+      ([key, value]) =>
+        value !== (baseline.locators?.[key as keyof NonNullable<Draft['locators']>] ?? ''),
+    )
+  )
+    return nextDraft;
+  const context = nextPassageContext(previous, previousDraft);
+  return updateDraft(nextDraft, {
+    ...context,
+    locators: {
+      ...context.locators,
+      ...Object.fromEntries(
+        Object.entries(nextDraft.locators ?? {}).filter(([, value]) => !!value),
+      ),
+    },
+  });
 }
 
 /** Project local shells into the same passage list without pretending they are published. */
@@ -76,6 +140,7 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
         textualLine: locators.line ?? '',
         section: locators.section ?? '',
         subsection: locators.subsection ?? '',
+        ...(locators.prayerName != null ? { prayerName: locators.prayerName } : {}),
         pdfPage: null,
         region: null,
       },

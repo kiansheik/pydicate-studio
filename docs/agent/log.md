@@ -1,5 +1,19 @@
 # Work log
 
+## 2026-09-27 - Restore desktop research before further authoring
+
+Traced missing hosted completion flags to an incomplete migration: PDF evidence
+was transferred, desktop draft/history stores were not. Added deterministic
+allowlisted snapshots, verified extraction, stopped-server transactional draft
+reconciliation, immutable provenance, conservative notebook mapping and an
+administrator history viewer. The desktop profile is never opened by Studio or
+modified; browser buffers are read through an isolated blank Electron profile.
+Original histories and conflicting/orphan data remain recoverable. Real-data
+rehearsal passed 1,166 field checks and restored all 105 current Araújo completion
+flags. Added requested empty-passage text/location continuation and an optional
+prayer name, preserving existing work and separate approval state. Validation
+and deployment are recorded in the [handoff](session-handoffs/2026-09-27-desktop-restoration.md).
+
 ## 2026-09-27 - Merge collaboration into main and repair deployment
 
 The successful 84.7 MB upload exposed an incompatible default release: `main`

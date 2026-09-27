@@ -789,6 +789,48 @@ test('next-passage guides stay separate from new evidence, accept drawing throug
   }
 });
 
+test('returning to an untouched existing next passage inherits the newly marked predecessor guide', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-next-empty-'));
+  try {
+    const { assetId, revision } = await guideFixture(page, directory);
+    await page.goto('/tests/pdf-harness.html');
+    await ready(page);
+    // The earlier visit saved only its initial viewport, before a predecessor had a crop.
+    await page.evaluate(
+      ({ assetId, revision }) =>
+        localStorage.setItem(
+          `pydicate-studio:evidence-draft:v1:${JSON.stringify(['project:pdf-test', 'araujo', 'passage:b'])}`,
+          JSON.stringify({
+            assetId,
+            revision,
+            regions: [],
+            baseline: 'null',
+            view: { pageIndex: 0, zoom: 1, rotation: 0 },
+          }),
+        ),
+      { assetId, revision },
+    );
+    await draw(page, [0.2, 0.2], [0.55, 0.4]);
+    const rect = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute('data-pdf-rect', rect!);
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+    await page.getByLabel('Página física do PDF', { exact: true }).fill('2');
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(page.getByLabel('Página física do PDF', { exact: true })).toHaveValue('2');
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('an unsaved predecessor and repeated empty pending passages preserve a guide without promoting its box', async ({
   page,
 }) => {

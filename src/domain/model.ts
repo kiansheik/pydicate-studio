@@ -70,6 +70,7 @@ export function createDraft(passage: Passage): Draft {
       line: passage.witness.textualLine == null ? '' : String(passage.witness.textualLine),
       section: passage.witness.section ?? '',
       subsection: passage.witness.subsection ?? '',
+      ...(passage.witness.prayerName != null ? { prayerName: passage.witness.prayerName } : {}),
     },
     raw: passage.sourceExpression,
     revisionId: revisionId(),
@@ -137,7 +138,7 @@ export function samePassageReading(draft: Draft, passage: Passage): boolean {
       (field) => draft[field] === source[field],
     ) &&
     sameTranslations(draft.translations, source.translations) &&
-    (['printedPage', 'folio', 'line', 'section', 'subsection'] as const).every(
+    (['printedPage', 'folio', 'line', 'section', 'subsection', 'prayerName'] as const).every(
       (field) =>
         (draft.locators?.[field] ?? source.locators?.[field] ?? '') ===
         (source.locators?.[field] ?? ''),
@@ -293,7 +294,14 @@ function isDraft(value: unknown, passageId: string): value is Draft {
             value.pending.previousPassageId.length <= 200)))) &&
     (value.locators === undefined ||
       (isObject(value.locators) &&
-        hasOnlyKeys(value.locators, ['printedPage', 'folio', 'line', 'section', 'subsection']) &&
+        hasOnlyKeys(value.locators, [
+          'printedPage',
+          'folio',
+          'line',
+          'section',
+          'subsection',
+          'prayerName',
+        ]) &&
         Object.values(value.locators).every((v) => typeof v === 'string' && v.length <= 1000))) &&
     (value.analysis === null || isImperativeAnalysis(value.analysis)) &&
     (value.workflow === undefined ||

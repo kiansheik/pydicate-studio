@@ -85,6 +85,31 @@ class CorpusCopyTests(unittest.TestCase):
         for invalid in ({'pt':3},{'fr':'bonjour'},None):
             with self.assertRaises(AdapterError):self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'translations':invalid}})
 
+    def test_optional_prayer_name_roundtrip_edit_clear_and_validation(self):
+        preview=self.adapter.invoke('source_new_preview',{'sourceId':'araujo_catecismo_1686','raw':'apiti','metadata':{'prayerName':'Pai-nosso'}})
+        self.project=self.adapter.invoke('source_apply',preview)
+        identifier=preview['passageId']
+        current=next(p for p in self.project['passages'] if p['id']==identifier)
+        self.assertEqual(current['witness']['prayerName'],'Pai-nosso')
+        self.assertIsNone(current['acceptedReference'])
+        self.assertEqual(source_entries(self.path)[-1]['studio']['prayerName'],'Pai-nosso')
+        self.assertNotIn('@prayerName',self.path.read_text())
+        fingerprint=current['sourceFingerprint']
+        for value in ('Ave-Maria',''):
+            preview=self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'prayerName':value}})
+            self.assertTrue(any(field['label']=='Oração' for field in preview['reviewSummary']['fields']))
+            self.project=self.adapter.invoke('source_apply',preview)
+            current=next(p for p in self.project['passages'] if p['id']==identifier)
+            self.assertEqual(current['witness']['prayerName'],value)
+            self.assertNotEqual(current['sourceFingerprint'],fingerprint)
+            fingerprint=current['sourceFingerprint']
+            self.assertEqual(self.adapter.invoke('source_preview',{'passageId':identifier,'metadata':{'prayerName':value}})['diff'],'')
+            reopened=ProjectAdapter(self.state).open_project(str(self.parent))
+            self.assertEqual(next(p for p in reopened['passages'] if p['id']==identifier)['witness']['prayerName'],value)
+        for invalid in (None,12,'x'*1001,'primeira\nsegunda'):
+            for method in ('source_preview','source_new_preview'):
+                with self.assertRaises(AdapterError):self.adapter.invoke(method,{'passageId':identifier,'sourceId':'araujo_catecismo_1686','raw':'apiti','metadata':{'prayerName':invalid}})
+
     def test_new_passage_pt_en_translations_have_no_legacy_language_assumption(self):
         values={'pt':'Pessoa.','en':'Person.'}
         preview=self.adapter.invoke('source_new_preview',{'sourceId':'araujo_catecismo_1686','raw':'apiti','metadata':{'translations':values}})

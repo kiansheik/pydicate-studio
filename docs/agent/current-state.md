@@ -1,5 +1,31 @@
 # Current state
 
+## Desktop research restoration and passage continuity
+
+The previous deployment migrated PDFs and Git sources but omitted desktop draft
+and research stores; hosted seeds therefore showed `Em análise` despite saved
+desktop completion. Deployment now snapshots allowlisted research and browser
+buffers read-only, verifies every file, and reconciles current drafts only after
+a full backup with Studio stopped. Original histories, old identities and
+conflicting desktop versions remain accessible in an administrator history
+viewer; provider queues never restart during historical reads. Credentials and
+browser authentication are excluded. Existing hosted contributions win conflicts.
+
+A real-data isolated PostgreSQL rehearsal restored all 105 current Araújo
+completion flags, 137 matching drafts, 22 historical drafts, one pending passage
+and 30 canvases, with 1,166 saved-field parity checks. Nine stale fingerprints
+remain explicit rather than being relabeled as fresh approval. The input archive
+contains 202 files / 107,494,830 bytes in addition to managed PDFs. Lexical notes
+and browser buffers retain their original provenance and require safe identity
+mapping. Live rollout verification is recorded in the
+[handoff](session-handoffs/2026-09-27-desktop-restoration.md).
+
+Empty next passages also inherit editable reading/location context, translations
+and analysis instructions without inheriting analysis trees, completion or
+approval. The previous PDF page/region remains a guide; existing next-passage
+work is preserved. Optional `prayerName` round-trips in Studio metadata and is
+shown as `Oração (opcional)`.
+
 ## PDF range cache and idle upstream updates
 
 The hosted viewer now fetches original PDF byte ranges, keeps the document open

@@ -44,6 +44,13 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     assert.equal((await post('/api/invoke', { method: 'reference_approve', params: {} }, user)).status, 403);
     assert.equal((await post('/api/invoke', { method: 'analysis_submit', params: {} }, admin)).status, 403);
     assert.equal((await fetch(settings.origin + '/api/admin/report', { headers: { Cookie: user.cookie } })).status, 403);
+    for (const route of ['/api/desktop-history', '/api/desktop-history/item', '/api/desktop-history/file']) {
+        assert.equal((await fetch(settings.origin + route)).status, 401);
+        assert.equal((await fetch(settings.origin + route, { headers: { Cookie: user.cookie } })).status, 403);
+    }
+    const desktopHistory = await fetch(settings.origin + '/api/desktop-history', { headers: { Cookie: admin.cookie } });
+    assert.equal(desktopHistory.status, 200);
+    assert.deepEqual((await desktopHistory.json()).entries, []);
     assert.equal((await fetch(settings.origin + '/api/upstream-status')).status, 401);
     const beforeStatus = await store.db.prepare("SELECT last_seen FROM sessions WHERE user_id=$1").get('contributor');
     const upstreamStatus = await fetch(settings.origin + '/api/upstream-status', { headers: { Cookie: user.cookie } });

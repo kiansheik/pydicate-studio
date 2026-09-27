@@ -111,13 +111,15 @@ class OperationsTests(unittest.TestCase):
     def test_deploy_imports_pdf_evidence_after_migration_before_restart(self):
         host,repo,g=self.local_fetch_fixture()
         with self.root_workspace_operation(host) as (owned,commands):
-            with patch.object(host,'import_evidence',side_effect=lambda file:commands.append(('evidence-import',file))):
-                host.deploy(evidence='managed-pdfs.tar')
+            with patch.object(host,'import_evidence',side_effect=lambda file:commands.append(('evidence-import',file))), \
+                    patch.object(host,'import_desktop',side_effect=lambda file:commands.append(('desktop-import',file))):
+                host.deploy(evidence='managed-pdfs.tar',desktop='research.tar')
         imported=commands.index(('evidence-import','managed-pdfs.tar'))
         migrated=commands.index(('run','--rm','--no-deps','studio','node','server/migrate.cjs'))
         self.assertLess(commands.index(('stop','studio')),migrated)
         self.assertLess(migrated,imported)
-        self.assertLess(imported,commands.index(('up','-d','--wait','studio')))
+        self.assertLess(imported,commands.index(('desktop-import','research.tar')))
+        self.assertLess(commands.index(('desktop-import','research.tar')),commands.index(('up','-d','--wait','studio')))
     def test_collect_restores_git_ownership_even_when_review_is_rejected(self):
         for accepted in (False,True):
             with self.subTest(accepted=accepted):
