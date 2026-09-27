@@ -47,6 +47,22 @@ class Host:
         try: yield
         finally:
             if restart and was_running:self.compose('up','-d','--no-deps','studio')
+    def application_ownership(self, *roots):
+        if os.geteuid()!=0:return
+        for root in roots:
+            for base,dirs,files in os.walk(root):
+                os.chown(base,1000,1000,follow_symlinks=False)
+                for file in files:
+                    p=pathlib.Path(base)/file
+                    if not p.is_symlink():os.chown(p,1000,1000,follow_symlinks=False)
+    @contextlib.contextmanager
+    def workspace_writes(self):
+        try:yield
+        finally:
+            # Root Git commands replace index/refs and may create source files with
+            # umask 077. Restore the container user's access before any restart,
+            # including when fetch, merge or publication fails halfway through.
+            self.application_ownership(self.workspace)
     def clone_dependencies(self):
         self.workspace.mkdir(exist_ok=True)
         pins=json.loads((HERE/'deploy/collab/dependencies.json').read_text())
@@ -92,13 +108,7 @@ class Host:
             elif smtp!='none':raise ValueError('Unknown SMTP mode')
             env.write_text(''.join(f'{key}={value}\n' for key,value in settings.items()));env.chmod(0o600)
         # No secrets are regenerated or copied from other applications on redeployment.
-        if os.geteuid()==0:
-            for root in (self.data,self.workspace):
-                for base,dirs,files in os.walk(root):
-                    os.chown(base,1000,1000)
-                    for file in files:
-                        p=pathlib.Path(base)/file
-                        if not p.is_symlink():os.chown(p,1000,1000)
+        self.application_ownership(self.data,self.workspace)
         run(['docker','network','inspect','caddy_edge'],capture=True)
     def deploy(self, initial=False):
         self.compose('build','studio') # Existing service stays up during build.
@@ -107,15 +117,16 @@ class Host:
         if not initial:self.checkpoint(self.root/'backups'/('predeploy-'+stamp()),restart=False)
         self.compose('stop','studio')
         try:
-            for name in (() if initial else ('nhe-enga','oldtupicorpus')):
-                repo=self.workspace/name
-                if git(repo,'status','--porcelain'):
-                    print(name+': uncommitted server work preserved; upstream sync deferred.')
-                    continue
-                run(['git','-c','safe.directory='+str(repo),'-C',repo,'fetch','origin','main'])
-                ancestor=subprocess.run(['git','-c','safe.directory='+str(repo),'-C',repo,'merge-base','--is-ancestor','HEAD','origin/main']).returncode==0
-                if ancestor:run(['git','-c','safe.directory='+str(repo),'-C',repo,'merge','--ff-only','origin/main'])
-                else:print(name+': unmerged server commits preserved; upstream sync deferred.')
+            with self.workspace_writes():
+                for name in (() if initial else ('nhe-enga','oldtupicorpus')):
+                    repo=self.workspace/name
+                    if git(repo,'status','--porcelain'):
+                        print(name+': uncommitted server work preserved; upstream sync deferred.')
+                        continue
+                    run(['git','-c','safe.directory='+str(repo),'-C',repo,'fetch','origin','main'])
+                    ancestor=subprocess.run(['git','-c','safe.directory='+str(repo),'-C',repo,'merge-base','--is-ancestor','HEAD','origin/main']).returncode==0
+                    if ancestor:run(['git','-c','safe.directory='+str(repo),'-C',repo,'merge','--ff-only','origin/main'])
+                    else:print(name+': unmerged server commits preserved; upstream sync deferred.')
             self.compose('run','--rm','--no-deps','studio','node','server/migrate.cjs')
             self.compose('up','-d','--wait','studio')
         except Exception:
@@ -199,7 +210,7 @@ class Host:
         return manifest
     def collect(self,name,dest,review_sha=''):
         dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
-        with self.stopped():
+        with self.stopped(), self.workspace_writes():
             manifest=self.changes(name);repo=self.workspace/name
             with open(dest/'review.diff','wb') as out:run(['git','-c','safe.directory='+str(repo),'-C',repo,'diff','--binary','origin/main'],stdout=out)
             # Include untracked source bytes in the review directory; do not silently omit them.
@@ -223,12 +234,20 @@ class Host:
     def sync(self,name):
         if name not in ALLOW:raise ValueError('Unknown repository')
         self.checkpoint(self.root/'backups'/('presync-'+stamp()))
-        with self.stopped(restart=False):
+        with self.stopped(restart=False), self.workspace_writes():
             repo=self.workspace/name
             if git(repo,'status','--porcelain'):raise ValueError('Unpublished working edits exist. Publish before synchronization; nothing was reset.')
             run(['git','-c','safe.directory='+str(repo),'-C',repo,'fetch','origin','main'])
             run(['git','-c','safe.directory='+str(repo),'-C',repo,'merge','--ff-only','origin/main'])
         self.compose('up','-d','--wait','studio')
+        self.compose('exec','-T','studio','node','server/publication.cjs','verify')
+    def record_import(self,file):
+        with self.stopped(), self.workspace_writes():
+            for name in ('oldtupicorpus','nhe-enga'):run(['git','-c','safe.directory='+str(self.workspace/name),'-C',self.workspace/name,'fetch','origin'])
+        incoming=self.data/'receipts';incoming.mkdir(exist_ok=True,mode=0o700)
+        copy=incoming/(stamp()+'.json');shutil.copyfile(file,copy);copy.chmod(0o600)
+        if os.geteuid()==0:os.chown(incoming,1000,1000);os.chown(copy,1000,1000)
+        self.compose('exec','-T','studio','node','server/publication.cjs','record','/data/receipts/'+copy.name)
         self.compose('exec','-T','studio','node','server/publication.cjs','verify')
 
 def main():
@@ -251,13 +270,7 @@ def main():
         elif args.action=='stop':host.compose('stop','studio')
         elif args.action=='logs':host.compose('logs','--tail','150','studio')
         elif args.action=='psql':host.compose('exec','postgres','psql','-U','studio_app','-d','studio_prod')
-        elif args.action=='record-import':
-            for name in ('oldtupicorpus','nhe-enga'):run(['git','-c','safe.directory='+str(host.workspace/name),'-C',host.workspace/name,'fetch','origin'])
-            incoming=host.data/'receipts';incoming.mkdir(exist_ok=True,mode=0o700)
-            copy=incoming/(stamp()+'.json');shutil.copyfile(args.file,copy);copy.chmod(0o600)
-            if os.geteuid()==0:os.chown(incoming,1000,1000);os.chown(copy,1000,1000)
-            host.compose('exec','-T','studio','node','server/publication.cjs','record','/data/receipts/'+copy.name)
-            host.compose('exec','-T','studio','node','server/publication.cjs','verify')
+        elif args.action=='record-import':host.record_import(args.file)
         elif args.action=='notify':
             if args.mode not in ('off','hourly','daily'):raise ValueError('Invalid digest mode')
             host.compose('exec','-T','-e','COLLAB_DIGEST_MODE='+args.mode,'studio','node','server/digests.cjs')

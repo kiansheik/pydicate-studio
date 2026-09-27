@@ -59,5 +59,81 @@ class OperationsTests(unittest.TestCase):
         with patch.object(host,'compose') as compose:
             with self.assertRaises(ValueError):host.restore_database('missing.dump','')
             compose.assert_not_called()
+    @contextlib.contextmanager
+    def root_workspace_operation(self,host):
+        """Run real Git with production's umask; observe chown without requiring root."""
+        owned={};commands=[]
+        host.config.mkdir(exist_ok=True);secret=host.config/'runtime.env';secret.write_text('private fixture');secret.chmod(0o600)
+        def chown(path,uid,gid,**kwargs):
+            path=pathlib.Path(path);self.assertEqual((uid,gid),(1000,1000))
+            self.assertFalse(path.is_relative_to(host.config))
+            owned[path]=path.stat().st_ino
+        def compose(*args,**kwargs):
+            commands.append(args)
+            if args[0]=='run' or (args[0]=='up' and args[-1]=='studio') or args[0]=='exec':
+                for repo in host.workspace.iterdir():
+                    if not repo.is_dir():continue
+                    for name in ('index','ORIG_HEAD','FETCH_HEAD'):
+                        path=repo/'.git'/name
+                        if path.exists():self.assertEqual(owned.get(path),path.stat().st_ino,f'{path} must be owned by the app before migration/restart/verification')
+            return b'running-container' if args[0]=='ps' else b''
+        previous=os.umask(0o077)
+        try:
+            with patch('host.os.geteuid',return_value=0),patch('host.os.chown',side_effect=chown),patch.object(host,'compose',side_effect=compose),patch.object(host,'checkpoint'):
+                yield owned,commands
+        finally:
+            os.umask(previous)
+            self.assertEqual(secret.read_text(),'private fixture');self.assertEqual(secret.stat().st_mode&0o777,0o600)
+    def local_fetch_fixture(self):
+        host,repo,g=self.fixture();g('branch','main');g('remote','set-url','origin',str(repo))
+        engine=host.workspace/'nhe-enga'
+        subprocess.run(['git','clone',str(repo),str(engine)],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        return host,repo,g
+    def test_deploy_and_sync_restore_git_ownership_before_app_start(self):
+        for action in ('deploy','sync'):
+            with self.subTest(action=action):
+                host,repo,g=self.local_fetch_fixture()
+                with self.root_workspace_operation(host) as (owned,commands):
+                    if action=='deploy':host.deploy()
+                    else:host.sync('oldtupicorpus')
+                self.assertIn(repo/'.git/ORIG_HEAD',owned)
+                self.assertEqual((repo/'.git/ORIG_HEAD').stat().st_mode&0o777,0o600)
+                self.assertIn(('up','-d','--wait','studio'),commands)
+                self.assertEqual(g('status','--porcelain'),'')
+    def test_failed_fetch_restores_workspace_ownership_and_leaves_deploy_stopped(self):
+        host,repo,g=self.local_fetch_fixture()
+        subprocess.run(['git','-C',str(host.workspace/'nhe-enga'),'remote','set-url','origin',str(host.root/'absent-origin')],check=True)
+        with self.root_workspace_operation(host) as (owned,commands):
+            with self.assertRaises(subprocess.CalledProcessError):host.deploy()
+        self.assertIn(host.workspace/'nhe-enga/.git/FETCH_HEAD',owned)
+        self.assertIn(repo/'.git/index',owned)
+        self.assertFalse(any(args[0]=='up' and args[-1]=='studio' for args in commands))
+    def test_collect_restores_git_ownership_even_when_review_is_rejected(self):
+        for accepted in (False,True):
+            with self.subTest(accepted=accepted):
+                host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('reviewed edit\n')
+                review=host.changes('oldtupicorpus')['reviewSha'] if accepted else '0'*64
+                with self.root_workspace_operation(host) as (owned,commands):
+                    if accepted:host.collect('oldtupicorpus',host.root/'review',review)
+                    else:
+                        with self.assertRaises(ValueError):host.collect('oldtupicorpus',host.root/'review',review)
+                self.assertIn(repo/'.git/index',owned)
+                self.assertIn(('up','-d','--no-deps','studio'),commands)
+                self.assertEqual((repo/'historic/test.tu.py').read_text(),'reviewed edit\n')
+    def test_record_import_restores_git_access_before_restart_and_receipt_verification(self):
+        host,repo,g=self.local_fetch_fixture();host.data.mkdir();receipt=host.root/'import.json';receipt.write_text('{}')
+        with self.root_workspace_operation(host) as (owned,commands):host.record_import(receipt)
+        self.assertIn(repo/'.git/FETCH_HEAD',owned)
+        self.assertLess(commands.index(('stop','studio')),commands.index(('up','-d','--no-deps','studio')))
+        self.assertTrue(any('record' in args for args in commands))
+        self.assertEqual(len(list((host.data/'receipts').glob('*.json'))),1)
+    def test_workspace_ownership_does_not_follow_links_or_touch_private_config(self):
+        host,repo,g=self.fixture()
+        with self.root_workspace_operation(host) as (owned,commands):
+            (host.workspace/'config-link').symlink_to(host.config,target_is_directory=True)
+            (repo/'secret-link').symlink_to(host.config/'runtime.env')
+            with host.workspace_writes():pass
+        self.assertNotIn(repo/'secret-link',owned)
+        self.assertFalse(any(path.is_relative_to(host.config) for path in owned))
 
 if __name__=='__main__':unittest.main()
