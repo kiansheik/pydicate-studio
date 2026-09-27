@@ -30,7 +30,7 @@ jobs:
           docker run --rm --entrypoint bash postgres:17-bookworm -c '
             set -e
             files=$(ldd /usr/lib/postgresql/17/bin/{postgres,initdb,pg_ctl,psql,pg_dump,pg_restore} /usr/lib/postgresql/17/lib/*.so 2>/dev/null | awk "/=> \\// { print \$3 }" | sort -u | grep -Ev "/(libc|libm|libpthread|librt|libdl)\\.so")
-            tar -czf - /usr/lib/postgresql/17 /usr/share/postgresql/17 $files
+            tar --dereference -czf - /usr/lib/postgresql/17 /usr/share/postgresql/17 $files
           ' > postgres-runtime.tar.gz
       - uses: actions/upload-artifact@v4
         with:
