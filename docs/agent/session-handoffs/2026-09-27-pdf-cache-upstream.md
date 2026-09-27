@@ -48,8 +48,8 @@ reports are under `.local/vps-qa/`; credentials and actual PDFs remain ignored.
 - `COLLAB_FULL_EDITOR=1 ... node --test server/tests/source-workflow.test.cjs`:
   compiled real-editor source/PDF/crop/restart/submission workflow passed using
   disposable copies and local Chrome. Neighboring repositories remain clean.
-- Updater: 10 focused real-Git/mock-host tests passed; the complete operations
-  suite passed 47 tests before the final two recovery/control cases were added.
+- Updater: 10 focused real-Git/mock-host tests passed; the final complete
+  operations suite passed all 49 tests.
   HTTP/idle/PDF checks: four passed, including private lease expiry, dirty-work
   preservation, failed-checkpoint restart and passive session-expiry behavior.
 - Targeted formatting and `git diff --check`: pass.
@@ -77,7 +77,31 @@ systemd termination reaches updater cleanup/restart.
 
 ## Live rollout
 
-Pending final deployment and live measurements; append verified results here.
+PR #6 merged as `e716cd53193d2c12e37679889a2344ccb4df0fa6` and deployed
+successfully. Both dependencies fast-forwarded to the clean published revisions
+above. The full backup `predeploy-20260927T162614-687772` passed independent
+SHA-256 verification for its database dump and workspace/config/PDF archive.
+The systemd timer is active; a normal host update check reports both repositories
+current. Public HTTPS health reports the deployed release.
+
+Live normal and 10 Mbps navigation transferred 1,175,699 original PDF bytes
+across cold load, passages 17/18, the next physical page, return and reload.
+Both reloads made zero PDF requests; selection 67 and saved drafts were preserved.
+Private reports: `.local/vps-qa/pdf-performance-2026-09-27T16-28-31.655Z.json`
+and `pdf-performance-2026-09-27T16-34-35.159Z.json`. Individual page timings are
+provisional: the normal run exposed a transient readiness race while changing
+passages. One push CI run failed the same pixel-readiness assertion while the
+PR CI and hosted integration passed. Follow-up adds a render signature scoped to
+passage/asset/page/zoom/rotation/width/attempt, canvas busy/current-page markers,
+and disables drawing until current metadata and pixels finish. The private
+benchmark now requires those markers; final measured results follow below.
+
+The evidence import added four newly matchable entries and still retained 63
+historical passage links/four guides as unmatched. Publishing the new corpus
+does not itself reconstruct old evidence identities; all bytes and original
+associations remain in the private archive, with no ordinal-only reassignment.
+Disposable PostgreSQL was stopped; its logs/data remain under
+`/private/tmp/studio-pdf-pg-0z6izpxm/`.
 
 ## Remaining questions
 

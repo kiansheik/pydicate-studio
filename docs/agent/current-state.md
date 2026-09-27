@@ -22,8 +22,10 @@ revisions: oldtupicorpus `e707610a`, nhe-enga `c43c83ec`.
 
 Local verification: production build, 19 PDF/cache browser scenarios, authenticated
 HTTP/range/abort checks, real-source upload/restore, and the compiled contributor
-source/PDF/crop/restart/submission workflow pass. Live rollout and measurements
-are recorded in the [handoff](session-handoffs/2026-09-27-pdf-cache-upstream.md).
+source/PDF/crop/restart/submission workflow pass. PR #6 (`e716cd5`) is deployed; both repositories are current and the timer
+is active. A follow-up makes current-page rendering readiness explicit before
+drawing. Historical unmatched crop links remain archived for reconciliation.
+Live rollout and measurements are recorded in the [handoff](session-handoffs/2026-09-27-pdf-cache-upstream.md).
 
 ## Main merge and deployment repair
 

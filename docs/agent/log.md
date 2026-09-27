@@ -596,3 +596,8 @@ Added idle-only dependency updates every 15 minutes with a full checkpoint,
 maintenance handshake, clean fast-forwards and health-checked restart. The user
 explicitly selected automatic updates when idle with backup. See
 [handoff](session-handoffs/2026-09-27-pdf-cache-upstream.md) for checks and live results.
+
+The live release and dependency update completed with independently verified
+backup hashes; normal and throttled reloads issue no PDF requests. A CI pixel
+timing race prompted explicit selected-page render readiness and a delayed
+metadata regression before final measurement.
