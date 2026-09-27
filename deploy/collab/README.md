@@ -141,6 +141,57 @@ This is a short supervised restart, not a zero-downtime deployment. Connected br
 unconfirmed work, reconnect and show a reload notice. Ask contributors to wait for “saved” before
 maintenance. The web UI remains the same; old unsaved buffers are never overwritten automatically.
 
+### Automatic corpus and grammar updates
+
+Installation/deployment enables `pydicate-studio-upstream.timer` on the host. Every
+15 minutes (with up to 30 seconds of jitter) it checks the public `main` branches
+of `nhe-enga` and `oldtupicorpus`. It never updates the Studio application itself.
+The authenticated collaboration panel reports current/upstream revisions, waiting
+conditions and completed updates through `GET /api/upstream-status`.
+
+Automatic application requires both repositories to be clean, on `server/work`
+and compatible with fast-forward updates. Dirty files, local commits not merged
+upstream or an unexpected origin defer the update; nothing is reset or stashed.
+The app must report at least ten minutes without interaction or active work using
+a fresh private heartbeat. Active presence, explicit actions and PDF downloads
+reset the idle clock; passive status polling and idle browser tabs do not.
+
+Before stopping, the updater obtains a short private maintenance lease. The app
+grants it only after finite work has drained, then refuses new work temporarily
+with a retryable status. The updater rechecks repository state, takes **one full
+backup of both repositories, PostgreSQL, PDF/state and configuration**, and applies
+only the checked fast-forwards. It restores ownership, restarts Studio, waits for
+health and records actual dependency SHAs in `release.json`. Existing browser
+sessions receive a reload notice; unsaved local buffers are not silently replaced.
+
+Backups remain under `backups/upstream-*` and are not automatically deleted. Private
+handshake/status files live under `data/operations/`; a missing or stale heartbeat
+prevents an automatic update. The existing operations lock serializes this with
+manual deployment, backup, review and restore. Failure or a normal timeout releases
+the lease and attempts to restart the preserved workspace; inspect any failed
+health check. A forced machine/process kill still requires ordinary operational
+recovery.
+
+On the VPS, inspect or pause the timer with:
+
+```sh
+systemctl status pydicate-studio-upstream.timer
+journalctl -u pydicate-studio-upstream.service --since today
+touch /srv/pydicate-studio/config/upstream-disabled
+systemctl disable --now pydicate-studio-upstream.timer
+# Resume checks:
+rm /srv/pydicate-studio/config/upstream-disabled
+systemctl enable --now pydicate-studio-upstream.timer
+```
+
+Disabling the timer stops future checks, not a check already running. The optional
+`config/upstream-disabled` marker preserves that pause across later deployments
+and also makes a manually started check report that automatic updates are disabled.
+Adjust the root path above if using a different deployment directory.
+To run one check immediately, use `systemctl start pydicate-studio-upstream.service`;
+it still requires the same idle lease and full backup. A stopped Studio instance
+is not started automatically by a timer check.
+
 ## 4. PostgreSQL and research preservation
 
 Accounts, password hashes, sessions, shared draft state, every acknowledged changed draft,

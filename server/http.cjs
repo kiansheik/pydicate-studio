@@ -52,6 +52,7 @@ function createHttp({ config, store, auth, runtime }) {
     const vault = new ProviderVault(store, config.vaultKeyFile);
     const streams = new Set(), people = new Map(), limiter = new RateLimiter(store.now);
     let uploading = false;
+    const idle = require('./idle.cjs').createIdle({ directory: config.stateDirectory, now: store.now });
     function json(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); }
     function emit(event) { const line = 'data: ' + JSON.stringify(event) + '\n\n'; for (const item of streams) {
         if (item.res.destroyed || item.res.writableEnded) {
@@ -104,6 +105,7 @@ function createHttp({ config, store, auth, runtime }) {
         res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
         if (config.secure)
             res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+        let finishWork = () => {};
         try {
             const url = new URL(req.url, config.origin), route = url.pathname;
             if (route === '/healthz' && req.method === 'GET') {
@@ -113,7 +115,7 @@ function createHttp({ config, store, auth, runtime }) {
             }
             if (req.headers.host !== new URL(config.origin).host)
                 throw fault(400, 'HOST_DENIED', 'Host inválido.');
-            if (!['GET', 'POST'].includes(req.method))
+            if (!['GET', 'POST'].includes(req.method) && !(req.method === 'HEAD' && route === '/api/pdf'))
                 throw fault(405, 'METHOD_DENIED', 'Método inválido.');
             if (req.headers['sec-fetch-site'] === 'cross-site' && route.startsWith('/api/'))
                 throw fault(403, 'ORIGIN_DENIED', 'Origem não autorizada.');
@@ -147,7 +149,7 @@ function createHttp({ config, store, auth, runtime }) {
                     return json(res, 200, await auth.forgot(input, ip(req)));
                 return json(res, 200, await auth.reset(input));
             }
-            const session = await auth.session(req.headers.cookie, !['/api/events', '/api/presence', '/api/me'].includes(route));
+            const session = await auth.session(req.headers.cookie, !['/api/events', '/api/presence', '/api/me', '/api/upstream-status'].includes(route));
             if (!session) {
                 if (req.method === 'GET' && !route.startsWith('/api/')) {
                     res.writeHead(303, { Location: '/login' });
@@ -158,6 +160,17 @@ function createHttp({ config, store, auth, runtime }) {
             if (req.method === 'POST' && req.headers['x-csrf-token'] !== session.csrf)
                 throw fault(403, 'CSRF_DENIED', 'Recarregue a sessão antes de continuar.');
             limiter.hit('requests:' + session.user.id, 1500, 60000);
+            finishWork = idle.begin(route);
+            if (route === '/api/upstream-status' && req.method === 'GET')
+                return json(res, 200, await require('./idle.cjs').upstreamStatus(config.stateDirectory));
+            if (route === '/api/pdf' && ['GET', 'HEAD'].includes(req.method)) {
+                const params = { projectId: identifier(url.searchParams.get('projectId')),
+                    sourceId: identifier(url.searchParams.get('sourceId')), assetId: url.searchParams.get('assetId') };
+                if (!/^[a-f0-9]{64}$/.test(params.assetId || ''))
+                    throw fault(400, 'PDF_IDENTITY', 'Identidade do PDF inválida.');
+                const asset = await runtime.openPdf(params, { user: session.user });
+                return await require('./pdf.cjs').servePdf(req, res, asset);
+            }
             if (route === '/api/submissions' && req.method === 'GET') return json(res,200,await submissions.list(session.user,integer(url.searchParams.get('after')||0)));
             if (route === '/api/submission' && req.method === 'GET') {
                 const row=await submissions.get(url.searchParams.get('id'));
@@ -270,11 +283,14 @@ function createHttp({ config, store, auth, runtime }) {
                 if(route==='/api/submission/review') { const result=await submissions.review(session.user,input);emit({type:'submissions-change'});return json(res,200,result); }
                 if(route==='/api/admin/submissions/export') {admin(session);return json(res,200,await submissions.export(input.ids));}
                 const ctx = context(req, session);
+                if (!['/api/presence', '/api/drafts/load', '/api/invoke', '/api/usage'].includes(route)) idle.activity();
                 if (route === '/api/presence') {
                     const id = input.passageId ? await runtime.passage(input.passageId, true) : null;
                     const active = input.active === true;
-                    if (active)
+                    if (active) {
+                        idle.activity();
                         await auth.session(req.headers.cookie, true);
+                    }
                     if (people.size >= 300 && !people.has(session.hash + ':' + ctx.clientId))
                         throw fault(429, 'PRESENCE_LIMIT', 'Muitas abas abertas.');
                     people.set(session.hash + ':' + ctx.clientId, { userId: session.user.id, name: session.user.name, clientId: ctx.clientId, passageId: id, active, until: store.now() + 45000 });
@@ -327,6 +343,7 @@ function createHttp({ config, store, auth, runtime }) {
                     limiter.hit('usage:' + session.user.id, 180, 60000);
                     if (!UI_EVENTS.has(input.event))
                         throw fault(400, 'EVENT_DENIED', 'Evento inválido.');
+                    if (input.event !== 'ui.error') idle.activity();
                     const id = input.passageId && await runtime.hasPassage(input.passageId) ? input.passageId : null;
                     const duration = Number.isFinite(input.durationMs) ? Math.round(Math.max(0, Math.min(input.durationMs, 3600000))) : null;
                     // No client-provided names, details, text, error messages, or authorship.
@@ -336,6 +353,7 @@ function createHttp({ config, store, auth, runtime }) {
                 if (route === '/api/refresh')
                     return json(res, 200, await runtime.refresh(ctx));
                 if (route === '/api/invoke') {
+                    if (!['evidence_status', 'reference_status', 'dictionary_status', 'passage_lexicon'].includes(input.method)) finishWork.activity();
                     const params = input.params ?? {};
                     if (!params || typeof params !== 'object' || Array.isArray(params))
                         throw fault(400, 'INVALID_INPUT', 'Parâmetros inválidos.');
@@ -372,10 +390,10 @@ function createHttp({ config, store, auth, runtime }) {
                 return;
             }
             const status = Number.isInteger(error.status) ? error.status : (error.code === 'ENOENT' ? 404 : 500);
-            if (status === 429)
-                res.setHeader('Retry-After', '60');
+            if (status === 429 || error.code === 'UPSTREAM_UPDATING')
+                res.setHeader('Retry-After', status === 429 ? '60' : '15');
             json(res, status, { error: { code: status === 500 ? 'SERVER_ERROR' : error.code || 'INVALID_INPUT', message: status === 500 ? 'Não foi possível completar o pedido. A administração deve verificar o servidor.' : String(error.message).slice(0, 4000) } });
-        }
+        } finally { finishWork(); }
     });
     server.requestTimeout = 60000;
     server.headersTimeout = 15000;
@@ -404,8 +422,8 @@ function createHttp({ config, store, auth, runtime }) {
     };
     const timer = setInterval(() => { void tick(); }, 15000);
     timer.unref();
-    server.on('close', () => clearInterval(timer));
-    return { server, emit, close: async () => { clearInterval(timer); for (const item of streams)
+    server.on('close', () => { clearInterval(timer); void idle.close(); });
+    return { server, emit, close: async () => { clearInterval(timer); await idle.close(); for (const item of streams)
             item.res.end(); const closing = new Promise(resolve => server.close(resolve)); server.closeAllConnections(); await closing; } };
 }
 module.exports = { createHttp, body, POLICY, UI_EVENTS };

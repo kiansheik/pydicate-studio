@@ -178,6 +178,18 @@ async function createStudio(config, store, emit = () => { }) {
     }
     return {
         get project() { return project; }, hasPassage, passage, validateChanges, invoke,
+        // PDF bytes do not use the serialized grammar worker queue. Each range
+        // still revalidates the authenticated user, project and source binding.
+        openPdf: async (params, context) => {
+            if (store.db.unavailable) throw fault(503, 'DATABASE_UNAVAILABLE', 'Banco de dados indisponível.');
+            await store.assertUser(context.user);
+            if (params.projectId !== project.id)
+                throw fault(403, 'PROJECT_MISMATCH', 'Projeto inválido.');
+            if (!project.sources?.some(s => s.id === params.sourceId) && !project.passages.some(p => p.sourceId === params.sourceId))
+                throw fault(400, 'SOURCE_MISSING', 'Fonte desconhecida.');
+            try { return await service.openEvidence({ projectId: project.id, sourceId: params.sourceId, assetId: params.assetId }); }
+            catch (error) { error.status ||= error.code === 'ENOENT' ? 404 : 422; error.code ||= 'EVIDENCE_ERROR'; throw error; }
+        },
         refresh: context => queue.run(context.user.id, async () => { await store.assertUser(context.user); return open(); }),
         upload: (file, params, context) => queue.run(context.user.id, async () => {
             if(store.db.unavailable) throw fault(503, 'DATABASE_UNAVAILABLE', 'Banco de dados indisponível.');

@@ -320,3 +320,56 @@ test('inserting before the first passage never borrows a later PDF region as its
   assert.deepEqual(inserted.guideCandidates, []);
   assert.equal(inserted.guideSeed, null);
 });
+
+test('streamed PDF access retains source binding and invalidates integrity cache after file changes', async (t) => {
+  const f = await fixture(t),
+    api = f.service();
+  const params = {
+    projectId: f.params.projectId,
+    sourceId: f.params.sourceId,
+    assetId: f.attached.asset.id,
+  };
+  const managed = path.join(f.stateDirectory, 'assets', `${params.assetId}.pdf`);
+  const open = fs.open.bind(fs);
+  let reads = 0;
+  t.mock.method(fs, 'open', async (...args) => {
+    const handle = await open(...args);
+    if (args[0] === managed) {
+      const read = handle.read.bind(handle);
+      handle.read = (...input) => {
+        reads++;
+        return read(...input);
+      };
+    }
+    return handle;
+  });
+  const first = await api.openAsset(params);
+  assert.equal(first.id, params.assetId);
+  assert.equal(first.size, makePdfFixture().length);
+  await first.handle.close();
+  assert.ok(reads > 0, 'a cold file is actually hashed');
+  const initialReads = reads;
+  const parallel = await Promise.all([api.openAsset(params), api.openAsset(params)]);
+  await Promise.all(parallel.map((asset) => asset.handle.close()));
+  assert.equal(reads, initialReads, 'unchanged files do not reread all PDF bytes for ranges');
+  await assert.rejects(
+    api.openAsset({ ...params, sourceId: 'other-source' }),
+    /PDF selecionado mudou/,
+  );
+  await assert.rejects(
+    api.openAsset({ ...params, assetId: 'a'.repeat(64) }),
+    /PDF selecionado mudou/,
+  );
+  const before = await fs.stat(managed),
+    changed = Buffer.from(makePdfFixture());
+  changed[changed.length - 2] ^= 1;
+  await fs.writeFile(managed, changed);
+  await fs.utimes(managed, before.atime, before.mtime);
+  await assert.rejects(api.openAsset(params), /cópia do PDF foi alterada/);
+  assert.ok(reads > initialReads, 'same length and restored mtime still rechecks changed ctime');
+  assert.equal((await api.invoke('evidence_status', f.params)).asset.managedState, 'changed');
+  await fs.writeFile(managed, makePdfFixture());
+  const repaired = await api.openAsset(params);
+  assert.deepEqual(await repaired.handle.readFile(), makePdfFixture());
+  await repaired.handle.close();
+});

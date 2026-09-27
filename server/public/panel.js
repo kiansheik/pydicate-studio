@@ -16,6 +16,28 @@
   const help=element('a','Tutorial e documentação ↗',actions);help.href='/help';help.target='_blank';help.rel='noopener';
   button('Enviar última versão salva para revisão',async()=>{const result=await api.submit();status.textContent='Versão congelada enviada para revisão: '+result.id;await loadSubmissions();},actions);
   element('p','A reserva dura dois minutos e é renovada enquanto você está ativo. Outras pessoas podem consultar e comentar. Mudanças remotas exigem recarga explícita; não misturamos árvores concorrentes automaticamente.');
+  const upstreamBox=element('details');element('summary','Atualizações do corpus e da gramática',upstreamBox);
+  const upstreamStatus=element('p','Consultando atualizações…',upstreamBox),upstreamRows=element('div',undefined,upstreamBox);
+  let upstreamHeads;
+  async function loadUpstream(){
+    const data=await api.request('/api/upstream-status');
+    if(!data.enabled){upstreamStatus.textContent='Atualizações automáticas não configuradas neste servidor.';return;}
+    const states={checking:'Verificando versões disponíveis.',current:'Corpus e gramática atualizados.',waiting:'Atualização aguardando um período sem atividade.',updated:'Corpus e gramática atualizados com backup.',failed:'A atualização não foi concluída. O estado foi preservado para verificação.'};
+    upstreamStatus.textContent=(states[data.state]||'Aguardando a primeira verificação.')+` Verificação a cada ${data.intervalMinutes} minutos; atualização após ${data.idleMinutes} minutos sem atividade, com backup antes de alterar arquivos.`;
+    if(data.checkedAt)upstreamStatus.textContent+=' Última verificação: '+new Date(data.checkedAt).toLocaleString('pt-BR')+'.';
+    upstreamRows.replaceChildren();
+    const labels={current:'atualizado',available:'nova versão disponível',dirty:'adiado: há alterações locais',diverged:'adiado: os históricos precisam ser conciliados'};
+    for(const repo of data.repositories||[])element('p',repo.name+': '+(labels[repo.state]||'verificando')+(repo.head?' · '+repo.head.slice(0,8):''),upstreamRows);
+    const heads=JSON.stringify((data.repositories||[]).map(repo=>[repo.name,repo.head]));
+    if(upstreamHeads!==undefined&&heads!==upstreamHeads){
+      element('p','Uma nova versão foi instalada. Salve suas edições e carregue o estado compartilhado para usar os dados atualizados.',upstreamRows);
+      button('Carregar dados atualizados',()=>api.reload(),upstreamRows);
+    }
+    if((data.repositories||[]).length&&data.repositories.every(repo=>repo.head))upstreamHeads??=heads;
+  }
+  button('Atualizar estado das fontes',loadUpstream,upstreamBox);
+  void loadUpstream().catch(()=>{upstreamStatus.textContent='Não foi possível consultar as atualizações.';});
+  setInterval(()=>void loadUpstream().catch(()=>{}),60_000);
   const comments=element('section');element('h3','Comentários da passagem',comments);const list=element('div',undefined,comments);
   const form=element('form',undefined,comments),label=element('label','Comentário',form),input=element('textarea',undefined,label);input.maxLength=4000;input.required=true;
   const reply=element('input',undefined,form);reply.type='number';reply.min='1';reply.placeholder='ID da discussão para responder (opcional)';reply.setAttribute('aria-label','ID da discussão para responder');

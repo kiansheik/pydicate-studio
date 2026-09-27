@@ -586,3 +586,13 @@ private backups/restores, source receipts/digests, public contributor help/DNS, 
 identity without password copying. Local PostgreSQL/operations and real Neo identity tests
 passed; full clean-host and compiled-browser checks are recorded in the PR's subsequent CI.
 Production/SMTP/DNS remain unchanged. See `collab-server-handoff.md`.
+
+## 2026-09-27 — Fast original-PDF navigation and automatic dependency updates
+
+Replaced full 84.7 MB hosted PDF downloads on passage changes with checked byte
+ranges and a seven-day account-scoped IndexedDB cache. Same-source navigation
+retains the open PDF; scan quality and crop coordinates remain unchanged.
+Added idle-only dependency updates every 15 minutes with a full checkpoint,
+maintenance handshake, clean fast-forwards and health-checked restart. The user
+explicitly selected automatic updates when idle with backup. See
+[handoff](session-handoffs/2026-09-27-pdf-cache-upstream.md) for checks and live results.

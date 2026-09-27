@@ -2,7 +2,7 @@
 
 // Original, two-page vector-only fixture, generated from PDF objects and a valid xref.
 // A blue rectangle at [100, 300, 260, 400] gives the tests a physical landmark.
-function makePdfFixture({ variant = false } = {}) {
+function makePdfFixture({ variant = false, paddingBytes = 0 } = {}) {
   const stream = variant
     ? '1 0 0 rg 100 300 160 100 re f\n'
     : '0.05 0.3 0.8 rg 100 300 160 100 re f\n';
@@ -13,6 +13,10 @@ function makePdfFixture({ variant = false } = {}) {
     `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}endstream`,
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Rotate 90 /Contents 4 0 R /Resources << >> >>',
   ];
+  // A valid, unreferenced stream makes a large range fixture without requiring
+  // PDF.js to scan a giant comment while parsing the trailer or page contents.
+  if (paddingBytes)
+    objects.push(`<< /Length ${paddingBytes} >>\nstream\n${'x'.repeat(paddingBytes)}\nendstream`);
   let pdf = '%PDF-1.7\n';
   const offsets = [0];
   objects.forEach((object, index) => {

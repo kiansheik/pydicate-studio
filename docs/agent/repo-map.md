@@ -2,6 +2,17 @@
 
 ## Hosted collaboration and deployment
 
+- `src/domain/pdf-document.ts`, `PdfEvidence.tsx`: authenticated original-byte
+  ranges, seven-day bounded IndexedDB chunk cache, same-source document reuse,
+  visible progress and retry. `tests/pdf-cache*` and `pdf-evidence.spec.ts` cover
+  persistence, isolation, expiry, corruption, storage fallback and actual pixels.
+- `server/pdf.cjs`, `electron/evidence-service.cjs`: handle-based PDF streaming,
+  HTTP ranges and stat-bound SHA verification cache without full-file allocation.
+- `server/idle.cjs`, `scripts/collab/upstream.py`: private fresh idle/lease handshake,
+  15-minute systemd dependency checks, backup before clean fast-forward updates,
+  preserved dirty/diverged work and health-checked restart. Public authenticated
+  status is shown in the collaboration panel; source reload remains explicit.
+
 - `python/source_catalog.py`, `adapter.py`, `authoring_service.py`: safe empty
   source scaffold/title/year metadata, all-source catalog, named-collection
   append and first-passage context. `src/domain/sources.ts`, `NewSourceDialog`,

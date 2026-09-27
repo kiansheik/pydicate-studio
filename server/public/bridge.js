@@ -64,6 +64,8 @@
   window.studio=Object.freeze({
     runtime:'collaborative',
     capabilities:Object.freeze({analysis:false,get sourceReview(){return ['reviewer','admin'].includes(identity?.user?.role);}}),
+    evidenceUrl:({projectId,sourceId,assetId})=>'/api/pdf?'+new URLSearchParams({projectId,sourceId,assetId}),
+    evidenceCacheScope:()=>identity?.user?.id??null,
     submitContribution:()=>window.collab.submit(),
     invoke:async(method,params={})=>{
       if(method==='evidence_attach'||method==='evidence_relocate'){

@@ -41,6 +41,13 @@ test('hosted contributor creates an empty source, attaches a PDF and restores it
   const pdf = path.join(directory, 'witness.pdf'); fs.writeFileSync(pdf, '%PDF-1.4\n% isolated managed-byte fixture\n%%EOF\n');
   const attached = await runtime.upload(pdf, evidence, context);
   assert.ok(attached.asset.id);
+  const pdfParams = { projectId: runtime.project.id, sourceId: evidence.sourceId, assetId: attached.asset.id };
+  const opened = await runtime.openPdf(pdfParams, context);
+  assert.deepEqual(await opened.handle.readFile(), fs.readFileSync(pdf));
+  await opened.handle.close();
+  await assert.rejects(runtime.openPdf({ ...pdfParams, projectId: 'project:another' }, context), { code: 'PROJECT_MISMATCH' });
+  await assert.rejects(runtime.openPdf({ ...pdfParams, sourceId: 'absent' }, context), { code: 'SOURCE_MISSING' });
+  await assert.rejects(runtime.openPdf({ ...pdfParams, sourceId: created.passages[0].sourceId }, context), /PDF selecionado mudou/);
   await assert.rejects(runtime.upload(pdf, { ...evidence, replace: true }, context), { code: 'REVIEWER_REQUIRED' });
   await assert.rejects(runtime.upload(pdf, { ...evidence, sourceId: created.passages[0].sourceId }, context), { code: 'SOURCE_MISMATCH' });
   await assert.rejects(runtime.invoke('source_apply', { previewId: 'none' }, context), { code: 'REVIEWER_REQUIRED' });
