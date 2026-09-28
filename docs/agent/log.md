@@ -10,6 +10,15 @@ compiled hosted browser coverage proves grammar edits automatically reload Pytho
 and refresh the UI while preserving drafts and the running job. See the
 [fix handoff](session-handoffs/2026-09-28-hosted-grammar-repair.md).
 
+PR #13 deployed `4384e8b` with a verified backup. The exact saved repair resumed
+through the live UI and completed ready-for-review with the intended form, three
+edit receipts and no corpus differences across 146 passages. The modified grammar
+suite passes 17 tests; final browser QA and all draft/PDF parity checks pass.
+The first QA harness accidentally denied automatic refresh; corrected fresh-UI
+verification passes, while the compiled regression proves automatic SSE refresh.
+All final PR and deployed-merge Checks/hosted CI are green.
+
+
 ## 2026-09-28 - Investigate reported hosted grammar failure
 
 Confirmed working MCP/authentication, an advertised-but-sparse-excluded grammar

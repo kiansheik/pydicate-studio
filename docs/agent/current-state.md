@@ -1,6 +1,6 @@
 # Current state
 
-## Hosted grammar-repair compatibility fix
+## Deployed hosted grammar-repair compatibility fix
 
 The failed `sete abá reté reséndûara nã e'i` attempt reached MCP but read a
 sparse-excluded guide, then hit UNKNOWN_TOOL without recording the rejected name.
@@ -14,8 +14,27 @@ Deployment expands existing grammar sparse checkouts after backup/shutdown,
 preserving dirty work and custom paths; grammar_files lists only readable allowed
 files. A real compiled hosted-browser regression edits a disposable grammar,
 observes automatic Python/UI refresh, and verifies unchanged drafts/source and a
-surviving job. No hosted reload implementation change was needed. Release and live
-resumption verification are pending; see the
+surviving job. No hosted reload implementation change was needed.
+
+PR #13 is merged and runtime `4384e8b` is live. Both final PR Checks runs,
+hosted CI and deployed-merge Checks/hosted CI passed. Resumed the exact original
+failed job through the production UI with its saved input and existing limits:
+new attempt completed ready-for-review, with receipts for Number dispatch,
+regression tests and grammar notes. It produces exactly
+`sete abá reté reséndûara nã e'i`, recognizes the third-person subject, and reports
+146 corpus passages checked with no changed surfaces or new reference issues.
+All 17 tests in the modified grammar test file pass. All 178 saved drafts/versions,
+both PDF documents, recovery data and import receipts remain byte-equivalent.
+The full predeploy backup hashes are independently verified.
+
+The first live QA script blocked its own `/api/refresh` requests; that run cannot
+prove automatic browser refresh. After permitting that normal read endpoint,
+fresh-browser QA displayed the exact form and review result with no API/browser
+errors. Automatic refresh is verified separately by the compiled real-Python
+browser regression. The resumed model's claim that the guide is absent is stale:
+it exists as a regular 11,437-byte file after deployment. Grammar edits remain
+uncommitted server work, available for human review; no upstream grammar or
+corpus publication was performed. See the
 [fix handoff](session-handoffs/2026-09-28-hosted-grammar-repair.md) and original
 [investigation](session-handoffs/2026-09-28-grammar-failure-investigation.md).
 
