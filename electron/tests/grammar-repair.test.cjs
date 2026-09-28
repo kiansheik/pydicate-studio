@@ -282,6 +282,58 @@ test('a checked grammar edit reloads real Python output and reports corpus chang
   );
 });
 
+test('grammar_files advertises only available guides and grammar files that can be read', async (t) => {
+  const f = await fixture(t),
+    job = await f.job();
+  assert.deepEqual((await f.repair.call(job, 'grammar_files', {})).files, ['tupi/tupi/verb.py']);
+  await fs.mkdir(path.join(f.engine, 'docs/agent'), { recursive: true });
+  await fs.mkdir(path.join(f.engine, 'tests'));
+  await fs.writeFile(
+    path.join(f.engine, 'docs/agent/grammar-navigation.md'),
+    'Rules and locations',
+  );
+  await fs.writeFile(path.join(f.engine, 'AGENT_NOTES.md'), 'Saved rule notes');
+  await fs.writeFile(path.join(f.engine, 'AGENTS.md'), 'Repository instructions');
+  await fs.writeFile(path.join(f.engine, 'tests/test_grammar.py'), '# grammar regression');
+  const { files } = await f.repair.call(job, 'grammar_files', {});
+  assert.deepEqual(files, [
+    'AGENTS.md',
+    'AGENT_NOTES.md',
+    'docs/agent/grammar-navigation.md',
+    'tests/test_grammar.py',
+    'tupi/tupi/verb.py',
+  ]);
+  for (const filename of files) {
+    const file = await f.repair.call(job, 'grammar_read', { path: filename });
+    assert.equal(file.path, filename);
+    assert(file.hash);
+  }
+  assert.deepEqual((await f.repair.call(job, 'grammar_files', { query: 'tests/' })).files, [
+    'tests/test_grammar.py',
+  ]);
+});
+
+test('grammar_files omits nonregular, linked, and oversized files, including linked guide parents', async (t) => {
+  const f = await fixture(t),
+    job = await f.job();
+  await fs.symlink(path.join(f.engine, 'historical.txt'), path.join(f.engine, 'AGENT_NOTES.md'));
+  await fs.mkdir(path.join(f.engine, 'AGENTS.md'));
+  await fs.mkdir(path.join(f.engine, 'other/agent'), { recursive: true });
+  await fs.writeFile(path.join(f.engine, 'other/agent/grammar-navigation.md'), 'Unavailable guide');
+  await fs.symlink(path.join(f.engine, 'other'), path.join(f.engine, 'docs'));
+  await fs.symlink(
+    path.join(f.engine, 'historical.txt'),
+    path.join(f.engine, 'tupi/tupi/linked.py'),
+  );
+  await fs.link(
+    path.join(f.engine, 'historical.txt'),
+    path.join(f.engine, 'tupi/tupi/hardlinked.py'),
+  );
+  await fs.writeFile(path.join(f.engine, 'tupi/tupi/oversized.py'), 'x'.repeat(512001));
+  await fs.writeFile(path.join(f.engine, 'tests'), 'Not a directory');
+  assert.deepEqual((await f.repair.call(job, 'grammar_files', {})).files, ['tupi/tupi/verb.py']);
+});
+
 test('grammar tools reject traversal, links, instructions edits and arbitrary host operations', async (t) => {
   const f = await fixture(t),
     job = await f.job();

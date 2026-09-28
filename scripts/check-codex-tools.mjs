@@ -11,6 +11,7 @@ const { CodexProvider } = require('../electron/provider-codex.cjs');
 const { JsonLineRpc } = require('../electron/provider-rpc.cjs');
 const { createStudioMcpGateway } = require('../electron/studio-mcp-gateway.cjs');
 const { tools, GUIDE } = require('../electron/scratch-service.cjs');
+const { REPAIR_TOOLS, REPAIR_STRATEGY } = require('../electron/grammar-repair.cjs');
 const { runAgent } = require('../electron/agent-runner.cjs');
 const model = 'gpt-5.6-terra';
 const expected = [
@@ -24,6 +25,25 @@ text(await tools.mcp__studio_authoring__studio_guide({}));
 text(await tools.mcp__studio_authoring__studio_candidate_create({raw:'a'}));
 text(await tools.mcp__studio_authoring__studio_candidate_evaluate({candidateId:'fixture-c',expectedRevision:'fixture-r'}));
 text(await tools.mcp__studio_authoring__studio_candidate_propose({candidateId:'fixture-c',expectedRevision:'fixture-r',rationale:'fixture',uncertainties:[],translation:{text:'Pessoa.',uncertainties:[]}}));`;
+const grammarCode = `
+text(await tools.list_mcp_resources({server:'studio_authoring'}));
+text(await tools.read_mcp_resource({server:'studio_authoring',uri:'studio://authoring/guide'}));
+text(await tools.mcp__studio_authoring__grammar_context({}));
+text(await tools.mcp__studio_authoring__grammar_files({}));
+text(await tools.mcp__studio_authoring__grammar_read({path:'docs/agent/grammar-navigation.md'}));
+text(await tools.mcp__studio_authoring__grammar_read({path:'pydicate/rule.py'}));
+text(await tools.mcp__studio_authoring__grammar_edit({path:'pydicate/rule.py',expectedHash:'${'a'.repeat(64)}',oldText:'before',newText:'after'}));
+text(await tools.mcp__studio_authoring__reload_engine({}));
+text(await tools.mcp__studio_authoring__render_candidate({raw:'fixture'}));`;
+const grammarExpected = [
+  'grammar_context',
+  'grammar_files',
+  'grammar_read',
+  'grammar_read',
+  'grammar_edit',
+  'reload_engine',
+  'render_candidate',
+];
 const cachePath = path.join(
   process.env.CODEX_HOME || path.join(os.homedir(), '.codex'),
   'models_cache.json',
@@ -36,7 +56,8 @@ assert.equal(
   'This regression requires the installed code-mode-only model metadata.',
 );
 
-async function check({ disabledHost = false, partialCatalog = false } = {}) {
+async function check({ disabledHost = false, partialCatalog = false, grammar = false } = {}) {
+  const catalog = grammar ? REPAIR_TOOLS : tools;
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-codex-toolchain-'));
   const codexHome = path.join(directory, 'codex');
   await fs.mkdir(codexHome);
@@ -68,7 +89,7 @@ async function check({ disabledHost = false, partialCatalog = false } = {}) {
               call_id: 'fixture-call',
               namespace: 'functions',
               name: 'exec',
-              input: code,
+              input: grammar ? grammarCode : code,
             }
           : {
               type: 'message',
@@ -103,11 +124,13 @@ async function check({ disabledHost = false, partialCatalog = false } = {}) {
   });
   const gateway = createStudioMcpGateway({
     stateDirectory: directory,
-    listTools: () => (partialCatalog ? tools.slice(0, 8) : tools),
-    getGuide: () => GUIDE,
+    listTools: () => (partialCatalog ? catalog.slice(0, 8) : catalog),
+    getGuide: () => (grammar ? REPAIR_STRATEGY : GUIDE),
     isJobActive: () => true,
-    callTool: async (_job, name) => {
+    callTool: async (_job, name, args) => {
       calls.push(name);
+      if (grammar && name === 'grammar_read' && args.path === 'docs/agent/grammar-navigation.md')
+        throw Object.assign(new Error('Fixture guide missing.'), { code: 'ENOENT' });
       return { tool: name, id: 'fixture-c', revisionId: 'fixture-r' };
     },
   });
@@ -153,7 +176,8 @@ async function check({ disabledHost = false, partialCatalog = false } = {}) {
       providers: { codex: provider },
       model,
       input: { digest: 'fixture', task: 'analyze', diplomatic: 'fixture' },
-      tools,
+      tools: catalog,
+      grammarRepair: grammar,
       mcp,
       budgets: { timeoutMs: 30000 },
       onEvent: async (event) => events.push(event),
@@ -172,12 +196,22 @@ async function check({ disabledHost = false, partialCatalog = false } = {}) {
         assert.match(JSON.stringify(output), /code-mode host is disabled/);
         assert.equal(calls.length, 0);
       } else {
-        assert.deepEqual(calls, expected);
+        assert.deepEqual(calls, grammar ? grammarExpected : expected);
         assert.deepEqual(
           events.filter((event) => event.type === 'tool-result').map((event) => event.tool),
-          expected,
+          grammar ? ['list_mcp_resources', 'read_mcp_resource', ...grammarExpected] : expected,
         );
         assert(!JSON.stringify(output).includes('code-mode host is disabled'));
+        if (grammar) {
+          const results = events.filter((event) => event.type === 'tool-result');
+          const guide = results.find((event) => event.tool === 'read_mcp_resource');
+          assert.equal(JSON.parse(guide.result.content[0].text).contents[0].text, REPAIR_STRATEGY);
+          const failed = results.find((event) => event.result.isError);
+          assert.equal(failed.tool, 'grammar_read');
+          assert.equal(failed.result.error.code, 'ENOENT');
+          assert.equal(failed.result.error.message, 'Fixture guide missing.');
+          assert.equal(results.filter((event) => event.result.isError).length, 1);
+        }
       }
     }
     if (transportError) throw transportError;
@@ -186,7 +220,9 @@ async function check({ disabledHost = false, partialCatalog = false } = {}) {
         ? 'incomplete-catalog'
         : disabledHost
           ? 'disabled-host-reproduction'
-          : 'fixed-host',
+          : grammar
+            ? 'grammar-guide-error-and-recovery'
+            : 'fixed-host',
       localModelRequests: requests.length,
       studioCalls: calls.length,
       paidRequests: 0,
@@ -198,5 +234,5 @@ async function check({ disabledHost = false, partialCatalog = false } = {}) {
     await fs.rm(directory, { recursive: true, force: true });
   }
 }
-for (const options of [{ disabledHost: true }, { partialCatalog: true }, {}])
+for (const options of [{ disabledHost: true }, { partialCatalog: true }, {}, { grammar: true }])
   console.log(JSON.stringify(await check(options)));

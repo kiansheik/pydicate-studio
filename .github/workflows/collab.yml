@@ -66,7 +66,7 @@ jobs:
         working-directory: studio
       - name: Full compiled React editor with the real Python service
         run: |
-          COLLAB_FULL_EDITOR=1 COLLAB_REAL_PROJECT="$GITHUB_WORKSPACE/workspace" node --test server/tests/full-editor.test.cjs server/tests/source-workflow.test.cjs
+          COLLAB_FULL_EDITOR=1 COLLAB_REAL_PROJECT="$GITHUB_WORKSPACE/workspace" node --test server/tests/full-editor.test.cjs server/tests/source-workflow.test.cjs server/tests/grammar-reload.test.cjs
           test -z "$(git -C "$GITHUB_WORKSPACE/workspace/oldtupicorpus" status --porcelain --untracked-files=no)"
         working-directory: studio
       - name: Hosted editor browser evidence

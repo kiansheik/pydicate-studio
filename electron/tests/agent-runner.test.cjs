@@ -637,6 +637,126 @@ test('Codex duplicate completion is idempotent; malformed args remain error evid
   await assert.rejects(runCodex(repeated), { code: 'TOOL_CALL_ID_REUSE' });
 });
 
+test('Codex accepts its scoped guide resource helpers without expanding the registered tools', async () => {
+  const rpc = new CodexRpc((r) => {
+    codexTool(r, 'resources', 'list_mcp_resources', { server: 'studio_authoring' });
+    codexTool(r, 'guide', 'read_mcp_resource', {
+      server: 'studio_authoring',
+      uri: 'studio://authoring/guide',
+    });
+    codexTool(r, 'create', 'scratch_create', { query: 'guide read' });
+    codexFinish(r);
+  });
+  const result = await runCodex(rpc);
+  assert.deepEqual(
+    result.checkpoint.toolEvents
+      .filter((event) => event.type === 'tool-result')
+      .map((event) => event.tool),
+    ['list_mcp_resources', 'read_mcp_resource', 'scratch_create'],
+  );
+  const config = rpc.calls.find((call) => call.method === 'thread/start').params.config;
+  assert.deepEqual(
+    config['mcp_servers.studio_authoring'].enabled_tools,
+    tools.map((tool) => tool.name),
+  );
+});
+
+test('Codex rejects foreign or unscoped resource reads and preserves bounded identities without arguments', async (t) => {
+  for (const [tool, server, args] of [
+    ['list_mcp_resources', 'studio_authoring', {}],
+    ['list_mcp_resources', 'studio_authoring', { server: 'foreign' }],
+    ['list_mcp_resources', 'foreign', { server: 'studio_authoring' }],
+    [
+      'read_mcp_resource',
+      'studio_authoring',
+      { server: 'studio_authoring', uri: 'file:///private' },
+    ],
+    [
+      'read_mcp_resource',
+      'studio_authoring',
+      { server: 'foreign', uri: 'studio://authoring/guide' },
+    ],
+    ['unknown\n' + 'x'.repeat(500), 'studio_authoring', { private: 'DO NOT RECORD ARGUMENTS' }],
+  ])
+    await t.test(`${tool.slice(0, 30)} ${server} ${JSON.stringify(args)}`, async () => {
+      const events = [],
+        checkpoints = [];
+      const rpc = new CodexRpc((r) => {
+        codexTool(r, 'before', 'scratch_create', { query: 'preserved' });
+        r.emit('item/started', {
+          item: { type: 'mcpToolCall', id: 'reject', server, tool, arguments: args },
+        });
+        codexFinish(r);
+      });
+      await assert.rejects(
+        runCodex(rpc, {
+          onEvent: async (event) => events.push(event),
+          onCheckpoint: async (checkpoint) => checkpoints.push(checkpoint),
+        }),
+        { code: 'UNKNOWN_TOOL' },
+      );
+      const last = checkpoints.at(-1);
+      assert.equal(last.phase, 'tool-rejected');
+      assert.equal(last.toolEvents[1].type, 'tool-result');
+      const rejected = last.toolEvents.at(-1);
+      assert.equal(rejected.type, 'tool-rejected');
+      assert.equal(rejected.callId, 'reject');
+      assert.equal(rejected.server, server);
+      assert.equal(rejected.tool, tool.replace(/\n/g, '').slice(0, 128));
+      assert.equal(rejected.result.isError, true);
+      assert.equal(rejected.result.error.code, 'UNKNOWN_TOOL');
+      assert(!Object.hasOwn(rejected, 'arguments'));
+      assert(!JSON.stringify(checkpoints).includes('DO NOT RECORD ARGUMENTS'));
+      assert.deepEqual(events.at(-1), rejected);
+      assert(rpc.closed);
+    });
+});
+
+test('Codex restores MCP isError from failed status while preserving error content and completed work', async () => {
+  const envelope = {
+    content: [
+      { type: 'text', text: JSON.stringify({ code: 'ENOENT', message: 'Guide missing.' }) },
+    ],
+    structuredContent: null,
+  };
+  const rpc = new CodexRpc((r) => {
+    r.emit('item/completed', {
+      item: {
+        type: 'mcpToolCall',
+        id: 'failed',
+        server: 'studio_authoring',
+        tool: 'scratch_evaluate',
+        arguments: { candidate: 'saved' },
+        status: 'failed',
+        error: null,
+        result: envelope,
+      },
+    });
+    // Ordinary successful text remains successful even if its JSON resembles
+    // an error. The transport's explicit failure status is authoritative.
+    codexTool(r, 'success', 'scratch_evaluate', { candidate: 'saved' }, envelope);
+    codexFinish(r);
+  });
+  const result = await runCodex(rpc);
+  const results = result.checkpoint.toolEvents.filter((event) => event.type === 'tool-result');
+  assert.equal(results[0].result.isError, true);
+  assert.deepEqual(results[0].result.error, { code: 'ENOENT', message: 'Guide missing.' });
+  assert.deepEqual(results[0].result.content, envelope.content);
+  assert.equal(results[1].result.isError, undefined);
+  const resumed = new CodexRpc((r) => codexFinish(r, 'Continuação.'));
+  await runCodex(resumed, {
+    checkpoint: result.checkpoint,
+    continuation: { context: { instruction: 'Continue.' } },
+  });
+  const prompt = JSON.parse(
+    resumed.calls.find((call) => call.method === 'turn/start').params.input[0].text,
+  );
+  assert.equal(
+    prompt.priorToolEvidence.find((event) => event.type === 'tool-result').result.error.code,
+    'ENOENT',
+  );
+});
+
 test('Codex cancellation, incomplete MCP stream and native tool attempts do not produce terminal success', async () => {
   const controller = new AbortController();
   const rpc = new CodexRpc(() => controller.abort());
