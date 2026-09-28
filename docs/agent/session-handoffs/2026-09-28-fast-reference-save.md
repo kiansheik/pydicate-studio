@@ -71,9 +71,31 @@ preview responses, diagnoses their status and uses bounded hosted-operation wait
 All four compiled hosted tests subsequently passed together (22.93 seconds).
 No original research or neighboring repositories were edited during benchmarks.
 
+## Deployment verification
+
+PR #14 merged release `0b6be8ba0e6adc266a396ccf99403493ff14076c`. Both final
+Checks runs (36481592145, 36481597444) and hosted CI (36481596941) passed.
+Built the image while the existing service remained available, then deployed
+with `Remote.prepare_release`/`deploy_release` without reimporting desktop data.
+
+- Full predeploy backup `predeploy-20260928T205454-31c81d`: independently verified
+  SHA-256 for `database.dump` and `workspace-state.tar.gz`.
+- Exact parity for all 178 drafts/versions, both PDF evidence documents, recovery
+  archive and import receipt. Corpus/grammar revisions, relevant tracked/untracked
+  file bytes and modes remain unchanged, including the pending server grammar fix.
+- Authenticated production browser sees enabled **Salvar como referência**, no
+  English ground-truth button and no API/browser errors. Saved drafts unchanged;
+  no real reference was approved solely for QA. The disposable hosted test proves
+  the complete save workflow.
+- Repeated benchmark using actual deployed `/app` on a disposable production
+  corpus copy: preview 3.109 s cold / 1.759 s cached, source apply 0.677 s,
+  evaluation 0.860 s and reference approval 1.316 s; all 147 passages present.
+- Local PostgreSQL test service stopped. Private QA scripts/results are ignored
+  under `.local/ground-truth-speed/`; no credentials or research artifacts committed.
+
 ## Remaining questions
 
-Deployment/live-label verification pending. Full local real-corpus verification
+Full local real-corpus verification
 is not implied by focused parity checks. Timings exclude network/queue delays;
 there is still genuine fresh validation work, so do not claim literal instant
 saving. The pre-existing smoke-next legacy dialog flow remains outside this fix;
@@ -81,5 +103,5 @@ only its translated labels were updated.
 
 ## Suggested next prompt
 
-Finish release checks, deploy with backup and preserved server grammar edits,
-verify Portuguese controls and repeat disposable-server timing/parity checks.
+If another save is slow, inspect its server audit duration and queue wait
+separately; retain all publication/approval guards and current user research.

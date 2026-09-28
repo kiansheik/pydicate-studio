@@ -10,6 +10,11 @@ Same-server disposable preview improved to 3.06 seconds cold / 1.74 warm; approv
 to 1.39 seconds, with all publication guards retained. See the
 [handoff](session-handoffs/2026-09-28-fast-reference-save.md).
 
+PR #14 deployed `0b6be8b` after both final Checks runs and hosted CI passed.
+Live QA verifies the Portuguese control with no browser/API errors. All 178
+drafts/versions, two PDF evidence documents and both corpus/grammar workspaces
+remain unchanged; full backup checksums independently verified.
+
 ## 2026-09-28 - Repair hosted grammar tool compatibility
 
 Reproduced Codex rejection of the advertised Studio guide resource. Added exact

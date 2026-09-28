@@ -12,13 +12,17 @@ human target, identity, source-byte and atomic-write guards in one fresh process
 Hosted source-change events carry their fingerprint so a publishing tab can use
 its returned project immediately; other clients still refresh.
 
-Same-server disposable benchmark: preview 18.02→3.06 seconds cold,
-17.92→1.74 seconds warm; reference approval 1.98→1.39 seconds. Diff application
-is about 0.65 seconds. A real compiled-browser/PostgreSQL/Python test saves through
+Same-server disposable benchmark: preview 18.02→3.11 seconds cold,
+17.92→1.76 seconds warm; reference approval 1.98→1.32 seconds. Diff application
+is about 0.68 seconds. A real compiled-browser/PostgreSQL/Python test saves through
 the Portuguese controls with zero redundant refreshes and preserves unrelated
 research. These are measured operation timings, not a promise of instantaneous
-end-to-end network response. Deployment is pending; see the
-[handoff](session-handoffs/2026-09-28-fast-reference-save.md).
+end-to-end network response. PR #14 is merged and release `0b6be8b` is live.
+Both final Checks runs and hosted CI passed. Authenticated live QA confirms the
+Portuguese save control, with no API/browser errors or draft changes. The full
+backup hashes verify; all 178 drafts/versions, both PDF evidence documents, corpus
+and grammar bytes, recovery data and import receipts match the predeploy state.
+See the [handoff](session-handoffs/2026-09-28-fast-reference-save.md).
 
 ## Deployed hosted grammar-repair compatibility fix
 
