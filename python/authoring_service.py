@@ -589,7 +589,15 @@ class AuthoringService:
         return base_key, draft_key, normalized
 
     def structure_prepare(self, params):
-        return {'preparing': self.structure_index({**params, 'background': True}) is None}
+        from adapter import AdapterError
+        try:
+            return {'preparing': self.structure_index({**params, 'background': True}) is None}
+        except AdapterError as error:
+            # A speculative warmup can race source creation/publication. It must
+            # never refresh or interrupt the editor; the new project schedules again.
+            if error.code in {'STALE_ENGINE', 'STALE_PROJECT'}:
+                return {'preparing': True}
+            raise
 
     def structure_index(self, params):
         from rendered_structures import fingerprint, valid_index

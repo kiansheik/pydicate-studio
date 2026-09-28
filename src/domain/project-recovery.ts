@@ -24,7 +24,6 @@ export function registerProjectRecovery(value: Recovery) {
 }
 
 const retryable = new Set([
-  'structure_prepare',
   'structure_search',
   'dictionary_lookup',
   'dictionary_search',

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Prepare/cachе first search in the background, restore the real Navarro dictionary
+Prepare/cache first search in the background, restore the real Navarro dictionary
 tab online, and enable hosted AI/grammar correction using the maintainer's private
 local Codex login, then redeploy for tonight's demonstration. Preserve all earlier
 draft/completion/PDF corrections.
@@ -64,3 +64,17 @@ scoped tool inventory, actual production Navarro search, warmed query latency,
 AI controls and exact pre/post research snapshot parity. Do not infer historical
 linguistic correctness from tool connectivity or generation smoke checks. Full
 Python results and final release/backup identifiers belong below when available.
+
+
+## Pre-merge CI correction
+
+CI's full new-source workflow exposed an omitted `structure_prepare` entry in the
+Node Python-worker allowlist, plus speculative warmup racing source creation.
+Added the missing route; preparation defers while the editor is busy and treats
+stale warmup as a retryable background state without initiating editor recovery.
+The full-editor fixture now asserts an actual successful warmup RPC, and the
+new-source fixture reports method/error code on failed HTTP operations. Both real
+compiled browser workflows now pass together (new source, PDF, regions, saved
+reading, reload, submission; dictionary search and hosted AI controls). The third
+warmup unit test preserves foreground staleness checks while ignoring speculative
+staleness. No check was weakened.

@@ -122,6 +122,7 @@ class PythonWorker {
         'source_recover',
         'source_recovery_list',
         'lexicon_search',
+        'structure_prepare',
         'structure_search',
         'structure_resolve',
         'lexicon_inspect',

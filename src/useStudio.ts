@@ -176,7 +176,7 @@ export function useStudio() {
     [],
   );
   const structureWarmupKey =
-    ready && project.mode === 'local'
+    ready && !busy && project.mode === 'local'
       ? JSON.stringify([project.id, project.engineFingerprint, structureDrafts(project, envelope)])
       : '';
   useEffect(() => {

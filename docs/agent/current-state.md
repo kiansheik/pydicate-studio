@@ -17,8 +17,8 @@ Deployment installs only local `auth.json` over SSH when absent, keeps refreshed
 server tokens, and offers `make collab-codex-auth` for explicit replacement. The
 private persistent Codex home is excluded from images/Git/browser responses.
 
-Local validation: compiled hosted editor with real dictionary search and AI
-controls; 19 focused browser tests; 250 domain tests; 273 desktop tests; 65 hosted
+Local validation: both compiled hosted workflows (new source/PDF/submission and real dictionary/AI
+controls); 19 focused browser tests; 250 domain tests; 273 desktop tests; 65 hosted
 tests (6 optional cases skipped); credential transfer/release/operations fixtures;
 installed Codex scoped tools against a fake API (zero paid calls). Full Python
 suite and live deployment verification are pending. See the

@@ -75,6 +75,8 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('#root img')].every(image => image.complete && image.naturalWidth > 0)), true, 'Public branding images load through the hosted static boundary');
     assert.equal(await page.evaluate(() => window.studio.capabilities.analysis), true);
     await page.getByRole('button', {name:'Corrigir gramática / árvore',exact:true}).first().waitFor();
+    const preparation = await page.evaluate(async () => window.studio.invoke('structure_prepare', {projectId:window.collab.state().projectId}));
+    assert.equal(typeof preparation.preparing, 'boolean');
     const listing = await page.evaluate(async () => window.studio.invoke('analysis_list', {projectId:window.collab.state().projectId}));
     assert.ok(Array.isArray(listing.jobs));
     await page.getByRole('button', {name:'Dicionário',exact:true}).click();

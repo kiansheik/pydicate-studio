@@ -67,3 +67,10 @@ class WarmupTests(TestCase):
             with patch.object(AuthoringService, 'fresh', return_value='changed'):
                 service.structure_index(self.params)
             self.assertEqual(build.call_count, 5)
+
+    def test_speculative_preparation_does_not_turn_source_changes_into_editor_refreshes(self):
+        from adapter import AdapterError
+        service = AuthoringService(self.adapter)
+        with patch.object(AuthoringService, 'fresh', side_effect=AdapterError('changed', 'STALE_ENGINE')):
+            self.assertEqual(service.structure_prepare({}), {'preparing': True})
+            with self.assertRaises(AdapterError): service.structure_index({})
