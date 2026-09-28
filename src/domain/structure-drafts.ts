@@ -59,11 +59,12 @@ export function withStructureContext(method: string, params: Record<string, unkn
   const context = currentContext?.();
   const pending =
     typeof params.passageId === 'string' ? context?.pendingContexts?.[params.passageId] : undefined;
-  if (method !== 'structure_search' && method !== 'structure_resolve')
+  if (!['structure_search', 'structure_resolve', 'structure_prepare'].includes(method))
     return pending ? { ...params, ...pending } : params;
   return context
     ? {
         ...params,
+        background: true,
         projectId: context.projectId,
         engineFingerprint: context.engineFingerprint,
         drafts: context.drafts,

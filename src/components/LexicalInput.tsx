@@ -25,6 +25,7 @@ export interface StructureCandidate {
 }
 
 interface StructureSearch {
+  preparing?: boolean;
   results: StructureCandidate[];
   total: number;
   indexFingerprint?: string;
@@ -272,7 +273,8 @@ export const LexicalInput = forwardRef<
             return;
           setResponse(result);
           setActive(0);
-          track('lexicon.search', { source: 'rendered-form', resultCount: result.total });
+          if (!result.preparing)
+            track('lexicon.search', { source: 'rendered-form', resultCount: result.total });
         })
         .catch((reason: unknown) => {
           if (alive && ticket === request.current && requestedIdentity === currentIdentity.current)
@@ -299,6 +301,12 @@ export const LexicalInput = forwardRef<
     interactionActive,
     searchEpoch,
   ]);
+
+  useEffect(() => {
+    if (!response?.preparing || !interactionActive || !open) return;
+    const timer = setTimeout(() => setSearchEpoch((value) => value + 1), 1000);
+    return () => clearTimeout(timer);
+  }, [response, interactionActive, open]);
 
   useEffect(() => {
     setDictionaryResponse(null);
@@ -486,10 +494,10 @@ export const LexicalInput = forwardRef<
       </small>
       <div className="rendered-lookup-popover">
         {interactionActive && refreshNotice && <p role="status">{refreshNotice}</p>}
-        {interactionActive && open && searching && (
+        {interactionActive && open && (searching || response?.preparing) && (
           <p role="status">
-            {preparing
-              ? 'Preparando as formas do projeto. A primeira busca pode levar alguns segundos.'
+            {preparing || response?.preparing
+              ? 'Atualizando as formas do projeto em segundo plano…'
               : 'Buscando formas já usadas…'}
           </p>
         )}
@@ -576,20 +584,25 @@ export const LexicalInput = forwardRef<
             </div>
           </div>
         )}
-        {interactionActive && open && response && !candidates.length && !dictionarySearching && (
-          <div>
-            <p role="status">
-              {dictionary
-                ? 'Nenhuma estrutura ou entrada encontrada. Tente uma parte menor ou o significado.'
-                : 'Nenhuma estrutura encontrada. Tente uma parte menor ou o significado.'}
-            </p>
-            {onCreate && (
-              <button type="button" disabled={disabled} onClick={onCreate}>
-                Criar peça sem entrada no dicionário
-              </button>
-            )}
-          </div>
-        )}
+        {interactionActive &&
+          open &&
+          response &&
+          !response.preparing &&
+          !candidates.length &&
+          !dictionarySearching && (
+            <div>
+              <p role="status">
+                {dictionary
+                  ? 'Nenhuma estrutura ou entrada encontrada. Tente uma parte menor ou o significado.'
+                  : 'Nenhuma estrutura encontrada. Tente uma parte menor ou o significado.'}
+              </p>
+              {onCreate && (
+                <button type="button" disabled={disabled} onClick={onCreate}>
+                  Criar peça sem entrada no dicionário
+                </button>
+              )}
+            </div>
+          )}
         {interactionActive && open && dictionarySearching && (
           <p role="status">Consultando o dicionário Navarro…</p>
         )}

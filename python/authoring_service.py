@@ -1,6 +1,7 @@
 """Reviewable corpus application actions over exact source bytes."""
 from __future__ import annotations
 import ast
+from copy import deepcopy
 import difflib
 import hashlib
 import json
@@ -74,7 +75,7 @@ class AuthoringService:
             result.update(engineFingerprint=fingerprint, documentationFingerprint=docs_fingerprint)
             self.adapter.learning_library_cache = result
             return result
-        allowed={'source_create','node_definition','composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve'}
+        allowed={'source_create','node_definition','composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve','structure_prepare'}
         if method not in allowed: self.error('Operação indisponível.','UNKNOWN_METHOD')
         if not isinstance(params,dict): self.error('Parâmetros inválidos.')
         return getattr(self,method)(params)
@@ -556,8 +557,8 @@ class AuthoringService:
         _,anchor=collection_context(path.read_text(encoding='utf-8'),source)
         return {'sourceId': source, 'line': anchor.lineno if anchor else 10**9}
 
-    def structure_index(self, params):
-        from rendered_structures import VERSION, fingerprint, valid_index
+    def structure_inputs(self, params):
+        from rendered_structures import VERSION, fingerprint
         engine = self.fresh(params)
         project = self.adapter.project
         if params.get('projectId', project['id']) != project['id']:
@@ -585,10 +586,25 @@ class AuthoringService:
         normalized.sort(key=lambda value: (value['passageId'], value.get('fragmentId', ''), value['raw']))
         base_key = fingerprint({'version': VERSION, 'engine': engine, 'project': project['id']})
         draft_key = fingerprint(normalized)
+        return base_key, draft_key, normalized
+
+    def structure_prepare(self, params):
+        return {'preparing': self.structure_index({**params, 'background': True}) is None}
+
+    def structure_index(self, params):
+        from rendered_structures import fingerprint, valid_index
+        base_key, draft_key, normalized = self.structure_inputs(params)
+        if params.get('background') is True:
+            from structure_warmup import StructureWarmup
+            if not hasattr(self.adapter, 'structure_warmup'):
+                self.adapter.structure_warmup = StructureWarmup()
+            return self.adapter.structure_warmup.request(self, params, (base_key, draft_key))
+        project = self.adapter.project
+        cache_path = self.adapter.state_dir / 'structure-index' / (project['id'] + '.json') if self.adapter.state_dir else None
+        stored = {}
         cache = getattr(self.adapter, 'structure_cache', None)
         if not cache or cache.get('baseKey') != base_key:
             base = None
-            cache_path = self.adapter.state_dir / 'structure-index' / (project['id'] + '.json') if self.adapter.state_dir else None
             if cache_path and cache_path.exists():
                 try:
                     stored = json.loads(cache_path.read_text(encoding='utf-8'))
@@ -613,9 +629,21 @@ class AuthoringService:
             cache = {'baseKey': base_key, 'base': base}
             self.adapter.structure_cache = cache
         if cache.get('draftKey') != draft_key:
+            overlay_path = cache_path.with_suffix('.drafts.json') if cache_path else None
+            overlay = None
+            if normalized and overlay_path:
+                try:
+                    overlay = json.loads(overlay_path.read_text(encoding='utf-8'))
+                except (OSError, ValueError, TypeError):
+                    pass
+            if (isinstance(overlay, dict) and overlay.get('baseKey') == base_key and
+                    overlay.get('draftKey') == draft_key and valid_index(overlay)):
+                cache.update({'draftKey': draft_key, 'entries': {entry['id']: entry for entry in overlay['entries']},
+                              'diagnostics': overlay['diagnostics'], 'fingerprint': fingerprint([base_key, draft_key])})
+                return cache
             changed = self.child({'action': 'structure_index', 'includeSources': False, 'drafts': normalized}, timeout=45) if normalized else {'entries': [], 'diagnostics': []}
             self.fresh(params)
-            entries = {entry['id']: {**entry, 'sources': list(entry['sources'])} for entry in cache['base']['entries']}
+            entries = {entry['id']: deepcopy(entry) for entry in cache['base']['entries']}
             for entry in changed['entries']:
                 if entry['id'] not in entries:
                     entries[entry['id']] = entry
@@ -627,6 +655,18 @@ class AuthoringService:
             cache.update({'draftKey': draft_key, 'entries': entries,
                           'diagnostics': cache['base']['diagnostics'] + changed['diagnostics'],
                           'fingerprint': fingerprint([base_key, draft_key])})
+            if normalized and overlay_path:
+                overlay_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = None
+                try:
+                    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=overlay_path.parent, delete=False) as handle:
+                        temporary = handle.name
+                        json.dump({'baseKey': base_key, 'draftKey': draft_key,
+                                   'entries': list(entries.values()), 'diagnostics': cache['diagnostics']},
+                                  handle, ensure_ascii=False)
+                    os.replace(temporary, overlay_path)
+                finally:
+                    if temporary and os.path.exists(temporary): os.unlink(temporary)
         return cache
 
     def structure_permitted(self,entry,params):
@@ -669,6 +709,8 @@ class AuthoringService:
         if not isinstance(query, str) or len(query) > 2000:
             self.error('Texto de busca inválido.')
         cache = self.structure_index(params)
+        if cache is None:
+            return {'results': [], 'total': 0, 'preparing': True}
         limit=params.get('limit',40);offset=params.get('offset',0)
         if type(limit) is not int or not 1<=limit<=100 or type(offset) is not int or not 0<=offset<=100000:
             self.error('Página de estruturas inválida.')
@@ -682,7 +724,7 @@ class AuthoringService:
     def structure_resolve(self, params):
         context = self.structure_context(params)
         cache = self.structure_index(params)
-        if params.get('indexFingerprint') != cache['fingerprint']:
+        if cache is None or params.get('indexFingerprint') != cache['fingerprint']:
             self.error('As estruturas ou os rascunhos mudaram. Pesquise novamente antes de inserir.', 'STALE_STRUCTURE_INDEX')
         candidate = cache['entries'].get(params.get('candidateId'))
         if candidate is None:

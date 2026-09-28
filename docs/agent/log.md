@@ -659,3 +659,13 @@ four existing server values, and left two historical orphans. Live source/PDF
 smoke passed with saved drafts unchanged; backup hashes and successful active
 timer verified. Strict cached navigation measured 453 ms; warm reload fetched
 zero PDF bytes. Latest published corpus/grammar revisions are live.
+
+
+## 2026-09-28 — Demo readiness: search, Navarro and hosted Codex
+
+Implemented asynchronous search warmup/durable draft indexes, authenticated real
+Navarro tab, and opt-in shared Codex analysis/grammar repair with private SSH
+credential installation. Acceptance uses attributed PostgreSQL revisions and
+claims; active AI blocks idle maintenance. Focused browser, compiled hosted editor,
+domain, desktop, hosted and credential/deploy tests pass. Live rollout pending;
+see [handoff](session-handoffs/2026-09-28-demo-readiness.md).

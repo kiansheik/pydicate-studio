@@ -1,5 +1,29 @@
 # Current state
 
+## Prepared search, hosted Navarro and shared Codex
+
+The rendered-form index now warms on worker/project opening and draft changes in
+one bounded background worker, with independent durable source/draft caches and
+exact engine/content keys. The UI retries a cold index without reporting a false
+empty result. Navarro's real website is available through authenticated routes,
+with allowlisted assets and dataset/origin/iframe validation preserved.
+
+Hosted Codex is explicitly enabled by server configuration and advertised through
+capabilities. Invited users can run bounded analyses, translations and hash-checked
+grammar repairs; administrators configure the shared model. Candidate acceptance
+uses the desktop receipt contract inside PostgreSQL transactions/claims, retaining
+author attribution and later edits on replay. Active AI work blocks idle updates.
+Deployment installs only local `auth.json` over SSH when absent, keeps refreshed
+server tokens, and offers `make collab-codex-auth` for explicit replacement. The
+private persistent Codex home is excluded from images/Git/browser responses.
+
+Local validation: compiled hosted editor with real dictionary search and AI
+controls; 19 focused browser tests; 250 domain tests; 273 desktop tests; 65 hosted
+tests (6 optional cases skipped); credential transfer/release/operations fixtures;
+installed Codex scoped tools against a fake API (zero paid calls). Full Python
+suite and live deployment verification are pending. See the
+[handoff](session-handoffs/2026-09-28-demo-readiness.md).
+
 ## Canonical desktop PDF corrections
 
 The first research restoration archived PDF working copies but left older saved

@@ -21,9 +21,12 @@ ou mais). Convites expiram em 48 horas; peça outro caso necessário. Contas Neo
 no Neo; contas locais usam **Esqueci minha senha** no Studio. Não envie sua senha ao mantenedor.
 
 **Não é necessário instalar Git, Python, Node ou o aplicativo desktop.** Você também não precisa
-de uma conta paga de IA. A execução de IA está desativada inicialmente. Preferências/chaves de
-API são opcionais e não ligam a geração por si mesmas. Não envie senhas, cookies ou arquivos de
-login de Codex/Claude para o site.
+de uma conta paga de IA. Quando habilitada pela administração, a aba **IA**, as traduções e
+**Corrigir gramática / árvore** usam a conexão Codex compartilhada do mantenedor.
+Suas solicitações e propostas ficam no espaço compartilhado. Aceitar uma proposta altera o
+rascunho; não aprova a ground truth. Correções de gramática podem alterar o motor compartilhado
+e mantêm registros das mudanças. Não envie senhas, cookies ou arquivos de login pelo site.
+
 
 ## Sua primeira contribuição
 

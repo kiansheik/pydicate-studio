@@ -175,6 +175,19 @@ export function useStudio() {
       }),
     [],
   );
+  const structureWarmupKey =
+    ready && project.mode === 'local'
+      ? JSON.stringify([project.id, project.engineFingerprint, structureDrafts(project, envelope)])
+      : '';
+  useEffect(() => {
+    if (!structureWarmupKey) return;
+    const timer = setTimeout(() => {
+      void invoke('structure_prepare', {}).catch(() => {
+        /* Search reports preparation failures. */
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [structureWarmupKey]);
   useEffect(() => {
     setUsageContext({
       projectId: project.id,

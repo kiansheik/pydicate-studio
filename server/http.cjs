@@ -9,7 +9,7 @@ const { RateLimiter } = require('./auth.cjs');
 const UI_EVENTS = new Set(`navigation.passage navigation.mode navigation.projection navigation.search editor.batch
 editor.selection editor.operation editor.undo editor.redo draft.save source.preview source.apply source.conflict
 review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export`.split(/\s+/));
-const POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+const POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ico': 'image/x-icon' };
 async function body(req, limit = 1000000, binary = false) {
     const type = String(req.headers['content-type'] || '').split(';')[0];
@@ -52,7 +52,7 @@ function createHttp({ config, store, auth, runtime }) {
     const vault = new ProviderVault(store, config.vaultKeyFile);
     const streams = new Set(), people = new Map(), limiter = new RateLimiter(store.now);
     let uploading = false;
-    const idle = require('./idle.cjs').createIdle({ directory: config.stateDirectory, now: store.now });
+    const idle = require('./idle.cjs').createIdle({ directory: config.stateDirectory, now: store.now, hasWork: () => runtime.hasWork?.() ?? false });
     const desktopHistory = require('./desktop-history.cjs').createDesktopHistory({ directory: path.join(config.stateDirectory, 'desktop-imports') });
     function json(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); }
     function emit(event) { const line = 'data: ' + JSON.stringify(event) + '\n\n'; for (const item of streams) {
@@ -162,6 +162,13 @@ function createHttp({ config, store, auth, runtime }) {
                 throw fault(403, 'CSRF_DENIED', 'Recarregue a sessão antes de continuar.');
             limiter.hit('requests:' + session.user.id, 1500, 60000);
             finishWork = idle.begin(route);
+            if (req.method === 'GET' && (route.startsWith('/nhe-enga/') || route.startsWith('/__studio_dictionary/'))) {
+                const result = await runtime.dictionary.handle(new Request(url));
+                res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+                for (const [key, value] of result.headers) res.setHeader(key, value);
+                res.writeHead(result.status);
+                return res.end(Buffer.from(await result.arrayBuffer()));
+            }
             if (route === '/api/upstream-status' && req.method === 'GET')
                 return json(res, 200, await require('./idle.cjs').upstreamStatus(config.stateDirectory));
             if (req.method === 'GET' && ['/api/desktop-history', '/api/desktop-history/item', '/api/desktop-history/file'].includes(route)) {
@@ -189,7 +196,7 @@ function createHttp({ config, store, auth, runtime }) {
                 return json(res,200,{id:row.id,authorId:row.author_id,snapshotSha256:row.snapshot_sha256,snapshot:JSON.parse(row.snapshot)});
             }
             if (route === '/api/me' && req.method === 'GET')
-                return json(res, 200, { user: session.user, csrf: session.csrf, projectId: runtime.project.id, telemetryDays: config.telemetryDays });
+                return json(res, 200, { user: session.user, csrf: session.csrf, projectId: runtime.project.id, telemetryDays: config.telemetryDays, aiEnabled: config.aiEnabled === true });
             if (route === '/api/events' && req.method === 'GET') {
                 if (streams.size >= 100 || [...streams].filter(s => s.userId === session.user.id).length >= 8)
                     throw fault(429, 'STREAM_LIMIT', 'Feche outras abas antes de continuar.');
@@ -365,7 +372,7 @@ function createHttp({ config, store, auth, runtime }) {
                 if (route === '/api/refresh')
                     return json(res, 200, await runtime.refresh(ctx));
                 if (route === '/api/invoke') {
-                    if (!['evidence_status', 'reference_status', 'dictionary_status', 'passage_lexicon'].includes(input.method)) finishWork.activity();
+                    if (!['evidence_status', 'reference_status', 'dictionary_status', 'structure_prepare', 'analysis_list', 'analysis_get', 'ai_status', 'ai_history', 'passage_lexicon'].includes(input.method)) finishWork.activity();
                     const params = input.params ?? {};
                     if (!params || typeof params !== 'object' || Array.isArray(params))
                         throw fault(400, 'INVALID_INPUT', 'Parâmetros inválidos.');

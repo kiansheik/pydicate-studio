@@ -12,6 +12,7 @@ FROM node:24-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends python3 git util-linux ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /data /workspace && chown node:node /data /workspace
+RUN npm install --global @openai/codex@0.153.4
 WORKDIR /app
 COPY --from=build --chown=node:node /app /app
 USER node

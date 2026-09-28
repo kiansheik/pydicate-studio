@@ -1,19 +1,21 @@
 'use strict';
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { METHODS: AI, createHostedAI } = require('./ai.cjs');
 const { fault, identifier } = require('./store.cjs');
 // Deliberately NOT the entire desktop bridge. New desktop methods stay denied.
 const READ = new Set(`render learning_library parse_expression evaluate_expression predicate_catalog
 predicate_create composition_define node_definition source_preview source_new_preview source_create
-lexicon_search structure_search structure_resolve lexicon_inspect lexicon_create lexicon_update
+lexicon_search structure_prepare structure_search structure_resolve lexicon_inspect lexicon_create lexicon_update
 dictionary_search dictionary_lookup dictionary_entry_get dictionary_predicate assistant_context
 reference_verify reference_status passage_lexicon evidence_status evidence_bytes evidence_save
 lexical_notes_list lexical_notes_save lexical_notes_export`.split(/\s+/));
 const REVIEW = new Set(['source_apply', 'reference_approve', 'contribution_prepare']);
 const PREVIEW = new Set(['source_preview', 'source_new_preview', 'lexicon_create', 'lexicon_update', 'composition_define']);
-function authorizeMethod(method, role) {
+function authorizeMethod(method, role, aiEnabled = false) {
+    if (aiEnabled && AI.has(method)) return;
     if (!READ.has(method) && !REVIEW.has(method))
-        throw fault(403, 'HOSTED_UNAVAILABLE', 'Esta operação não está habilitada no servidor colaborativo. IA paga, reparos da gramática e configurações locais ficam no desktop.');
+        throw fault(403, 'HOSTED_UNAVAILABLE', 'Esta operação não está habilitada nesta configuração do servidor colaborativo.');
     if (REVIEW.has(method) && !['reviewer', 'admin'].includes(role))
         throw fault(403, 'REVIEWER_REQUIRED', 'Somente revisores podem publicar na fonte ou aprovar referências.');
 }
@@ -36,6 +38,7 @@ async function createStudio(config, store, emit = () => { }) {
     const validate = require('../electron/validation.cjs');
     let project, worker, pickedFile = null, service;
     const queue = new Queue(), previews = new Map();
+    const hostedAI = createHostedAI({ store, emit });
     // SMTP and provider secrets are not inherited by the grammar process.
     const workerEnv = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'SYSTEMROOT', 'VIRTUAL_ENV']
         .filter(k => process.env[k]).map(k => [k, process.env[k]]));
@@ -53,6 +56,10 @@ async function createStudio(config, store, emit = () => { }) {
             const next = validate.project(await candidate.request('open_project', { parentPath: config.parent }));
             if (project && next.id !== project.id)
                 throw new Error('Project identity changed. Restart after reviewing the server workspace.');
+            if (project && next.engineFingerprint === project.engineFingerprint) {
+                candidate.close();
+                return project;
+            }
             const initial = !project;
             worker?.close();
             worker = candidate;
@@ -68,9 +75,25 @@ async function createStudio(config, store, emit = () => { }) {
         }
     }
     await open();
+    let dictionarySite, dictionaryOrigin;
+    function currentDictionary() {
+        if (!dictionarySite || dictionaryOrigin !== config.origin) {
+            dictionaryOrigin = config.origin;
+            dictionarySite = require('../electron/dictionary-site.cjs').createDictionarySite({
+                getProject: () => project, origin: config.origin, parentOrigin: config.origin,
+            });
+        }
+        return dictionarySite;
+    }
+    const dictionary = {status: params => currentDictionary().status(params), handle: request => currentDictionary().handle(request)};
     service = createNextService({ stateDirectory: config.stateDirectory, applicationDirectory: config.applicationDirectory,
-        draftStore: store, getProject: () => project, getWorker: () => worker, getParent: () => config.parent,
-        defaultParent: config.parent, openPath: open, reloadProject: open, emit,
+        draftStore: hostedAI.drafts, getProject: () => project, getWorker: () => worker, getParent: () => config.parent,
+        defaultParent: config.parent, openPath: open,
+        reloadProject: () => queue.run('grammar-reload', async () => {
+            const next = await open();
+            emit({type:'source-change',projectId:next.id});
+            return next;
+        }), emit,
         duringProjectWrite: action => action(),
         adoptProject: value => { project = validate.project(value); store.context = {projectId:project.id,engineFingerprint:project.engineFingerprint,appRelease:config.release||'development'}; },
         chooseFile: async () => pickedFile,
@@ -112,13 +135,13 @@ async function createStudio(config, store, emit = () => { }) {
     }
     async function invoke(method, input, context) {
         if (method === 'dictionary_status')
-            return { available: false, message: 'No servidor, consulte o dicionário pela busca de peças/Léxico. O site incorporado do desktop não está habilitado.' };
-        if (!READ.has(method) && !REVIEW.has(method))
-            throw fault(403, 'HOSTED_UNAVAILABLE', 'Esta operação não está habilitada no servidor colaborativo. IA paga, reparos da gramática e configurações locais ficam no desktop.');
+            return dictionary.status(input);
+        if (!READ.has(method) && !REVIEW.has(method) && !(config.aiEnabled && AI.has(method)))
+            throw fault(403, 'HOSTED_UNAVAILABLE', 'Esta operação não está habilitada nesta configuração do servidor colaborativo.');
         return queue.run(context.user.id, async () => {
             if(store.db.unavailable) throw fault(503, 'DATABASE_UNAVAILABLE', 'Banco de dados indisponível.');
             const user = await store.assertUser(context.user);
-            authorizeMethod(method, user.role);
+            authorizeMethod(method, user.role, config.aiEnabled);
             const params = structuredClone(input);
             if (params.projectId && params.projectId !== project.id)
                 throw fault(403, 'PROJECT_MISMATCH', 'Projeto inválido.');
@@ -152,6 +175,7 @@ async function createStudio(config, store, emit = () => { }) {
             try {
                 const result = method === 'render'
                     ? validate.renderResult(await worker.request('render', validate.renderRequest(input)))
+                    : AI.has(method) ? await hostedAI.run(method, params, { ...context, user }, service.invoke)
                     : await service.invoke(method, params);
                 if (PREVIEW.has(method) && result?.previewId) {
                     if (previews.size > 256)
@@ -177,7 +201,7 @@ async function createStudio(config, store, emit = () => { }) {
         });
     }
     return {
-        get project() { return project; }, hasPassage, passage, validateChanges, invoke,
+        get project() { return project; }, hasWork: () => service.hasWork(), dictionary, hasPassage, passage, validateChanges, invoke,
         // PDF bytes do not use the serialized grammar worker queue. Each range
         // still revalidates the authenticated user, project and source binding.
         openPdf: async (params, context) => {

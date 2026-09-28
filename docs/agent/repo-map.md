@@ -2,6 +2,16 @@
 
 ## Hosted collaboration and deployment
 
+- `server/ai.cjs`: opt-in hosted AI allowlist, passage-claim checks and shared
+  desktop acceptance receipts committed through PostgreSQL; per-request context.
+  `scripts/collab/codex_auth.py` transfers only the login cache through SSH stdin,
+  preserving refreshed server credentials unless explicitly replaced.
+- `electron/dictionary-site.cjs`, `server/http.cjs`: authenticated Navarro assets
+  and strict dataset identity; same-origin hosted and custom-protocol desktop UI.
+- `python/structure_warmup.py`: bounded background index scheduler, immutable
+  project snapshot, exact keys and retryable failures. `authoring_service.py`
+  persists base/last draft indexes separately; `useStudio` prepares before search.
+
 - `server/desktop-evidence-import.cjs`: stopped-server reconciliation of persisted
   PDF working copies against exact saved baselines; immutable original archive,
   canonical deletions, content-based repeat protection and conservative conflicts.

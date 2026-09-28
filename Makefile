@@ -52,7 +52,7 @@ export DEPLOY_HOST DEPLOY_USER DEPLOY_PATH SSH_IDENTITY SSH_PORT STUDIO_REF COLL
 export FILE REPO REVIEW_SHA CONFIRM EMAIL NAME IDS LOCAL_REVIEW_DIR LOCAL_REPOS_PARENT IMPORT_DIR MODE
 export LOCAL_STUDIO_STATE LOCAL_PROJECT_PARENT
 
-.PHONY: collab-help collab-install collab-redeploy collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-sync collab-local-install collab-test
+.PHONY: collab-help collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-sync collab-local-install collab-test
 collab-help:
 	@echo 'collab-install/redeploy  Update release + copy attached desktop PDFs/evidence; preserve existing server work'
 	@echo 'LOCAL_STUDIO_STATE=... LOCAL_PROJECT_PARENT=...  Optional desktop profile/workspace overrides for PDF transfer'
@@ -69,9 +69,10 @@ collab-help:
 	@echo 'collab-import FILE=... LOCAL_REPOS_PARENT=... IMPORT_DIR=...  New worktree branches off main; no publication/approval'
 	@echo 'collab-record-import FILE=.../import-receipt.json  Register pushed Git commits; exact snapshot trailers are checked'
 	@echo 'collab-notify MODE=off|hourly|daily  Send pending verified-merge digest; none by default'
+	@echo 'collab-codex-auth       Privately replace the server Codex login from local auth.json'
 	@echo 'collab-deploy           Update app + clean compatible branches + attached desktop PDFs; dirty work stays intact'
 
-collab-install collab-redeploy collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-sync:
+collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-sync:
 	@python3 scripts/collab/ops.py $(patsubst collab-%,%,$@)
 
 collab-local-install:

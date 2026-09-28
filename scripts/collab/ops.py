@@ -53,6 +53,8 @@ class Remote:
             print('[deploy] Preparing saved desktop research and history…',flush=True)
             desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar')
             sha=self.prepare_release(ref,bool(bundle),bool(desktop))
+            from codex_auth import install
+            install(self)
             incoming=''
             incoming_desktop=''
             if bundle:
@@ -168,6 +170,10 @@ def main():
     output=os.getenv('FILE') or str(HERE/'backups'/f'{action}-{label}.tar.gz')
     repo=os.getenv('REPO') or 'oldtupicorpus'
     if action in ('install','redeploy'):remote.deploy()
+    elif action=='codex-auth':
+        from codex_auth import install
+        install(remote,replace=True)
+        print('Run make collab-deploy to enable/reload the installed login.')
     elif action=='ssh':remote.ssh(['bash'],interactive=True)
     elif action in ('logs','psql','start','stop'):remote.action(action,interactive=action=='psql')
     elif action=='admin':

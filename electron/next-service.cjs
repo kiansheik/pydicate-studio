@@ -21,6 +21,7 @@ const METHODS = new Set([
   'source_recover',
   'source_recovery_list',
   'lexicon_search',
+  'structure_prepare',
   'structure_search',
   'structure_resolve',
   'lexicon_inspect',
@@ -334,7 +335,7 @@ function createNextService(options) {
     analysis,
     parserLab,
     saveSession: save,
-    hasWork: () => (analysis?.hasWork() ?? false) || parserLab.hasWork(),
+    hasWork: () => (analysis?.hasWork() ?? false) || parserLab.hasWork() || provider.hasWork(),
     close: async () => {
       await analysis?.close();
       await parserLab.close();

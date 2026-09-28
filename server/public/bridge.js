@@ -63,7 +63,7 @@
   }
   window.studio=Object.freeze({
     runtime:'collaborative',
-    capabilities:Object.freeze({analysis:false,get sourceReview(){return ['reviewer','admin'].includes(identity?.user?.role);}}),
+    capabilities:Object.freeze({get analysis(){return identity?.aiEnabled===true;},get sourceReview(){return ['reviewer','admin'].includes(identity?.user?.role);}}),
     evidenceUrl:({projectId,sourceId,assetId})=>'/api/pdf?'+new URLSearchParams({projectId,sourceId,assetId}),
     evidenceCacheScope:()=>identity?.user?.id??null,
     submitContribution:()=>window.collab.submit(),
@@ -74,6 +74,7 @@
       }
       const value=await request('/api/invoke',{method,params});
       if(method==='session_restore'){projectId=value.project?.id??null;selected=value.selectedPassageId??value.project?.passages[0]?.id??null;notify({type:'selection',passageId:selected});}
+      if(method==='analysis_accept' && value.envelope && value.versions) snapshots.set(value.envelope.projectId,structuredClone({envelope:value.envelope,versions:value.versions}));
       if(method==='session_select'){selected=params.passageId;projectId=params.projectId;notify({type:'selection',passageId:selected});void heartbeat();}
       return value;
     },

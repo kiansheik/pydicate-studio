@@ -20,7 +20,8 @@ this mode. Desktop dependencies and local storage remain independent.
 | Reviewed source, lexical definitions and morphology code | `oldtupicorpus` / `nhe-enga` Git repositories |
 | PDF bytes, evidence geometry, worker recovery files | Private managed files, included in full backup |
 | Imported desktop research and provenance | SHA-256 verified private archives; current drafts reconciled into PostgreSQL |
-| Optional personal API keys | Encrypted PostgreSQL vault, encryption key outside DB; generation off |
+| Shared Codex login and AI history | Private server files; login is SSH-installed, never browser-readable |
+| Optional personal API keys | Encrypted PostgreSQL vault; independent from shared Codex execution |
 
 There is no automatic expiry of research/usage records and no 30-second coalescing of revisions.
 Every acknowledged save that changes a draft retains its exact before/after values. No-op saves
@@ -154,16 +155,26 @@ protect mutations. Static assets and authenticated PDFs have explicit route/path
 
 Hosted RPCs have a separate allowlist. Contributors draft/evaluate/comment; reviewers/admins may
 publish reviewed source and approve references. Unknown desktop methods, arbitrary filesystem
-paths, parser-lab, external agents, paid AI, grammar repair and recovery writes remain denied.
-The separate native `studio://dictionary` website is not exposed on the authenticated origin;
-Python dictionary searches remain available. The selected engine/repositories are trusted Python,
-not a sandbox for arbitrary contributor repositories. Run non-root, with resource limits and
-without SSH/provider credentials in the Python environment.
+paths, parser-lab, external agents and recovery writes remain denied. The Navarro website
+is served through authenticated, allowlisted routes with exact dataset/iframe identity checks.
+The selected engine/repositories are trusted Python, not a sandbox for arbitrary contributor
+repositories. The process remains non-root and receives no SSH credentials.
 
-Personal **API-key** preferences can be stored encrypted/user-bound, but no provider execution is
-enabled by doing that. `COLLAB_AI_ENABLED=1` deliberately fails until a separately reviewed
-account-scoped, budgeted execution layer exists. No subscription cookies/auth.json files are
-accepted. There is no automatic payment or GitHub-main write endpoint.
+`COLLAB_AI_ENABLED=1` enables the existing bounded Codex analysis, translation and grammar-repair
+services for invited accounts. AI submissions and acceptance honor passage claims; accepted
+candidates use PostgreSQL transactions, attributed revisions and durable idempotent receipts.
+Only administrators change the shared model configuration. Grammar repair deliberately writes
+only the selected engine through its existing hash-checked tools/receipts; it never publishes Git
+or approves ground truth. Idle dependency maintenance waits for active AI jobs. Dirty grammar
+changes defer upstream fast-forward updates until reviewed.
+
+Deployment can install the maintainer's local `~/.codex/auth.json` over SSH in
+`config/codex`, mounted privately as the container's Codex home. Normal deployments preserve
+refreshed server credentials; `make collab-codex-auth` explicitly replaces them. Credentials are
+never copied into an image, browser response, research export or Git. Private full backups include
+them. The personal-key vault does not enable another provider. This is a shared maintainer-funded
+Codex connection, not account-specific provider billing. See
+[official headless authentication guidance](https://learn.chatgpt.com/docs/auth).
 
 ## References and validation
 

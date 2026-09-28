@@ -20,9 +20,13 @@ def dispatch(adapter: ProjectAdapter, request: object):
     if not isinstance(params, dict):
         raise AdapterError("Parâmetros inválidos.", "INVALID_REQUEST")
     if method == "open_project" and set(params) == {"parentPath"}:
-        return adapter.open_project(params["parentPath"])
+        project = adapter.open_project(params["parentPath"])
+        adapter.invoke("structure_prepare", {})
+        return project
     if method == "refresh_project" and not params:
-        return adapter.refresh_project()
+        project = adapter.refresh_project()
+        adapter.invoke("structure_prepare", {})
+        return project
     if method == "render":
         return adapter.render(params)
     return adapter.invoke(method, params)

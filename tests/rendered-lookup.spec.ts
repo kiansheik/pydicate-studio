@@ -556,3 +556,23 @@ test('the global lexicon reuses an unnamed subtree in the selected scope and ret
     candidateId: compound.id,
   });
 });
+
+test('a cold background index refreshes automatically without showing a false empty result', async ({
+  page,
+}) => {
+  let searches = 0;
+  await openTree(page, '', ({ method }) => {
+    if (method !== 'structure_search') return resolved(named);
+    searches++;
+    return searches === 1 ? { results: [], total: 0, preparing: true } : results(named);
+  });
+  await page
+    .getByRole('combobox', { name: 'Palavra ou expressão inicial: buscar em tupi', exact: true })
+    .fill('Tupãpotaba');
+  await expect(
+    page.getByText('Atualizando as formas do projeto em segundo plano…', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/^Nenhuma estrutura encontrada/)).toHaveCount(0);
+  await expect(page.getByRole('listbox').getByRole('option')).toContainText('Tupã potaba');
+  expect(searches).toBe(2);
+});
