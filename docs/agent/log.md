@@ -1,5 +1,18 @@
 # Work log
 
+## 2026-09-28 - Demo release deployed and verified
+
+PR #12 merged; live release `ebabf87` enables prepared persistent rendered search,
+authenticated Navarro and shared Codex analysis/grammar correction. Production QA
+passed dictionary results, both searches without preparation, grammar controls and
+authentication, with zero browser/API errors. All 178 drafts/versions and both PDF
+evidence documents retain exact hashes; both full-backup files were independently
+verified. Cold dictionary controls and initial AI status now wait for readiness.
+The Codex temporary executable cache is excluded from backups, while all other
+symlink checks and private credential backups remain. Tests and the separate
+non-clean local full-corpus run are detailed in the
+[handoff](session-handoffs/2026-09-28-demo-readiness.md).
+
 ## 2026-09-27 - Restore canonical desktop PDF corrections
 
 User-reported page-37 regressions exposed an incomplete restoration: persisted

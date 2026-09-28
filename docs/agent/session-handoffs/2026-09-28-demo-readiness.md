@@ -140,3 +140,33 @@ lexicon input; corrected it to the actual canvas's Adicionar peça control.
 Before the initialization follow-up, actual production dictionary search returned
 45 entries; two rendered searches returned 11/113 matches without preparation,
 and the grammar dialog and authenticated Codex model discovery both passed.
+
+## Final live outcome
+
+- Runtime release: `ebabf874e3a9b6d8cc905392bacdf5238fb6fd77`.
+- Corpus: `e707610a9f69a7b336c80f096a67e9a4ee0e4dfe`; grammar/dictionary:
+  `c43c83ec6079b7747d39dbca3e2f577023665916`.
+- Full checkpoint: `/srv/pydicate-studio/backups/predeploy-20260928T164934-9fdbf7`.
+  Independently recomputed SHA-256 matches for database.dump/workspace-state.tar.gz.
+- Production browser: real Navarro search 45 entries; two rendered searches
+  1,177/468 ms, 11/113 results, neither preparing. Grammar repair dialog opens;
+  Codex authenticated with six models. No page/API errors or blocked research
+  writes. Original selection restored; drafts unchanged after browser QA.
+- Read-only pre/post capture: all 178 draft/version records, both evidence
+  documents, recovery archive and import receipt exactly unchanged.
+- Final startup-fix hosted CI 36453872184 passed; broad Checks 36453872071 still
+  running when recorded. Earlier PR full Checks both passed. Local startup-fix
+  build and compiled hosted regression passed (including delayed dictionary
+  script and no premature AI status request).
+- Private ignored verification artifacts: `.local/demo-release/browser-report.json`,
+  `production-ready.png`, `state-parity.json`, `backup-verification.json`,
+  `deploy-final.log`, and `codex-preflight.log`. No secrets in committed evidence.
+
+### Remaining boundaries / suggested next prompt
+
+The requested fixes are deployed and verified. Live linguistic correctness of a
+repair is not established by connectivity or UI checks. The older full-corpus
+fixture/provenance mismatches above remain a separate investigation; do not alter
+research data to make those tests pass. Suggested next prompt: investigate the
+baseline real-corpus test mismatches in disposable copies with frozen engine/code,
+keeping the production demo release and canonical editorial state intact.

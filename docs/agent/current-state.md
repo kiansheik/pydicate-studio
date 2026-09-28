@@ -1,6 +1,6 @@
 # Current state
 
-## Prepared search, hosted Navarro and shared Codex
+## Deployed prepared search, hosted Navarro and shared Codex
 
 The rendered-form index now warms on worker/project opening and draft changes in
 one bounded background worker, with independent durable source/draft caches and
@@ -17,12 +17,23 @@ Deployment installs only local `auth.json` over SSH when absent, keeps refreshed
 server tokens, and offers `make collab-codex-auth` for explicit replacement. The
 private persistent Codex home is excluded from images/Git/browser responses.
 
-Local validation: both compiled hosted workflows (new source/PDF/submission and real dictionary/AI
-controls); 19 focused browser tests; 250 domain tests; 273 desktop tests; 65 hosted
-tests (6 optional cases skipped); credential transfer/release/operations fixtures;
-installed Codex scoped tools against a fake API (zero paid calls). Full Python
-suite and live deployment verification are pending. See the
-[handoff](session-handoffs/2026-09-28-demo-readiness.md).
+PR #12 is merged. Runtime release `ebabf87` is live with a full verified backup.
+Authenticated production browser QA passed real Navarro search (45 entries),
+rendered searches (1,177 / 468 ms, no preparation response), the grammar-repair
+dialog and Codex authentication/model discovery. A Linux-container connectivity
+request succeeded with six output tokens, without research data/tool writes.
+All 178 draft/version records, both PDF evidence documents, recovery and import
+receipts match the predeploy snapshot exactly. Backup excludes only Codex's
+recreated temporary executable cache; credentials/history remain protected.
+
+Both original full Checks runs and hosted CI passed; final startup-fix hosted CI
+also passed. The delayed-script compiled-editor regression, six dictionary service
+tests, three warmup tests, eleven real rendered-structure tests, 19 focused browser
+tests, 250 domain/273 desktop tests and deployment fixtures passed. The additional
+full local real-corpus suite was not clean (implementation changed mid-run; older
+corpus-dependent failures also reproduce on baseline main). Do not report that
+extra suite as passed. Final broad Checks rerun was still running at handoff.
+See the [handoff](session-handoffs/2026-09-28-demo-readiness.md).
 
 ## Canonical desktop PDF corrections
 
