@@ -342,12 +342,12 @@ SMTP cannot guarantee exactly-once delivery after a crash between send and ackno
 “Integrated” does not imply a Pix payment. No newsletter or email task is created in ChatGPT.
 
 The UI can store each user's **optional API-key preferences**, encrypted with AES-GCM and bound
-to that user/provider. The vault key stays outside PostgreSQL. Site-funded vs personal funding
-and future monthly limits are explicit, but generation is **still disabled** and enabling
-`COLLAB_AI_ENABLED=1` deliberately fails until a separately reviewed provider/budget worker ships.
-Do not share a personal Codex/Claude subscription login or auth.json among contributors.
-Production site funding should use a dedicated provider project/service identity; personal
-API keys are optional. Secrets never go in Git, research exports or contributor browser responses.
+to that user/provider. The vault key stays outside PostgreSQL. Those preferences do not fund the
+shared Codex worker. Hosted generation is opt-in through `COLLAB_AI_ENABLED=1` and uses the
+maintainer's private server login as described in [Shared Codex](#shared-codex-dictionary-and-prepared-search).
+All invited contributors use that configured account; shared model configuration is admin-only.
+Per-user billing limits are not implemented. Secrets never enter Git, research exports or
+contributor browser responses.
 
 ## Verification
 

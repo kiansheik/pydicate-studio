@@ -199,13 +199,17 @@ class Host:
         for root in (self.data,self.workspace,self.config):
             for base,dirs,files in os.walk(root):
                 if any((pathlib.Path(base)/name).is_symlink() for name in dirs+files):raise ValueError('Symlink in backup state: inspect and replace it with an ordinary contained file before backup.')
+                # Codex recreates temporary executable links inside its container.
+                # Keep credentials/history, but never archive this runtime cache.
+                dirs[:]=[name for name in dirs if pathlib.Path(base)/name != self.config/'codex/tmp']
         with self.stopped(restart=restart):
             print('[server] Backup: exporting PostgreSQL...',flush=True)
             with open(dest/'database.dump','wb') as out:self.compose('exec','-T','postgres','pg_dump','-U','studio_app','-d','studio_prod','-Fc','--no-owner','--no-acl',stdout=out)
             print('[server] Backup: compressing workspace, PDFs and configuration...',flush=True)
             with tarfile.open(dest/'workspace-state.tar.gz','w:gz') as archive:
                 for name in ('data','workspace','config'):
-                    archive.add(self.root/name,arcname=name,recursive=True)
+                    archive.add(self.root/name,arcname=name,recursive=True,
+                        filter=lambda member: None if member.name == 'config/codex/tmp' or member.name.startswith('config/codex/tmp/') else member)
             print('[server] Backup: calculating checksums...',flush=True)
             manifest={'format':'pydicate-full-backup','version':1,'at':stamp(),'release':json.loads((self.root/'release.json').read_text()).get('studio') if (self.root/'release.json').exists() else git(HERE,'rev-parse','HEAD'),
               'repositories':{name:git(self.workspace/name,'rev-parse','HEAD') for name in ('oldtupicorpus','nhe-enga')},

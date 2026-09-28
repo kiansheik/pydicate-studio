@@ -96,3 +96,31 @@ load against Playwright fill (amen was inserted into the stale edit). Disable it
 textarea during selection loading, so edits begin only after the requested
 passage is ready; preserve all conflict/recovery assertions. This fixture is
 separate from the compiled React editor.
+
+## Final test boundary
+
+Final PR head `3fafafd` passed both complete Checks runs (36451953405,
+36451961968) and hosted CI (36451961980). The focused final lookup run passed
+all 12 tests; the two-browser transport fixture passed locally. Warmup has three
+passing tests and the real rendered-structure suite has eleven.
+
+The extra local full real-corpus suite was not clean: 386 tests, 11 failures and
+106 errors. It ran across implementation edits; 98 source-preview subtests hit
+expected STALE_ENGINE guards after that change. Other failures include older
+corpus-sensitive UUID, translation label, shared lexeme, annotation spacing and
+structure-sharing expectations. Representative UUID, label, annotation, structure
+and shared-lexeme failures were reproduced from unchanged `origin/main` in an
+isolated baseline against the same local corpus; they are not a new release pass.
+Logs: `/private/tmp/studio-ai-python.log`, `studio-demo-baseline-python.log`,
+`studio-demo-baseline-morphology.log`. Do not report the full local suite as passed.
+
+## Deployment checkpoint correction
+
+The initial merged release `b6ac637` stopped safely before activation: Codex's
+preflight created executable symlinks below private `config/codex/tmp/arg0`.
+Full backups now exclude exactly that disposable container runtime directory,
+retaining login/history and rejecting symlinks everywhere else (including a
+symlink replacing the temporary directory itself). A checkpoint regression test
+verifies preserved credentials/research, omitted links and both manifest hashes;
+the thirteen operations tests pass. No cache or research file was deleted.
+The deployment guide's obsolete disabled-AI paragraph was also corrected.
