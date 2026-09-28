@@ -86,3 +86,7 @@ tracked transfers before asserting the same exact premature-close error. The PDF
 implementation and assertions remain unchanged. The Linux production-image Codex
 preflight already passed authentication, 14 analysis/6 grammar scoped tools, and
 one six-output-token connectivity response with no research data or tool writes.
+
+The rendered-lookup context test now counts only search/resolve requests; the
+new independent project warmup has no passage context and must not be counted as
+a user lookup. The original two requests and exact source/passage assertions remain.

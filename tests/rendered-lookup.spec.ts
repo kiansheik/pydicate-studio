@@ -468,7 +468,9 @@ test('a new passage resolves in its source context and retains the selected expr
   ).toHaveValue(compound.expression);
   const pendingId = await page.evaluate(() => window.__nextStudio.pendingDrafts[0].passageId);
   const lookupRequests = await page.evaluate(() =>
-    window.__nextControl.requests.filter((request) => request.method.startsWith('structure_')),
+    window.__nextControl.requests.filter((request) =>
+      ['structure_search', 'structure_resolve'].includes(request.method),
+    ),
   );
   expect(lookupRequests).toHaveLength(2);
   for (const request of lookupRequests)
