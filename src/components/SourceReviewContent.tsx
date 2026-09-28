@@ -120,7 +120,7 @@ export function SourceReviewContent({
       <p className="source-review-intro">
         {!hasChanges
           ? saveGroundTruth
-            ? 'A fonte já acompanha o rascunho. Confirme abaixo para salvar a ground truth.'
+            ? 'A fonte já acompanha o rascunho. Confirme abaixo para salvar a referência.'
             : 'Nenhuma alteração para aplicar.'
           : kind === 'passage-new'
             ? 'Esta passagem será acrescentada ao texto.'
@@ -133,8 +133,8 @@ export function SourceReviewContent({
                   : 'Confira as alterações antes de aplicar. Os detalhes técnicos estão disponíveis abaixo.'}
       </p>
       {saveGroundTruth && (
-        <section className="source-review-notice" aria-label="Ground truth desta revisão">
-          <h3>Salvar como ground truth</h3>
+        <section className="source-review-notice" aria-label="Referência desta revisão">
+          <h3>Salvar como referência</h3>
           <p>
             Ao confirmar, a forma revisada será registrada como referência do corpus junto com as
             alterações da passagem e do léxico.

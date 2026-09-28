@@ -1,5 +1,15 @@
 # Work log
 
+## 2026-09-28 - Portuguese reference save and publication performance
+
+Translated the reference save action and related review/progress copy. Production
+audit showed 19.3-second preview versus 0.7-second source apply and 2.1-second
+approval. Reused isolated declaration contexts, cached exact baseline snapshots,
+consolidated approval checks, and skipped matching publication refresh events.
+Same-server disposable preview improved to 3.06 seconds cold / 1.74 warm; approval
+to 1.39 seconds, with all publication guards retained. See the
+[handoff](session-handoffs/2026-09-28-fast-reference-save.md).
+
 ## 2026-09-28 - Repair hosted grammar tool compatibility
 
 Reproduced Codex rejection of the advertised Studio guide resource. Added exact

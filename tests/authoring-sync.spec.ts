@@ -34,6 +34,74 @@ async function release(page: Page, method: string, raw?: string) {
   });
 }
 
+test('publication uses its returned project without a redundant reload and still follows newer server changes', async ({
+  page,
+}) => {
+  await ready(page);
+  await hold(page, 'source_apply');
+  await page.evaluate(() => {
+    const next = structuredClone(window.__nextControl.project);
+    next.engineFingerprint = 'simulated-engine:own-publication';
+    window.__nextControl.applyResult = next;
+    void window.__nextStudio.applySource({
+      previewId: 'reviewed-publication',
+      sourceFingerprint: 'reviewed-source',
+      diff: 'reviewed diff',
+    });
+  });
+  await pending(page, 'source_apply');
+  await page.evaluate(() => {
+    const next = window.__nextControl.applyResult;
+    window.__nextControl.emit({
+      type: 'source-change',
+      projectId: next.id,
+      engineFingerprint: next.engineFingerprint,
+    });
+  });
+  await release(page, 'source_apply');
+  await expect
+    .poll(() => page.evaluate(() => window.__nextStudio.project.engineFingerprint))
+    .toBe('simulated-engine:own-publication');
+  await expect.poll(() => page.evaluate(() => window.__nextStudio.busy)).toBe(false);
+  // A duplicate notification after the response is also already represented.
+  await page.evaluate(() => {
+    const next = window.__nextStudio.project;
+    window.__nextControl.emit({
+      type: 'source-change',
+      projectId: next.id,
+      engineFingerprint: next.engineFingerprint,
+    });
+  });
+  expect(
+    await page.evaluate(
+      () =>
+        window.__nextControl.requests.filter((item) => item.method === 'refresh_project').length,
+    ),
+  ).toBe(0);
+  await hold(page, 'refresh_project');
+  await page.evaluate(() => {
+    const next = structuredClone(window.__nextStudio.project);
+    next.engineFingerprint = 'simulated-engine:another-contributor';
+    window.__nextControl.project = next;
+    window.__nextControl.emit({
+      type: 'source-change',
+      projectId: next.id,
+      engineFingerprint: next.engineFingerprint,
+    });
+  });
+  await pending(page, 'refresh_project');
+  await release(page, 'refresh_project');
+  await expect
+    .poll(() => page.evaluate(() => window.__nextStudio.project.engineFingerprint))
+    .toBe('simulated-engine:another-contributor');
+  expect(
+    await page.evaluate(
+      () =>
+        window.__nextControl.requests.filter((item) => item.method === 'refresh_project').length,
+    ),
+  ).toBe(1);
+});
+
 test('automatic source refresh preserves live pending edits, loose pieces, notes, selection and undo history', async ({
   page,
 }) => {

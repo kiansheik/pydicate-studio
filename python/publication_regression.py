@@ -19,9 +19,18 @@ def snapshot(corpus):
     for path in sorted((corpus/'historic').glob('*.tu.py')):
         if path.name == 'lexicon.tu.py': continue
         source = path.name.removesuffix('.tu.py')
-        try: entries = source_entries(path)
+        try:
+            entries = source_entries(path)
+            # Passage collection additions do not change the declaration
+            # namespace. Build each distinct context once in this fresh child;
+            # isolated_namespace still clones every referenced value/helper
+            # before each passage can mutate it through operators or eval.
+            context_lines = [node.lineno for node in ast.parse(path.read_text(encoding='utf-8')).body
+                             if isinstance(node, (ast.Assign, ast.AnnAssign,
+                                                  ast.FunctionDef, ast.AsyncFunctionDef))]
         except Exception as error:
             sources[source] = {'error':type(error).__name__ + ': ' + str(error)}; continue
+        namespaces = {}
         rows = []
         from passage_references import read
         saved=read(corpus,source)
@@ -31,7 +40,10 @@ def snapshot(corpus):
             raw = entry['expression']
             row = {'ordinal':ordinal,'code':ast.dump(parse_ast(raw)), 'id':(entry.get('studio') or {}).get('passageId'), 'reference':references.get(ordinal), 'locations':[{key:value for key,value in location.items() if value not in (None,'')} for location in (metadata.get(ordinal,{}).get('locations') or saved.get(ordinal,{}).get('locations') or [])]}
             try:
-                namespace = namespace_for(corpus,path,entry['line']); syntax=parse_ast(raw)
+                context = tuple(line for line in context_lines if line < entry['line'])
+                if context not in namespaces:
+                    namespaces[context] = namespace_for(corpus,path,entry['line'])
+                namespace = namespaces[context]; syntax=parse_ast(raw)
                 value = evaluation_snapshot(interpret(syntax,isolated_namespace(namespace,syntax)))
                 row.update(surface=str(value.eval()),annotated=str(value.eval(annotated=True)))
             except Exception as error: row['error'] = type(error).__name__ + ': ' + str(error)
@@ -77,8 +89,9 @@ def compare(before, after, *, allow_removed=False, insertion=None):
             'baselineIssues':baseline,'pendingReferences':pending,'failures':failures}
 
 
-def check_publication(service, changes, *, recovery=False, insertion=None):
-    before = service.child({'action':'publication_snapshot'},timeout=180)
+def check_publication(service, changes, *, recovery=False, insertion=None, baseline=None,
+                      snapshots=None):
+    before = baseline if baseline is not None else service.child({'action':'publication_snapshot'},timeout=180)
     with tempfile.TemporaryDirectory(prefix='studio-publication-') as temporary:
         parent=Path(temporary); corpus=parent/'oldtupicorpus'; corpus.mkdir()
         for name in ('historic','authoring','ground_truth'):
@@ -97,4 +110,6 @@ def check_publication(service, changes, *, recovery=False, insertion=None):
     result=compare(before,after,allow_removed=recovery,insertion=insertion)
     if not result['ok']:
         service.error('A regressão bloqueou a publicação. Nenhum arquivo foi alterado: '+'; '.join(result['failures'][:5]),'REGRESSION_FAILED')
+    if snapshots is not None:
+        snapshots.update(before=before, after=after)
     return result

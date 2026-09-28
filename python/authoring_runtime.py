@@ -810,6 +810,8 @@ def lexicon_result(payload, corpus, path, namespace):
 def approve_authoritatively(payload, corpus):
     """Approve only the selected passage; gaps contain no synthesized references."""
     import uuid
+    from adapter import AdapterError, ProjectAdapter
+    from rendered_structures import isolated_namespace
     from studio_authoring import authoritative_metadata, source_directives, SOURCE_TEXT_FIELDS
     from passage_references import read, changes
     from reviewed_files import apply_reviewed_files
@@ -822,7 +824,16 @@ def approve_authoritatively(payload, corpus):
     entries=source_entries(source_path)
     entry=entries[ordinal-1]
     namespace=namespace_for(corpus,source_path,entry['line'])
-    rendered=normalize_surface(str(interpret(parse_ast(entry['expression']),namespace).eval()))
+    syntax=parse_ast(entry['expression'])
+    # The UI's complete-output guard and the canonical sink must both succeed.
+    # Isolate the preview so its per-step evaluation cannot mutate the separate
+    # authoritative interpretation, without starting another engine process.
+    review=realize(entry['expression'],isolated_namespace(namespace,syntax))
+    if review.get('evaluationStatus') == 'partial':
+        raise AdapterError('A análise precisa ser realizada por completo antes de salvar como referência aprovada.', 'INCOMPLETE_EVALUATION')
+    if not isinstance(payload.get('reviewedSurface'),str) or payload['reviewedSurface']!=review['surface']:
+        raise AdapterError('Confirme explicitamente a superfície revisada; avaliação não concede aprovação.', 'REVIEW_REQUIRED')
+    rendered=normalize_surface(str(interpret(syntax,namespace).eval()))
     if rendered!=normalize_surface(payload['reviewedSurface']):
         raise ValueError('A superfície mudou desde a revisão.')
     records=read(corpus,source); prior=records.get(ordinal,{})
@@ -855,6 +866,9 @@ def approve_authoritatively(payload, corpus):
                   'afterFingerprint':'sha256:'+hashlib.sha256(item['after']).hexdigest()} for item in members]
     journal={'version':2,**journal_rows[0],'files':journal_rows,'kind':'reference-approval',
              'ordinal':ordinal,'reviewedSurface':rendered,'status':'prepared'}
+    fresh=ProjectAdapter(); fresh.parent=corpus.parent
+    if fresh._engine_fingerprint(fresh._snapshots())!=payload['engineFingerprint']:
+        raise AdapterError('O corpus ou a gramática mudou. Atualize e reconcilie o rascunho.', 'STALE_ENGINE')
     def fail(message,code): raise ValueError(message)
     apply_reviewed_files(members,Path(payload['stateDir'])/'recovery'/(str(uuid.uuid4())+'.json'),journal,fail)
     return {'source':source,'ordinal':ordinal,'committed_surface':rendered}
@@ -909,5 +923,5 @@ def main():
                     result=lexicon_result(payload,corpus,path,namespace) if payload.get('action') in {'lexicon','lexicon_inspect','lexicon_context'} else realize(payload['raw'],namespace,include_morphology=payload.get('includeMorphology') is True)
         print(json.dumps({'result':result},ensure_ascii=False))
     except Exception as error:
-        print(json.dumps({'error':{'message':f'{type(error).__name__}: {error}','code':'ENGINE_CONTEXT_ERROR'}},ensure_ascii=False))
+        print(json.dumps({'error':{'message':f'{type(error).__name__}: {error}','code':getattr(error,'code','ENGINE_CONTEXT_ERROR')}},ensure_ascii=False))
 if __name__=='__main__': main()

@@ -536,11 +536,11 @@ try {
     await expect(page.locator('.notice-banner')).toHaveCount(0);
     await page
       .locator('.workspace-footer')
-      .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
+      .getByRole('button', { name: 'Salvar como referência', exact: true })
       .click();
-    const groundTruth = page.getByRole('dialog', { name: 'Commit to Ground Truth', exact: true });
+    const groundTruth = page.getByRole('dialog', { name: 'Salvar como referência', exact: true });
     await expect(groundTruth).toContainText('já tem um registro aprovado', { timeout: 20_000 });
-    await groundTruth.getByRole('button', { name: 'Fechar ground truth', exact: true }).click();
+    await groundTruth.getByRole('button', { name: 'Fechar referência', exact: true }).click();
     const afterRecords = (await fs.readFile(recordsPath, 'utf8')).trimEnd().split('\n');
     assert.equal(afterRecords.length, beforeRecords.length);
     for (let index = 0; index < beforeRecords.length; index++) {

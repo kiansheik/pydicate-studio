@@ -96,6 +96,9 @@ class ApprovalSinkTests(unittest.TestCase):
             payload={'sourceId':'fixture','ordinal':1,'passageId':'passage:fixture','sourceFileFingerprint':'sha256:'+hashlib.sha256(source.read_bytes()).hexdigest(),'reviewedSurface':'reviewed.','engineFingerprint':'fixture','stateDir':str(state)}
             with patch.dict(sys.modules,{'authoring.records':records}), \
                     patch('authoring_runtime.namespace_for',return_value={'entry':Predicate()}), \
+                    patch('authoring_runtime.realize',return_value={'evaluationStatus':'complete','surface':'reviewed.'}), \
+                    patch('adapter.ProjectAdapter._snapshots',return_value=[]), \
+                    patch('adapter.ProjectAdapter._engine_fingerprint',return_value='fixture'), \
                     patch('studio_authoring.authoritative_metadata',return_value={}):
                 with self.assertRaisesRegex(ValueError,'superfície mudou'):
                     approve_authoritatively(payload,corpus)

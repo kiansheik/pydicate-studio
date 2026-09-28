@@ -85,7 +85,10 @@ export function useStudio() {
   const operation = useRef(false);
   const lastSaveError = useRef('');
   const automaticRefresh = useRef<Promise<StudioProject> | null>(null);
-  const [refreshRequested, setRefreshRequested] = useState<string | null>(null);
+  const [refreshRequested, setRefreshRequested] = useState<{
+    projectId: string;
+    engineFingerprint?: string;
+  } | null>(null);
   const latest = useRef({ project, envelope, ready, selectedId });
   latest.current = { project, envelope, ready, selectedId };
   const passage =
@@ -474,7 +477,11 @@ export function useStudio() {
     () =>
       window.studio?.onEvent?.((event) => {
         if (event.type === 'source-change' && event.projectId === latest.current.project.id) {
-          setRefreshRequested(event.projectId);
+          if (event.engineFingerprint === latest.current.project.engineFingerprint) return;
+          setRefreshRequested({
+            projectId: event.projectId,
+            engineFingerprint: event.engineFingerprint,
+          });
         }
       }),
     [],
@@ -482,7 +489,10 @@ export function useStudio() {
   useEffect(() => {
     if (!refreshRequested || busy || !ready) return;
     setRefreshRequested(null);
-    void refreshAutomatically(refreshRequested).catch((reason) =>
+    // Our publication response already contains its refreshed project. An SSE
+    // event may arrive while the write is pending, before that response is adopted.
+    if (refreshRequested.engineFingerprint === latest.current.project.engineFingerprint) return;
+    void refreshAutomatically(refreshRequested.projectId).catch((reason) =>
       setError(reason instanceof Error ? reason.message : String(reason)),
     );
   }, [refreshRequested, busy, ready]);
@@ -725,7 +735,7 @@ export function useStudio() {
         current.envelope.drafts[draftId]?.revisionId !== active.revisionId
       )
         throw new Error(
-          'A forma revisada não corresponde à passagem, ao rascunho ou ao motor atual. Gere outra revisão antes de salvar ground truth.',
+          'A forma revisada não corresponde à passagem, ao rascunho ou ao motor atual. Gere outra revisão antes de salvar referência.',
         );
     };
     assertReviewed();
@@ -798,8 +808,8 @@ export function useStudio() {
       setVerification(
         reviewed
           ? outcome.sourceApplied
-            ? 'Fonte salva. Salvando ground truth…'
-            : 'Salvando ground truth…'
+            ? 'Fonte salva. Salvando referência…'
+            : 'Salvando referência…'
           : 'Edição aplicada na fonte. A referência histórica foi preservada.',
       );
       if (!reviewed) return outcome;
@@ -867,22 +877,22 @@ export function useStudio() {
         }
         setVerification(
           outcome.draftSaveError
-            ? 'Ground truth salva no corpus. Não foi possível salvar o estado de conclusão neste dispositivo: ' +
+            ? 'Referência salva no corpus. Não foi possível salvar o estado de conclusão neste dispositivo: ' +
                 outcome.draftSaveError
-            : `Passagem e ground truth salvas: ${savedPassage.sourceId}, passagem ${savedPassage.ordinal}. A passagem foi marcada como concluída neste dispositivo.`,
+            : `Passagem e referência salvas: ${savedPassage.sourceId}, passagem ${savedPassage.ordinal}. A passagem foi marcada como concluída neste dispositivo.`,
         );
       } catch (reason) {
         const message = reason instanceof Error ? reason.message : String(reason);
         if (outcome.groundTruthSaved) {
           outcome.draftSaveError = message;
           setVerification(
-            'Ground truth salva no corpus. Não foi possível atualizar o estado local: ' + message,
+            'Referência salva no corpus. Não foi possível atualizar o estado local: ' + message,
           );
         } else {
           outcome.approvalError = message;
           setVerification(
             (outcome.sourceApplied ? 'A fonte foi aplicada. ' : '') +
-              'A ground truth não foi salva: ' +
+              'A referência não foi salva: ' +
               message,
           );
         }
@@ -1215,11 +1225,11 @@ export function useStudio() {
     const selected = current.project.passages.find((p) => p.id === current.selectedId);
     const active = selected && current.envelope.drafts[selected.id];
     if (operation.current || !current.ready || !selected || !active)
-      throw new Error('Aguarde o carregamento ou a operação atual antes de salvar ground truth.');
+      throw new Error('Aguarde o carregamento ou a operação atual antes de salvar referência.');
     if (selected.id.startsWith('pending:'))
-      throw new Error('Revise e acrescente a nova passagem à fonte antes de salvar ground truth.');
+      throw new Error('Revise e acrescente a nova passagem à fonte antes de salvar referência.');
     if (draftConflicts(active, selected) || active.raw !== selected.sourceExpression)
-      throw new Error('Aplique primeiro a edição revisada na fonte antes de salvar ground truth.');
+      throw new Error('Aplique primeiro a edição revisada na fonte antes de salvar referência.');
     operation.current = true;
     setBusy(true);
     try {
@@ -1247,7 +1257,7 @@ export function useStudio() {
       });
       await persist();
       setVerification(
-        `Ground truth salva: ${selected.sourceId}, passagem ${selected.ordinal}. A passagem foi marcada como concluída neste dispositivo.`,
+        `Referência salva: ${selected.sourceId}, passagem ${selected.ordinal}. A passagem foi marcada como concluída neste dispositivo.`,
       );
       return response;
     } finally {

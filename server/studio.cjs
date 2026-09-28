@@ -91,7 +91,7 @@ async function createStudio(config, store, emit = () => { }) {
         defaultParent: config.parent, openPath: open,
         reloadProject: () => queue.run('grammar-reload', async () => {
             const next = await open();
-            emit({type:'source-change',projectId:next.id});
+            emit({type:'source-change',projectId:next.id,engineFingerprint:next.engineFingerprint});
             return next;
         }), emit,
         duringProjectWrite: action => action(),
@@ -186,7 +186,7 @@ async function createStudio(config, store, emit = () => { }) {
                     previews.delete(params.previewId);
                 await store.audit(user.id, 'operation.' + method, target ?? null, 'succeeded', Math.round(performance.now() - started));
                 if (['source_apply', 'source_create', 'reference_approve'].includes(method))
-                    emit({ type: 'source-change', projectId: project.id });
+                    emit({ type: 'source-change', projectId: project.id, engineFingerprint: project.engineFingerprint });
                 return result;
             }
             catch (error) {

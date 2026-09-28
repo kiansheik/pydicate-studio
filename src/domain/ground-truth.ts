@@ -64,7 +64,7 @@ export function approvalState(context: ApprovalContext): Approval {
     return {
       ready: false,
       code: 'NEW_PASSAGE',
-      reason: 'Revise e acrescente a nova passagem à fonte antes de salvar ground truth.',
+      reason: 'Revise e acrescente a nova passagem à fonte antes de salvar referência.',
     };
   if (!status)
     return {
