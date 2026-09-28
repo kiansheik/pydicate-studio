@@ -14,7 +14,7 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
     const store = await createTestStore(directory, { validateEnvelope: validate.envelope });
     const password = 'isolated full editor fixture password';
     await store.db.prepare("INSERT INTO users VALUES($1,$2,$3,$4,$5,0,$6)").run('fixture', 'fixture@example.org', 'Hosted reviewer', 'reviewer', await hashPassword(password), Date.now());
-    const settings = { origin: 'http://127.0.0.1', secure: false, telemetryDays: 90, stateDirectory: directory,
+    const settings = { aiEnabled: true, origin: 'http://127.0.0.1', secure: false, telemetryDays: 90, stateDirectory: directory,
         applicationDirectory: path.resolve(__dirname, '../..'), distDirectory: path.resolve(__dirname, '../../dist'),
         parent: process.env.COLLAB_REAL_PROJECT, python: process.env.PYDICATE_PYTHON || 'python3' };
     let app, runtime, browser, page;
@@ -73,6 +73,21 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
     assert.equal((await store.comments(id)).comments[0].authorId, 'fixture');
     assert.deepEqual(failures, [], 'Unhandled browser exceptions');
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('#root img')].every(image => image.complete && image.naturalWidth > 0)), true, 'Public branding images load through the hosted static boundary');
+    assert.equal(await page.evaluate(() => window.studio.capabilities.analysis), true);
+    await page.getByRole('button', {name:'Corrigir gramática / árvore',exact:true}).first().waitFor();
+    const preparation = await page.evaluate(async () => window.studio.invoke('structure_prepare', {projectId:window.collab.state().projectId}));
+    assert.equal(typeof preparation.preparing, 'boolean');
+    const listing = await page.evaluate(async () => window.studio.invoke('analysis_list', {projectId:window.collab.state().projectId}));
+    assert.ok(Array.isArray(listing.jobs));
+    await page.getByRole('button', {name:'Dicionário',exact:true}).click();
+    const dictionary = page.frameLocator('iframe[title="Dicionário de tupi antigo"]');
+    const search = dictionary.getByPlaceholder('Digite a palavra a ser pesquisada');
+    await search.waitFor({timeout:30000});
+    await search.fill('pysyrõ');
+    await dictionary.getByRole('button',{name:'Pesquisar',exact:true}).click();
+    await dictionary.locator('#results > .entry').first().waitFor();
+    assert.ok(await dictionary.locator('#results > .entry').count() > 0);
+    assert.deepEqual(failures, [], 'Hosted dictionary and AI controls have no browser exceptions');
     const evidence = path.resolve(__dirname, '../../test-results/collab');
     fs.mkdirSync(evidence, { recursive: true });
     await page.screenshot({ path: path.join(evidence, 'hosted-react-editor.png'), fullPage: true });

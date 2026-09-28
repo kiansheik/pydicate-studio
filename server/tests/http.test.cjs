@@ -24,6 +24,7 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
         },
         invoke: async (method, params, ctx) => { authorizeMethod(method, ctx.user.role); if (method === 'evidence_bytes')
             return new TextEncoder().encode('%PDF-test').buffer; return { method, projectId: project.id }; } };
+    runtime.dictionary = { handle: async request => { assert.equal(new URL(request.url).pathname, '/nhe-enga/'); return new Response('<html>Navarro</html>', { headers: { 'Content-Type': 'text/html', 'Content-Security-Policy': "frame-ancestors 'self'" } }); } };
     const auth = new Auth(store, settings), app = createHttp({ config: settings, store, auth, runtime });
     await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
     settings.origin = 'http://127.0.0.1:' + app.server.address().port;
@@ -39,6 +40,15 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     assert.equal(page.status, 200);
     assert.match(await page.text(), /collab\/bridge.js/);
     assert.equal(page.headers.get('x-frame-options'), 'DENY');
+    for (const route of ['/nhe-enga/', '/__studio_dictionary/bridge.js'])
+        assert.equal((await fetch(settings.origin + route, {redirect:'manual'})).status, 303);
+    const dictionary = await fetch(settings.origin + '/nhe-enga/', {headers:{Cookie:user.cookie}});
+    assert.equal(dictionary.status, 200);
+    assert.equal(dictionary.headers.get('x-frame-options'), 'SAMEORIGIN');
+    assert.equal(dictionary.headers.get('content-security-policy'), "frame-ancestors 'self'");
+    assert.equal(await dictionary.text(), '<html>Navarro</html>');
+    assert.match(page.headers.get('content-security-policy'), /frame-src 'self' blob:/);
+
     assert.equal((await fetch(settings.origin + '/server/auth.cjs', { headers: { Cookie: user.cookie } })).status, 404);
     assert.equal((await post('/api/drafts/load', { projectId: project.id }, user, { 'X-CSRF-Token': 'wrong' })).status, 403);
     assert.equal((await post('/api/invoke', { method: 'reference_approve', params: {} }, user)).status, 403);

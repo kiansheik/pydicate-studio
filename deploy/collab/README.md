@@ -392,3 +392,26 @@ Neo password/email changes or account disabling invalidate linked access within 
 recheck window. Neo outages fail closed for linked sessions; local recovery login still works.
 Signing out of Neo does not automatically sign out of an already-issued Studio session.
 Keep using the standard Neo password-reset/verification flow for linked users.
+
+## Shared Codex, dictionary and prepared search
+
+`make collab-deploy` installs a local `~/.codex/auth.json` over the existing verified SSH
+connection when the server does not yet have one. It copies only the login cache, never local
+Codex configuration, MCP servers, sessions or plugins. The server directory is private (0700;
+auth file 0600) and persists outside releases/images. Existing server tokens are preserved on
+later deployments, including Codex's refreshed tokens. To explicitly replace an expired login,
+authenticate locally, run `make collab-codex-auth`, then deploy. An installed login enables
+`COLLAB_AI_ENABLED=1`; no local login leaves an existing server configuration unchanged.
+
+Invited contributors can use Codex analysis, translation and grammar repair. Shared model
+preferences belong to the administrator. Every human acceptance remains a version-checked,
+attributed draft operation. Grammar repair uses bounded hash-checked edits and preserves
+receipts; subsequent automatic upstream updates defer when those edits leave the engine dirty.
+Active AI jobs prevent idle maintenance. Credentials remain private and are included only in
+private full recovery backups; the browser never receives them.
+
+The authenticated Navarro tab serves the real selected dictionary with local assets and exact
+entry identity. Rendered-form search warms at process/project opening, persists base and draft
+indexes separately, and refreshes changed drafts in a background worker. Cold-index polling
+never occupies the main grammar worker for the build. Cache identities include current engine,
+corpus and draft content; stale indexes cannot authorize insertion.

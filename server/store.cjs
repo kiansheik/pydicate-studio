@@ -116,7 +116,7 @@ class Store {
     async claimList() {
         return await this.db.prepare("SELECT c.passage_id AS \"passageId\",c.client_id AS \"clientId\",c.user_id AS \"userId\",\n      u.name,c.expires_at AS \"expiresAt\" FROM claims c JOIN users u ON u.id=c.user_id WHERE c.expires_at>$1 AND u.disabled=0").all(this.now());
     }
-    async patch(projectId, changes, user, clientId) {
+    async patch(projectId, changes, user, clientId, trustedAcceptance = false) {
         if (!Array.isArray(changes) || changes.length > 200)
             throw fault(400, 'INVALID_PATCH', 'Alterações demais em um pedido.');
         return await this.transaction(async () => {
@@ -144,9 +144,9 @@ class Store {
                     if (!change.draft || change.draft.passageId !== id)
                         throw fault(400, 'INVALID_DRAFT', 'Passagem divergente.');
                     const draft = structuredClone(change.draft);
-                    delete draft.aiAcceptances;
+                    if (!trustedAcceptance) delete draft.aiAcceptances;
                     const old = current.envelope.drafts[id] ?? current.envelope.drafts[id.replace(/^passage:/, 'pending:')];
-                    if (old?.aiAcceptances)
+                    if (!trustedAcceptance && old?.aiAcceptances)
                         draft.aiAcceptances = structuredClone(old.aiAcceptances);
                     next.drafts[id] = draft;
                 }

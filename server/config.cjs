@@ -15,9 +15,10 @@ function config(env = process.env) {
   if (origin.protocol === 'http:' && !['127.0.0.1', '::1', 'localhost'].includes(host)) {
     throw new Error('Development HTTP must bind to loopback.');
   }
-  if (env.COLLAB_AI_ENABLED && env.COLLAB_AI_ENABLED !== '0') throw new Error('Hosted AI execution is not released yet; keep COLLAB_AI_ENABLED=0.');
+  if (env.COLLAB_AI_ENABLED && !['0','1'].includes(env.COLLAB_AI_ENABLED)) throw new Error('COLLAB_AI_ENABLED must be 0 or 1.');
   return {
     origin: origin.origin, secure: origin.protocol === 'https:', host, port,
+    aiEnabled: env.COLLAB_AI_ENABLED === '1',
     trustProxy: env.COLLAB_TRUST_PROXY === '1',
     stateDirectory: path.resolve(env.COLLAB_STATE_DIR || path.join(os.homedir(), '.local/share/pydicate-studio-collab')),
     parent: path.resolve(env.PYDICATE_PROJECT_PARENT || path.join(__dirname, '../..')),

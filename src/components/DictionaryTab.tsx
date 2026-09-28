@@ -30,9 +30,8 @@ function validStatus(status: DictionaryStatus, projectId: string) {
   try {
     const url = new URL(status.url ?? dictionaryUrl(projectId, status.datasetFingerprint));
     return (
-      url.protocol === 'studio:' &&
-      url.hostname === 'dictionary' &&
-      url.port === '' &&
+      ((url.protocol === 'studio:' && url.hostname === 'dictionary' && url.port === '') ||
+        (['https:', 'http:'].includes(url.protocol) && url.origin === window.location.origin)) &&
       url.username === '' &&
       url.password === '' &&
       url.pathname === '/nhe-enga/' &&
@@ -129,7 +128,10 @@ export function DictionaryTab(props: Props) {
         !status.datasetFingerprint ||
         !frame.current ||
         event.source !== frame.current.contentWindow ||
-        event.origin !== dictionaryOrigin ||
+        event.origin !==
+          (!status.url || status.url.startsWith('studio:')
+            ? dictionaryOrigin
+            : new URL(status.url!).origin) ||
         !selectedEntry(event.data, status.datasetFingerprint)
       )
         return;

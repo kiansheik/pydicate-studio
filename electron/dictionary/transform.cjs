@@ -25,8 +25,7 @@ function transformHtml(
   if (!/^sha256:[a-f0-9]{64}$/.test(datasetFingerprint))
     throw new Error('Identidade do dicionário inválida.');
   if (!/^\/[a-zA-Z0-9/_-]+$/.test(bridgeBase)) throw new Error('Caminho do dicionário inválido.');
-  if (!/^(studio:\/\/app|http:\/\/(127\.0\.0\.1|localhost):\d+)$/.test(parentOrigin))
-    throw new Error('Origem do aplicativo inválida.');
+  if (!validParentOrigin(parentOrigin)) throw new Error('Origem do aplicativo inválida.');
   source = source.replace(
     /<script\b[^>]*src=["']https?:\/\/www\.googletagmanager\.com\/[^"']+["'][^>]*>\s*<\/script>/gi,
     '',
@@ -46,3 +45,20 @@ function transformStyles(source) {
 }
 
 module.exports = { transformHtml, transformScript, transformStyles };
+
+function validParentOrigin(value) {
+  if (value === 'studio://app') return true;
+  try {
+    const url = new URL(value);
+    return (
+      url.origin === value &&
+      !url.username &&
+      !url.password &&
+      (url.protocol === 'https:' ||
+        (url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))
+    );
+  } catch {
+    return false;
+  }
+}
+module.exports.validParentOrigin = validParentOrigin;

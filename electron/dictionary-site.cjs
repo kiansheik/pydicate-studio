@@ -3,7 +3,12 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { transformHtml, transformScript, transformStyles } = require('./dictionary/transform.cjs');
+const {
+  transformHtml,
+  transformScript,
+  transformStyles,
+  validParentOrigin,
+} = require('./dictionary/transform.cjs');
 
 const ORIGIN = 'studio://dictionary';
 const REQUIRED = [
@@ -43,7 +48,12 @@ function createDictionarySite({
   getProject,
   bridgeDirectory = path.join(__dirname, 'dictionary'),
   parentOrigin = 'studio://app',
+  origin = ORIGIN,
 }) {
+  if (!validParentOrigin(parentOrigin) || (origin !== ORIGIN && origin !== parentOrigin))
+    throw new Error('Origem do dicionário inválida.');
+  const policy =
+    origin === ORIGIN ? POLICY : POLICY.replace(/frame-ancestors .*/, "frame-ancestors 'self'");
   let cached;
   function selected(projectId) {
     const project = getProject();
@@ -84,7 +94,7 @@ function createDictionarySite({
       const data = await dataset(directory);
       return {
         available: true,
-        url: `${ORIGIN}/nhe-enga/?projectId=${encodeURIComponent(project.id)}&dataset=${encodeURIComponent(data.fingerprint)}`,
+        url: `${origin}/nhe-enga/?projectId=${encodeURIComponent(project.id)}&dataset=${encodeURIComponent(data.fingerprint)}`,
         datasetFingerprint: data.fingerprint,
       };
     } catch (error) {
@@ -96,7 +106,7 @@ function createDictionarySite({
       status,
       headers: {
         'Content-Type': MIME[path.extname(name)] || 'text/plain; charset=utf-8',
-        'Content-Security-Policy': POLICY,
+        'Content-Security-Policy': policy,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'no-store',
       },
@@ -105,7 +115,7 @@ function createDictionarySite({
   async function handle(request) {
     try {
       const url = new URL(request.url);
-      if (url.protocol !== 'studio:' || url.host !== 'dictionary' || request.method !== 'GET')
+      if (`${url.protocol}//${url.host}` !== origin || request.method !== 'GET')
         return response('Not found', '', 404);
       const { project, directory } = selected(url.searchParams.get('projectId'));
       let pathname = decodeURIComponent(url.pathname);

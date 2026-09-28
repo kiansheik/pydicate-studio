@@ -468,7 +468,9 @@ test('a new passage resolves in its source context and retains the selected expr
   ).toHaveValue(compound.expression);
   const pendingId = await page.evaluate(() => window.__nextStudio.pendingDrafts[0].passageId);
   const lookupRequests = await page.evaluate(() =>
-    window.__nextControl.requests.filter((request) => request.method.startsWith('structure_')),
+    window.__nextControl.requests.filter((request) =>
+      ['structure_search', 'structure_resolve'].includes(request.method),
+    ),
   );
   expect(lookupRequests).toHaveLength(2);
   for (const request of lookupRequests)
@@ -555,4 +557,24 @@ test('the global lexicon reuses an unnamed subtree in the selected scope and ret
     passageId: 'passage-a',
     candidateId: compound.id,
   });
+});
+
+test('a cold background index refreshes automatically without showing a false empty result', async ({
+  page,
+}) => {
+  let searches = 0;
+  await openTree(page, '', ({ method }) => {
+    if (method !== 'structure_search') return resolved(named);
+    searches++;
+    return searches === 1 ? { results: [], total: 0, preparing: true } : results(named);
+  });
+  await page
+    .getByRole('combobox', { name: 'Palavra ou expressão inicial: buscar em tupi', exact: true })
+    .fill('Tupãpotaba');
+  await expect(
+    page.getByText('Atualizando as formas do projeto em segundo plano…', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/^Nenhuma estrutura encontrada/)).toHaveCount(0);
+  await expect(page.getByRole('listbox').getByRole('option')).toContainText('Tupã potaba');
+  expect(searches).toBe(2);
 });

@@ -8,6 +8,8 @@ from ops import Remote
 
 class ReleaseTests(unittest.TestCase):
     def setUp(self):
+        credentials = patch('codex_auth.install')
+        credentials.start(); self.addCleanup(credentials.stop)
         mocked = patch('desktop_sync.prepare_local_bundle', return_value=None)
         mocked.start(); self.addCleanup(mocked.stop)
 

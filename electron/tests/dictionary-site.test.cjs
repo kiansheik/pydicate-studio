@@ -127,3 +127,21 @@ test('missing jointly loaded CSV is reported before showing a broken search page
   await fs.unlink(path.join(f.directory, 'neologisms.csv'));
   assert.equal((await f.site.status()).available, false);
 });
+
+test('hosted dictionary uses the configured origin and keeps the asset boundary', async (t) => {
+  const origin = 'https://studio.example.org';
+  const f = await fixture(t, { origin, parentOrigin: origin });
+  const status = await f.site.status();
+  assert.equal(new URL(status.url).origin, origin);
+  const response = await f.site.handle(new Request(status.url));
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'self'/);
+  assert.match(await response.text(), /data-parent-origin="https:\/\/studio.example.org"/);
+  for (const pathname of [
+    '/nhe-enga/.git/config',
+    '/nhe-enga/private.env',
+    '/__studio_dictionary/transform.cjs',
+  ])
+    assert.equal((await f.site.handle(new Request(origin + pathname))).status, 404);
+  assert.equal((await f.site.handle(new Request('https://other.example/nhe-enga/'))).status, 404);
+});

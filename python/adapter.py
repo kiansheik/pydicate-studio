@@ -331,7 +331,7 @@ class ProjectAdapter:
     @staticmethod
     def _engine_fingerprint(snapshots: list[dict]) -> str:
         # Corpus fingerprint includes lexicon definitions; no clean-HEAD claim.
-        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'source_catalog.py', 'passage_insertion.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'lexical_metadata.py', 'semantic_context.py', 'node_definitions.py', 'lexical_publication.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
+        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'source_catalog.py', 'passage_insertion.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'structure_warmup.py', 'lexical_metadata.py', 'semantic_context.py', 'node_definitions.py', 'lexical_publication.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
         implementation = digest(b"".join((Path(__file__).parent / name).read_bytes() for name in runtime_files))
         material = ADAPTER_VERSION + ":" + sys.version + ":" + implementation + ":" + ":".join(item["fingerprint"] for item in snapshots)
         return "sha256:" + digest(material.encode())

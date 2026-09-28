@@ -50,7 +50,7 @@ test('contributor creates a source, uploads PDF, saves regions and submits its f
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   const errors = [], blocked = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('response', response => { if (response.url().includes('/api/') && response.status() >= 400) blocked.push(`${response.status()} ${response.url()}`); });
+  page.on('response', async response => { if (response.url().includes('/api/') && response.status() >= 400) { const body=await response.json().catch(()=>({})); blocked.push(`${response.status()} ${response.url()} ${response.request().postDataJSON()?.method || ''} ${body.error?.code || ''} ${body.error?.message || ''}`); } });
   await page.goto(config.origin + '/login');
   await page.locator('#email').fill('contributor@example.org');
   await page.locator('#password').fill(password);

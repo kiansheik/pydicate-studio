@@ -787,6 +787,7 @@ function createProviderService({
   }
 
   return {
+    hasWork: () => active.size > 0,
     async getConfig() {
       await initialize();
       return clone(config);

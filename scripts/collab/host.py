@@ -86,6 +86,8 @@ class Host:
             if not file.exists():file.write_text(secrets.token_hex(32)+'\n')
             file.chmod(0o400 if name in ('provider-vault-key','neo-identity-secret') else 0o444)
             if os.geteuid()==0:os.chown(file,1000,1000)
+        codex=self.config/'codex';codex.mkdir(exist_ok=True,mode=0o700)
+        if os.geteuid()==0:os.chown(codex,1000,1000)
         env=self.config/'runtime.env'
         if not env.exists():
             settings={'COLLAB_ROOT':str(self.root),'COLLAB_WORKSPACE':str(self.workspace),'COLLAB_DATA_DIR':str(self.data),
@@ -108,6 +110,10 @@ class Host:
                 settings.update(SMTP_HOST='mail.privateemail.com',SMTP_PORT='587',SMTP_USE_TLS='true',SMTP_USERNAME='',SMTP_PASSWORD='')
             elif smtp!='none':raise ValueError('Unknown SMTP mode')
             env.write_text(''.join(f'{key}={value}\n' for key,value in settings.items()));env.chmod(0o600)
+        if (codex/'auth.json').is_file():
+            settings=env.read_text().splitlines()
+            settings=[line for line in settings if not line.startswith('COLLAB_AI_ENABLED=')]
+            env.write_text('\n'.join([*settings,'COLLAB_AI_ENABLED=1'])+'\n');env.chmod(0o600)
         # No secrets are regenerated or copied from other applications on redeployment.
         self.application_ownership(self.data,self.workspace)
         run(['docker','network','inspect','caddy_edge'],capture=True)

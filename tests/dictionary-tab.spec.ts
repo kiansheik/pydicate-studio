@@ -160,3 +160,30 @@ test('failed conversion and rejected insertion keep the dictionary available for
   await expect(page.getByRole('alert')).toContainText('A passagem ou a seleção mudou');
   await expect(page.locator('#insertions')).toHaveText('0');
 });
+
+test('hosted dictionary accepts only its own origin and receives verified iframe selections', async ({
+  page,
+}) => {
+  await page.goto('/tests/dictionary-harness.html');
+  await page.route('**/nhe-enga/?*', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<html><body>Navarro</body></html>' }),
+  );
+  await page.evaluate(() => {
+    window.dictionaryControl.status.url = window.dictionaryControl.status.url!.replace(
+      'studio://dictionary',
+      location.origin,
+    );
+  });
+  await page.getByRole('button', { name: 'Abrir aba', exact: true }).click();
+  await expect(page.getByTitle('Dicionário de tupi antigo', { exact: true })).toBeVisible();
+  await page.evaluate(
+    (message) => window.dictionaryControl.send(message, 'https://outside.invalid'),
+    selection(),
+  );
+  expect(await page.evaluate(() => window.dictionaryControl.inserted.length)).toBe(0);
+  await page.evaluate(
+    (message) => window.dictionaryControl.send(message, location.origin),
+    selection(),
+  );
+  await expect(page.locator('#insertions')).toHaveText('1');
+});

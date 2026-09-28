@@ -50,3 +50,15 @@ test('upstream status exposes repository state without host paths or private fie
   assert.equal(value.repositories[0].head,'a'.repeat(40));
   assert.equal(JSON.stringify(value).includes('private'),false);
 });
+
+test('a running AI job prevents maintenance even after browser requests finish', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-idle-ai-'));
+  let time=1000000, running=true;
+  const idle=createIdle({directory,now:()=>time,idleMs:100,hasWork:()=>running});
+  t.after(async()=>{await idle.close();await fs.rm(directory,{recursive:true,force:true});});
+  await idle.tick();time+=1000;
+  const id=require('node:crypto').randomUUID();
+  await fs.writeFile(path.join(directory,'operations/maintenance.json'),JSON.stringify({version:1,id,expiresAt:time+60000}));
+  await idle.tick();assert.equal(idle.state().maintenanceRequestId,null);assert.equal(idle.state().busyRequests,1);
+  running=false;await idle.tick();assert.equal(idle.state().maintenanceRequestId,id);
+});

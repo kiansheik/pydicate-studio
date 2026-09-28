@@ -42,7 +42,7 @@ services:
       COLLAB_HOST: 0.0.0.0
       COLLAB_PORT: 8787
       COLLAB_TRUST_PROXY: '1'
-      COLLAB_AI_ENABLED: '0'
+      COLLAB_AI_ENABLED: ${COLLAB_AI_ENABLED:-0}
       COLLAB_VAULT_KEY_FILE: /run/secrets/provider_vault_key
       PGHOST: pydicate-studio-postgres
       PGUSER: studio_app
@@ -56,7 +56,8 @@ services:
     volumes:
       - ${COLLAB_DATA_DIR:?Set COLLAB_DATA_DIR}:/data
       - ${COLLAB_WORKSPACE:?Set COLLAB_WORKSPACE}/oldtupicorpus:/workspace/oldtupicorpus
-      - ${COLLAB_WORKSPACE:?Set COLLAB_WORKSPACE}/nhe-enga:/workspace/nhe-enga:ro
+      - ${COLLAB_WORKSPACE:?Set COLLAB_WORKSPACE}/nhe-enga:/workspace/nhe-enga
+      - ${COLLAB_ROOT:?Set COLLAB_ROOT}/config/codex:/home/node/.codex
     tmpfs:
       - /tmp:size=256m,mode=1777
     networks:

@@ -101,7 +101,9 @@ export function GrammarDiagnosticDialog({
             checked={mode === 'engine'}
             onChange={() => setMode('engine')}
           />{' '}
-          Corrigir a gramática local
+          {window.studio?.runtime === 'collaborative'
+            ? 'Corrigir a gramática compartilhada'
+            : 'Corrigir a gramática local'}
         </label>
         <label>
           <input
