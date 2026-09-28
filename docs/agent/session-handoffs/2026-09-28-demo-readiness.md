@@ -124,3 +124,19 @@ symlink replacing the temporary directory itself). A checkpoint regression test
 verifies preserved credentials/research, omitted links and both manifest hashes;
 the thirteen operations tests pass. No cache or research file was deleted.
 The deployment guide's obsolete disabled-AI paragraph was also corrected.
+
+## Live initialization follow-up
+
+Release `a360fba` activated successfully. The independent full-backup checksums and
+all 178 drafts/versions, both evidence documents, recovery and import receipts
+matched exactly. Live browser QA found an early example-project AI status request
+and a cold dictionary HTML/script race. AI status now waits for local project
+readiness. Dictionary HTML starts search controls disabled until the upstream
+script finishes loading its data. The compiled hosted test delays that script
+explicitly, asserts both controls disabled, then verifies real search; it also
+rejects AI status errors during initialization. Six dictionary service tests and
+the compiled hosted workflow pass. The browser smoke initially selected a legacy
+lexicon input; corrected it to the actual canvas's Adicionar peça control.
+Before the initialization follow-up, actual production dictionary search returned
+45 entries; two rendered searches returned 11/113 matches without preparation,
+and the grammar dialog and authenticated Codex model discovery both passed.

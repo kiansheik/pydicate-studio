@@ -58,7 +58,7 @@ test('serves the actual local HTML/scripts/data with exact entry linkage and iso
   assert.equal(html.status, 200);
   assert.match(html.headers.get('content-security-policy'), /connect-src 'self'/);
   const body = await html.text();
-  assert.match(body, /id="searchInput"/);
+  assert.match(body, /id="searchInput" disabled/);
   assert.match(body, /data-dataset-fingerprint="sha256:/);
   assert.doesNotMatch(body, /googletagmanager|gtag\(/);
   assert.match(

@@ -26,6 +26,12 @@ function transformHtml(
     throw new Error('Identidade do dicionário inválida.');
   if (!/^\/[a-zA-Z0-9/_-]+$/.test(bridgeBase)) throw new Error('Caminho do dicionário inválido.');
   if (!validParentOrigin(parentOrigin)) throw new Error('Origem do aplicativo inválida.');
+  // Network-loaded scripts may arrive after the HTML is interactive. The site's
+  // init() enables these controls only after its searchable data is ready.
+  source = source.replace(
+    /<(?:input|button)\b[^>]*\bid=["'](?:searchInput|searchButton)["'][^>]*>/gi,
+    (tag) => (/\bdisabled\b/i.test(tag) ? tag : tag.replace(/>$/, ' disabled>')),
+  );
   source = source.replace(
     /<script\b[^>]*src=["']https?:\/\/www\.googletagmanager\.com\/[^"']+["'][^>]*>\s*<\/script>/gi,
     '',

@@ -33,6 +33,10 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const failures = [];
     page.on('pageerror', error => failures.push(error.message));
+    page.on('response', response => {
+        if (response.url().endsWith('/api/invoke') && response.request().postDataJSON()?.method === 'ai_status' && response.status() >= 400)
+            failures.push('AI status failed during project initialization: '+response.status());
+    });
     await page.goto(settings.origin + '/login');
     await page.locator('#email').fill('fixture@example.org');
     await page.locator('#password').fill(password);
@@ -79,10 +83,16 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
     assert.equal(typeof preparation.preparing, 'boolean');
     const listing = await page.evaluate(async () => window.studio.invoke('analysis_list', {projectId:window.collab.state().projectId}));
     assert.ok(Array.isArray(listing.jobs));
+    let releaseDictionary;
+    const dictionaryScript = new Promise(resolve => { releaseDictionary = resolve; });
+    await page.route('**/nhe-enga/js/index.js', async route => { await dictionaryScript; await route.continue(); });
     await page.getByRole('button', {name:'Dicionário',exact:true}).click();
     const dictionary = page.frameLocator('iframe[title="Dicionário de tupi antigo"]');
     const search = dictionary.getByPlaceholder('Digite a palavra a ser pesquisada');
     await search.waitFor({timeout:30000});
+    assert.equal(await search.isDisabled(), true, 'Cold HTML cannot accept a search before its script/data loads');
+    assert.equal(await dictionary.getByRole('button',{name:'Pesquisar',exact:true}).isDisabled(), true);
+    releaseDictionary();
     await search.fill('pysyrõ');
     await dictionary.getByRole('button',{name:'Pesquisar',exact:true}).click();
     await dictionary.locator('#results > .entry').first().waitFor();

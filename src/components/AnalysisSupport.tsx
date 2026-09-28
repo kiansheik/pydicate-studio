@@ -739,7 +739,13 @@ export function AnalysisSupport({
     };
   }, [batchOpen, studio.project.id, studio.project.passages.length]);
   useEffect(() => {
-    if (!supportsAnalysis || !window.studio?.invoke) return;
+    if (
+      !supportsAnalysis ||
+      !studio.ready ||
+      studio.project.mode !== 'local' ||
+      !window.studio?.invoke
+    )
+      return;
     let cancelled = false;
     invoke<AIStatus>('ai_status', { projectId: studio.project.id })
       .then((value) => {
@@ -749,7 +755,7 @@ export function AnalysisSupport({
     return () => {
       cancelled = true;
     };
-  }, [studio.project.id, showLegacy, supportsAnalysis]);
+  }, [studio.project.id, studio.project.mode, studio.ready, showLegacy, supportsAnalysis]);
   useEffect(() => {
     const explain = () => {
       setTask('explain');
