@@ -58,6 +58,45 @@ class PublicationSnapshotTests(unittest.TestCase):
         self.assertEqual([row['surface'] for row in result['sample']['rows']],
                          ['abá!', 'abá!', 'abá?', 'abá?', 'abá'])
 
+    def test_helpers_inside_nested_default_containers_are_isolated_for_every_passage(self):
+        self.replace_source(
+            'def mutate(value=word):\n'
+            '    value.surface += "!"\n'
+            '    return value\n'
+            'def tuple_default(callbacks=(mutate,)):\n'
+            '    return callbacks[0]()\n'
+            'def nested_default(*, callbacks={"run": [mutate]}):\n'
+            '    return callbacks["run"][0]()\n'
+            'def set_default(callbacks={mutate}):\n'
+            '    return next(iter(callbacks))()\n'
+            'def frozen_default(callbacks=frozenset({mutate})):\n'
+            '    return next(iter(callbacks))()\n'
+            'l = [tuple_default(), tuple_default(), nested_default(), nested_default(),\n'
+            '     set_default(), set_default(), frozen_default(), frozen_default(), word]\n'
+        )
+        result = self.service.child({'action': 'publication_snapshot'})
+        self.assertEqual([row['surface'] for row in result['sample']['rows']],
+                         ['abá!'] * 8 + ['abá'])
+
+    def test_isolated_container_cycles_keep_shared_identity_and_helper_defaults(self):
+        from rendered_structures import isolated_namespace
+        from studio_authoring import parse_ast
+        namespace = {'__name__': 'historic._studio_fixture'}
+        exec('def mutate(values=[]):\n    values.append("!")\n    return "".join(values)\n', namespace)
+        callbacks = [namespace['mutate']]
+        cycle = (callbacks,)
+        callbacks.append(cycle)
+        namespace['callbacks'] = callbacks
+        syntax = parse_ast('callbacks')
+        first = isolated_namespace(namespace, syntax)['callbacks']
+        second = isolated_namespace(namespace, syntax)['callbacks']
+        self.assertIs(first[1][0], first)
+        self.assertIs(second[1][0], second)
+        self.assertIsNot(first[0], namespace['mutate'])
+        self.assertEqual(first[0](), '!')
+        self.assertEqual(second[0](), '!')
+        self.assertEqual(namespace['mutate'].__defaults__, ([],))
+
     def test_baseline_reused_only_for_exact_fingerprint_and_candidates_always_checked(self):
         calls = []
         child = self.service.child

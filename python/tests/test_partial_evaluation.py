@@ -152,14 +152,15 @@ class PartialEvaluationTests(unittest.TestCase):
         self.assertIsNone(other['evaluation'])
         self.assertTrue(other['diagnostics'])
 
-    def test_slots_cannot_enter_either_source_preview_but_ordinary_unknown_names_remain_reviewable(self):
+    def test_publication_rejects_slots_and_unknown_names_but_preserves_literal_slot_text(self):
         for method in ('source_preview', 'source_new_preview'):
             with self.subTest(method=method):
                 with self.assertRaises(AdapterError) as error:
                     self.adapter.invoke(method, {**self.params, 'raw': 'tym * __studio_slot_a1'})
                 self.assertEqual(error.exception.code, 'UNRESOLVED_SLOTS')
-        preview = self.adapter.invoke('source_preview', {**self.params, 'raw': 'unknown_ordinary_word'})
-        self.assertIn('unknown_ordinary_word', preview['diff'])
+        with self.assertRaises(AdapterError) as error:
+            self.adapter.invoke('source_preview', {**self.params, 'raw': 'unknown_ordinary_word'})
+        self.assertEqual(error.exception.code, 'REGRESSION_FAILED')
         preview = self.adapter.invoke('source_preview', {**self.params, 'raw': 'Noun("__studio_slot_a1")'})
         self.assertIn('__studio_slot_a1', preview['diff'])
 

@@ -89,6 +89,28 @@ def isolated_namespace(namespace, syntax):
     def clone(value):
         if id(value) in memo:
             return memo[id(value)]
+        # Helpers can sit inside defaults/closures or mutable global containers.
+        # evaluation_snapshot deliberately preserves functions, so recursively
+        # use this clone path before handing ordinary predicate state to it.
+        if type(value) in (list, dict, set):
+            result = type(value)()
+            memo[id(value)] = result
+            if type(value) is dict:
+                result.update((clone(key), clone(item)) for key, item in value.items())
+            elif type(value) is list:
+                result.extend(clone(item) for item in value)
+            else:
+                result.update(clone(item) for item in value)
+            return result
+        if type(value) in (tuple, frozenset):
+            items = [clone(item) for item in value]
+            # A tuple can participate in a cycle through one of its lists.
+            # That recursive visit may already have constructed this tuple.
+            if id(value) in memo:
+                return memo[id(value)]
+            result = type(value)(items)
+            memo[id(value)] = result
+            return result
         if inspect.isfunction(value) and value.__module__.startswith(('historic.', 'pydicate.lang.tupilang')):
             globals_copy = dict(value.__globals__)
             closure = tuple(types.CellType(clone(cell.cell_contents)) for cell in value.__closure__) if value.__closure__ else None

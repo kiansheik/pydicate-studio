@@ -154,12 +154,13 @@ test(
       const method = route.request().postDataJSON()?.method;
       if (!['source_apply', 'reference_approve'].includes(method)) return route.continue();
       publicationMethods.push(method);
-      const response = await route.fetch();
+      const response = await route.fetch({ timeout: 60000 });
       if (response.status() === 200) {
         publicationEventCount++;
         await page.waitForFunction(
           (count) => window.__publicationEvents.length >= count,
           publicationEventCount,
+          { timeout: 60000 },
         );
       }
       await route.fulfill({ response });
@@ -169,17 +170,42 @@ test(
     await page.getByRole('button', { name: 'Fechar mais ferramentas', exact: true }).click();
     await page.getByRole('tab', { name: 'Código', exact: true }).click();
     const editor = page.getByLabel('Pydicate editável', { exact: true });
+    // Autosave can finish before the serialized real Python evaluation. Wait
+    // for this exact edited expression, not the previous identical surface.
+    const evaluationResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/invoke') &&
+        response.request().postDataJSON()?.method === 'evaluate_expression' &&
+        response.request().postDataJSON()?.params?.raw === 'aba.copy()',
+      { timeout: 60000 },
+    );
     await editor.fill('aba.copy()');
+    const evaluated = await evaluationResponse;
+    assert.equal(evaluated.status(), 200, await evaluated.text());
+    assert.equal((await evaluated.json()).surface, 'abá');
+    await expect(page.getByTestId('generated-surface')).toHaveText('abá', { timeout: 60000 });
     await expect
-      .poll(async () => (await store.snapshot(original.id)).envelope.drafts[selected.id].raw)
+      .poll(async () => (await store.snapshot(original.id)).envelope.drafts[selected.id].raw, {
+        timeout: 60000,
+      })
       .toBe('aba.copy()');
     const save = page
       .locator('.workspace-footer')
       .getByRole('button', { name: 'Salvar como referência', exact: true });
     await expect(save).toBeEnabled();
+    // Full source regression is asynchronous and shares CI capacity with the
+    // other compiled editor tests. Diagnose its response before inspecting UI.
+    const previewResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/invoke') &&
+        response.request().postDataJSON()?.method === 'source_preview',
+      { timeout: 60000 },
+    );
     await save.click();
+    const preview = await previewResponse;
+    assert.equal(preview.status(), 200, await preview.text());
     const dialog = page.getByRole('dialog', { name: /^Revisar/ });
-    await expect(dialog).toBeVisible();
+    await expect(dialog).toBeVisible({ timeout: 60000 });
     await expect(
       dialog.getByRole('checkbox', { name: 'Registrar também como referência', exact: true }),
     ).toBeChecked();
@@ -190,6 +216,7 @@ test(
       (response) =>
         response.url().endsWith('/api/invoke') &&
         response.request().postDataJSON()?.method === 'reference_approve',
+      { timeout: 60000 },
     );
     await dialog.getByRole('button', { name: 'Salvar fonte e referência', exact: true }).click();
     const response = await approved;
