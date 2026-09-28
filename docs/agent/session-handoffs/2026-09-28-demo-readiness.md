@@ -78,3 +78,11 @@ compiled browser workflows now pass together (new source, PDF, regions, saved
 reading, reload, submission; dictionary search and hosted AI controls). The third
 warmup unit test preserves foreground staleness checks while ignoring speculative
 staleness. No check was weakened.
+
+
+The next CI run exposed an existing PDF-cancellation test race: descriptor closure
+was observed before the pipeline rejection reached the test's catch. Await the
+tracked transfers before asserting the same exact premature-close error. The PDF
+implementation and assertions remain unchanged. The Linux production-image Codex
+preflight already passed authentication, 14 analysis/6 grammar scoped tools, and
+one six-output-token connectivity response with no research data or tool writes.
