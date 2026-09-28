@@ -1,5 +1,25 @@
 # Current state
 
+## Faster Portuguese reference publication
+
+The reference action and review/save messages now use **Salvar como referência**.
+Profiling found the main delay in review preparation: publication regression
+rebuilt the same lexical contexts once per passage. Snapshots now reuse each
+declaration context with isolated values/helpers/defaults per evaluation; every
+proposed passage is still realized and compared. Exact engine/corpus fingerprints
+bind a one-entry baseline cache. Approval keeps full-output, canonical surface,
+human target, identity, source-byte and atomic-write guards in one fresh process.
+Hosted source-change events carry their fingerprint so a publishing tab can use
+its returned project immediately; other clients still refresh.
+
+Same-server disposable benchmark: preview 18.02→3.06 seconds cold,
+17.92→1.74 seconds warm; reference approval 1.98→1.39 seconds. Diff application
+is about 0.65 seconds. A real compiled-browser/PostgreSQL/Python test saves through
+the Portuguese controls with zero redundant refreshes and preserves unrelated
+research. These are measured operation timings, not a promise of instantaneous
+end-to-end network response. Deployment is pending; see the
+[handoff](session-handoffs/2026-09-28-fast-reference-save.md).
+
 ## Deployed hosted grammar-repair compatibility fix
 
 The failed `sete abá reté reséndûara nã e'i` attempt reached MCP but read a

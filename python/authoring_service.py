@@ -198,8 +198,17 @@ class AuthoringService:
             files.append({'path':str(item['path']),'sourceFingerprint':digest(item['before']),'diff':difference})
         if any(item['before']!=item['after'] for item in changes):
             from publication_regression import check_publication
-            details['regression']=check_publication(self,changes,recovery=bool(details.get('recovery')),insertion=(Path(path).name.removesuffix('.tu.py'),details['reviewSummary']['passageOrdinal']) if details.get('newPassage') else None)
+            fingerprint=self.fresh()
+            cached=getattr(self.adapter,'publication_snapshot_cache',None)
+            baseline=cached['snapshot'] if cached and cached['fingerprint']==fingerprint else None
+            snapshots={}
+            details['regression']=check_publication(self,changes,recovery=bool(details.get('recovery')),insertion=(Path(path).name.removesuffix('.tu.py'),details['reviewSummary']['passageOrdinal']) if details.get('newPassage') else None,baseline=baseline,snapshots=snapshots)
             details['regressionFingerprint']=self.fresh()
+            # This one-entry, in-memory baseline belongs to exact current
+            # corpus/engine bytes. A changed source, reference or grammar must
+            # build a fresh snapshot; each proposed result is still evaluated
+            # in a separate process against the complete corpus.
+            self.adapter.publication_snapshot_cache={'fingerprint':fingerprint,'snapshot':snapshots['before']}
         result={'previewId':preview_id,'diff':''.join(item['diff'] for item in files),'files':files,'sourceFingerprint':digest(before),'path':str(path),'kind':'new-passage' if details.get('newPassage') else 'source' if details.get('passageId') else 'lexicon' if details.get('lexicalId') else 'recovery','targetPassageId':details.get('passageId'),**details}
         self.adapter.previews[preview_id]={'before':before,'after':after,**result,'path':Path(path),'changes':changes}
         return result
@@ -927,10 +936,10 @@ class AuthoringService:
     def reference_approve(self,params):
         passage=self.passage(params); self.fresh(params)
         if params.get('sourceFingerprint')!=passage['sourceFingerprint']: self.error('A fonte mudou desde a revisão.','STALE_SOURCE')
-        rendered=self.evaluate_expression({'passageId':passage['id'],'raw':passage['sourceExpression'],'revisionId':'approval-review','engineFingerprint':self.adapter.project['engineFingerprint']})
-        if rendered.get('evaluationStatus') == 'partial': self.error('A análise precisa ser realizada por completo antes de salvar como ground truth.', 'INCOMPLETE_EVALUATION')
-        if not isinstance(params.get('reviewedSurface'),str) or params['reviewedSurface']!=rendered['surface']: self.error('Confirme explicitamente a superfície revisada; avaliação não concede aprovação.','REVIEW_REQUIRED')
+        if not isinstance(params.get('reviewedSurface'),str): self.error('Confirme explicitamente a superfície revisada; avaliação não concede aprovação.','REVIEW_REQUIRED')
         if not self.adapter.state_dir:self.error('Configure armazenamento de recuperação antes de aprovar.','STATE_ERROR')
+        # One fresh child performs both the complete reviewed realization and
+        # the independent canonical check, then rechecks freshness before writing.
         result=self.child({'action':'approve','passageId':passage['id'],'sourceId':passage['sourceId'],'ordinal':passage['ordinal'],'sourceFileFingerprint':passage['sourceFileFingerprint'],'reviewedSurface':params['reviewedSurface'],'engineFingerprint':self.adapter.project['engineFingerprint'],'stateDir':str(self.adapter.state_dir)},timeout=90)
         return {'approval':result,'project':self.adapter.refresh_project()}
 

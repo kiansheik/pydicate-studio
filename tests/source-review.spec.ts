@@ -165,7 +165,7 @@ test('plain-language review keeps complete words and both file diffs available b
   ).toHaveLength(0);
   await page.getByRole('button', { name: 'Revisar nova passagem', exact: true }).click();
   await page.evaluate(() => window.__nextControl.holds.push({ method: 'source_apply' }));
-  await review.getByRole('button', { name: 'Salvar fonte e ground truth', exact: true }).click();
+  await review.getByRole('button', { name: 'Salvar fonte e referência', exact: true }).click();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -192,7 +192,7 @@ test('a source-only review defaults to the draft result and retains its optional
     'SIMULATED DIFF: Noun("abá", definition="pessoa") * ixé',
   );
   await expect(
-    review.getByRole('button', { name: 'Salvar fonte e ground truth', exact: true }),
+    review.getByRole('button', { name: 'Salvar fonte e referência', exact: true }),
   ).toBeEnabled();
   await expect(review.getByRole('table')).toHaveCount(0);
 });

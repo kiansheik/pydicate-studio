@@ -73,11 +73,11 @@ export function GroundTruthPanel({
   });
   const blocked = !approval.ready;
   return (
-    <section className="ground-truth-panel" aria-label="Salvar ground truth">
+    <section className="ground-truth-panel" aria-label="Salvar referência">
       <header>
         <ClipboardCheck size={21} />
         <div>
-          <h2>Salvar como ground truth</h2>
+          <h2>Salvar como referência</h2>
           <p>Registrar a forma que você revisou como referência do corpus.</p>
         </div>
       </header>
@@ -105,12 +105,12 @@ export function GroundTruthPanel({
             <p>
               {status.record
                 ? `Esta passagem já tem um registro${status.record.status === 'approved' ? ' aprovado' : ''}. Confirmar atualiza somente este registro.`
-                : 'Esta passagem ainda não tem ground truth.'}
+                : 'Esta passagem ainda não tem referência salva.'}
             </p>
           )}
           <div className="ground-truth-forms">
             <div>
-              <small>GROUND TRUTH ATUAL</small>
+              <small>REFERÊNCIA ATUAL</small>
               <p>
                 {status?.record?.normalized_target ??
                   status?.record?.surface ??
@@ -149,7 +149,7 @@ export function GroundTruthPanel({
                 }
               }}
             >
-              <Check size={15} /> Confirmar e salvar ground truth
+              <Check size={15} /> Confirmar e salvar referência
             </button>
           </div>
         </li>
@@ -159,7 +159,7 @@ export function GroundTruthPanel({
           {error}
         </p>
       )}
-      {saved && <p role="status">Ground truth salva. As outras passagens foram preservadas.</p>}
+      {saved && <p role="status">Referência salva. As outras passagens foram preservadas.</p>}
       {status && (
         <details>
           <summary>Onde essa decisão fica salva</summary>
@@ -193,7 +193,7 @@ export function GroundTruthDialog({
     <dialog
       ref={dialog}
       className="ground-truth-dialog"
-      aria-label="Commit to Ground Truth"
+      aria-label="Salvar como referência"
       onCancel={(event) => {
         event.preventDefault();
         if (!studio.busy) onClose();
@@ -201,7 +201,7 @@ export function GroundTruthDialog({
     >
       <button
         className="icon-button ground-truth-close"
-        aria-label="Fechar ground truth"
+        aria-label="Fechar referência"
         disabled={studio.busy}
         onClick={onClose}
         autoFocus

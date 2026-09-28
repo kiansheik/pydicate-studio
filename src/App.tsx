@@ -1568,7 +1568,7 @@ export default function App() {
                   disabled={!draft || !studio.ready || reviewBusy}
                   onClick={() => void reviewSource(!!analysis.preview)}
                 >
-                  <ClipboardCheck size={15} /> Commit to Ground Truth
+                  <ClipboardCheck size={15} /> Salvar como referência
                 </button>
               )}
               <div className="section-intro">
@@ -1735,7 +1735,7 @@ export default function App() {
                   disabled={!draft || !studio.ready || reviewBusy}
                   onClick={() => void reviewSource(!!analysis.preview)}
                 >
-                  <ClipboardCheck size={15} /> Commit to Ground Truth
+                  <ClipboardCheck size={15} /> Salvar como referência
                 </button>
               )}
             </div>
@@ -1972,7 +1972,7 @@ export default function App() {
           <span>{groundTruthNote}</span>
           <button
             className="icon-button"
-            aria-label="Fechar aviso da ground truth"
+            aria-label="Fechar aviso da referência"
             onClick={() => setGroundTruthNote('')}
           >
             <X size={17} />
@@ -2036,7 +2036,7 @@ export default function App() {
                   disabled={reviewBusy}
                   onChange={(event) => setApproveOnSave(event.target.checked)}
                 />{' '}
-                Registrar também como ground truth
+                Registrar também como referência
               </label>
             )}
             <SourceReviewContent
@@ -2082,7 +2082,7 @@ export default function App() {
                       if (outcome?.approvalError) {
                         setGroundTruthNote(
                           (outcome.sourceApplied ? 'A fonte foi salva. ' : '') +
-                            'A ground truth não foi salva: ' +
+                            'A referência não foi salva: ' +
                             outcome.approvalError +
                             ' Abra a revisão novamente para tentar salvar a referência.',
                         );
@@ -2090,7 +2090,7 @@ export default function App() {
                         track('review.status', { action: 'approve', source: 'source-review' });
                         if (outcome.draftSaveError)
                           setGroundTruthNote(
-                            'A ground truth foi salva no corpus, mas não foi possível atualizar o rascunho local: ' +
+                            'A referência foi salva no corpus, mas não foi possível atualizar o rascunho local: ' +
                               outcome.draftSaveError,
                           );
                       }
@@ -2103,8 +2103,8 @@ export default function App() {
                   ? 'Salvando…'
                   : passageReview && approveOnSave
                     ? previewHasChanges
-                      ? 'Salvar fonte e ground truth'
-                      : 'Salvar ground truth'
+                      ? 'Salvar fonte e referência'
+                      : 'Salvar referência'
                     : passageReview
                       ? 'Salvar somente a fonte'
                       : 'Aplicar edição revisada'}

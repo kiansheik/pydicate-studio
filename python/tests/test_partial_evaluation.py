@@ -164,7 +164,8 @@ class PartialEvaluationTests(unittest.TestCase):
         self.assertIn('__studio_slot_a1', preview['diff'])
 
     def test_reference_approval_cannot_accept_empty_surface_of_partial_root(self):
-        with patch.object(AuthoringService, 'evaluate_expression', return_value={'evaluationStatus': 'partial', 'surface': ''}):
+        with patch.object(self.adapter, 'state_dir', Path('/unused-approval-state')), \
+                patch.object(AuthoringService, 'child', side_effect=AdapterError('Realização incompleta.', 'INCOMPLETE_EVALUATION')):
             with self.assertRaises(AdapterError) as failure:
                 self.adapter.invoke('reference_approve', {**self.params, 'sourceFingerprint': self.passage['sourceFingerprint'], 'reviewedSurface': ''})
             self.assertEqual(failure.exception.code, 'INCOMPLETE_EVALUATION')

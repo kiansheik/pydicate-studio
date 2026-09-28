@@ -92,11 +92,12 @@ def isolated_namespace(namespace, syntax):
         if inspect.isfunction(value) and value.__module__.startswith(('historic.', 'pydicate.lang.tupilang')):
             globals_copy = dict(value.__globals__)
             closure = tuple(types.CellType(clone(cell.cell_contents)) for cell in value.__closure__) if value.__closure__ else None
-            result = types.FunctionType(value.__code__, globals_copy, value.__name__, value.__defaults__, closure)
+            result = types.FunctionType(value.__code__, globals_copy, value.__name__, None, closure)
             memo[id(value)] = result
             result.__module__ = value.__module__
             result.__qualname__ = value.__qualname__
-            result.__kwdefaults__ = copy.deepcopy(value.__kwdefaults__)
+            result.__defaults__ = tuple(clone(item) for item in value.__defaults__) if value.__defaults__ else None
+            result.__kwdefaults__ = {key: clone(item) for key, item in value.__kwdefaults__.items()} if value.__kwdefaults__ else None
             for name in value.__code__.co_names:
                 if name in globals_copy:
                     candidate = globals_copy[name]

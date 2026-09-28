@@ -74,12 +74,12 @@ for (const entry of ['passage', 'ground-truth'] as const) {
       entry === 'ground-truth'
         ? page
             .locator('.workspace-footer')
-            .getByRole('button', { name: 'Commit to Ground Truth', exact: true })
+            .getByRole('button', { name: 'Salvar como referência', exact: true })
         : page.getByRole('button', { name: 'Revisar nova passagem', exact: true });
     await expect(action).toBeEnabled();
     await action.click();
     await expect(
-      page.getByRole('button', { name: 'Confirmar e salvar ground truth', exact: true }),
+      page.getByRole('button', { name: 'Confirmar e salvar referência', exact: true }),
     ).toHaveCount(0);
     await expect(
       page.getByRole('dialog', { name: 'Revisar nova passagem', exact: true }),

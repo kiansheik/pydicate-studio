@@ -101,7 +101,7 @@ test('contributor creates a source, uploads PDF, saves regions and submits its f
   await expect(page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true })).toBeVisible();
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('Leitura do manuscrito');
   await expect(page.getByTestId('generated-surface')).toHaveText('abá', { timeout: 60000 });
-  await expect(page.getByRole('button', { name: 'Commit to Ground Truth', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Salvar como referência', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Enviar para revisão', exact: true }).click();
   await expect(page.getByText('Contribuição enviada para revisão.', { exact: false })).toBeVisible();
   const submission = await store.db.prepare('SELECT snapshot FROM submissions WHERE author_id=$1').get('contributor');
