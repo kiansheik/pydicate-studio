@@ -1,5 +1,24 @@
 # Current state
 
+## Hosted grammar-repair compatibility fix
+
+The failed `sete abá reté reséndûara nã e'i` attempt reached MCP but read a
+sparse-excluded guide, then hit UNKNOWN_TOOL without recording the rejected name.
+Installed Codex with a fake API reproduces that error when opening Studio's
+advertised guide through its standard MCP resource helpers. The provider now
+accepts only explicitly scoped Studio guide reads, records bounded rejected tool
+identities, and preserves tool failures that Codex reports through item status.
+Activity labels distinguish failed reads from completed grammar work.
+
+Deployment expands existing grammar sparse checkouts after backup/shutdown,
+preserving dirty work and custom paths; grammar_files lists only readable allowed
+files. A real compiled hosted-browser regression edits a disposable grammar,
+observes automatic Python/UI refresh, and verifies unchanged drafts/source and a
+surviving job. No hosted reload implementation change was needed. Release and live
+resumption verification are pending; see the
+[fix handoff](session-handoffs/2026-09-28-hosted-grammar-repair.md) and original
+[investigation](session-handoffs/2026-09-28-grammar-failure-investigation.md).
+
 ## Deployed prepared search, hosted Navarro and shared Codex
 
 The rendered-form index now warms on worker/project opening and draft changes in

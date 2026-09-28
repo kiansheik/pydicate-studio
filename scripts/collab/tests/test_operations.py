@@ -2,7 +2,7 @@ import contextlib, importlib.util, io, json, os, pathlib, subprocess, sys, tarfi
 from unittest.mock import patch
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from host import Host, REPOS
+from host import Host, REPOS, GRAMMAR_SUPPORT, SPARSE
 from ops import Remote, safe_extract
 
 class OperationsTests(unittest.TestCase):
@@ -39,6 +39,48 @@ class OperationsTests(unittest.TestCase):
         engine=host.workspace/'nhe-enga';subprocess.run(['git','clone',str(repo),str(engine)],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         subprocess.run(['git','-C',str(engine),'remote','set-url','origin',REPOS['nhe-enga']],check=True)
         host.clone_dependencies();self.assertEqual((repo/'historic/test.tu.py').read_text(),'keep this draft\n')
+    def sparse_grammar_fixture(self,patterns):
+        host,repo,g=self.local_fetch_fixture();engine=host.workspace/'nhe-enga'
+        def eg(*args):return subprocess.run(['git','-C',str(engine),*args],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout.decode().strip()
+        eg('config','user.email','fixture@example.org');eg('config','user.name','Fixture')
+        files={'tupi/tupi/verb.py':'grammar\n','tests/test_grammar.py':'regression\n',
+               'docs/agent/grammar-navigation.md':'navigation\n','docs/unrelated.txt':'excluded\n',
+               'AGENTS.md':'instructions\n','AGENT_NOTES.md':'notes\n','custom/keep.txt':'custom\n'}
+        for name,content in files.items():
+            target=engine/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_text(content)
+        eg('add','.');eg('commit','-m','grammar fixture');eg('sparse-checkout','set','--no-cone',*patterns)
+        return host,engine,eg
+    def test_fresh_sparse_checkout_includes_grammar_guides_and_tests(self):
+        host,engine,g=self.sparse_grammar_fixture(SPARSE)
+        for name in ('docs/agent/grammar-navigation.md','tests/test_grammar.py','AGENTS.md','AGENT_NOTES.md'):
+            self.assertTrue((engine/name).is_file(),name)
+        self.assertFalse((engine/'docs/unrelated.txt').exists())
+        self.assertEqual(g('status','--porcelain'),'')
+    def test_deploy_expands_sparse_grammar_after_backup_preserving_dirty_work_and_custom_patterns(self):
+        old_patterns=[pattern for pattern in SPARSE if pattern not in GRAMMAR_SUPPORT]
+        host,engine,g=self.sparse_grammar_fixture([*old_patterns,'/custom/'])
+        self.assertFalse((engine/'docs/agent/grammar-navigation.md').exists())
+        (engine/'tupi/tupi/verb.py').write_text('saved grammar correction\n')
+        (engine/'AGENT_NOTES.md').write_text('saved handwritten notes\n')
+        (engine/'custom/keep.txt').write_text('saved custom file\n')
+        # An untracked local file that occupies an omitted tracked path must win too.
+        (engine/'tests').mkdir();(engine/'tests/test_grammar.py').write_text('local test work\n')
+        def checkpoint(*args,**kwargs):
+            self.assertFalse((engine/'docs/agent/grammar-navigation.md').exists())
+        with self.root_workspace_operation(host) as (owned,commands):
+            with patch.object(host,'checkpoint',side_effect=checkpoint):host.deploy()
+        self.assertEqual((engine/'docs/agent/grammar-navigation.md').read_text(),'navigation\n')
+        self.assertEqual((engine/'tests/test_grammar.py').read_text(),'local test work\n')
+        self.assertEqual((engine/'tupi/tupi/verb.py').read_text(),'saved grammar correction\n')
+        self.assertEqual((engine/'AGENT_NOTES.md').read_text(),'saved handwritten notes\n')
+        self.assertEqual((engine/'custom/keep.txt').read_text(),'saved custom file\n')
+        self.assertFalse((engine/'docs/unrelated.txt').exists())
+        self.assertIn('/custom/',g('sparse-checkout','list').splitlines())
+        self.assertIn(engine/'docs/agent/grammar-navigation.md',owned)
+        self.assertIn(('up','-d','--wait','studio'),commands)
+        (engine/'docs/agent/grammar-navigation.md').write_text('new grammar note\n')
+        host.expand_grammar_checkout()
+        self.assertEqual((engine/'docs/agent/grammar-navigation.md').read_text(),'new grammar note\n')
     def test_archive_traversal_and_symlink_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             archive=pathlib.Path(directory)/'evil.tar';dest=pathlib.Path(directory)/'restore';dest.mkdir()

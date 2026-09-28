@@ -4,7 +4,8 @@ from __future__ import annotations
 import argparse, contextlib, datetime as dt, fcntl, hashlib, json, os, pathlib, secrets, shutil, subprocess, sys, tarfile, tempfile
 
 REPOS = {name: f'https://github.com/kiansheik/{name}.git' for name in ('pydicate-studio', 'oldtupicorpus', 'nhe-enga')}
-SPARSE = ['/*', '!/*/', '/pydicate/', '/tupi/', '/js/', '/docs/dict-conjugated.json.gz', '/docs/primary_sources/index.html', '/docs/primary_sources/image-formats.json']
+GRAMMAR_SUPPORT = ['/tests/', '/docs/agent/grammar-navigation.md']
+SPARSE = ['/*', '!/*/', '/pydicate/', '/tupi/', '/js/', '/docs/dict-conjugated.json.gz', '/docs/primary_sources/index.html', '/docs/primary_sources/image-formats.json', *GRAMMAR_SUPPORT]
 ALLOW = {'oldtupicorpus': ('historic/', 'ground_truth/', 'authoring/', 'tests/'), 'nhe-enga': ('pydicate/', 'tupi/')}
 HERE = pathlib.Path(__file__).resolve().parents[2]
 def run(args, *, cwd=None, capture=False, data=None, stdout=None, env=None):
@@ -77,6 +78,19 @@ class Host:
             if name=='nhe-enga': run(['git','-C',temp,'sparse-checkout','set','--no-cone',*SPARSE])
             run(['git','-C',temp,'checkout','-b','server/work',pins[name]])
             temp.rename(dest)
+    def expand_grammar_checkout(self):
+        """Add repair documentation/tests without replacing existing sparse patterns or edits."""
+        repo=self.workspace/'nhe-enga'
+        try: sparse=git(repo,'config','--bool','core.sparseCheckout')
+        except subprocess.CalledProcessError as error:
+            if error.returncode==1:return # Full checkouts already include tracked support files.
+            raise
+        if sparse!='true':return
+        patterns=git(repo,'sparse-checkout','list').splitlines()
+        missing=[pattern for pattern in GRAMMAR_SUPPORT if pattern not in patterns]
+        if missing:
+            print('[server] Making grammar documentation and tests available...',flush=True)
+            run(['git','-c','safe.directory='+str(repo),'-C',repo,'sparse-checkout','add',*missing])
     def prepare(self, public_url, smtp, neo_path):
         print('[server] Preparing workspace repositories and configuration...',flush=True)
         self.clone_dependencies()
@@ -132,6 +146,9 @@ class Host:
         self.compose('stop','studio')
         try:
             with self.workspace_writes():
+                # Expansion is additive, after the checkpoint and with Studio stopped.
+                # In particular, it must also run when dirty grammar work defers sync.
+                self.expand_grammar_checkout()
                 for name in (() if initial else ('nhe-enga','oldtupicorpus')):
                     print('[server] Synchronizing '+name+'...',flush=True)
                     repo=self.workspace/name

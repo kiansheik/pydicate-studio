@@ -1,5 +1,23 @@
 # Work log
 
+## 2026-09-28 - Repair hosted grammar tool compatibility
+
+Reproduced Codex rejection of the advertised Studio guide resource. Added exact
+resource scope support, persisted rejected identities and normalized failed tool
+results. Deployment now materializes grammar guide/tests without overwriting
+existing work, and the activity display reports failed reads truthfully. Real
+compiled hosted browser coverage proves grammar edits automatically reload Python
+and refresh the UI while preserving drafts and the running job. See the
+[fix handoff](session-handoffs/2026-09-28-hosted-grammar-repair.md).
+
+## 2026-09-28 - Investigate reported hosted grammar failure
+
+Confirmed working MCP/authentication, an advertised-but-sparse-excluded grammar
+guide returning ENOENT, and a subsequent UNKNOWN_TOOL abort whose rejected tool
+identity was not persisted. Missing-file-only replay passes the transport, so it
+is not sufficient evidence for the fatal scope failure. No production changes or
+new inference; see [investigation](session-handoffs/2026-09-28-grammar-failure-investigation.md).
+
 ## 2026-09-28 - Demo release deployed and verified
 
 PR #12 merged; live release `ebabf87` enables prepared persistent rendered search,

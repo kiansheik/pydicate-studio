@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  analysisActivity,
   analysisProgress,
   analysisStreamText,
   canAcceptCandidate,
@@ -33,6 +34,50 @@ const candidate = {
   },
 } as AnalysisCandidate;
 describe('analysis review boundaries', () => {
+  it('reports completed grammar calls and failed reads without claiming they succeeded', () => {
+    expect(
+      analysisActivity({
+        ...job,
+        events: [
+          { type: 'tool-start', tool: 'grammar_read' },
+          { type: 'tool-result', tool: 'grammar_context', result: { context: {} } },
+          { type: 'tool-result', tool: 'grammar_files', result: { files: [] } },
+          {
+            type: 'tool-result',
+            tool: 'grammar_read',
+            result: {
+              structuredContent: null,
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({ code: 'ENOENT', message: 'Missing guide' }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    ).toEqual([
+      'Construção e contexto consultados',
+      'Arquivos da gramática listados',
+      'Falha ao consultar regra da gramática',
+    ]);
+    expect(
+      analysisActivity({ ...job, events: [{ type: 'tool-start', tool: 'grammar_edit' }] }),
+    ).toEqual([]);
+    expect(
+      analysisActivity({
+        ...job,
+        events: [{ type: 'tool-result', tool: 'grammar_edit', result: { isError: true } }],
+      }),
+    ).toEqual(['Falha ao editar a gramática']);
+    expect(
+      analysisActivity({
+        ...job,
+        events: [{ type: 'tool-result', tool: 'grammar_read', result: { content: 'rule' } }],
+      }),
+    ).toEqual(['Regra da gramática consultada']);
+  });
   it('shows only the current resumed attempt stream, including before its first token', () => {
     const resumed = {
       ...job,

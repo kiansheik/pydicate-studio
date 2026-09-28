@@ -9,8 +9,9 @@ const REPAIR_STRATEGY = `You are helping a linguist or Tupi speaker correct thei
 Respond in clear Portuguese, explaining linguistic rules, observed forms and contrasts before technical details.
 The submitted correction authorizes iterative edits and local tests in the selected grammar repository only.
 Preserve the exact submitted expression, existing work, historical corpus and all ground truth.
-Only the registered grammar tools are available. Use grammar_context for the lexical context, grammar_files
-to locate rules, and grammar_read for docs/agent/grammar-navigation.md and the relevant Python files.
+Only the registered grammar tools are available. Use grammar_context for the lexical context and grammar_files
+to locate rules. Read docs/agent/grammar-navigation.md when listed, then the relevant Python files with grammar_read.
+If a guide is absent, continue from the available Python rules; do not call tools outside this catalog.
 grammar_edit performs one exact, revision-checked replacement in an existing grammar file, saves a receipt,
 and automatically reloads and checks the submitted expression and corpus. No shell or general file writer
 is available. Use render_candidate to test linguistic contrasts in this same namespace.
@@ -104,9 +105,10 @@ async function engineDirectory(project) {
   return directory;
 }
 const hash = (value) => createHash('sha256').update(value).digest('hex');
+const GRAMMAR_GUIDES = ['docs/agent/grammar-navigation.md', 'AGENT_NOTES.md', 'AGENTS.md'];
 const allowedFile = (relative) =>
   /^(?:pydicate|tupi|tests)\/(?:[\w.-]+\/)*[\w.-]+\.py$/.test(relative) ||
-  ['docs/agent/grammar-navigation.md', 'AGENT_NOTES.md', 'AGENTS.md'].includes(relative);
+  GRAMMAR_GUIDES.includes(relative);
 function createGrammarRepair({
   draftStore,
   getProject,
@@ -116,15 +118,13 @@ function createGrammarRepair({
   projectInterpretations = async () => undefined,
   stateDirectory,
 }) {
-  async function readFile(job, relative) {
-    await assertWorkspace(job);
+  async function fileMetadata(root, relative) {
     if (
       typeof relative !== 'string' ||
       !allowedFile(relative) ||
       relative.split('/').includes('..')
     )
       throw fail('FILE_SCOPE', 'Selecione um arquivo Python da gramática ou suas notas.');
-    const root = job.input.grammarRepair.enginePath;
     const filename = path.join(root, relative);
     // Resolve every parent too: symlinks cannot expand the selected write scope.
     if ((await fs.realpath(filename)) !== filename)
@@ -132,6 +132,11 @@ function createGrammarRepair({
     const stat = await fs.lstat(filename);
     if (!stat.isFile() || stat.nlink !== 1 || stat.size > 512000)
       throw fail('FILE_SCOPE', 'Arquivo indisponível ou grande demais para esta correção.');
+    return { filename, stat };
+  }
+  async function readFile(job, relative) {
+    await assertWorkspace(job);
+    const { filename, stat } = await fileMetadata(job.input.grammarRepair.enginePath, relative);
     const bytes = await fs.readFile(filename);
     const content = bytes.toString('utf8');
     if (!bytes.equals(Buffer.from(content, 'utf8')))
@@ -328,25 +333,34 @@ function createGrammarRepair({
     if (name === 'grammar_files') {
       const root = job.input.grammarRepair.enginePath,
         found = [];
+      async function include(relative) {
+        try {
+          await fileMetadata(root, relative);
+          found.push(relative);
+        } catch (error) {
+          if (!['ENOENT', 'ENOTDIR', 'FILE_SCOPE'].includes(error.code)) throw error;
+        }
+        if (found.length > 4000) throw fail('FILE_LIMIT', 'Muitos arquivos na gramática.');
+      }
       async function walk(relative) {
         for (const entry of await fs.readdir(path.join(root, relative), { withFileTypes: true })) {
           if (entry.isSymbolicLink() || entry.name.startsWith('.') || entry.name === '__pycache__')
             continue;
           const next = relative + '/' + entry.name;
           if (entry.isDirectory()) await walk(next);
-          else if (allowedFile(next)) found.push(next);
-          if (found.length > 4000) throw fail('FILE_LIMIT', 'Muitos arquivos na gramática.');
+          else if (entry.isFile() && allowedFile(next)) await include(next);
         }
       }
       for (const folder of ['pydicate', 'tupi', 'tests']) {
         const target = path.join(root, folder);
         try {
-          if ((await fs.realpath(target)) === target) await walk(folder);
+          if ((await fs.realpath(target)) === target && (await fs.stat(target)).isDirectory())
+            await walk(folder);
         } catch (error) {
-          if (error.code !== 'ENOENT') throw error;
+          if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error;
         }
       }
-      found.push('docs/agent/grammar-navigation.md', 'AGENT_NOTES.md', 'AGENTS.md');
+      for (const guide of GRAMMAR_GUIDES) await include(guide);
       return { files: found.filter((item) => item.includes(args.query ?? '')).sort() };
     }
     const file = await readFile(job, args.path);

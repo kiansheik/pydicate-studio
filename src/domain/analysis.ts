@@ -161,19 +161,60 @@ export function analysisActivity(job: AnalysisJob): string[] {
     studio_question: 'Pergunta para você',
     studio_evidence: 'Evidência consultada',
     grammar_context: 'Construção e contexto consultados',
-    grammar_files: 'Regra localizada na gramática',
+    grammar_files: 'Arquivos da gramática listados',
     grammar_read: 'Regra da gramática consultada',
-    grammar_edit: 'Gramática corrigida e verificada',
+    grammar_edit: 'Gramática editada e reavaliada',
     reload_engine: 'Gramática e corpus reavaliados',
-    render_candidate: 'Contraste linguístico verificado',
+    render_candidate: 'Contraste linguístico avaliado',
+  };
+  const failures: Record<string, string> = {
+    grammar_context: 'Falha ao consultar construção e contexto',
+    grammar_files: 'Falha ao listar arquivos da gramática',
+    grammar_read: 'Falha ao consultar regra da gramática',
+    grammar_edit: 'Falha ao editar a gramática',
+    reload_engine: 'Falha ao reavaliar a gramática',
+    render_candidate: 'Falha ao avaliar contraste linguístico',
   };
   return [
     ...new Set(
-      (job.events ?? []).flatMap((event) =>
-        event.tool && labels[event.tool] ? [labels[event.tool]] : [],
-      ),
+      (job.events ?? []).flatMap((event) => {
+        if (event.type !== 'tool-result' || !event.tool || !labels[event.tool]) return [];
+        return [
+          failedToolResult(event.result)
+            ? (failures[event.tool] ?? `Falha na ferramenta ${event.tool}`)
+            : labels[event.tool],
+        ];
+      }),
     ),
   ];
+}
+
+function failedToolResult(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const result = value as Record<string, unknown>;
+  if (result.isError === true || result.error || result.verificationError) return true;
+  // Older Codex app-server results lost MCP's isError flag. Recover only the
+  // exact error envelope emitted by our gateway, not arbitrary response prose.
+  if (
+    result.structuredContent != null ||
+    !Array.isArray(result.content) ||
+    result.content.length !== 1
+  )
+    return false;
+  const item = result.content[0];
+  if (item?.type !== 'text' || typeof item.text !== 'string') return false;
+  try {
+    const error = JSON.parse(item.text);
+    return (
+      error !== null &&
+      typeof error === 'object' &&
+      typeof error.code === 'string' &&
+      typeof error.message === 'string' &&
+      Object.keys(error).every((key) => key === 'code' || key === 'message')
+    );
+  } catch {
+    return false;
+  }
 }
 export interface AnalysisEvidence {
   kind?: string;
