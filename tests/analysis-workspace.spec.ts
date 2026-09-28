@@ -75,10 +75,22 @@ test('new conversation clears context while history and readable activity remain
     state.jobs[0].summary = '**Resposta anterior**\n\nForma: `nhemoabaré`.';
     state.jobs[0].events = [
       { type: 'text-delta', text: 'fragmento invisível' },
-      ...Array.from({ length: 4 }, () => ({
-        type: 'tool-start',
-        tool: 'studio_dictionary_search',
-      })),
+      ...Array.from({ length: 4 }, (_, index) => [
+        { type: 'tool-start', callId: `search:${index}`, tool: 'studio_dictionary_search' },
+        {
+          type: 'tool-result',
+          callId: `search:${index}`,
+          tool: 'studio_dictionary_search',
+          result: {},
+        },
+      ]).flat(),
+      { type: 'tool-start', callId: 'read:failed', tool: 'grammar_read' },
+      {
+        type: 'tool-result',
+        callId: 'read:failed',
+        tool: 'grammar_read',
+        result: { isError: true, error: { code: 'ENOENT', message: 'Missing guide' } },
+      },
     ];
     state.jobs[0].updatedAt = new Date(Date.now() + 1000).toISOString();
     window.__nextControl.setAnalysis(state);
@@ -88,6 +100,10 @@ test('new conversation clears context while history and readable activity remain
   ).toHaveCount(1);
   await page.getByText('Entrada salva e atividade', { exact: true }).click();
   await expect(page.getByText('Busca no dicionário', { exact: true })).toHaveCount(1);
+  await expect(
+    page.getByText('Falha ao consultar regra da gramática', { exact: true }),
+  ).toHaveCount(1);
+  await expect(page.getByText('Regra da gramática consultada', { exact: true })).toHaveCount(0);
   await expect(page.getByText('fragmento invisível', { exact: true })).not.toBeVisible();
   const before = await page.evaluate(
     () => window.__nextControl.requests.filter((r) => r.method === 'analysis_submit').length,

@@ -41,6 +41,13 @@ Narrow production job/thread diagnostics and the prior investigation handoff.
 
 ## What failed and remaining questions
 
+The first broad CI browser run passed 209 tests and failed one outdated
+activity fixture that marked a completed job with only tool-start events. Updated
+it to include completed dictionary results and a failed grammar read, retaining
+dedup/history assertions and adding truthful failure-label assertions. All 19
+analysis-workspace browser tests pass after the fixture correction. Hosted CI,
+including the full compiled repair flow, passed.
+
 Original missing guide alone did not reproduce the fatal error; the rejected
 historical tool identity remains unknown. Standard resource-helper access does
 reproduce the same failure class. Foreign servers/resources remain forbidden.
