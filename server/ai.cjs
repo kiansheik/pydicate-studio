@@ -79,6 +79,7 @@ function createHostedAI({ store, emit = () => {} }) {
       result.versions = snapshot.versions;
       emit({type:'draft-change',projectId:params.projectId,passageId:result.draft.passageId});
     }
+    if (method === 'analysis_list') result.background.detail = 'As análises continuam no servidor quando você fecha esta aba. Tentativas interrompidas exigem uma nova tentativa explícita.';
     if (method === 'ai_status') result.providers = result.providers.filter(provider => provider.id === 'codex');
     return result;
   }
