@@ -90,3 +90,9 @@ one six-output-token connectivity response with no research data or tool writes.
 The rendered-lookup context test now counts only search/resolve requests; the
 new independent project warmup has no passage context and must not be counted as
 a user lookup. The original two requests and exact source/passage assertions remain.
+
+The minimal two-browser transport fixture also raced its asynchronous selection
+load against Playwright fill (amen was inserted into the stale edit). Disable its
+textarea during selection loading, so edits begin only after the requested
+passage is ready; preserve all conflict/recovery assertions. This fixture is
+separate from the compiled React editor.

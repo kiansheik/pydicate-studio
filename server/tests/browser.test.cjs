@@ -18,7 +18,7 @@ test('two real browsers: hosted bridge, independent edits, stale conflicts, pres
     fs.writeFileSync(path.join(settings.distDirectory, 'assets/fixture.js'), `
     (async()=>{const saved=await window.studio.invoke('session_restore');const envelope=await window.studio.loadDrafts(saved.project.id);
     const editor=document.querySelector('#editor'),passage=document.querySelector('#passage'),result=document.querySelector('#result');
-    async function select(){await window.studio.invoke('session_select',{projectId:saved.project.id,passageId:passage.value});editor.value=envelope.drafts[passage.value].raw;}
+    async function select(){editor.disabled=true;try{await window.studio.invoke('session_select',{projectId:saved.project.id,passageId:passage.value});editor.value=envelope.drafts[passage.value].raw;}finally{editor.disabled=false;}}
     passage.onchange=select;await select();result.textContent='ready';
     editor.onchange=async()=>{const id=passage.value;envelope.drafts[id]={...envelope.drafts[id],raw:editor.value,revisionId:crypto.randomUUID()};try{await window.studio.saveDrafts(envelope);result.textContent='saved';}catch(error){result.textContent=error.message;}};
     })();`);
