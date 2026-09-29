@@ -1,5 +1,17 @@
 # Work log
 
+## 2026-09-29 - Claude Code sign-in with each contributor's own subscription
+
+The requested design — Studio running the OAuth flow and keeping the token — is
+what Anthropic's Claude Code policy prohibits for third-party applications. The
+permitted arrangement, an end user signing in to the unmodified binary hosted by
+a platform, is now implemented: the server drives `claude auth login`, hands back
+the authorization URL, forwards only the pasted code to the binary's stdin, and
+reports `claude auth status`. Credentials stay in per-account homes the server
+never reads and no backup or export carries. Running jobs under those
+credentials remains to be built. See the
+[handoff](session-handoffs/2026-09-29-claude-subscription-login.md).
+
 ## 2026-09-29 - Scanned PDFs no longer render blank
 
 A PDF attached during a public demonstration loaded, reported itself ready and

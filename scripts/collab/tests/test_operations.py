@@ -23,17 +23,60 @@ class OperationsTests(unittest.TestCase):
         with self.assertRaises(ValueError):host.changes('oldtupicorpus')
         (repo/'historic/secret.key').unlink();(repo/'historic/alias.py').symlink_to('/etc/passwd')
         with self.assertRaises(ValueError):host.changes('oldtupicorpus')
-    def test_collect_then_publish_preserves_source_and_produces_verifiable_git_bundle(self):
-        host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('changed\n')
+    @contextlib.contextmanager
+    def offline_publication(self,host):
+        """Publish without contacting the real origin, which the fixtures cannot reach."""
         @contextlib.contextmanager
         def stopped(*args,**kwargs):yield
-        with patch.object(host,'stopped',stopped):
+        merged={'mergedUpstream':False,'conflictsResolvedFromServer':[],'upstreamMergeBlocked':False}
+        with patch.object(host,'stopped',stopped),patch.object(host,'merge_upstream',lambda repo:merged):yield
+    def test_collect_then_publish_preserves_source_and_produces_verifiable_git_bundle(self):
+        host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('changed\n')
+        with self.offline_publication(host):
             first=host.changes('oldtupicorpus')
             with self.assertRaises(ValueError):host.collect('oldtupicorpus',host.root/'bad','0'*64)
             dest=host.collect('oldtupicorpus',host.root/'good',first['reviewSha'])
         self.assertEqual((repo/'historic/test.tu.py').read_text(),'changed\n');self.assertEqual(g('status','--porcelain'),'')
         g('bundle','verify',str(dest/'repository.bundle'))
         self.assertIn('publishedHead',json.loads((dest/'manifest.json').read_text()))
+    def test_unpublishable_files_are_skipped_and_left_untouched_on_the_server(self):
+        host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('changed\n')
+        # Agent scratch notes at the repository root can never be published, but they
+        # must not block the grammar/corpus work sitting beside them.
+        (repo/'AGENT_NOTES.md').write_text('agent scratch\n')
+        manifest=host.changes('oldtupicorpus')
+        self.assertEqual([row['path'] for row in manifest['files']],['historic/test.tu.py'])
+        self.assertEqual([row['path'] for row in manifest['skipped']],['AGENT_NOTES.md'])
+        with self.offline_publication(host):
+            dest=host.collect('oldtupicorpus',host.root/'good',manifest['reviewSha'])
+        # The notes survive untouched and uncommitted; only the allowlisted file ships.
+        self.assertEqual((repo/'AGENT_NOTES.md').read_text(),'agent scratch\n')
+        self.assertEqual(g('status','--porcelain'),'?? AGENT_NOTES.md')
+        self.assertEqual(g('show','--name-only','--format=','HEAD'),'historic/test.tu.py')
+        self.assertNotIn('AGENT_NOTES.md',(dest/'review.diff').read_text())
+    def test_upstream_conflicts_resolve_in_favour_of_the_server_copy(self):
+        host,repo,g=self.local_fetch_fixture()
+        # origin/main and server/work edit the same line; the server copy must win.
+        g('checkout','main');(repo/'historic/test.tu.py').write_text('upstream\n')
+        g('commit','-am','upstream edit');g('checkout','server/work')
+        (repo/'historic/test.tu.py').write_text('server\n');g('commit','-am','server edit')
+        result=host.merge_upstream(repo)
+        self.assertEqual(result['conflictsResolvedFromServer'],['historic/test.tu.py'])
+        self.assertTrue(result['mergedUpstream']);self.assertFalse(result['upstreamMergeBlocked'])
+        self.assertEqual((repo/'historic/test.tu.py').read_text(),'server\n')
+        self.assertEqual(g('status','--porcelain'),'')
+    def test_unmergeable_upstream_still_publishes_the_reviewed_snapshot(self):
+        host,repo,g=self.fixture()
+        # An unreachable remote and a history git refuses to merge must leave the
+        # working tree clean and let the reviewed snapshot publish anyway.
+        g('remote','set-url','origin',str(host.root/'absent'))
+        g('checkout','--orphan','unrelated');(repo/'historic/test.tu.py').write_text('unrelated\n')
+        g('add','.');g('commit','-m','unrelated history');g('update-ref','refs/remotes/origin/main','HEAD')
+        g('checkout','server/work')
+        result=host.merge_upstream(repo)
+        self.assertTrue(result['upstreamMergeBlocked'])
+        self.assertEqual(result['conflictsResolvedFromServer'],[])
+        self.assertEqual(g('status','--porcelain'),'')
     def test_clone_does_not_reset_existing_workspace(self):
         host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('keep this draft\n')
         engine=host.workspace/'nhe-enga';subprocess.run(['git','clone',str(repo),str(engine)],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)

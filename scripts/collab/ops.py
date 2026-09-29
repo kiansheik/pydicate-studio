@@ -161,6 +161,74 @@ if test -n "$desktop"; then rm -- "$desktop"; fi
         if checksum(source)!=result:raise ValueError('Upload checksum mismatch')
         print('[deploy] Upload verified.',flush=True)
 
+def stamp():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')+'-'+os.urandom(3).hex()
+
+def unpack_export(remote,repo,label,review,output):
+    """Run changes/publish on the server and expand the verified download."""
+    remote.action('publish' if review else 'changes','--repo',repo,'--file',remote.root+'/exports/'+label,'--review-sha',review)
+    bundle=remote.download(remote.root+'/exports/'+label,output,True)
+    local=pathlib.Path(output).with_suffix('').with_suffix('')
+    if local.exists():raise ValueError('Local publication directory already exists')
+    local.mkdir(mode=0o700);safe_extract(bundle,local)
+    return local,json.loads((local/'manifest.json').read_text())
+
+def open_pull_request(repo,label,local,manifest,review):
+    """Push the reviewed server snapshot and return the pull request URL."""
+    if checksum(local/'repository.bundle')!=manifest['bundleSha256']:raise ValueError('Bundle checksum mismatch')
+    if manifest['repo']!=repo or manifest['origin']!=f'https://github.com/kiansheik/{repo}.git':raise ValueError('Unexpected publication repository')
+    clone=local/'checkout';command(['git','clone','--branch','server/work',local/'repository.bundle',clone])
+    branch='contrib/studio-'+label;command(['git','switch','-c',branch],cwd=clone)
+    command(['git','remote','set-url','origin',manifest['origin']],cwd=clone)
+    command(['git','push','origin','HEAD:refs/heads/'+branch],cwd=clone)
+    notes=''
+    if manifest.get('skipped'):
+        notes+='\nLeft on the server, outside the publish allowlist:\n\n'+''.join(f'- `{row["path"]}` — {row["reason"]}\n' for row in manifest['skipped'])
+    if manifest.get('conflictsResolvedFromServer'):
+        notes+='\nUpstream conflicts resolved in favour of the server copy:\n\n'+''.join(f'- `{path}`\n' for path in manifest['conflictsResolvedFromServer'])
+    description=local/'pull-request.md'
+    description.write_text(f'Reviewed Studio server changes.\n\nReview snapshot: `{review}`\n\nSource commit: `{manifest["publishedHead"]}`\n{notes}\nEditorial attribution/history remains in the private research database. No credentials or usage data are included. Merge with a merge commit (not squash) so the server can fast-forward after review.\n')
+    created=subprocess.run(['gh','pr','create','--repo','kiansheik/'+repo,'--base','main','--head',branch,
+                            '--title','Reviewed Studio contribution: '+repo,'--body-file',str(description)],
+                           cwd=clone,check=True,stdout=subprocess.PIPE,text=True).stdout
+    return next((line.strip() for line in reversed(created.splitlines()) if line.strip().startswith('https://')),'(pull request created)')
+
+def publish_repository(remote,repo):
+    """Collect, review and publish one repository. Returns a result row for the summary."""
+    print(f'\n[{repo}] Collecting server changes…',flush=True)
+    review_label=stamp()
+    local,manifest=unpack_export(remote,repo,review_label,'',str(HERE/'backups'/f'changes-{review_label}.tar.gz'))
+    for row in manifest.get('skipped',[]):print(f'[{repo}] Leaving on the server ({row["reason"]}): {row["path"]}',flush=True)
+    if not manifest['files']:
+        return {'repo':repo,'status':'no changes','detail':'nothing to publish','skipped':manifest.get('skipped',[])}
+    print(f'[{repo}] Publishing {len(manifest["files"])} file(s)…',flush=True)
+    label=stamp()
+    local,published=unpack_export(remote,repo,label,manifest['reviewSha'],str(HERE/'backups'/f'publish-{label}.tar.gz'))
+    url=open_pull_request(repo,label,local,published,manifest['reviewSha'])
+    return {'repo':repo,'status':'pull request','detail':url,'skipped':published.get('skipped',[]),
+            'resolved':published.get('conflictsResolvedFromServer',[])}
+
+def publish_all(remote):
+    results=[]
+    for repo in ('oldtupicorpus','nhe-enga'):
+        try:results.append(publish_repository(remote,repo))
+        except Exception as error:results.append({'repo':repo,'status':'failed','detail':error})
+    print('\n'+'='*60+'\nPublication summary\n'+'='*60)
+    for row in results:
+        print(f'  {row["repo"]:<16} {row["status"]:<14} {row["detail"]}')
+        for skip in row.get('skipped',[]):print(f'  {"":<16} {"left on server":<14} {skip["path"]} ({skip["reason"]})')
+        for path in row.get('resolved',[]):print(f'  {"":<16} {"server copy won":<14} {path}')
+    opened=[row for row in results if row['status']=='pull request']
+    if opened:
+        print('\nOpen these to review and merge (use a merge commit, never squash):')
+        for row in opened:print('  '+str(row['detail']))
+    failed=[row for row in results if row['status']=='failed']
+    if failed:
+        print('\nFailed:',file=sys.stderr)
+        for row in failed:print(f'  {row["repo"]}: {row["detail"]}',file=sys.stderr)
+        raise SystemExit(1)
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('action');args=p.parse_args();os.umask(0o077)
     action=args.action;remote=Remote()
@@ -191,24 +259,15 @@ def main():
         remote.action(action,'--file',target+'.restore','--confirm','RESTORE-STUDIO-PRODUCTION')
     elif action=='research':
         remote.action('research','--file',label);remote.download(remote.root+'/data/research/'+label,output,True)
+    elif action=='publish-all':publish_all(remote)
     elif action in ('changes','publish'):
         review=os.getenv('REVIEW_SHA','')
         if action=='publish' and not re.fullmatch(r'[a-f0-9]{64}',review):raise ValueError('First collect/review changes, then set REVIEW_SHA to the manifest hash.')
-        remote.action(action,'--repo',repo,'--file',target,'--review-sha',review)
-        bundle=remote.download(target,output,True)
-        if action=='publish':
-            local=pathlib.Path(output).with_suffix('').with_suffix('')
-            if local.exists():raise ValueError('Local publication directory already exists')
-            local.mkdir(mode=0o700);safe_extract(bundle,local)
-            manifest=json.loads((local/'manifest.json').read_text())
-            if checksum(local/'repository.bundle')!=manifest['bundleSha256']:raise ValueError('Bundle checksum mismatch')
-            if manifest['repo']!=repo or manifest['origin']!=f'https://github.com/kiansheik/{repo}.git':raise ValueError('Unexpected publication repository')
-            clone=local/'checkout';command(['git','clone','--branch','server/work',local/'repository.bundle',clone])
-            branch='contrib/studio-'+label;command(['git','switch','-c',branch],cwd=clone)
-            command(['git','remote','set-url','origin',manifest['origin']],cwd=clone)
-            command(['git','push','origin','HEAD:refs/heads/'+branch],cwd=clone)
-            description=local/'pull-request.md';description.write_text(f'Reviewed Studio server changes.\n\nReview snapshot: `{review}`\n\nSource commit: `{manifest["publishedHead"]}`\n\nEditorial attribution/history remains in the private research database. No credentials or usage data are included. Merge with a merge commit (not squash) so the server can fast-forward after review.\n')
-            command(['gh','pr','create','--repo','kiansheik/'+repo,'--base','main','--head',branch,'--title','Reviewed Studio corpus contribution','--body-file',description],cwd=clone)
+        if action=='changes':
+            remote.action(action,'--repo',repo,'--file',target,'--review-sha','');remote.download(target,output,True)
+        else:
+            local,manifest=unpack_export(remote,repo,label,review,output)
+            print(open_pull_request(repo,label,local,manifest,review))
     elif action=='record-import':
         file=os.getenv('FILE')
         if not file or not pathlib.Path(file).is_file():raise ValueError('Set FILE to the import-receipt.json from a pushed branch')

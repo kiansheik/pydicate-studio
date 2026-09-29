@@ -52,7 +52,7 @@ export DEPLOY_HOST DEPLOY_USER DEPLOY_PATH SSH_IDENTITY SSH_PORT STUDIO_REF COLL
 export FILE REPO REVIEW_SHA CONFIRM EMAIL NAME IDS LOCAL_REVIEW_DIR LOCAL_REPOS_PARENT IMPORT_DIR MODE
 export LOCAL_STUDIO_STATE LOCAL_PROJECT_PARENT
 
-.PHONY: collab-help collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-sync collab-local-install collab-test
+.PHONY: collab-help collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-publish-all collab-sync collab-local-install collab-test
 collab-help:
 	@echo 'collab-install/redeploy  Update release + copy attached desktop PDFs/evidence; preserve existing server work'
 	@echo 'LOCAL_STUDIO_STATE=... LOCAL_PROJECT_PARENT=...  Optional desktop profile/workspace overrides for PDF transfer'
@@ -63,6 +63,7 @@ collab-help:
 	@echo 'collab-research FILE=...  All-time research export, excluding account and provider secrets'
 	@echo 'collab-changes REPO=... FILE=...  Collect source diff and review manifest'
 	@echo 'collab-publish REPO=... REVIEW_SHA=... FILE=...  Checkpoint, fetch bundle, push review branch, open PR using laptop gh login'
+	@echo 'collab-publish-all       One command: publish BOTH repositories and print the pull request links'
 	@echo 'collab-sync REPO=...     After PR merge: safety backup + clean-tree fast-forward only'
 	@echo 'collab-db-restore-local FILE=... LOCAL_REVIEW_DIR=...  Trusted dump into a new laptop-only PostgreSQL'
 	@echo 'collab-submissions-local IDS=... FILE=...  Export chosen immutable snapshots from the restored DB'
@@ -72,7 +73,7 @@ collab-help:
 	@echo 'collab-codex-auth       Privately replace the server Codex login from local auth.json'
 	@echo 'collab-deploy           Update app + clean compatible branches + attached desktop PDFs; dirty work stays intact'
 
-collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-sync:
+collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-publish-all collab-sync:
 	@python3 scripts/collab/ops.py $(patsubst collab-%,%,$@)
 
 collab-local-install:

@@ -1,5 +1,34 @@
 # Current state
 
+## Claude Code sign-in with a contributor's own subscription
+
+Anthropic's Claude Code policy forbids a third-party application from offering
+Claude.ai login, routing requests through Free/Pro/Max credentials on a user's
+behalf, or collecting, storing or intermediating Claude credentials or session
+tokens. It does permit an end user signing in to the **unmodified** binary with
+their own subscription on a platform that hosts it, under the Commercial Terms.
+
+The collaboration panel now offers that sign-in. `server/claude-auth.cjs` runs
+the binary's own `claude auth login --claudeai`, returns the authorization URL
+it prints, and writes the contributor's pasted code to that child's stdin and
+nowhere else; `claude auth status --json` is the only sign-in signal, so no code
+path reads a credential file. Each account gets a private `CLAUDE_CONFIG_DIR`
+under `<root>/credentials/claude`, outside the `data/`, `workspace/` and
+`config/` trees that backup, restore and research export walk. The child
+environment drops `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`,
+`CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_PROFILE` so credential precedence
+cannot substitute a server-wide credential for the contributor's own.
+
+Tests cover sign-in, rejection, expiry, invalid codes, a missing binary and a
+filesystem sweep proving neither the pasted code nor the credential appears
+outside the binary's own directory, plus the HTTP flow end to end. A check
+against the real installed binary returns the genuine authorization URL and
+rejects a wrong code without completing any login. The runtime half is **not**
+done: `server/ai.cjs` still accepts Codex only, so a sign-in stores a credential
+the job queue does not yet use. See the
+[design](../design/claude-subscription-login.md) and
+[handoff](session-handoffs/2026-09-29-claude-subscription-login.md).
+
 ## Scanned PDFs render instead of showing blank pages
 
 PDF.js loads its image decoders and font data at runtime, and Studio supplied

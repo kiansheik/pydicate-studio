@@ -102,6 +102,11 @@ class Host:
             if os.geteuid()==0:os.chown(file,1000,1000)
         codex=self.config/'codex';codex.mkdir(exist_ok=True,mode=0o700)
         if os.geteuid()==0:os.chown(codex,1000,1000)
+        # Private per-contributor Claude Code homes, outside every directory the
+        # backup, restore and research exports walk. Studio never reads them.
+        claude=self.root/'credentials/claude';claude.mkdir(parents=True,exist_ok=True,mode=0o700)
+        if os.geteuid()==0:
+            os.chown(claude.parent,1000,1000);os.chown(claude,1000,1000)
         env=self.config/'runtime.env'
         if not env.exists():
             settings={'COLLAB_ROOT':str(self.root),'COLLAB_WORKSPACE':str(self.workspace),'COLLAB_DATA_DIR':str(self.data),
@@ -281,35 +286,71 @@ class Host:
         changed=run(['git','-c','safe.directory='+str(repo),'-C',repo,'diff','--name-only','-z','origin/main'],capture=True).decode().split('\0')
         changed+=run(['git','-c','safe.directory='+str(repo),'-C',repo,'ls-files','--others','--exclude-standard','-z'],capture=True).decode().split('\0')
         files=sorted(set(filter(None,changed)))
-        if any(not file.startswith(ALLOW[name]) or any(part.startswith('.') for part in pathlib.PurePosixPath(file).parts) or pathlib.Path(file).suffix in ('.pem','.key','.sqlite','.db') for file in files):raise ValueError('Changes outside the publish allowlist require separate manual review.')
-        rows=[]
+        rows=[];skipped=[]
         for file in files:
             target=repo/file
-            if target.is_symlink():raise ValueError('Symlink publication is not allowed')
-            if target.exists() and target.stat().st_size>2*1024*1024:raise ValueError('Oversize source file')
+            # Symlinks and credential/database bytes are never publishable and never
+            # silently skipped: they stop the run so a person looks at them.
+            if target.is_symlink():raise ValueError('Symlink publication is not allowed: '+file)
+            if pathlib.Path(file).suffix in ('.pem','.key','.sqlite','.db'):raise ValueError('Credential or database files require separate manual review: '+file)
+            # Everything else that cannot be published is reported and left untouched
+            # in the server working tree, so agent scratch files never block a release.
+            if not file.startswith(ALLOW[name]):skipped.append({'path':file,'reason':'outside the publish allowlist'});continue
+            if any(part.startswith('.') for part in pathlib.PurePosixPath(file).parts):skipped.append({'path':file,'reason':'hidden path'});continue
+            if target.exists() and target.stat().st_size>2*1024*1024:skipped.append({'path':file,'reason':'larger than 2 MiB'});continue
             rows.append({'path':file,'sha256':sha(target) if target.exists() else None})
-        manifest={'repo':name,'origin':REPOS[name],'base':base,'head':git(repo,'rev-parse','HEAD'),'files':rows}
+        manifest={'repo':name,'origin':REPOS[name],'base':base,'head':git(repo,'rev-parse','HEAD'),'files':rows,'skipped':skipped}
         digest=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest();manifest['reviewSha']=digest
         return manifest
+    def merge_upstream(self,repo):
+        """Bring server/work up to date with origin/main so the pull request merges cleanly.
+
+        A plain merge is attempted first. Only when it conflicts is the merge redone
+        with the server copy winning each conflicting hunk, and every such file is
+        reported so the resolution is never silent.
+        """
+        identity=['-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com']
+        safe=['git','-c','safe.directory='+str(repo),*identity,'-C',str(repo)]
+        def attempt(*args):return subprocess.run([*safe,*args],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+        clean={'mergedUpstream':False,'conflictsResolvedFromServer':[],'upstreamMergeBlocked':False}
+        # A briefly unreachable remote must never fail a publication: the reviewed
+        # snapshot is still publishable against the origin/main already on disk.
+        attempt('fetch','origin','main')
+        if attempt('merge-base','--is-ancestor','origin/main','HEAD'):return clean
+        if attempt('merge','--no-edit','origin/main'):return {**clean,'mergedUpstream':True}
+        conflicts=sorted(set(git(repo,'diff','--name-only','--diff-filter=U').splitlines()))
+        attempt('merge','--abort')
+        if not conflicts or not attempt('merge','--no-edit','-X','ours','origin/main'):
+            # Histories that cannot be merged at all (unrelated, or a merge that never
+            # began) are left to a person. Publication continues from the reviewed
+            # snapshot; the pull request simply has to be reconciled on GitHub.
+            attempt('merge','--abort')
+            print('[server] Could not merge origin/main automatically; publishing the reviewed snapshot unchanged.',flush=True)
+            return {**clean,'upstreamMergeBlocked':True}
+        print('[server] Upstream conflicts resolved in favour of the server copy: '+', '.join(conflicts),flush=True)
+        return {'mergedUpstream':True,'conflictsResolvedFromServer':conflicts,'upstreamMergeBlocked':False}
     def collect(self,name,dest,review_sha=''):
         dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
         with self.stopped(), self.workspace_writes():
             manifest=self.changes(name);repo=self.workspace/name
-            with open(dest/'review.diff','wb') as out:run(['git','-c','safe.directory='+str(repo),'-C',repo,'diff','--binary','origin/main'],stdout=out)
+            publishable=[row['path'] for row in manifest['files']]
+            # The review artefacts describe exactly what publication would commit, so
+            # skipped paths stay out of both the diff and the copied source bytes.
+            with open(dest/'review.diff','wb') as out:
+                if publishable:run(['git','-c','safe.directory='+str(repo),'-C',repo,'diff','--binary','origin/main','--',*publishable],stdout=out)
             # Include untracked source bytes in the review directory; do not silently omit them.
-            new=git(repo,'ls-files','--others','--exclude-standard').splitlines()
+            new=[f for f in git(repo,'ls-files','--others','--exclude-standard').splitlines() if f in set(publishable)]
             for file in new:
                 target=dest/'new-files'/file;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(repo/file,target)
             if review_sha:
                 if manifest['reviewSha']!=review_sha:raise ValueError('Server changes differ from the reviewed snapshot. Collect and review again.')
                 if git(repo,'branch','--show-current')!='server/work':raise ValueError('Publication requires the dedicated server/work branch.')
                 if git(repo,'diff','--cached','--name-only'):raise ValueError('An existing staged change must be handled before publication.')
-                dirty=git(repo,'status','--porcelain')
-                if dirty:
-                    files=[row['path'] for row in manifest['files']]
-                    if not files:raise ValueError('No publishable files')
-                    run(['git','-c','safe.directory='+str(repo),'-C',repo,'add','--',*files])
+                if not publishable:raise ValueError('No publishable files')
+                run(['git','-c','safe.directory='+str(repo),'-C',repo,'add','--',*publishable])
+                if git(repo,'diff','--cached','--name-only'):
                     run(['git','-c','safe.directory='+str(repo),'-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com','-C',repo,'commit','-m','Reviewed server contribution\n\nStudio-Review-SHA: '+review_sha])
+                manifest.update(self.merge_upstream(repo))
                 run(['git','-c','safe.directory='+str(repo),'-C',repo,'bundle','create',dest/'repository.bundle','server/work'])
                 manifest['publishedHead']=git(repo,'rev-parse','HEAD');manifest['bundleSha256']=sha(dest/'repository.bundle')
             write_json(dest/'manifest.json',manifest)
