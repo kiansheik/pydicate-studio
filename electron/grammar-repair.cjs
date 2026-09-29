@@ -251,9 +251,11 @@ function createGrammarRepair({
         ? requiredText(params.description, 'Mensagem')
         : `Forma pretendida: ${intendedSurface}${explanation.trim() ? '\n\n' + explanation.trim() : ''}`,
       conversation: [],
-      provider: 'codex',
-      model: config.models.codex,
-      reasoningEffort: config.reasoningEffort,
+      // Grammar repair follows the configured provider like every other job.
+      // Hardcoding one sent this to Codex even after the person chose otherwise.
+      provider: config.provider,
+      model: config.models[config.provider],
+      reasoningEffort: config.provider === 'codex' ? config.reasoningEffort : null,
       includeImages: false,
       evidence: { regions: [], images: [], imagesSelected: false },
       createdAt: new Date().toISOString(),

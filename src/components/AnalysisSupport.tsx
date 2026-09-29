@@ -821,7 +821,9 @@ export function AnalysisSupport({
           operationId: submissionOperation(
             {
               submission,
-              provider: 'codex',
+              // The operation key must follow the chosen provider, or switching
+              // provider and resubmitting is deduplicated into the earlier job.
+              provider: provider?.config.provider ?? 'codex',
               engine: studio.project.engineFingerprint,
               conversation: repairParent.conversationId,
               noteSnapshot,

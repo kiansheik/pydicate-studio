@@ -86,4 +86,35 @@ class CheckpointTests(unittest.TestCase):
             # Nothing on the server is removed either way.
             self.assertTrue((host.data/'evidence-imports/archive.tar').exists())
 
+
+class PruneTests(unittest.TestCase):
+    def test_pruning_keeps_live_state_the_running_release_and_the_newest_points(self):
+        import os, time
+        with tempfile.TemporaryDirectory() as temporary:
+            host=Host(Path(temporary)/'server')
+            for directory in (host.data,host.workspace,host.config):directory.mkdir(parents=True)
+            def aged(path,age):
+                path.mkdir(parents=True,exist_ok=True)
+                (path/'payload').write_text('x')
+                stamp=time.time()-age
+                os.utime(path,(stamp,stamp))
+            # Five automatic checkpoints, oldest first, plus a named backup.
+            for index in range(5):aged(host.root/'backups'/f'predeploy-{index}',100-index)
+            aged(host.root/'backups'/'a-named-backup',500)
+            for index in range(5):aged(host.data/'desktop-imports'/f'bundle-{index}',100-index)
+            for index in range(4):aged(host.root/'releases'/f'release-{index}',100-index)
+            live=host.root/'releases/release-0'
+            (host.root/'current').symlink_to(live)
+            (host.data/'evidence').mkdir();(host.data/'evidence/keep.pdf').write_text('live')
+            with patch('subprocess.run'):host.prune(keep=2)
+            kept=sorted(p.name for p in (host.root/'backups').iterdir())
+            # Newest two automatic checkpoints, and the named backup untouched.
+            self.assertEqual(kept,['a-named-backup','predeploy-3','predeploy-4'])
+            self.assertEqual(sorted(p.name for p in (host.data/'desktop-imports').iterdir()),
+                             ['bundle-3','bundle-4'])
+            # The running release always survives, whatever its age.
+            self.assertTrue(live.is_dir())
+            self.assertTrue((host.data/'evidence/keep.pdf').exists())
+            self.assertTrue(host.workspace.is_dir())
+
 if __name__=='__main__':unittest.main()

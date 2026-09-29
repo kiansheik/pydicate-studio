@@ -185,8 +185,11 @@ test('capture uses the selected grammar and saved expression, preserves the inte
   const f = await fixture(t),
     job = await f.job();
   assert.equal(job.input.grammarRepair.enginePath, f.engine);
-  assert.equal(job.input.provider, 'codex');
-  assert.equal(job.input.model, 'fixture-codex');
+  // Grammar repair follows the configured provider. It used to be pinned to
+  // Codex, which silently ignored the person's choice in the assistant panel.
+  assert.equal(job.input.provider, 'claude');
+  assert.equal(job.input.model, 'fixture-claude');
+  assert.equal(job.input.reasoningEffort, null);
   assert.equal(job.input.diagnostic.evidence.currentSurface, 'mororerobiare');
   assert.equal(job.input.diagnostic.evidence.intendedSurface, 'morerobiare');
   assert.equal(job.input.raw, 'moro.var(1) * erobiar');

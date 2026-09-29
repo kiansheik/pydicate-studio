@@ -325,7 +325,7 @@ async function runAgent(options) {
   } = options;
   const providerName =
     typeof options.provider === 'string' ? options.provider : options.provider?.id;
-  if (!['codex', 'claude'].includes(providerName))
+  if (!['codex', 'claude', 'claude-code'].includes(providerName))
     throw failure('INVALID_PROVIDER', 'Provedor desconhecido.');
   const budgets = normalizeBudgets(options.budgets || input?.budgets);
   const controller = new AbortController();
@@ -387,9 +387,23 @@ async function runAgent(options) {
         : options.providers?.[providerName] ||
           (providerName === 'claude'
             ? new (require('./provider-claude.cjs').ClaudeProvider)()
-            : new (require('./provider-codex.cjs').CodexProvider)({
-                cwd: options.workingDirectory,
-              }));
+            : providerName === 'claude-code'
+              ? null
+              : new (require('./provider-codex.cjs').CodexProvider)({
+                  cwd: options.workingDirectory,
+                }));
+    // Analysis and grammar repair drive a tool loop. A provider that only answers
+    // with text cannot run one, and saying so beats a confusing mid-job failure.
+    if (!provider)
+      throw failure(
+        'PROVIDER_UNAVAILABLE',
+        'O provedor selecionado não está disponível neste servidor.',
+      );
+    if (providerName !== 'codex' && typeof provider.completeToolRound !== 'function')
+      throw failure(
+        'PROVIDER_NO_TOOLS',
+        'O provedor selecionado ainda não executa tarefas com ferramentas, como Corrigir gramática. Use o Codex para esta tarefa.',
+      );
     await persist();
     if (providerName === 'codex') {
       const result = await abortable(

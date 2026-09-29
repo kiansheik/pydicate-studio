@@ -139,6 +139,9 @@ class Host:
         from upstream import install_timer
         install_timer(self)
     def deploy(self, initial=False, evidence=None, desktop=None):
+        # Reclaim first: the checkpoint and the new image both need room, and the
+        # artefacts being removed belong to deploys this one supersedes.
+        if not initial:self.prune()
         print('[server] Building Studio image (existing service stays available)...',flush=True)
         self.compose('build','studio') # Existing service stays up during build.
         print('[server] Starting PostgreSQL and waiting for health...',flush=True)
@@ -182,7 +185,59 @@ class Host:
         write_json(self.root/'release.json',release)
         print('[server] Verifying publication receipts...',flush=True)
         self.compose('exec','-T','studio','node','server/publication.cjs','verify')
+        # Only after a verified deployment: a failed one keeps every rollback point.
+        self.prune()
         print('[server] Deployment complete; Studio is healthy.',flush=True)
+    # Each deploy adds a checkpoint, a release tree, retained import bundles and a
+    # container image. None were ever removed, which is what filled the disk.
+    RETAIN = 3
+    def prune(self,keep=None):
+        """Remove superseded deploy artefacts, newest `keep` of each kind retained.
+
+        Live state is never touched: only rollback points and caches that a later
+        deploy recreates. The running release and the newest checkpoints stay.
+        """
+        keep=self.RETAIN if keep is None else keep
+        freed=[]
+        def newest(paths):
+            return sorted((p for p in paths if p.exists() and not p.is_symlink()),
+                          key=lambda p:p.stat().st_mtime,reverse=True)
+        def drop(path):
+            try:
+                shutil.rmtree(path) if path.is_dir() else path.unlink()
+                freed.append(path.name)
+            except OSError as error:
+                print(f'[server] Could not remove {path.name}: {error}',flush=True)
+        backups=self.root/'backups'
+        if backups.is_dir():
+            # Checkpoints a deploy or sync made automatically. A backup someone
+            # asked for by name is not in this set and is never removed here.
+            routine=[p for p in backups.iterdir() if p.name.startswith(('predeploy-','presync-','prerestore-'))]
+            for path in newest(routine)[keep:]:drop(path)
+        for relative in self.PROVENANCE:
+            directory=self.root/relative
+            if directory.is_dir():
+                for path in newest(list(directory.iterdir()))[keep:]:drop(path)
+        releases=self.root/'releases'
+        if releases.is_dir():
+            live=(self.root/'current').resolve() if (self.root/'current').exists() else None
+            retained=[p for p in newest(list(releases.iterdir())) if p.resolve()!=live]
+            for path in retained[max(keep-1,0):]:drop(path)
+        if freed:print(f'[server] Reclaimed {len(freed)} superseded item(s).',flush=True)
+        # Build cache is the largest and least obvious consumer: every deploy adds
+        # layers and `docker image prune` never touches it. Recent cache is kept so
+        # the next build stays fast.
+        subprocess.run(['docker','builder','prune','-f','--filter','until=72h'],
+                       stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        subprocess.run(['docker','image','prune','-f'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        used={line for line in subprocess.run(['docker','ps','-a','--format','{{.Image}}'],
+              capture_output=True,text=True).stdout.split()}
+        tags=subprocess.run(['docker','images','pydicate-studio','--format','{{.Repository}}:{{.Tag}}'],
+              capture_output=True,text=True).stdout.split()
+        for tag in [t for t in tags if t not in used][keep:]:
+            subprocess.run(['docker','rmi',tag],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        usage=shutil.disk_usage(self.root)
+        print(f'[server] Disk free: {usage.free//(1024**3)} GiB of {usage.total//(1024**3)} GiB.',flush=True)
     def inventory(self):
         """Report the content digests already held, so a deploy uploads only new bytes.
 
@@ -446,6 +501,8 @@ def main():
     # Read-only and deliberately outside the operation lock: a deploy asks for this
     # while deciding what to upload, and must never queue behind a running job.
     if args.action=='inventory':return print(json.dumps(host.inventory()))
+    if args.action=='prune':
+        with host.lock():return host.prune()
     with host.lock():
         if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence,desktop=args.desktop)
         elif args.action=='redeploy':host.deploy(evidence=args.evidence,desktop=args.desktop)

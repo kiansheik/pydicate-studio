@@ -295,6 +295,7 @@ def main():
         remote.upload(file,target+'.receipt.json');remote.action('record-import','--file',target+'.receipt.json')
     elif action=='sso-config':remote.action('sso-config','--neo-env',(os.getenv('NEO_API_ENV_FILE') or (os.getenv('NEOLOGISMO_PATH') or '/srv/nheenga-neologismos')+'/deploy/env/api.env'))
     elif action=='notify':remote.action('notify','--mode',(os.getenv('MODE') or 'off'))
+    elif action=='prune':remote.action('prune')
     elif action=='sync':remote.action('sync','--repo',repo)
     else:raise ValueError('Unknown operation')
 

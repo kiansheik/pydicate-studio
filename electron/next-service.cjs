@@ -213,6 +213,9 @@ function createNextService(options) {
         draftStore: options.draftStore,
         evidence,
         getConfig: () => provider.getConfig(),
+        // The same provider instances the assistant uses, including any the host
+        // supplied, so a job never silently falls back to a different account.
+        providers: options.providerAdapters,
         getProject,
         reloadProject: options.reloadProject,
         readInterpretationNotes,
