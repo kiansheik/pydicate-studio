@@ -13,7 +13,10 @@ class Submissions {
       const row=rows.find(r=>JSON.parse(r.after_json).revisionId===revisionId);
       if(!row)throw fault(409,'SAVE_BEFORE_SUBMIT','Salve uma edição sua antes de enviar. A revisão solicitada não foi encontrada.');
       const existing=(await this.store.db.query('SELECT id,snapshot_sha256 FROM submissions WHERE author_id=$1 AND draft_revision_id=$2',[user.id,row.id])).rows[0];
-      if(existing)return {id:existing.id,snapshotSha256:existing.snapshot_sha256,reused:true};
+      // Sending for review means the author is done. The claim is handed back on
+      // every success, including a repeated send, so a reviewer is never locked
+      // out by a tab the author simply left open.
+      if(existing){await this.store.releaseOwned(passageId,user);return {id:existing.id,snapshotSha256:existing.snapshot_sha256,reused:true};}
       const draft=JSON.parse(row.after_json);
       if(!draft.raw?.trim())throw fault(400,'EMPTY_SUBMISSION','Inclua uma análise antes de enviar para revisão.');
       const source=project.passages.find(p=>p.id===passageId);
@@ -36,6 +39,7 @@ class Submissions {
       await this.store.db.query('INSERT INTO submissions VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,project.id,passageKey(passageId),user.id,row.id,JSON.stringify(snapshot),sha,this.store.now()]);
       await this.store.db.query("INSERT INTO submission_events(submission_id,actor_id,event,at) VALUES($1,$2,'submitted',$3)",[id,user.id,this.store.now()]);
       await this.store.audit(user.id,'submission.submit',passageId,'succeeded',null,'server',{submissionId:id,snapshotSha256:sha});
+      await this.store.releaseOwned(passageId,user);
       return {id,snapshotSha256:sha,reused:false};
     });
   }

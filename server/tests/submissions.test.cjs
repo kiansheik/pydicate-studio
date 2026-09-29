@@ -23,6 +23,29 @@ test('submitted author versions are immutable, idempotent and exportable without
  await store.patch(project.id,[{id:'passage:a',version:2,draft:{...draft,raw:'later correction',revisionId:randomUUID()}}],user,'alice-tab');
  assert.equal(JSON.parse((await service.get(item.id)).snapshot).draft.raw,'changed');
 });
+test('sending for review hands the passage back to everyone else',async t=>{
+ const {store,user,project,draft,service}=await fixture(t);
+ const bob=store.publicUser(await store.user('bob'));
+ // The author holds the passage in the tab they are editing in; the submission
+ // service is never told which tab that was, so the release cannot depend on it.
+ await store.assertClaim('passage:a',user,'alice-tab',true);
+ await assert.rejects(store.assertClaim('passage:a',bob,'bob-tab',true),{code:'PASSAGE_BUSY'});
+ await service.submit(user,{passageId:'passage:a',revisionId:draft.revisionId},project);
+ // No waiting for the two-minute expiry, and no tab of the author's keeps it.
+ assert.deepEqual(await store.claimList(),[]);
+ await store.assertClaim('passage:a',bob,'bob-tab',true);
+ assert.equal((await store.claimList())[0].userId,'bob');
+ // A repeated send is idempotent and must not disturb the new holder's claim.
+ const again=await service.submit(user,{passageId:'passage:a',revisionId:draft.revisionId},project);
+ assert.equal(again.reused,true);
+ assert.equal((await store.claimList())[0].userId,'bob');
+});
+test('a failed submission never releases the passage the author is still holding',async t=>{
+ const {store,user,project,service}=await fixture(t);
+ await store.assertClaim('passage:a',user,'alice-tab',true);
+ await assert.rejects(service.submit(user,{passageId:'passage:a',revisionId:randomUUID()},project),{code:'SAVE_BEFORE_SUBMIT'});
+ assert.equal((await store.claimList()).length,1);
+});
 test('review decisions bind exact snapshots, and submissions never confer editorial approval',async t=>{
  const {user,admin,project,draft,service}=await fixture(t);const item=await service.submit(user,{passageId:'passage:a',revisionId:draft.revisionId},project);
  await assert.rejects(service.review(user,{id:item.id,event:'ready',snapshotSha256:item.snapshotSha256}),{code:'REVIEWER_REQUIRED'});

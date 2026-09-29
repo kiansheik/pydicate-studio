@@ -316,7 +316,10 @@ function createHttp({ config, store, auth, runtime }) {
                 if(route==='/api/submit') {
                     limiter.hit('submit:'+session.user.id,30,60000);
                     const result=await submissions.submit(session.user,input,runtime.project,context(req,session));
-                    emit({type:'submissions-change'});return json(res,200,result);
+                    // submit() hands the claim back; tell every open tab at once so the
+                    // passage stops showing as reserved without waiting for a poll.
+                    emit({type:'submissions-change'});emit(await presence());
+                    return json(res,200,result);
                 }
                 if(route==='/api/submission/review') { const result=await submissions.review(session.user,input);emit({type:'submissions-change'});return json(res,200,result); }
                 if(route==='/api/admin/submissions/export') {admin(session);return json(res,200,await submissions.export(input.ids));}

@@ -34,6 +34,27 @@ class CheckpointTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Symlink in backup state'):
                 host.checkpoint(host.root/'backups/rejected')
 
+    def test_online_checkpoint_never_pauses_studio_and_records_that_it_was_live(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            host=Host(Path(temporary)/'server')
+            for directory in (host.data,host.workspace,host.config):directory.mkdir(parents=True)
+            (host.data/'live.json').write_text('live fixture')
+            stops=[]
+            def compose(*args,stdout=None,capture=False,data=None):
+                if args[:1]==('stop',) or args[:2]==('up','-d'):stops.append(args)
+                if stdout:stdout.write(b'database fixture')
+                return b'running-container' if capture else None
+            with patch.object(host,'compose',side_effect=compose),patch('host.git',return_value='a'*40):
+                online=host.checkpoint(host.root/'backups/online',online=True)
+                # The contrast matters: an explicit backup still pauses for consistency.
+                host.checkpoint(host.root/'backups/paused')
+            manifest=json.loads((online/'manifest.json').read_text())
+            self.assertTrue(manifest['online'])
+            with tarfile.open(online/'workspace-state.tar.gz') as archive:
+                self.assertIn('data/live.json',{member.name for member in archive})
+            # Exactly one stop/start pair, from the paused checkpoint alone.
+            self.assertEqual([args[:1] for args in stops],[('stop',),('up',)])
+
     def test_routine_checkpoint_keeps_live_state_and_leaves_retained_imports_alone(self):
         with tempfile.TemporaryDirectory() as temporary:
             host=Host(Path(temporary)/'server')

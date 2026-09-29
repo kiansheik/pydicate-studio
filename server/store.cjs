@@ -113,6 +113,15 @@ class Store {
         passageId = passageKey(passageId);
         await this.db.prepare("DELETE FROM claims WHERE passage_id=$1 AND user_id=$2 AND client_id=$3").run(passageId, user.id, clientId);
     }
+    /**
+     * Hand a passage back after its author is done with it, across every tab they
+     * left it open in. Only that person's own claims are removed, so this can
+     * never take a passage away from someone else.
+     */
+    async releaseOwned(passageId, user) {
+        passageId = passageKey(passageId);
+        await this.db.prepare("DELETE FROM claims WHERE passage_id=$1 AND user_id=$2").run(passageId, user.id);
+    }
     async claimList() {
         return await this.db.prepare("SELECT c.passage_id AS \"passageId\",c.client_id AS \"clientId\",c.user_id AS \"userId\",\n      u.name,c.expires_at AS \"expiresAt\" FROM claims c JOIN users u ON u.id=c.user_id WHERE c.expires_at>$1 AND u.disabled=0").all(this.now());
     }

@@ -145,8 +145,8 @@ class Host:
         self.compose('up','-d','--wait','postgres')
         # Take a full pre-update checkpoint if this deployment already has an account DB.
         if not initial:
-            print('[server] Creating full pre-deploy backup; Studio will pause...',flush=True)
-            self.checkpoint(self.root/'backups'/('predeploy-'+stamp()),restart=False,provenance=False)
+            print('[server] Creating pre-deploy checkpoint; Studio stays available...',flush=True)
+            self.checkpoint(self.root/'backups'/('predeploy-'+stamp()),restart=False,provenance=False,online=True)
         print('[server] Stopping Studio for source updates and database migrations...',flush=True)
         self.compose('stop','studio')
         try:
@@ -239,7 +239,16 @@ class Host:
     # reconstructible from the live state beside them. They grow by one full copy per
     # deploy, so routine checkpoints leave them in place instead of recompressing them.
     PROVENANCE=('data/desktop-imports','data/evidence-imports')
-    def checkpoint(self,dest,restart=True,provenance=True):
+    def checkpoint(self,dest,restart=True,provenance=True,online=False):
+        """Capture a restorable checkpoint.
+
+        `online` keeps Studio serving throughout. pg_dump is transactionally
+        consistent on a live database, and the archived trees are safe to read
+        under the operation lock this runs inside: evidence assets and retained
+        bundles are content-addressed and never rewritten, config is static, and
+        no Git operation can be in flight. Everything a contributor is actively
+        editing lives in PostgreSQL, which the dump captures coherently.
+        """
         dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
         print('[server] Backup: checking persistent state...',flush=True)
         for root in (self.data,self.workspace,self.config):
@@ -248,7 +257,7 @@ class Host:
                 # Codex recreates temporary executable links inside its container.
                 # Keep credentials/history, but never archive this runtime cache.
                 dirs[:]=[name for name in dirs if pathlib.Path(base)/name != self.config/'codex/tmp']
-        with self.stopped(restart=restart):
+        with (contextlib.nullcontext() if online else self.stopped(restart=restart)):
             print('[server] Backup: exporting PostgreSQL...',flush=True)
             with open(dest/'database.dump','wb') as out:self.compose('exec','-T','postgres','pg_dump','-U','studio_app','-d','studio_prod','-Fc','--no-owner','--no-acl',stdout=out)
             skip=('config/codex/tmp',)+((() if provenance else self.PROVENANCE))
@@ -263,7 +272,7 @@ class Host:
             print('[server] Backup: calculating checksums...',flush=True)
             manifest={'format':'pydicate-full-backup','version':1,'at':stamp(),'release':json.loads((self.root/'release.json').read_text()).get('studio') if (self.root/'release.json').exists() else git(HERE,'rev-parse','HEAD'),
               'repositories':{name:git(self.workspace/name,'rev-parse','HEAD') for name in ('oldtupicorpus','nhe-enga')},
-              'private':True,'includesCredentials':True,'includesImportProvenance':provenance,
+              'private':True,'includesCredentials':True,'includesImportProvenance':provenance,'online':online,
               'files':{name:sha(dest/name) for name in ('database.dump','workspace-state.tar.gz')}}
             write_json(dest/'manifest.json',manifest)
         print('[server] Backup complete.',flush=True)
