@@ -10,10 +10,12 @@ import {
   getDocument,
   GlobalWorkerOptions,
   type PDFDocumentProxy,
+  type PDFPageProxy,
   type PageViewport,
 } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { createCachedPdfTask, type PdfLoadingTask } from '../domain/pdf-document';
+import { pdfSupportOptions } from '../domain/pdf-assets';
 import {
   pdfRect,
   viewportRect,
@@ -69,6 +71,12 @@ interface PdfSource {
   length: number;
 }
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+/** PDF.js resolves an image it failed to decode with no data at all, on the
+ * page or, when it caches it for the whole document, on the common objects. */
+function undecodedImage(page: PDFPageProxy) {
+  const missing = ([id, data]: unknown[]) => data === null && String(id).includes('img');
+  return [...page.objs].some(missing) || [...page.commonObjs].some(missing);
+}
 const emptyView = (page = 1): EvidenceView => ({
   pageIndex: Math.max(0, page - 1),
   zoom: 1,
@@ -473,7 +481,12 @@ export function PdfEvidence({
               ),
             };
         if (cancelled || failed) return;
-        loading = getDocument({ ...source, isEvalSupported: false, useSystemFonts: true });
+        loading = getDocument({
+          ...pdfSupportOptions(),
+          ...source,
+          isEvalSupported: false,
+          useSystemFonts: true,
+        });
       }
       loading.onProgress = ({ loaded }: { loaded: number }) => {
         if (cancelled || failed) return;
@@ -547,6 +560,14 @@ export function PdfEvidence({
         });
         await task.promise;
         if (!cancelled && !failed) {
+          // A scan is one large image per page. PDF.js reports a picture it
+          // could not decode by resolving the object with no data, skips it and
+          // still completes the render, which would leave a blank page and no
+          // sign that anything went wrong.
+          if (undecodedImage(page))
+            setPdfError(
+              'Esta página do PDF tem uma imagem que não pôde ser decodificada e por isso aparece em branco. Tente carregar novamente ou vincule outra digitalização.',
+            );
           setRenderedKey(renderKey);
           setRendering(false);
         }

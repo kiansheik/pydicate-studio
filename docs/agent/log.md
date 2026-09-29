@@ -1,5 +1,20 @@
 # Work log
 
+## 2026-09-29 - Scanned PDFs no longer render blank
+
+A PDF attached during a public demonstration loaded, reported itself ready and
+rendered every page white. PDF.js fetches its JBIG2, JPEG 2000 and ICC decoders,
+standard fonts and CMaps at runtime from URLs the embedder supplies; Studio
+supplied none, and both content security policies blocked WebAssembly, so each
+undecodable page image was skipped while the render still succeeded. The build
+now ships those files at `/pdfjs`, the dev server, hosted server and desktop
+protocol serve them, both policies allow `'wasm-unsafe-eval'`, the Node crop
+renderer uses the installed package's copies, and a page whose image cannot be
+decoded says so instead of appearing blank. Coverage moved from vector-only
+fixtures to a scan fixture, including the hosted create-source-and-upload flow
+measured in drawn pixels. See the
+[handoff](session-handoffs/2026-09-29-scanned-pdf-blank-pages.md).
+
 ## 2026-09-28 - Portuguese reference save and publication performance
 
 Translated the reference save action and related review/progress copy. Production

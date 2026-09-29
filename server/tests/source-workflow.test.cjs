@@ -5,9 +5,17 @@ const { execFileSync } = require('node:child_process');
 const { createTestStore } = require('./helpers.cjs');
 const { Auth, hashPassword } = require('../auth.cjs');
 const { createStudio } = require('../studio.cjs'), { createHttp } = require('../http.cjs');
-const { makePdfFixture } = require('../../electron/tests/pdf-fixture.cjs');
+const { makeScanPdfFixture } = require('../../electron/tests/pdf-scan-fixture.cjs');
+// The share of drawn pixels on the rendered page, read from the real canvas.
+const inkedFraction = canvas => canvas.evaluate(node => {
+    const { data } = node.getContext('2d').getImageData(0, 0, node.width, node.height);
+    let inked = 0;
+    for (let index = 0; index < data.length; index += 4)
+        if (data[index] < 210 || data[index + 1] < 210 || data[index + 2] < 210) inked++;
+    return inked / (data.length / 4);
+});
 
-test('contributor creates a source, uploads PDF, saves regions and submits its first reading through the real editor', {
+test('contributor creates a source, uploads a scanned PDF that renders without a reload, saves regions and submits its first reading through the real editor', {
   skip: process.env.COLLAB_FULL_EDITOR !== '1' || !process.env.COLLAB_REAL_PROJECT,
   timeout: 180000,
 }, async (t) => {
@@ -48,8 +56,11 @@ test('contributor creates a source, uploads PDF, saves regions and submits its f
   auth.origin = config.origin;
   browser = await chromium.launch({ headless: true, ...(process.env.COLLAB_CHROMIUM ? { executablePath: process.env.COLLAB_CHROMIUM } : {}) });
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
-  const errors = [], blocked = [];
+  const errors = [], blocked = [], decoding = [];
   page.on('pageerror', error => errors.push(error.message));
+  // A scan is one image per page, and PDF.js skips a picture whose decoder it
+  // cannot load: the page then arrives white with nothing else reported.
+  page.on('console', entry => { if (/Unable to decode image|failed to initialize|wasm/i.test(entry.text())) decoding.push(entry.text()); });
   page.on('response', async response => { if (response.url().includes('/api/') && response.status() >= 400) { const body=await response.json().catch(()=>({})); blocked.push(`${response.status()} ${response.url()} ${response.request().postDataJSON()?.method || ''} ${body.error?.code || ''} ${body.error?.message || ''}`); } });
   await page.goto(config.origin + '/login');
   await page.locator('#email').fill('contributor@example.org');
@@ -66,7 +77,7 @@ test('contributor creates a source, uploads PDF, saves regions and submits its f
   await expect(selection).toHaveValue('manuscrito_do_colaborador');
   const pdf = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Vincular PDF à fonte', exact: true }).click();
-  await (await pdf).setFiles({ name: 'meu-manuscrito.pdf', mimeType: 'application/pdf', buffer: makePdfFixture() });
+  await (await pdf).setFiles({ name: 'meu-manuscrito.pdf', mimeType: 'application/pdf', buffer: makeScanPdfFixture() });
   const canvas = page.getByTestId('pdf-canvas');
   await expect(canvas).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('button', { name: 'Vincular outro testemunho', exact: true })).toHaveCount(0);
@@ -79,6 +90,10 @@ test('contributor creates a source, uploads PDF, saves regions and submits its f
   await expect(page.getByRole('status').filter({ hasText: 'Renderizando' })).toHaveCount(0);
   const box = await canvas.boundingBox();
   assert.ok(box && box.width > 0 && box.height > 0, 'Rendered PDF has drawable dimensions');
+  // Never again a PDF that loads, reports itself ready and shows white pages.
+  assert.ok(await inkedFraction(canvas) > 0.4, 'The uploaded scan is drawn in the same session, without a reload');
+  assert.deepEqual(decoding, [], 'Every image decoder the scan needs is available to the hosted page');
+  await expect(page.getByRole('alert')).toHaveCount(0);
   await page.mouse.move(box.x + box.width * .2, box.y + box.height * .3);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * .7, box.y + box.height * .4, { steps: 6 });
@@ -99,6 +114,8 @@ test('contributor creates a source, uploads PDF, saves regions and submits its f
   await expect(selection).toHaveValue('manuscrito_do_colaborador', { timeout: 60000 });
   await expect(page.getByTestId('pdf-canvas')).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Renderizando' })).toHaveCount(0);
+  assert.ok(await inkedFraction(canvas) > 0.4, 'The saved scan is drawn again after reopening the source');
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('Leitura do manuscrito');
   await expect(page.getByTestId('generated-surface')).toHaveText('abá', { timeout: 60000 });
   await expect(page.getByRole('button', { name: 'Salvar como referência', exact: true })).toHaveCount(0);
@@ -114,5 +131,6 @@ test('contributor creates a source, uploads PDF, saves regions and submits its f
   assert.equal(fs.existsSync(path.join(corpus, 'historic/manuscrito_do_colaborador.tu.py')), true);
   assert.equal(fs.existsSync(path.join(corpus, 'ground_truth/records/historic/manuscrito_do_colaborador.jsonl')), false);
   assert.deepEqual(errors, []);
+  assert.deepEqual(decoding, []);
   assert.deepEqual(blocked, [], 'Normal contributor source workflow must not request unsupported endpoints');
 });

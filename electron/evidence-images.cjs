@@ -3,6 +3,19 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
+/** A scan crop is one large image; PDF.js skips an image it cannot decode, so
+ * without its own decoders and fonts an analysis would receive a blank crop.
+ * Node reads these from the installed package, inside the packaged app too. */
+function supportFiles() {
+  const root = path.dirname(require.resolve('pdfjs-dist/package.json'));
+  return {
+    wasmUrl: path.join(root, 'wasm') + path.sep,
+    standardFontDataUrl: path.join(root, 'standard_fonts') + path.sep,
+    cMapUrl: path.join(root, 'cmaps') + path.sep,
+    cMapPacked: true,
+    iccUrl: path.join(root, 'iccs') + path.sep,
+  };
+}
 /** Render in unrotated PDF coordinates, including page origins and intrinsic rotation. */
 async function renderRegion(
   bytes,
@@ -16,6 +29,7 @@ async function renderRegion(
     isEvalSupported: false,
     useSystemFonts: true,
     disableFontFace: true,
+    ...supportFiles(),
   });
   let pdf;
   try {

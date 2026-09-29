@@ -9,8 +9,10 @@ const { RateLimiter } = require('./auth.cjs');
 const UI_EVENTS = new Set(`navigation.passage navigation.mode navigation.projection navigation.search editor.batch
 editor.selection editor.operation editor.undo editor.redo draft.save source.preview source.apply source.conflict
 review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export`.split(/\s+/));
-const POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ico': 'image/x-icon' };
+// PDF.js decodes JBIG2, JPEG 2000 and ICC colour in WebAssembly; without
+// 'wasm-unsafe-eval' a scanned witness renders as blank pages.
+const POLICY = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.wasm': 'application/wasm' };
 async function body(req, limit = 1000000, binary = false) {
     const type = String(req.headers['content-type'] || '').split(';')[0];
     if (type !== (binary ? 'application/pdf' : 'application/json'))
@@ -399,6 +401,9 @@ function createHttp({ config, store, auth, runtime }) {
                 if (route === '/' || route === '/index.html')
                     return await staticFile(res, config.distDirectory, 'index.html', true);
                 if (/^\/assets\/[a-zA-Z0-9_.-]+$/.test(route) || ['/favicon.ico', '/mark.svg'].includes(route))
+                    return await staticFile(res, config.distDirectory, route.slice(1));
+                // PDF.js support files, copied from pdfjs-dist by the build.
+                if (/^\/pdfjs\/(wasm|cmaps|standard_fonts|iccs)\/[a-zA-Z0-9_.-]+$/.test(route))
                     return await staticFile(res, config.distDirectory, route.slice(1));
             }
             throw fault(404, 'NOT_FOUND', 'Não encontrado.');

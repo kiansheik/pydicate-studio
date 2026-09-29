@@ -36,7 +36,9 @@ protocol.registerSchemesAsPrivileged([
 const DEV_URL = 'http://127.0.0.1:5173/';
 const applicationDirectory = path.resolve(__dirname, '..');
 const CONTENT_SECURITY_POLICY =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob: studio://dictionary; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'";
+  // PDF.js decodes JBIG2, JPEG 2000 and ICC colour in WebAssembly; without
+  // 'wasm-unsafe-eval' a scanned witness renders as blank pages.
+  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src blob: studio://dictionary; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'";
 const development = !app.isPackaged && process.env.PYDICATE_STUDIO_DEV === '1';
 const entryURL = development ? DEV_URL : 'studio://app/index.html';
 const knownProjects = new Set(['example:araujo-0067']);

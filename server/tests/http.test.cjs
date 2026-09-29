@@ -48,6 +48,19 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     assert.equal(dictionary.headers.get('content-security-policy'), "frame-ancestors 'self'");
     assert.equal(await dictionary.text(), '<html>Navarro</html>');
     assert.match(page.headers.get('content-security-policy'), /frame-src 'self' blob:/);
+    // PDF.js decodes scanned imagery (JBIG2, JPEG 2000, ICC) in WebAssembly and
+    // fetches its decoders, standard fonts and CMaps at runtime. Without either
+    // the policy or the files, a scanned witness renders as blank pages.
+    assert.match(page.headers.get('content-security-policy'), /script-src 'self' 'wasm-unsafe-eval'/);
+    fs.mkdirSync(path.join(settings.distDirectory, 'pdfjs/wasm'), { recursive: true });
+    fs.writeFileSync(path.join(settings.distDirectory, 'pdfjs/wasm/jbig2.wasm'), Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]));
+    const decoder = await fetch(settings.origin + '/pdfjs/wasm/jbig2.wasm', { headers: { Cookie: user.cookie } });
+    assert.equal(decoder.status, 200);
+    assert.equal(decoder.headers.get('content-type'), 'application/wasm');
+    assert.equal(Buffer.from(await decoder.arrayBuffer()).toString('hex'), '0061736d01000000');
+    assert.equal((await fetch(settings.origin + '/pdfjs/wasm/jbig2.wasm', { redirect: 'manual' })).status, 303);
+    for (const route of ['/pdfjs/wasm/%2e%2e%2f%2e%2e%2findex.html', '/pdfjs/secrets/key.wasm', '/pdfjs/wasm/'])
+        assert.equal((await fetch(settings.origin + route, { headers: { Cookie: user.cookie } })).status, 404);
 
     assert.equal((await fetch(settings.origin + '/server/auth.cjs', { headers: { Cookie: user.cookie } })).status, 404);
     assert.equal((await post('/api/drafts/load', { projectId: project.id }, user, { 'X-CSRF-Token': 'wrong' })).status, 403);

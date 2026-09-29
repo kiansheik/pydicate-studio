@@ -78,7 +78,29 @@ try {
   );
   assert.ok(policy?.includes("script-src 'self'"));
   assert.ok(policy?.includes('object-src blob:'));
-  assert.ok(!policy.includes('unsafe-eval'));
+  assert.ok(!policy.includes("'unsafe-eval'"), 'Scripts are never evaluated from strings');
+  // PDF.js decodes scanned imagery (JBIG2, JPEG 2000, ICC) in WebAssembly, from
+  // files the build copies beside the application. Without the policy or the
+  // files a scanned witness renders as blank pages.
+  assert.ok(policy.includes("'wasm-unsafe-eval'"));
+  const decoders = await page.evaluate(async () => {
+    const results = {};
+    for (const name of ['jbig2.wasm', 'openjpeg.wasm', 'qcms_bg.wasm'])
+      try {
+        const response = await fetch(new URL('/pdfjs/wasm/' + name, location.href));
+        const bytes = await response.arrayBuffer();
+        await WebAssembly.compile(bytes);
+        results[name] = response.status + ':' + (bytes.byteLength > 1000);
+      } catch (error) {
+        results[name] = String(error);
+      }
+    return results;
+  });
+  assert.deepEqual(decoders, {
+    'jbig2.wasm': '200:true',
+    'openjpeg.wasm': '200:true',
+    'qcms_bg.wasm': '200:true',
+  });
 
   await page.locator('input[type="file"]').setInputFiles({
     name: 'smoke.png',

@@ -246,7 +246,9 @@ try {
       (await fetch(location.href)).headers.get('Content-Security-Policy'),
     );
     assert(policy.includes("script-src 'self'"));
-    assert(!policy.includes('unsafe-eval'));
+    assert(!policy.includes("'unsafe-eval'"), 'Scripts are never evaluated from strings');
+    // PDF.js decodes scanned imagery in WebAssembly; see scripts/smoke-desktop.mjs.
+    assert(policy.includes("'wasm-unsafe-eval'"));
     const preferences = await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences(),
     );

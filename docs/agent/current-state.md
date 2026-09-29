@@ -1,5 +1,27 @@
 # Current state
 
+## Scanned PDFs render instead of showing blank pages
+
+PDF.js loads its image decoders and font data at runtime, and Studio supplied
+none of those URLs. JBIG2, JPEG 2000 and ICC colour are WebAssembly modules, and
+both content security policies also blocked WebAssembly. A page whose picture
+cannot be decoded is skipped and the render still completes, so a scanned
+witness attached in a live demonstration loaded, reported itself ready and then
+showed white pages. The build now copies `wasm`, `cmaps`, `standard_fonts` and
+`iccs` from `pdfjs-dist` into `dist/pdfjs`; the dev server, the hosted server and
+the `studio://app` handler serve them; both policies allow `'wasm-unsafe-eval'`;
+and the Node crop renderer reads the same decoders, so an analysis crop of a
+scan is the actual imagery. When an image still cannot be decoded, the page
+reports it instead of leaving the reader with a blank sheet.
+
+Regression coverage uses a scan-shaped fixture (JPEG 2000 page, JPEG page) in
+place of the vector-only fixtures that let this through: the hosted workflow test
+creates a source, uploads the scan through the browser and measures drawn pixels
+in the same session, and the evidence specs cover both the desktop bridge and the
+hosted range transport, undecodable-image reporting, and the served support
+files. The desktop smoke compiles all three decoders at the packaged origin.
+See the [handoff](session-handoffs/2026-09-29-scanned-pdf-blank-pages.md).
+
 ## Faster Portuguese reference publication
 
 The reference action and review/save messages now use **Salvar como referência**.

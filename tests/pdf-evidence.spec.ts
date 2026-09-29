@@ -15,6 +15,9 @@ const { createEvidenceService } = require('../electron/evidence-service.cjs') as
 const { makePdfFixture } = require('../electron/tests/pdf-fixture.cjs') as {
   makePdfFixture: (options?: { paddingBytes?: number }) => Buffer;
 };
+const { makeScanPdfFixture } = require('../electron/tests/pdf-scan-fixture.cjs') as {
+  makeScanPdfFixture: () => Buffer;
+};
 const params = { projectId: 'project:pdf-test', sourceId: 'araujo', passageId: 'passage:a' };
 
 async function ready(page: Page) {
@@ -43,6 +46,7 @@ async function guideFixture(
   directory: string,
   onInvoke?: (method: string, input: Record<string, unknown>) => void | Promise<void>,
   pdfBytes = makePdfFixture(),
+  { attach = true } = {},
 ) {
   const source = join(directory, 'guide-vector.pdf');
   await writeFile(source, pdfBytes);
@@ -53,10 +57,12 @@ async function guideFixture(
       this.service = createEvidenceService(options);
     },
   };
-  const attached = (await fixture.service.invoke('evidence_attach', {
-    ...params,
-    expectedRevision: 0,
-  })) as EvidenceStatus;
+  const attached = attach
+    ? ((await fixture.service.invoke('evidence_attach', {
+        ...params,
+        expectedRevision: 0,
+      })) as EvidenceStatus)
+    : null;
   await page.exposeFunction(
     '__pdfInvoke',
     async (method: string, input: Record<string, unknown>) => {
@@ -80,7 +86,7 @@ async function guideFixture(
       },
     };
   });
-  return { fixture, assetId: attached.asset!.id, revision: attached.revision };
+  return { fixture, assetId: attached?.asset?.id ?? '', revision: attached?.revision ?? 0 };
 }
 
 for (const edited of [false, true]) {
@@ -977,5 +983,123 @@ test('opening a passage centers its first crop and clicking it again restores fo
     await expect(page.getByTestId('pdf-region')).toBeInViewport();
   } finally {
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+/** The share of drawn pixels: a scan that decoded covers most of its page. */
+async function inkedFraction(page: Page) {
+  return page.getByTestId('pdf-canvas').evaluate((node) => {
+    const canvas = node as HTMLCanvasElement;
+    const { data } = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+    let inked = 0;
+    for (let index = 0; index < data.length; index += 4)
+      if (data[index] < 210 || data[index + 1] < 210 || data[index + 2] < 210) inked++;
+    return inked / (data.length / 4);
+  });
+}
+
+// The live failure this covers: a scanned witness attached during a session
+// loaded, reported itself ready and then showed white pages, because PDF.js
+// silently skips an image whose decoder (JBIG2, JPEG 2000) it cannot load.
+for (const hosted of [false, true]) {
+  test(`a scan attached in the open session renders its pages${hosted ? ' over the hosted transport' : ''}, with no reload`, async ({
+    page,
+  }) => {
+    const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-scan-'));
+    try {
+      const warnings: string[] = [];
+      page.on('console', (entry) => {
+        if (/Unable to decode image|failed to initialize|wasm/i.test(entry.text()))
+          warnings.push(entry.text());
+      });
+      const { fixture } = await guideFixture(page, directory, undefined, makeScanPdfFixture(), {
+        attach: false,
+      });
+      if (hosted) {
+        const bytes = makeScanPdfFixture();
+        await page.route('**/scan.pdf*', async (route) => {
+          const range = /^bytes=(\d+)-(\d+)$/.exec(route.request().headers().range || '');
+          const assetId = (
+            (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus
+          ).asset!.id;
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/pdf',
+            'Accept-Ranges': 'bytes',
+            ETag: `"sha256-${assetId}"`,
+          };
+          if (!range) {
+            headers['Content-Length'] = String(bytes.length);
+            return route.fulfill({ status: 200, headers, body: bytes });
+          }
+          const start = Number(range[1]),
+            end = Math.min(Number(range[2]), bytes.length - 1);
+          headers['Content-Range'] = `bytes ${start}-${end}/${bytes.length}`;
+          headers['Content-Length'] = String(end - start + 1);
+          await route.fulfill({ status: 206, headers, body: bytes.subarray(start, end + 1) });
+        });
+        await page.addInitScript(() => {
+          window.studio!.runtime = 'collaborative';
+          window.studio!.evidenceUrl = () => '/scan.pdf';
+          window.studio!.evidenceCacheScope = () => 'scan-account';
+        });
+      }
+      await page.goto('/tests/pdf-harness.html');
+      await expect(page.getByText('Vincule a digitalização', { exact: false })).toBeVisible();
+      await page.getByRole('button', { name: 'Vincular PDF à fonte', exact: true }).click();
+      await ready(page);
+      // Page 1 is JPEG 2000 and page 2 is JPEG: both must arrive drawn.
+      expect(await inkedFraction(page)).toBeGreaterThan(0.4);
+      await page.getByRole('button', { name: 'Próxima página do PDF', exact: true }).click();
+      await ready(page);
+      await expect(page.getByLabel('Página física do PDF', { exact: true })).toHaveValue('2');
+      expect(await inkedFraction(page)).toBeGreaterThan(0.4);
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      expect(warnings).toEqual([]);
+      // The attached scan also stays usable for marking evidence right away.
+      await draw(page, [0.2, 0.3], [0.5, 0.45]);
+      await expect(page.getByTestId('pdf-region')).toBeVisible();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test('a page whose image cannot be decoded reports itself instead of showing white', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-undecodable-'));
+  try {
+    await guideFixture(page, directory, undefined, makeScanPdfFixture());
+    // Deny the JPEG 2000 decoder, both its WebAssembly module and the script
+    // PDF.js falls back to: page 1 then has no picture at all.
+    await page.route('**/pdfjs/wasm/openjpeg*', (route) => route.abort());
+    await page.goto('/tests/pdf-harness.html');
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'não pôde ser decodificada' }),
+    ).toBeVisible();
+    expect(await inkedFraction(page)).toBeLessThan(0.05);
+    await expect(
+      page.getByRole('button', { name: 'Tentar carregar PDF novamente', exact: true }),
+    ).toBeVisible();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('the support files PDF.js fetches for scans are served by the application', async ({
+  page,
+}) => {
+  const files = [
+    'wasm/openjpeg.wasm',
+    'wasm/jbig2.wasm',
+    'wasm/qcms_bg.wasm',
+    'standard_fonts/FoxitSans.pfb',
+    'cmaps/Adobe-Japan1-UCS2.bcmap',
+    'iccs/CGATS001Compat-v2-micro.icc',
+  ];
+  for (const file of files) {
+    const response = await page.request.get(`/pdfjs/${file}`);
+    expect(response.status(), file).toBe(200);
+    expect((await response.body()).length, file).toBeGreaterThan(64);
   }
 });

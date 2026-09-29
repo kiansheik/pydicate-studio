@@ -1,4 +1,5 @@
 import { getDocument, PDFDataRangeTransport, type PDFDocumentLoadingTask } from 'pdfjs-dist';
+import { pdfSupportOptions } from './pdf-assets';
 
 const DATABASE = 'pydicate-studio-pdf-cache-v1';
 const MAX_BYTES = 256 * 1024 * 1024;
@@ -318,6 +319,7 @@ export function createCachedPdfTask(options: CachedPdfOptions): PdfLoadingTask {
   }
   const transport = new CachedTransport(length, null, true);
   task = getDocument({
+    ...pdfSupportOptions(),
     range: transport,
     rangeChunkSize: CHUNK_SIZE,
     disableStream: true,
