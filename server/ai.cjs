@@ -7,10 +7,13 @@ const WRITE = new Set(['ai_configure','ai_start','ai_cancel','ai_accept','analys
   'analysis_accept','analysis_cancel','analysis_retry','analysis_resume','analysis_new_conversation',
   'analysis_select_conversation','analysis_composer']);
 const METHODS = new Set([...READ,...WRITE]);
+// Claude API (a server-wide key) stays unavailable here; Claude Code runs under
+// each contributor's own subscription and is therefore allowed.
+const HOSTED_PROVIDERS = new Set(['codex','claude-code']);
 
 // Human acceptance uses the same receipt contract as desktop, inside PostgreSQL's
 // transaction and claim checks. No background agent can directly save a human draft.
-function createHostedAI({ store, emit = () => {} }) {
+function createHostedAI({ store, emit = () => {}, claudeStatus = async () => null }) {
   const requests = new AsyncLocalStorage();
   const legacyRequests = new Map();
   const drafts = {
@@ -33,16 +36,27 @@ function createHostedAI({ store, emit = () => {} }) {
   async function authorize(method, params, context, invoke) {
     if (!METHODS.has(method)) throw fault(403, 'HOSTED_UNAVAILABLE', 'Operação indisponível no servidor.');
     if (method === 'ai_configure') {
-      if (params.provider !== 'codex') throw fault(400, 'PROVIDER_UNAVAILABLE', 'Este servidor usa Codex.');
-      if (context.user.role !== 'admin') {
+      if (!HOSTED_PROVIDERS.has(params.provider))
+        throw fault(400, 'PROVIDER_UNAVAILABLE', 'Este servidor usa Codex ou Claude Code.');
+      // Claude Code bills to the contributor's own subscription, so each person
+      // chooses their own model. Only the shared Codex settings are administered.
+      if (params.provider === 'codex' && context.user.role !== 'admin') {
         const {config} = await invoke('ai_status', {});
         if (params.model !== config.models.codex || (params.reasoningEffort && params.reasoningEffort !== config.reasoningEffort))
           throw fault(403, 'ADMIN_REQUIRED', 'Somente a administração altera o modelo compartilhado.');
       }
       return;
     }
-    if (method === 'ai_start' && params.provider !== 'codex')
-      throw fault(400, 'PROVIDER_UNAVAILABLE', 'Este servidor usa Codex.');
+    if (method === 'ai_start') {
+      if (!HOSTED_PROVIDERS.has(params.provider))
+        throw fault(400, 'PROVIDER_UNAVAILABLE', 'Este servidor usa Codex ou Claude Code.');
+      if (params.provider === 'claude-code') {
+        const status = await claudeStatus(context.user);
+        if (!status?.loggedIn)
+          throw fault(403, 'CLAUDE_SIGNIN_REQUIRED',
+            'Entre com a sua própria conta Claude em "Claude Code · minha conta" antes de enviar.');
+      }
+    }
     if (!WRITE.has(method)) return;
     const items = method === 'analysis_submit_batch' ? params.items : [params];
     if (!Array.isArray(items) || !items.length || items.length > 50)
@@ -80,9 +94,12 @@ function createHostedAI({ store, emit = () => {} }) {
       emit({type:'draft-change',projectId:params.projectId,passageId:result.draft.passageId});
     }
     if (method === 'analysis_list') result.background.detail = 'As análises continuam no servidor quando você fecha esta aba. Tentativas interrompidas exigem uma nova tentativa explícita.';
-    if (method === 'ai_status') result.providers = result.providers.filter(provider => provider.id === 'codex');
+    if (method === 'ai_status') result.providers = result.providers.filter(provider => HOSTED_PROVIDERS.has(provider.id));
     return result;
   }
-  return { drafts, run };
+  // The provider runs inside this context, so a per-contributor credential can
+  // be resolved from it without threading a user through every call site.
+  const currentUser = () => requests.getStore()?.user || null;
+  return { drafts, run, currentUser };
 }
-module.exports = { createHostedAI, METHODS };
+module.exports = { createHostedAI, METHODS, HOSTED_PROVIDERS };

@@ -34,4 +34,35 @@ class CheckpointTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Symlink in backup state'):
                 host.checkpoint(host.root/'backups/rejected')
 
+    def test_routine_checkpoint_keeps_live_state_and_leaves_retained_imports_alone(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            host=Host(Path(temporary)/'server')
+            for directory in (host.data,host.workspace,host.config):directory.mkdir(parents=True)
+            # Live state: must always be captured.
+            (host.data/'evidence').mkdir();(host.data/'evidence/asset.pdf').write_text('live pdf')
+            # Retained provenance: one full copy per deploy, already reconstructible.
+            for name in ('desktop-imports/bundle','evidence-imports'):
+                (host.data/name).mkdir(parents=True)
+            (host.data/'desktop-imports/bundle/manifest.json').write_text('{}')
+            (host.data/'evidence-imports/archive.tar').write_text('retained upload')
+            def compose(*args,stdout=None):
+                if stdout:stdout.write(b'database fixture')
+            with patch.object(host,'stopped',return_value=contextlib.nullcontext()),\
+                    patch.object(host,'compose',side_effect=compose),patch('host.git',return_value='a'*40):
+                routine=host.checkpoint(host.root/'backups/routine',provenance=False)
+                full=host.checkpoint(host.root/'backups/full')
+            with tarfile.open(routine/'workspace-state.tar.gz') as archive:
+                names={member.name for member in archive}
+                self.assertIn('data/evidence/asset.pdf',names)
+                self.assertFalse(any(name.startswith(('data/desktop-imports','data/evidence-imports')) for name in names))
+            self.assertFalse(json.loads((routine/'manifest.json').read_text())['includesImportProvenance'])
+            # The explicit full backup still captures everything.
+            with tarfile.open(full/'workspace-state.tar.gz') as archive:
+                names={member.name for member in archive}
+                self.assertIn('data/evidence-imports/archive.tar',names)
+                self.assertIn('data/desktop-imports/bundle/manifest.json',names)
+            self.assertTrue(json.loads((full/'manifest.json').read_text())['includesImportProvenance'])
+            # Nothing on the server is removed either way.
+            self.assertTrue((host.data/'evidence-imports/archive.tar').exists())
+
 if __name__=='__main__':unittest.main()

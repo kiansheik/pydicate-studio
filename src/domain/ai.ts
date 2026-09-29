@@ -1,5 +1,5 @@
 export type AIAction = 'translate' | 'explain' | 'propose' | 'investigate';
-export type AIProvider = 'codex' | 'claude';
+export type AIProvider = 'codex' | 'claude' | 'claude-code';
 export type AIScope = 'passage' | 'constituent';
 
 export interface AITranslationPreview {

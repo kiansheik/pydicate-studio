@@ -7,9 +7,12 @@ const { authoringContext } = require('./provider-context.cjs');
 
 const ACTIONS = new Set(['translate', 'explain', 'propose', 'investigate']);
 const { INTERPRETATION_GUIDE } = require('./interpretation-context.cjs');
+// One list, so a new provider cannot be half-registered: every validation,
+// status sweep and stored-config check reads from here.
+const PROVIDERS = ['codex', 'claude', 'claude-code'];
 const DEFAULT_CONFIG = {
   provider: 'codex',
-  models: { codex: '', claude: 'claude-haiku-4-5-20251001' },
+  models: { codex: '', claude: 'claude-haiku-4-5-20251001', 'claude-code': 'claude-sonnet-5' },
   reasoningEffort: 'medium',
 };
 const PHASES = new Set([
@@ -123,7 +126,7 @@ function validateHistoryRecord(record, { projectId, passageId, filename }) {
     record.projectId !== projectId ||
     record.passageId !== passageId ||
     filename !== `${hash(record.requestId)}.json` ||
-    !['codex', 'claude'].includes(record.provider) ||
+    !PROVIDERS.includes(record.provider) ||
     !text(record.model, 100) ||
     !/^[a-zA-Z0-9_.:/-]*$/.test(record.model) ||
     !ACTIONS.has(record.action) ||
@@ -527,9 +530,12 @@ function createProviderService({
   const configFile = path.join(directory, 'config.json');
   const active = new Map();
   const completedChecks = new Map();
-  const providers = adapters || {
+  // Injected adapters extend the defaults rather than replacing them, so a host
+  // that only supplies Claude Code keeps the providers it did not mention.
+  const providers = {
     codex: new CodexProvider({ cwd: directory }),
     claude: new ClaudeProvider({ env }),
+    ...(adapters || {}),
   };
   let config = clone(DEFAULT_CONFIG),
     initialized;
@@ -538,19 +544,27 @@ function createProviderService({
       await fs.mkdir(directory, { recursive: true, mode: 0o700 });
       try {
         const saved = JSON.parse(await fs.readFile(configFile, 'utf8'));
+        // A config written before a provider existed simply lacks its entry; that
+        // is not corruption, so the default fills the gap. Entries that are
+        // present must still be well formed.
         if (
-          !['codex', 'claude'].includes(saved.provider) ||
+          !PROVIDERS.includes(saved.provider) ||
           !saved.models ||
-          !['codex', 'claude'].every(
+          !PROVIDERS.every(
             (name) =>
-              typeof saved.models[name] === 'string' &&
-              /^[a-zA-Z0-9_.:/-]{0,100}$/.test(saved.models[name]),
+              saved.models[name] === undefined ||
+              (typeof saved.models[name] === 'string' &&
+                /^[a-zA-Z0-9_.:/-]{0,100}$/.test(saved.models[name])),
           )
         )
           throw new Error('Configuração inválida.');
         if (saved.reasoningEffort !== undefined && !EFFORTS.has(saved.reasoningEffort))
           throw new Error('Esforço de raciocínio inválido.');
-        config = { ...DEFAULT_CONFIG, ...saved };
+        config = {
+          ...DEFAULT_CONFIG,
+          ...saved,
+          models: { ...DEFAULT_CONFIG.models, ...saved.models },
+        };
       } catch (error) {
         if (error.code !== 'ENOENT')
           throw new Error('Configuração de IA corrompida; o arquivo foi preservado.');
@@ -796,7 +810,7 @@ function createProviderService({
       await initialize();
       if (method === 'ai_status') {
         const states = await Promise.all(
-          ['codex', 'claude'].map(async (name) => {
+          PROVIDERS.filter((name) => providers[name]).map(async (name) => {
             if (!params.verify && completedChecks.has(name)) return completedChecks.get(name);
             try {
               return await providers[name].status(config.models[name], Boolean(params.verify));
@@ -813,11 +827,12 @@ function createProviderService({
         return { config: clone(config), providers: states };
       }
       if (method === 'ai_configure') {
-        if (!['codex', 'claude'].includes(params.provider)) throw new Error('Provedor inválido.');
+        if (!PROVIDERS.includes(params.provider) || !providers[params.provider])
+          throw new Error('Provedor inválido.');
         if (
           typeof params.model !== 'string' ||
           !/^[a-zA-Z0-9_.:/-]{0,100}$/.test(params.model) ||
-          (params.provider === 'claude' && !params.model)
+          (params.provider !== 'codex' && !params.model)
         )
           throw new Error('Identificador de modelo inválido.');
         if (params.reasoningEffort !== undefined && !EFFORTS.has(params.reasoningEffort))

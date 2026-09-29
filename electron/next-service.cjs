@@ -113,6 +113,9 @@ function createNextService(options) {
   const provider = createProviderService({
     stateDirectory: path.join(stateDirectory, 'ai'),
     emit,
+    // A host may supply providers it alone can build, such as one bound to the
+    // signed-in contributor. Omitted providers keep their built-in defaults.
+    adapters: options.providerAdapters,
     getContext: async (request) => {
       const project = getProject();
       if (!project) throw new Error('Abra o corpus local antes de pedir assistência.');

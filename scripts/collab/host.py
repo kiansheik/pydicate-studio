@@ -146,7 +146,7 @@ class Host:
         # Take a full pre-update checkpoint if this deployment already has an account DB.
         if not initial:
             print('[server] Creating full pre-deploy backup; Studio will pause...',flush=True)
-            self.checkpoint(self.root/'backups'/('predeploy-'+stamp()),restart=False)
+            self.checkpoint(self.root/'backups'/('predeploy-'+stamp()),restart=False,provenance=False)
         print('[server] Stopping Studio for source updates and database migrations...',flush=True)
         self.compose('stop','studio')
         try:
@@ -235,7 +235,11 @@ class Host:
         self.application_ownership(directory.parent)
         self.compose('run','--rm','--no-deps','studio','node','server/desktop-import.cjs',
                      '--directory','/data/desktop-imports/'+directory.name)
-    def checkpoint(self,dest,restart=True):
+    # Retained import archives: immutable provenance of what was uploaded, already
+    # reconstructible from the live state beside them. They grow by one full copy per
+    # deploy, so routine checkpoints leave them in place instead of recompressing them.
+    PROVENANCE=('data/desktop-imports','data/evidence-imports')
+    def checkpoint(self,dest,restart=True,provenance=True):
         dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
         print('[server] Backup: checking persistent state...',flush=True)
         for root in (self.data,self.workspace,self.config):
@@ -247,15 +251,20 @@ class Host:
         with self.stopped(restart=restart):
             print('[server] Backup: exporting PostgreSQL...',flush=True)
             with open(dest/'database.dump','wb') as out:self.compose('exec','-T','postgres','pg_dump','-U','studio_app','-d','studio_prod','-Fc','--no-owner','--no-acl',stdout=out)
-            print('[server] Backup: compressing workspace, PDFs and configuration...',flush=True)
-            with tarfile.open(dest/'workspace-state.tar.gz','w:gz') as archive:
+            skip=('config/codex/tmp',)+((() if provenance else self.PROVENANCE))
+            def selected(member):
+                return None if any(member.name==prefix or member.name.startswith(prefix+'/') for prefix in skip) else member
+            print(f"[server] Backup: compressing workspace, PDFs and configuration{'' if provenance else ' (live state only)'}...",flush=True)
+            # PDFs and retained bundles are already compressed; heavy gzip only burns
+            # CPU while the application is stopped.
+            with tarfile.open(dest/'workspace-state.tar.gz','w:gz',compresslevel=1) as archive:
                 for name in ('data','workspace','config'):
-                    archive.add(self.root/name,arcname=name,recursive=True,
-                        filter=lambda member: None if member.name == 'config/codex/tmp' or member.name.startswith('config/codex/tmp/') else member)
+                    archive.add(self.root/name,arcname=name,recursive=True,filter=selected)
             print('[server] Backup: calculating checksums...',flush=True)
             manifest={'format':'pydicate-full-backup','version':1,'at':stamp(),'release':json.loads((self.root/'release.json').read_text()).get('studio') if (self.root/'release.json').exists() else git(HERE,'rev-parse','HEAD'),
               'repositories':{name:git(self.workspace/name,'rev-parse','HEAD') for name in ('oldtupicorpus','nhe-enga')},
-              'private':True,'includesCredentials':True,'files':{name:sha(dest/name) for name in ('database.dump','workspace-state.tar.gz')}}
+              'private':True,'includesCredentials':True,'includesImportProvenance':provenance,
+              'files':{name:sha(dest/name) for name in ('database.dump','workspace-state.tar.gz')}}
             write_json(dest/'manifest.json',manifest)
         print('[server] Backup complete.',flush=True)
         return dest
@@ -288,6 +297,15 @@ class Host:
             if sha(staging/name)!=manifest['files'][name]:raise ValueError('Backup checksum mismatch')
         state=staging/'state';state.mkdir(mode=0o700);safe_extract(staging/'workspace-state.tar.gz',state)
         if not all((state/name).is_dir() for name in ('data','workspace','config')):raise ValueError('Incomplete backup state')
+        # A routine checkpoint captures live state only. Carry the retained import
+        # archives across so a rollback never destroys provenance it simply omitted.
+        if not manifest.get('includesImportProvenance',True):
+            for relative in self.PROVENANCE:
+                current=self.root/relative
+                if current.is_dir() and not current.is_symlink():
+                    kept=state/relative;kept.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+                    if kept.exists():raise ValueError('Unexpected retained import state in a live-state-only backup')
+                    shutil.copytree(current,kept,symlinks=False)
         self.restore_database(staging/'database.dump',confirmation)
         for name in ('data','workspace'):
             current=self.root/name
@@ -388,7 +406,7 @@ class Host:
         return dest
     def sync(self,name):
         if name not in ALLOW:raise ValueError('Unknown repository')
-        self.checkpoint(self.root/'backups'/('presync-'+stamp()))
+        self.checkpoint(self.root/'backups'/('presync-'+stamp()),provenance=False)
         with self.stopped(restart=False), self.workspace_writes():
             repo=self.workspace/name
             if git(repo,'status','--porcelain'):raise ValueError('Unpublished working edits exist. Publish before synchronization; nothing was reset.')

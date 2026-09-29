@@ -438,11 +438,16 @@ export function AssistantPanel(props: AssistantProps) {
                 setProvider(next);
                 setModel(
                   status?.config.models[next] ||
-                    (next === 'claude' ? 'claude-haiku-4-5-20251001' : ''),
+                    (next === 'claude'
+                      ? 'claude-haiku-4-5-20251001'
+                      : next === 'claude-code'
+                        ? 'claude-sonnet-5'
+                        : ''),
                 );
               }}
             >
               <option value="codex">Codex local</option>
+              <option value="claude-code">Claude Code (minha conta)</option>
               <option value="claude">Claude API</option>
             </select>
           </label>
@@ -453,7 +458,11 @@ export function AssistantPanel(props: AssistantProps) {
               value={model}
               list="assistant-models"
               placeholder={
-                provider === 'codex' ? 'Padrão configurado no Codex' : 'Identificador do modelo'
+                provider === 'codex'
+                  ? 'Padrão configurado no Codex'
+                  : provider === 'claude-code'
+                    ? 'Apelido ou nome completo (sonnet, claude-sonnet-5)'
+                    : 'Identificador do modelo'
               }
               onChange={(event) => setModel(event.target.value)}
             />

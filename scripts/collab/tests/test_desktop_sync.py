@@ -73,6 +73,11 @@ class DesktopSyncTests(unittest.TestCase):
         self.assertEqual(extract_bundle(second, directory, cache=imports)['files'], 3)
         self.assertEqual((directory/'files/drafts/a.json').read_bytes(), (self.state/'drafts/a.json').read_bytes())
         self.assertEqual((directory/'files/lexical-notes/a.json').read_bytes(), (self.state/'lexical-notes/a.json').read_bytes())
+        # Reused files are shared with the retained bundle, not duplicated on disk.
+        self.assertEqual((directory/'files/drafts/a.json').stat().st_ino,
+                         (retained/'files/drafts/a.json').stat().st_ino)
+        self.assertNotEqual((directory/'files/drafts/b.json').stat().st_ino,
+                            (retained/'files/drafts/a.json').stat().st_ino)
 
     def test_omitted_research_file_without_a_retained_copy_is_refused(self):
         self.write('drafts/a.json', b'{"projectId":"local-test","drafts":{}}')

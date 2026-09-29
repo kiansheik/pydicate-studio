@@ -38,7 +38,20 @@ async function createStudio(config, store, emit = () => { }) {
     const validate = require('../electron/validation.cjs');
     let project, worker, pickedFile = null, service;
     const queue = new Queue(), previews = new Map();
-    const hostedAI = createHostedAI({ store, emit });
+    // Each contributor's Claude Code sign-in lives in their own private home.
+    // The provider resolves it from the request in flight, so a job always runs
+    // under the account of the person who asked for it.
+    const { ClaudeAuth } = require('./claude-auth.cjs');
+    const { ClaudeCodeProvider } = require('../electron/provider-claude-code.cjs');
+    const claudeAuth = new ClaudeAuth({ directory: config.claudeHomeDirectory });
+    const hostedAI = createHostedAI({ store, emit, claudeStatus: user => claudeAuth.status(user) });
+    const claudeCode = new ClaudeCodeProvider({
+        resolveHome: async () => {
+            const user = hostedAI.currentUser();
+            if (!user) throw new Error('Entre na sua conta antes de usar o Claude Code.');
+            return claudeAuth.home(user);
+        },
+    });
     // SMTP and provider secrets are not inherited by the grammar process.
     const workerEnv = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'SYSTEMROOT', 'VIRTUAL_ENV']
         .filter(k => process.env[k]).map(k => [k, process.env[k]]));
@@ -87,6 +100,7 @@ async function createStudio(config, store, emit = () => { }) {
     }
     const dictionary = {status: params => currentDictionary().status(params), handle: request => currentDictionary().handle(request)};
     service = createNextService({ stateDirectory: config.stateDirectory, applicationDirectory: config.applicationDirectory,
+        providerAdapters: { 'claude-code': claudeCode },
         draftStore: hostedAI.drafts, getProject: () => project, getWorker: () => worker, getParent: () => config.parent,
         defaultParent: config.parent, openPath: open,
         reloadProject: () => queue.run('grammar-reload', async () => {

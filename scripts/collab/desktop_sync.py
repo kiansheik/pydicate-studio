@@ -248,16 +248,27 @@ def extract_bundle(archive, directory, *, cache=None):
             stage = pathlib.Path(temporary) / 'snapshot'; stage.mkdir(mode=0o700)
             (stage / 'manifest.json').write_bytes(raw_manifest)
             for row in rows:
+                reuse = None
                 if row['path'] in carried:
                     data = source.extractfile(row['path']).read()
                 elif row['sha256'] in retained:
-                    data = retained[row['sha256']].read_bytes()
+                    reuse = retained[row['sha256']]
+                    data = reuse.read_bytes()
                 else:
                     raise ValueError('Deduplicated research file is absent from the server: ' + row['path'])
                 if len(data) != row['bytes'] or digest(data) != row['sha256']:
                     raise ValueError('Research file checksum mismatch: ' + row['path'])
                 target = stage / row['path']; target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-                target.write_bytes(data); target.chmod(0o600)
+                # Retained bundles are immutable and verified above, so an unchanged
+                # file is shared rather than copied: otherwise every deploy adds a
+                # full duplicate of the research history to disk and to each backup.
+                if reuse is not None:
+                    try:
+                        os.link(reuse, target)
+                    except OSError:
+                        target.write_bytes(data); target.chmod(0o600)
+                else:
+                    target.write_bytes(data); target.chmod(0o600)
                 if directory.exists() and checksum(directory / row['path']) != row['sha256']:
                     raise ValueError('Retained research file changed')
             if checksum(archive) != archive_sha:
