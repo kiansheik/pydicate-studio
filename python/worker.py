@@ -40,10 +40,13 @@ def main():
     for line in sys.stdin:
         request_id = None
         try:
-            if len(line) > 1_000_000:
-                raise AdapterError("Mensagem muito grande.", "INVALID_REQUEST")
+            # Read the identifier before rejecting the message: an error that loses
+            # its id cannot be matched to a pending request, and the caller sees an
+            # unexplained protocol failure instead of the real reason.
             request = json.loads(line)
             request_id = request.get("id") if isinstance(request, dict) else None
+            if len(line) > 1_000_000:
+                raise AdapterError("Mensagem muito grande.", "INVALID_REQUEST")
             with redirect_stdout(sys.stderr):
                 result = dispatch(adapter, request)
             response = {"id": request_id, "result": result}

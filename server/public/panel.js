@@ -73,6 +73,37 @@
     do{const data=await api.request('/api/history?passageId='+encodeURIComponent(id)+'&after='+after);revisions.push(...data.revisions);after=data.next;}while(after!==null);
     api.download({passageId:id,revisions},'studio-passage-history.json');
   });
+  const claudeBox=element('details');element('summary','Claude Code · minha conta',claudeBox);
+  element('p','Entre com a sua própria assinatura Claude (Pro, Max, Team ou Enterprise). A entrada acontece no site da Anthropic, no seu navegador: o Studio não vê nem guarda a sua senha ou o seu token. O uso é da sua conta.',claudeBox);
+  const claudeState=element('p','Verificando…',claudeBox);claudeState.setAttribute('role','status');
+  const claudeStep=element('div',undefined,claudeBox);claudeStep.hidden=true;
+  const claudeLink=element('a','Abrir a página de entrada do Claude',claudeStep);
+  claudeLink.target='_blank';claudeLink.rel='noopener noreferrer';
+  element('p','Entre na página aberta, copie o código exibido no final e cole abaixo.',claudeStep);
+  const claudeCode=element('input',undefined,claudeStep);claudeCode.type='text';claudeCode.autocomplete='off';
+  claudeCode.placeholder='Código da página de entrada';claudeCode.setAttribute('aria-label','Código de autorização do Claude');
+  let claudeOut;
+  function claudeShow(status){
+    claudeState.textContent=status.loggedIn
+      ?'Conectado'+(status.account?' como '+status.account:'')+(status.organization?' · '+status.organization:'')+'. A sessão vale até expirar na Anthropic.'
+      :status.authMethod==='unavailable'?'O Claude Code não está disponível neste servidor. Peça à administração.':'Não conectado.';
+    if(claudeOut)claudeOut.hidden=!status.loggedIn;
+  }
+  async function claudeLoad(){claudeShow(await api.request('/api/claude-auth'));}
+  button('Entrar com minha conta Claude',async()=>{
+    claudeState.textContent='Abrindo a entrada da Anthropic…';
+    const started=await api.request('/api/claude-auth/start',{});
+    claudeLink.href=started.url;claudeStep.hidden=false;claudeCode.focus();
+    claudeState.textContent='Abra a página, entre e cole o código abaixo.';
+    window.open(started.url,'_blank','noopener');
+  },claudeBox);
+  button('Concluir entrada',async()=>{
+    try{claudeShow(await api.request('/api/claude-auth/code',{code:claudeCode.value}));claudeStep.hidden=true;}
+    finally{claudeCode.value='';}
+  },claudeStep);
+  claudeOut=button('Sair da minha conta Claude',async()=>{claudeShow(await api.request('/api/claude-auth/logout',{}));},claudeBox);
+  claudeOut.hidden=true;
+  void claudeLoad().catch(error=>{claudeState.textContent=error.message;});
   const providerBox=element('details');element('summary','IA e minhas credenciais (execução desativada)',providerBox);
   element('p','Codex e Claude continuam desativados. Você pode preparar uma chave de API pessoal ou escolher o financiamento do projeto. Não envie senha, auth.json ou sessão de outra pessoa. As cotas abaixo só serão aplicadas quando a execução isolada for implementada.',providerBox);
   const provider=element('select',undefined,providerBox);provider.setAttribute('aria-label','Provedor de IA');

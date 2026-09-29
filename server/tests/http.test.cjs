@@ -9,7 +9,13 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     const hash = await hashPassword(password);
     for (const role of ['admin', 'contributor'])
         await store.db.prepare("INSERT INTO users VALUES($1,$2,$3,$4,$5,0,$6)").run(role, role + '@example.org', role, role, hash, Date.now());
-    const settings = { origin: 'http://127.0.0.1', secure: false, telemetryDays: 90, stateDirectory: root, distDirectory: path.join(root, 'dist') };
+    // Each contributor's own Claude subscription sign-in runs the real binary's
+    // own flow; this stub stands in for it with the same arguments and printed
+    // shapes. Studio never reads or returns the credential it writes.
+    process.env.COLLAB_CLAUDE_BIN = require('./claude-stub.cjs').stubClaude(root, {});
+    t.after(() => { delete process.env.COLLAB_CLAUDE_BIN; });
+    const settings = { origin: 'http://127.0.0.1', secure: false, telemetryDays: 90, stateDirectory: root,
+        distDirectory: path.join(root, 'dist'), claudeHomeDirectory: path.join(root, 'claude-homes') };
     fs.mkdirSync(settings.distDirectory);
     fs.writeFileSync(path.join(settings.distDirectory, 'index.html'), '<!doctype html><html><head></head><body>actual app slot</body></html>');
     const pdfFile = path.join(root, 'managed.pdf'), pdfBytes = Buffer.from('%PDF-1.4\noriginal scan bytes\n%%EOF\n'), assetId = 'a'.repeat(64);
@@ -63,6 +69,24 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
         assert.equal((await fetch(settings.origin + route, { headers: { Cookie: user.cookie } })).status, 404);
 
     assert.equal((await fetch(settings.origin + '/server/auth.cjs', { headers: { Cookie: user.cookie } })).status, 404);
+
+    const claude = async (route, value) => value === undefined
+        ? fetch(settings.origin + route, { headers: { Cookie: user.cookie } })
+        : post(route, value, user);
+    assert.equal((await fetch(settings.origin + '/api/claude-auth')).status, 401);
+    assert.deepEqual(await (await claude('/api/claude-auth')).json(), { loggedIn: false, authMethod: 'none' });
+    const started = await (await claude('/api/claude-auth/start', {})).json();
+    assert.match(started.url, /^https:\/\/claude\.com\/cai\/oauth\/authorize\?/);
+    const rejected = await claude('/api/claude-auth/code', { code: 'wrong' });
+    assert.equal(rejected.status, 400);
+    assert.equal((await rejected.json()).error.code, 'CLAUDE_LOGIN_REJECTED');
+    await claude('/api/claude-auth/start', {});
+    const signedIn = await (await claude('/api/claude-auth/code', { code: 'good-code' })).json();
+    assert.equal(signedIn.loggedIn, true);
+    assert.equal(signedIn.account, 'linguista@example.org');
+    assert.equal(JSON.stringify(signedIn).includes('SEGREDO-'), false, 'no response carries the credential');
+    assert.equal((await (await claude('/api/claude-auth')).json()).loggedIn, true);
+    assert.equal((await (await claude('/api/claude-auth/logout', {})).json()).loggedIn, false);
     assert.equal((await post('/api/drafts/load', { projectId: project.id }, user, { 'X-CSRF-Token': 'wrong' })).status, 403);
     assert.equal((await post('/api/invoke', { method: 'reference_approve', params: {} }, user)).status, 403);
     assert.equal((await post('/api/invoke', { method: 'analysis_submit', params: {} }, admin)).status, 403);

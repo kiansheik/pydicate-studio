@@ -30,6 +30,10 @@ function config(env = process.env) {
       clientId: 'pydicate-studio', secretFile: env.COLLAB_NEO_SECRET_FILE || '', allowHttp: env.COLLAB_ALLOW_HTTP === '1'},
     release: env.APP_RELEASE || 'development',
     vaultKeyFile: env.COLLAB_VAULT_KEY_FILE || '',
+    // Private per-contributor Claude Code homes. Deliberately outside the state
+    // directory: these hold each contributor's own subscription credential,
+    // which Studio neither reads nor includes in backups or exports.
+    claudeHomeDirectory: path.resolve(env.COLLAB_CLAUDE_HOME || path.join(os.homedir(), '.local/share/pydicate-studio-claude')),
   };
 }
 module.exports = { config };

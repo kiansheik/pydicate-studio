@@ -58,6 +58,11 @@ services:
       - ${COLLAB_WORKSPACE:?Set COLLAB_WORKSPACE}/oldtupicorpus:/workspace/oldtupicorpus
       - ${COLLAB_WORKSPACE:?Set COLLAB_WORKSPACE}/nhe-enga:/workspace/nhe-enga
       - ${COLLAB_ROOT:?Set COLLAB_ROOT}/config/codex:/home/node/.codex
+      # Private per-contributor Claude Code homes. Each holds that person's own
+      # subscription credential, written and owned by the binary: Studio never
+      # reads it, and it is deliberately outside data/, workspace/ and config/
+      # so backups, restores and research exports cannot carry it.
+      - ${COLLAB_ROOT:?Set COLLAB_ROOT}/credentials/claude:/claude-homes
     tmpfs:
       - /tmp:size=256m,mode=1777
     networks:

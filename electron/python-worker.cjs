@@ -66,19 +66,43 @@ class PythonWorker {
     });
   }
 
+  protocolError(line) {
+    // Carry what the worker actually said. Without this the caller only learns that
+    // something was wrong, never what, which makes a failed import undiagnosable.
+    const sample = String(line).trim().slice(0, 2_000);
+    const errors = this.stderr.trim().slice(-4_000);
+    const details = [sample && `Resposta: ${sample}`, errors && `Saída: ${errors}`]
+      .filter(Boolean)
+      .join(' ');
+    return new Error(
+      'O serviço Python devolveu uma resposta inválida. Reabra o projeto.' +
+        (details ? ' ' + details : ''),
+    );
+  }
+
   receive(line) {
     let message;
     try {
       message = JSON.parse(line);
-      if (
-        !message ||
-        typeof message !== 'object' ||
-        !Number.isSafeInteger(message.id) ||
-        (!('result' in message) && !('error' in message))
-      )
-        throw new Error('Formato desconhecido.');
+      if (!message || typeof message !== 'object') throw new Error('Formato desconhecido.');
     } catch {
-      this.fail(new Error('O serviço Python devolveu uma resposta inválida. Reabra o projeto.'));
+      this.fail(this.protocolError(line));
+      return;
+    }
+    // A worker that could not read the request at all answers without an id. Report
+    // its reason instead of discarding it as an unrecognised message.
+    if (!Number.isSafeInteger(message.id)) {
+      const reported =
+        typeof message.error?.message === 'string' ? message.error.message.slice(0, 16_384) : '';
+      this.fail(
+        reported
+          ? new Error(`O serviço Python recusou o pedido. ${reported}`)
+          : this.protocolError(line),
+      );
+      return;
+    }
+    if (!('result' in message) && !('error' in message)) {
+      this.fail(this.protocolError(line));
       return;
     }
     const pending = this.pending.get(message.id);

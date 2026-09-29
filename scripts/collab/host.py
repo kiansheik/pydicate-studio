@@ -331,11 +331,22 @@ class Host:
         """
         identity=['-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com']
         safe=['git','-c','safe.directory='+str(repo),*identity,'-C',str(repo)]
-        def attempt(*args):return subprocess.run([*safe,*args],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
+        # Never prompt and never block: this runs with the application stopped, so a
+        # hung fetch is an outage. Git is told there is no terminal, and every step
+        # is bounded.
+        environment={**os.environ,'GIT_TERMINAL_PROMPT':'0','GIT_ASKPASS':'','SSH_ASKPASS':'',
+                     'GIT_SSH_COMMAND':'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes'}
+        def attempt(*args,timeout=120):
+            try:
+                return subprocess.run([*safe,*args],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                                      env=environment,timeout=timeout).returncode==0
+            except subprocess.TimeoutExpired:
+                print('[server] Git step timed out and was abandoned: '+' '.join(str(a) for a in args),flush=True)
+                return False
         clean={'mergedUpstream':False,'conflictsResolvedFromServer':[],'upstreamMergeBlocked':False}
         # A briefly unreachable remote must never fail a publication: the reviewed
         # snapshot is still publishable against the origin/main already on disk.
-        attempt('fetch','origin','main')
+        attempt('fetch','--no-tags','origin','main',timeout=300)
         if attempt('merge-base','--is-ancestor','origin/main','HEAD'):return clean
         if attempt('merge','--no-edit','origin/main'):return {**clean,'mergedUpstream':True}
         conflicts=sorted(set(git(repo,'diff','--name-only','--diff-filter=U').splitlines()))

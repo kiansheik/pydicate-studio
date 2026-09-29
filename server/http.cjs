@@ -52,6 +52,7 @@ function createHttp({ config, store, auth, runtime }) {
         readEvidence: (params, user, context) => runtime.invoke('evidence_status', params, {user, clientId: context.clientId}),
     });
     const vault = new ProviderVault(store, config.vaultKeyFile);
+    const claudeAuth = new (require('./claude-auth.cjs').ClaudeAuth)({ directory: config.claudeHomeDirectory });
     const streams = new Set(), people = new Map(), limiter = new RateLimiter(store.now);
     let uploading = false;
     const idle = require('./idle.cjs').createIdle({ directory: config.stateDirectory, now: store.now, hasWork: () => runtime.hasWork?.() ?? false });
@@ -224,6 +225,11 @@ function createHttp({ config, store, auth, runtime }) {
                 const { researchPage } = require('./research.cjs');
                 return json(res,200,await researchPage(store,url.searchParams.get('kind')||'audit',integer(url.searchParams.get('after')||0),integer(url.searchParams.get('through')||Number.MAX_SAFE_INTEGER)));
             }
+            // Each contributor's own Claude subscription sign-in. Anthropic's flow
+            // runs in their browser and the binary keeps the credential; this
+            // server only reports what `claude auth status` says.
+            if (route === '/api/claude-auth' && req.method === 'GET')
+                return json(res, 200, await claudeAuth.status(session.user));
             if (route === '/api/providers' && req.method === 'GET') {
                 return json(res,200,await vault.status(session.user));
             }
@@ -278,6 +284,17 @@ function createHttp({ config, store, auth, runtime }) {
                     res.setHeader('Set-Cookie', auth.cookie('', true));
                     return json(res, 200, { ok: true });
                 }
+                if (route === '/api/claude-auth/start') {
+                    limiter.hit('claude-login:'+session.user.id,10,600000);
+                    return json(res,200,await claudeAuth.start(session.user));
+                }
+                if (route === '/api/claude-auth/code') {
+                    limiter.hit('claude-login:'+session.user.id,10,600000);
+                    // The pasted code reaches the binary's stdin and stops there.
+                    return json(res,200,await claudeAuth.complete(session.user,input.code));
+                }
+                if (route === '/api/claude-auth/logout')
+                    return json(res,200,await claudeAuth.logout(session.user));
                 if (route === '/api/providers') {
                     limiter.hit('provider-settings:'+session.user.id,30,60000);
                     return json(res,200,await vault.save(session.user,input));
