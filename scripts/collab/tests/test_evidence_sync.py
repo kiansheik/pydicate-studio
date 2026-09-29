@@ -48,6 +48,36 @@ class EvidenceSyncTests(unittest.TestCase):
         self.assertEqual(counts['assets'], 1)
         return archive
 
+    def test_known_assets_are_omitted_from_the_upload_and_reconciled_from_disk(self):
+        fixture = self.fixture(); root, local, remote, project, hosted, document, _ = fixture
+        asset_id = document['assets'][0]['id']
+        # The server already holds this PDF, so the deploy must not send its bytes again.
+        pdf = (local / 'evidence/assets' / (asset_id + '.pdf')).read_bytes()
+        (remote / 'evidence/assets' / (asset_id + '.pdf')).write_bytes(pdf)
+        archive = root / 'deduplicated.tar'
+        counts = create_bundle(local, root, archive, project=project, known={asset_id})
+        self.assertEqual((counts['assets'], counts['uploaded'], counts['bytes']), (1, 0, 0))
+        self.assertEqual(counts['reused'], len(pdf))
+        with tarfile.open(archive) as tar:
+            self.assertEqual([member.name for member in tar.getmembers()], ['manifest.json'])
+        # The import still links the passage evidence, reusing the bytes already there.
+        report = import_bundle(archive, remote, root, project=hosted)
+        self.assertEqual(report['assets'], 1)
+        self.assertEqual((remote / 'evidence/assets' / (asset_id + '.pdf')).read_bytes(), pdf)
+        merged = json.loads(self.hosted_manifest(remote, hosted).read_text())
+        self.assertEqual([asset['id'] for asset in merged['assets']], [asset_id])
+
+    def test_deduplicated_upload_is_refused_when_the_server_lacks_the_asset(self):
+        fixture = self.fixture(); root, local, remote, project, hosted, document, _ = fixture
+        asset_id = document['assets'][0]['id']
+        archive = root / 'deduplicated.tar'
+        # Claimed as already held, but absent on the server: never silently dropped.
+        create_bundle(local, root, archive, project=project, known={asset_id})
+        with self.assertRaises(ValueError):import_bundle(archive, remote, root, project=hosted)
+        # A corrupted server copy is caught too, rather than trusted on its name.
+        (remote / 'evidence/assets' / (asset_id + '.pdf')).write_bytes(b'%PDF-1.7\ntampered\n%%EOF\n')
+        with self.assertRaises(ValueError):import_bundle(archive, remote, root, project=hosted)
+
     def hosted_manifest(self, remote, project):
         return remote / 'evidence/sources' / (source_key(project['id'], 'book') + '.json')
 
@@ -222,8 +252,9 @@ class EvidenceSyncTests(unittest.TestCase):
     def test_deploy_prepares_bundle_before_upload_and_passes_staged_path(self):
         fixture = self.fixture(); archive = self.pack(fixture)
         remote = Remote(); calls = []
-        with patch('evidence_sync.prepare_local_bundle', side_effect=lambda path: (calls.append('prepare') or archive)), \
+        with patch('evidence_sync.prepare_local_bundle', side_effect=lambda path, known=(): (calls.append('prepare') or archive)), \
                 patch('desktop_sync.prepare_local_bundle', return_value=None), \
+                patch.object(remote, 'inventory', return_value={}), \
                 patch.object(remote, 'prepare_release', side_effect=lambda ref, evidence, desktop: (calls.append(('preflight', evidence)) or 'a' * 40)), \
                 patch.object(remote, 'upload', side_effect=lambda file, target: calls.append(('upload', target))), \
                 patch.object(remote, 'deploy_release', side_effect=lambda ref, target, desktop: calls.append(('release', target))):
@@ -232,7 +263,10 @@ class EvidenceSyncTests(unittest.TestCase):
         self.assertEqual(calls[1], ('preflight', True))
         self.assertEqual(calls[2][0], 'upload')
         self.assertEqual(calls[2][1], calls[3][1])
-        with patch('evidence_sync.prepare_local_bundle', side_effect=ValueError('corrupt')), patch.object(remote, 'ssh') as ssh:
+        # The read-only inventory aside, a corrupt local bundle must reach the server
+        # with nothing at all: no preflight, no upload, no release.
+        with patch('evidence_sync.prepare_local_bundle', side_effect=ValueError('corrupt')), \
+                patch.object(remote, 'inventory', return_value={}), patch.object(remote, 'ssh') as ssh:
             with self.assertRaises(ValueError):remote.deploy()
             ssh.assert_not_called()
 

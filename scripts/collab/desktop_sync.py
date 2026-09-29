@@ -77,7 +77,11 @@ def research_files(state):
     return sorted(result, key=lambda row: row[1])
 
 
-def create_bundle(state, parent, destination, *, project=None, preferences=None):
+def create_bundle(state, parent, destination, *, project=None, preferences=None, known=()):
+    """Files whose SHA-256 appears in `known` are already held by the server: they stay
+    in the manifest but their bytes are omitted, and the server refills them from the
+    research bundles it has retained."""
+    known = set(known)
     state, parent, destination = map(pathlib.Path, (state, parent, destination))
     project = project or inspect_project(parent, state, readonly=True)
     original_research = research_files(state)
@@ -146,11 +150,16 @@ def create_bundle(state, parent, destination, *, project=None, preferences=None)
                 archive.addfile(item, io.BytesIO(data))
             add('manifest.json', encode(manifest))
             for index, row in enumerate(manifest['files']):
+                if row['sha256'] in known:
+                    continue  # Byte-identical copy already retained on the server.
                 add(row['path'], (temporary / str(index)).read_bytes())
-    return {'files': len(inputs), 'bytes': total, 'kinds': dict(Counter(row['kind'] for row in manifest['files']))}
+    sent = [row for row in manifest['files'] if row['sha256'] not in known]
+    return {'files': len(inputs), 'uploaded': len(sent), 'bytes': sum(row['bytes'] for row in sent),
+            'reused': total - sum(row['bytes'] for row in sent),
+            'kinds': dict(Counter(row['kind'] for row in manifest['files']))}
 
 
-def prepare_local_bundle(destination):
+def prepare_local_bundle(destination, known=()):
     override = os.environ.get('LOCAL_STUDIO_STATE')
     state = pathlib.Path(override).expanduser() if override else default_state()
     if not state.is_dir():
@@ -169,12 +178,41 @@ def prepare_local_bundle(destination):
             preferences = pathlib.Path(temporary) / 'browser-storage.json'
             subprocess.run(['node', str(ROOT / 'scripts/collab/read_local_storage.cjs'),
                             '--state', str(state), '--output', str(preferences)], check=True)
-        result = create_bundle(state, pathlib.Path(parent).expanduser(), destination, preferences=preferences)
-    print(f"Desktop research: {result['files']} files, {result['bytes']} bytes; {json.dumps(result['kinds'])}", flush=True)
+        result = create_bundle(state, pathlib.Path(parent).expanduser(), destination,
+                               preferences=preferences, known=known)
+    print(f"Desktop research: {result['files']} files; uploading {result['uploaded']} ({result['bytes']} bytes), "
+          f"reusing {result['files'] - result['uploaded']} already on the server ({result['reused']} bytes); "
+          f"{json.dumps(result['kinds'])}", flush=True)
     return pathlib.Path(destination)
 
 
-def extract_bundle(archive, directory):
+def retained_index(cache):
+    """Map SHA-256 to a file in an already-retained research bundle.
+
+    Used to refill files a deduplicated upload left out. Every hit is re-verified
+    against the digest before use, so a damaged retained bundle cannot be trusted.
+    """
+    index = {}
+    cache = pathlib.Path(cache) if cache else None
+    if not cache or not cache.is_dir() or cache.is_symlink():
+        return index
+    for manifest in sorted(cache.glob('*/manifest.json')):
+        if manifest.is_symlink() or not manifest.is_file():
+            continue
+        try:
+            rows = json.loads(manifest.read_text()).get('files') or []
+        except ValueError:
+            continue
+        for row in rows:
+            if not isinstance(row, dict) or not SHA.fullmatch(row.get('sha256', '')) or not safe_name(row.get('path')):
+                continue
+            file = manifest.parent / row['path']
+            if row['sha256'] not in index and file.is_file() and not file.is_symlink():
+                index[row['sha256']] = file
+    return index
+
+
+def extract_bundle(archive, directory, *, cache=None):
     """Validate the whole archive before publishing an immutable directory."""
     archive, directory = pathlib.Path(archive), pathlib.Path(directory)
     archive_sha = checksum(archive)
@@ -201,13 +239,21 @@ def extract_bundle(archive, directory):
         if any(not isinstance(row, dict) or not safe_name(row.get('path')) or
                not SHA.fullmatch(row.get('sha256', '')) or type(row.get('bytes')) is not int for row in rows):
             raise ValueError('Invalid research file metadata')
-        if len({row['path'] for row in rows}) != len(rows) or {'manifest.json', *(row['path'] for row in rows)} != set(names):
+        # A deduplicated upload carries a subset of the manifest; never anything extra.
+        if len({row['path'] for row in rows}) != len(rows) or not set(names) <= {'manifest.json', *(row['path'] for row in rows)}:
             raise ValueError('Research files do not match manifest')
+        carried = set(names)
+        retained = retained_index(cache) if any(row['path'] not in carried for row in rows) else {}
         with tempfile.TemporaryDirectory(prefix='.incoming-', dir=directory.parent) as temporary:
             stage = pathlib.Path(temporary) / 'snapshot'; stage.mkdir(mode=0o700)
             (stage / 'manifest.json').write_bytes(raw_manifest)
             for row in rows:
-                data = source.extractfile(row['path']).read()
+                if row['path'] in carried:
+                    data = source.extractfile(row['path']).read()
+                elif row['sha256'] in retained:
+                    data = retained[row['sha256']].read_bytes()
+                else:
+                    raise ValueError('Deduplicated research file is absent from the server: ' + row['path'])
                 if len(data) != row['bytes'] or digest(data) != row['sha256']:
                     raise ValueError('Research file checksum mismatch: ' + row['path'])
                 target = stage / row['path']; target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -228,5 +274,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--archive', required=True)
     parser.add_argument('--directory', required=True)
+    parser.add_argument('--cache', help='Directory of previously retained research bundles')
     args = parser.parse_args(); os.umask(0o077)
-    print(json.dumps(extract_bundle(args.archive, args.directory)))
+    print(json.dumps(extract_bundle(args.archive, args.directory, cache=args.cache)))

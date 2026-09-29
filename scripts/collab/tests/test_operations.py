@@ -77,6 +77,19 @@ class OperationsTests(unittest.TestCase):
         self.assertTrue(result['upstreamMergeBlocked'])
         self.assertEqual(result['conflictsResolvedFromServer'],[])
         self.assertEqual(g('status','--porcelain'),'')
+    def test_inventory_reports_only_content_the_server_actually_holds(self):
+        host,repo,g=self.fixture();host.data.mkdir(exist_ok=True)
+        self.assertEqual(host.inventory(),{'version':1,'evidence':[],'research':[]})
+        assets=host.data/'evidence/assets';assets.mkdir(parents=True)
+        (assets/('a'*64+'.pdf')).write_bytes(b'%PDF-1.7\n');(assets/'notes.pdf').write_bytes(b'ignored')
+        retained=host.data/'desktop-imports/bundle';retained.mkdir(parents=True)
+        (retained/'files').mkdir();(retained/'files/kept.json').write_bytes(b'{}')
+        (retained/'manifest.json').write_text(json.dumps({'files':[
+            {'path':'files/kept.json','sha256':'b'*64},{'path':'files/gone.json','sha256':'c'*64}]}))
+        result=host.inventory()
+        self.assertEqual(result['evidence'],['a'*64])
+        # A digest whose retained bytes are missing must never be claimed as held.
+        self.assertEqual(result['research'],['b'*64])
     def test_clone_does_not_reset_existing_workspace(self):
         host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('keep this draft\n')
         engine=host.workspace/'nhe-enga';subprocess.run(['git','clone',str(repo),str(engine)],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)

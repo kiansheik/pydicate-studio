@@ -51,6 +51,40 @@ class DesktopSyncTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Retained research file changed'):
             extract_bundle(archive, directory)
 
+    def test_known_research_files_are_omitted_and_refilled_from_a_retained_bundle(self):
+        self.write('drafts/a.json', b'{"projectId":"local-test","drafts":{}}')
+        self.write('lexical-notes/a.json', b'{"records":[]}')
+        imports = self.root/'imports'
+        first = self.root/'first.tar'
+        create_bundle(self.state, self.root, first, project=self.project)
+        retained = imports/checksum(first)
+        extract_bundle(first, retained)
+        # A later deploy: the server already holds both files, so neither is uploaded.
+        held = {row['sha256'] for row in json.loads((retained/'manifest.json').read_text())['files']}
+        self.write('drafts/b.json', b'{"projectId":"local-test","drafts":{"b":{}}}')
+        second = self.root/'second.tar'
+        result = create_bundle(self.state, self.root, second, project=self.project, known=held)
+        self.assertEqual((result['files'], result['uploaded']), (3, 1))
+        with tarfile.open(second) as tar:
+            self.assertEqual(sorted(m.name for m in tar.getmembers()),
+                             ['files/drafts/b.json', 'manifest.json'])
+        # The server reconstitutes the omitted bytes from what it already retained.
+        directory = imports/checksum(second)
+        self.assertEqual(extract_bundle(second, directory, cache=imports)['files'], 3)
+        self.assertEqual((directory/'files/drafts/a.json').read_bytes(), (self.state/'drafts/a.json').read_bytes())
+        self.assertEqual((directory/'files/lexical-notes/a.json').read_bytes(), (self.state/'lexical-notes/a.json').read_bytes())
+
+    def test_omitted_research_file_without_a_retained_copy_is_refused(self):
+        self.write('drafts/a.json', b'{"projectId":"local-test","drafts":{}}')
+        archive = self.root/'one.tar'
+        held = {digest((self.state/'drafts/a.json').read_bytes())}
+        create_bundle(self.state, self.root, archive, project=self.project, known=held)
+        directory = self.root/'imports'/checksum(archive)
+        # Nothing retained to refill from: the snapshot is refused, never left partial.
+        with self.assertRaisesRegex(ValueError, 'absent from the server'):
+            extract_bundle(archive, directory, cache=self.root/'imports')
+        self.assertFalse(directory.exists())
+
     def test_symlinks_and_traversal_rejected_before_publication(self):
         self.write('drafts/source.json', b'{}')
         (self.state/'drafts/link.json').symlink_to(self.state/'drafts/source.json')

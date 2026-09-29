@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Server-side operations. Only dedicated Studio paths; no implicit Git reset or volume deletion."""
 from __future__ import annotations
-import argparse, contextlib, datetime as dt, fcntl, hashlib, json, os, pathlib, secrets, shutil, subprocess, sys, tarfile, tempfile
+import argparse, contextlib, datetime as dt, fcntl, hashlib, json, os, pathlib, re, secrets, shutil, subprocess, sys, tarfile, tempfile
 
 REPOS = {name: f'https://github.com/kiansheik/{name}.git' for name in ('pydicate-studio', 'oldtupicorpus', 'nhe-enga')}
 GRAMMAR_SUPPORT = ['/tests/', '/docs/agent/grammar-navigation.md']
@@ -183,6 +183,26 @@ class Host:
         print('[server] Verifying publication receipts...',flush=True)
         self.compose('exec','-T','studio','node','server/publication.cjs','verify')
         print('[server] Deployment complete; Studio is healthy.',flush=True)
+    def inventory(self):
+        """Report the content digests already held, so a deploy uploads only new bytes.
+
+        Read-only and lock-free. Both stores are content-addressed, so a digest match
+        is a byte match; the importers still verify every digest before use.
+        """
+        evidence=[];assets=self.data/'evidence/assets'
+        if assets.is_dir() and not assets.is_symlink():
+            evidence=sorted(p.stem for p in assets.glob('*.pdf')
+                            if p.is_file() and not p.is_symlink() and re.fullmatch(r'[a-f0-9]{64}',p.stem))
+        research=set();imports=self.data/'desktop-imports'
+        if imports.is_dir() and not imports.is_symlink():
+            for manifest in sorted(imports.glob('*/manifest.json')):
+                try:rows=json.loads(manifest.read_text()).get('files') or []
+                except ValueError:continue
+                for row in rows:
+                    if not isinstance(row,dict) or not isinstance(row.get('sha256'),str) or not isinstance(row.get('path'),str):continue
+                    target=manifest.parent/row['path']
+                    if target.is_file() and not target.is_symlink():research.add(row['sha256'])
+        return {'version':1,'evidence':evidence,'research':sorted(research)}
     def import_evidence(self, archive):
         # deploy() holds the operation lock and has stopped the application.
         # Retain the exact portable input alongside its reconciliation report.
@@ -210,7 +230,7 @@ class Host:
         archive=pathlib.Path(archive)
         if archive.is_symlink() or not archive.is_file():raise ValueError('Expected a regular desktop research archive')
         directory=self.data/'desktop-imports'/sha(archive)
-        report=extract_bundle(archive,directory)
+        report=extract_bundle(archive,directory,cache=directory.parent)
         print('[server] Desktop archive verified: '+str(report['files'])+' files.',flush=True)
         self.application_ownership(directory.parent)
         self.compose('run','--rm','--no-deps','studio','node','server/desktop-import.cjs',
@@ -385,6 +405,9 @@ def main():
     if args.action=='auto-update':
         from upstream import run_locked
         return run_locked(host)
+    # Read-only and deliberately outside the operation lock: a deploy asks for this
+    # while deciding what to upload, and must never queue behind a running job.
+    if args.action=='inventory':return print(json.dumps(host.inventory()))
     with host.lock():
         if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence,desktop=args.desktop)
         elif args.action=='redeploy':host.deploy(evidence=args.evidence,desktop=args.desktop)

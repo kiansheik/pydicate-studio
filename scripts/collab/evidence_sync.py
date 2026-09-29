@@ -137,8 +137,14 @@ def validate_manifest(document):
         raise ValueError('Oversize evidence manifest')
 
 
-def create_bundle(state, parent, destination, *, project=None):
-    """Return counts; no profile, source, draft or original PDF is modified."""
+def create_bundle(state, parent, destination, *, project=None, known=()):
+    """Return counts; no profile, source, draft or original PDF is modified.
+
+    Assets are named by the SHA-256 of their bytes, so any id in `known` is already
+    byte-identical on the server. Those PDFs stay listed in the manifest but their
+    bytes are left out of the archive, which the importer reconciles from disk.
+    """
+    known = set(known)
     state = pathlib.Path(state)
     evidence = state / 'evidence'
     if evidence.is_symlink() or (evidence / 'sources').is_symlink() or (evidence / 'assets').is_symlink():
@@ -176,6 +182,8 @@ def create_bundle(state, parent, destination, *, project=None):
         info = tarfile.TarInfo('manifest.json');info.size = len(metadata);info.mode = 0o600
         tar.addfile(info, io.BytesIO(metadata))
         for asset_id, asset in sorted(assets.items()):
+            if asset_id in known:
+                continue  # Already on the server, byte for byte; sending it again is waste.
             path = regular(evidence / 'assets' / (asset_id + '.pdf'))
             if path.stat().st_size != asset['bytes']:
                 raise ValueError('Managed PDF size mismatch: ' + asset['name'])
@@ -185,10 +193,13 @@ def create_bundle(state, parent, destination, *, project=None):
                 raise ValueError('Managed PDF checksum/header mismatch: ' + asset['name'])
             info = tarfile.TarInfo('assets/' + asset_id + '.pdf');info.size = len(data);info.mode = 0o600
             tar.addfile(info, io.BytesIO(data))
-    return {'sources': len(documents), 'assets': len(assets), 'bytes': sum(a['bytes'] for a in assets.values())}
+    sent = {id: asset for id, asset in assets.items() if id not in known}
+    return {'sources': len(documents), 'assets': len(assets), 'uploaded': len(sent),
+            'bytes': sum(a['bytes'] for a in sent.values()),
+            'reused': sum(a['bytes'] for id, a in assets.items() if id in known)}
 
 
-def prepare_local_bundle(destination):
+def prepare_local_bundle(destination, known=()):
     override = os.environ.get('LOCAL_STUDIO_STATE')
     state = pathlib.Path(override).expanduser() if override else default_state()
     if not state.is_dir():
@@ -204,8 +215,10 @@ def prepare_local_bundle(destination):
         if list((state / 'evidence/sources').glob('*.json')):
             raise ValueError('Set LOCAL_PROJECT_PARENT for the desktop PDFs to transfer')
         return None
-    result = create_bundle(state, pathlib.Path(parent).expanduser(), destination)
-    print(f"Desktop PDFs: {result['assets']} files, {result['sources']} sources, {result['bytes']} bytes.")
+    result = create_bundle(state, pathlib.Path(parent).expanduser(), destination, known=known)
+    print(f"Desktop PDFs: {result['assets']} files, {result['sources']} sources; "
+          f"uploading {result['uploaded']} ({result['bytes']} bytes), "
+          f"reusing {result['assets'] - result['uploaded']} already on the server ({result['reused']} bytes).")
     return destination if result['assets'] else None
 
 
@@ -290,14 +303,25 @@ def import_bundle(archive, state, parent, *, project=None):
                     raise ValueError('Conflicting evidence PDF sizes')
                 assets[asset['id']] = asset
                 expected.add(name)
-        if expected != set(names):
+        # A deduplicated upload omits assets the server reported already holding, so
+        # the archive may carry a subset of the manifest but never anything extra.
+        if not set(names) <= expected:
             raise ValueError('Evidence archive files do not match manifest')
+        omitted = expected - set(names)
         # Validate every byte and every destination before any evidence mutation.
         for asset_id, asset in assets.items():
+            destination = evidence / 'assets' / (asset_id + '.pdf')
+            if 'assets/' + asset_id + '.pdf' in omitted:
+                # The bytes were skipped on the wire; they must still be here and intact.
+                if destination.is_symlink() or not destination.is_file():
+                    raise ValueError('Deduplicated evidence PDF is absent from the server: ' + asset_id)
+                data = regular(destination).read_bytes()
+                if len(data) != asset['bytes'] or digest(data) != asset_id or b'%PDF-' not in data[:1024]:
+                    raise ValueError('Existing server PDF checksum mismatch; preserved')
+                continue
             data = tar.extractfile('assets/' + asset_id + '.pdf').read()
             if len(data) != asset['bytes'] or digest(data) != asset_id or b'%PDF-' not in data[:1024]:
                 raise ValueError('Evidence PDF checksum/header mismatch')
-            destination = evidence / 'assets' / (asset_id + '.pdf')
             if destination.exists() or destination.is_symlink():
                 if digest(regular(destination).read_bytes()) != asset_id:
                     raise ValueError('Existing server PDF checksum mismatch; preserved')
@@ -356,6 +380,8 @@ def import_bundle(archive, state, parent, *, project=None):
         for directory in (evidence / 'assets', evidence / 'sources'):
             directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         for asset_id in assets:
+            if 'assets/' + asset_id + '.pdf' in omitted:
+                continue  # Verified above as already present and correct.
             target = evidence / 'assets' / (asset_id + '.pdf')
             if not target.exists():
                 atomic_bytes(target, tar.extractfile('assets/' + asset_id + '.pdf').read())

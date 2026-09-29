@@ -40,6 +40,26 @@ class Remote:
         return command([*flags,f'{self.user}@{self.host}',shlex.join([str(x) for x in args])],input=data,stdout=stdout)
     def action(self,action,*args,interactive=False):
         return self.ssh(['python3',self.root+'/current/scripts/collab/host.py',action,'--root',self.root,*args],interactive=interactive)
+    def inventory(self):
+        """Content digests the server already holds, so a deploy sends only new bytes.
+
+        A release without this action, or an unreachable server, simply means every
+        byte is uploaded as before; deduplication is an optimisation, never a
+        precondition.
+        """
+        print('[deploy] Asking the server which PDFs and research files it already has…',flush=True)
+        try:
+            result=self.ssh(['python3',self.root+'/current/scripts/collab/host.py','inventory','--root',self.root],
+                            stdout=subprocess.PIPE)
+            value=json.loads(result.stdout.decode())
+            if value.get('version')!=1:raise ValueError('Unsupported inventory')
+            known={'evidence':{v for v in value.get('evidence') or [] if re.fullmatch(r'[a-f0-9]{64}',str(v))},
+                   'research':{v for v in value.get('research') or [] if re.fullmatch(r'[a-f0-9]{64}',str(v))}}
+            print(f"[deploy] Server already holds {len(known['evidence'])} PDF(s) and {len(known['research'])} research file(s).",flush=True)
+            return known
+        except Exception:
+            print('[deploy] Server inventory unavailable; uploading everything.',flush=True)
+            return {}
     def deploy(self):
         ref=os.getenv('STUDIO_REF','main')
         if not re.fullmatch(r'[A-Za-z0-9_./-]+',ref) or ref.startswith('-') or '..' in ref:raise ValueError('Invalid STUDIO_REF')
@@ -47,11 +67,12 @@ class Remote:
         # arbitrary local source changes never enter the application workspace.
         from evidence_sync import prepare_local_bundle
         from desktop_sync import prepare_local_bundle as prepare_research_bundle
+        known=self.inventory()
         print('[deploy] Preparing local PDFs and source evidence…',flush=True)
         with tempfile.TemporaryDirectory(prefix='studio-deploy-evidence-') as temporary:
-            bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar')
+            bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar',known=known.get('evidence',()))
             print('[deploy] Preparing saved desktop research and history…',flush=True)
-            desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar')
+            desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar',known=known.get('research',()))
             sha=self.prepare_release(ref,bool(bundle),bool(desktop))
             from codex_auth import install
             install(self)
