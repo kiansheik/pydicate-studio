@@ -1,6 +1,6 @@
 # Current state
 
-## Revision publication identity and ordering
+## Revision publication identity and ordering (live)
 
 The reported `oîkotebẽba'emoapysyka` duplicate is one UUID left under both
 pending and canonical identities after publication raced another browser's
@@ -15,7 +15,13 @@ retired pending identities cannot be revived by stale tabs. Admins override
 reservations using their current database role, with attributed history.
 Real stale-version guards remain. Focused PostgreSQL, HTTP and browser checks
 cover the publication/autosave race and exact-version legacy recovery.
-Deployment and recovery verification are in progress; see
+Release `865d7adbb738b867b9c0bd2e49021a32fb15455a` is live; its small server
+follow-up took 14.7 seconds. Exact recovery retired only the reported pending
+identity, retained the canonical tree/history, and preserved the complete
+visible order. The single entry is at 118. Live browser verification confirms
+that row and its output with no API/page errors or research mutations. Fresh
+health: 154 lines, zero divergence/failures, seven pending, 321 morphemes, 2.646s.
+Every unrelated draft's authored content and all source rows are unchanged; see
 [handoff](session-handoffs/2026-09-30-revision-identity-race.md).
 
 ## Definition reuse, persistent tabs and passage accordions (live)

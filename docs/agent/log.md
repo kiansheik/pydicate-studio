@@ -9,6 +9,12 @@ admins to take over reservations. Exact-version recovery retains history and
 refuses conflicting canonical edits. See
 [handoff](session-handoffs/2026-09-30-revision-identity-race.md).
 
+Release `865d7ad` is live (14.7-second follow-up). Guarded recovery preserved the
+entire order and source content; exact browser verification finds one row at 118
+with the unchanged generated form. Fresh health: 154 lines, zero divergences or
+failures, seven pending. The first recovery attempt stopped safely on a hidden
+legacy alias; the corrected helper matches all three complete source orders.
+
 ## 2026-09-30 — Reuse definitions and navigate sections
 
 Persistent bordered tree tabs; complete shared-definition search and dependency

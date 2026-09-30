@@ -101,14 +101,40 @@ Two verified-unused oldest images (`78db33e`, `113c9aa`) were removed to provide
 
 ## Remaining questions
 
-Deploy and recover only the reported legacy pair with current version/content
-guards. Preserve all revision history and reference approval state. The private
-recovery script copies the real identity registry into temporary worker state:
-starting a blank registry would assign different IDs to legacy source rows.
-Its transaction checks the entire visible order, unrelated authored content and
-unchanged research source before committing. Filesystem publication and database
-storage are distinct resources; cross-resource failures retain the source journal
-and require this explicit recovery rather than claiming full atomicity.
+No required repair remains. Filesystem publication and database storage are
+distinct resources; cross-resource failures retain the source journal and require
+explicit recovery rather than claiming full atomicity. Navigator search currently
+indexes title/ordinal/reference, not diplomatic transcription; the read-only smoke
+used ordinal 118 after a transcription search returned no rows.
+
+## Deployment and exact live recovery
+
+Follow-up `865d7adbb738b867b9c0bd2e49021a32fb15455a` deployed in 14.7 seconds;
+checkpoint `20260930T220554-f81bf3`. Running image and health verified independently.
+The private recovery script copied the real identity registry into temporary
+worker state, then checked versions 61/1, both complete-content digests and exact
+source expression/fingerprint. Backup:
+`/data/revision-recovery/41d6b8e2-1790805976873.json`.
+
+The transaction changed seven metadata rows, retired pending version 62, and
+produced canonical version 2 at visible position 118. It preserved every
+unrelated passage's relative order and authored content, all source rows and
+engine fingerprint, the original draft revision/canvas, and existing approval.
+No grammar, source expression or generated reference was rewritten.
+
+Authenticated API readback independently compared the complete expected ID list,
+all unrelated authored-content hashes and every source row. Output remains
+`oîkotebẽba'emoapysyka` with identical complete annotations. Fresh health: 154
+lines across three sources, zero divergences/failures, seven pending, 321
+morphemes, no active repairs, 2.646s.
+
+Real Chrome finds exactly one row at 118 and the expected tree output. Twenty
+authenticated invokes had zero HTTP/page/invoke errors and no attempted research
+mutations; the prior selection was restored. Screenshot inspected at
+`.local/vps-qa/revision-recovery-browser.png`; private sanitized evidence is in
+`revision-recovery-result.json` and `revision-recovery-browser-result.json`.
+The test-owned PostgreSQL instances are stopped and their temporary directories
+removed; other local services were untouched.
 
 ## Suggested next prompt
 
