@@ -526,6 +526,68 @@ function runCodex(rpc, options = {}) {
     ...options,
   });
 }
+test('Codex separates assistant blocks while preserving streamed fragments and completion tails', async () => {
+  const rpc = new CodexRpc((r) => {
+    r.emit('item/reasoning/textDelta', { delta: 'PRIVATE NOT STORED' });
+    r.emit('item/agentMessage/delta', { itemId: 'first', delta: 'Vou ver' });
+    r.emit('item/agentMessage/delta', { itemId: 'first', delta: 'ificar.' });
+    r.emit('item/completed', {
+      item: { type: 'agentMessage', id: 'first', text: 'Vou verificar.' },
+    });
+    codexTool(r, 'read', 'dictionary_lookup', { query: 'saved' });
+    r.emit('item/agentMessage/delta', { itemId: 'second', delta: '' });
+    r.emit('item/agentMessage/delta', { itemId: 'second', delta: 'A regra' });
+    r.emit('item/completed', {
+      item: { type: 'agentMessage', id: 'second', text: 'A regra mudou.' },
+    });
+    r.emit('item/completed', { item: { type: 'agentMessage', id: 'empty', text: '' } });
+    codexFinish(r, 'Verificação concluída.');
+  });
+  const events = [],
+    checkpoints = [];
+  const result = await runCodex(rpc, {
+    onEvent: async (event) => events.push(event),
+    onCheckpoint: async (checkpoint) => checkpoints.push(structuredClone(checkpoint)),
+  });
+  const text = 'Vou verificar.\n\nA regra mudou.\n\nVerificação concluída.';
+  assert.equal(result.text, text);
+  assert.deepEqual(
+    events.filter((event) => event.type === 'text-delta').map((event) => event.text),
+    ['Vou ver', 'ificar.', '\n\nA regra', ' mudou.', '\n\nVerificação concluída.'],
+  );
+  assert.equal(
+    events
+      .filter((event) => event.type === 'text-delta')
+      .map((event) => event.text)
+      .join(''),
+    text,
+  );
+  assert(
+    checkpoints.some((checkpoint) =>
+      checkpoint.messages.some((message) => message.content === 'A regra mudou.'),
+    ),
+  );
+  assert(!JSON.stringify(checkpoints).includes('PRIVATE NOT STORED'));
+  assert.equal(result.checkpoint.phase, 'completed');
+});
+
+test('Codex paragraph formatting does not consume output budget and completed-only text remains bounded', async () => {
+  const rpc = new CodexRpc((r) => {
+    r.emit('item/agentMessage/delta', { itemId: 'first', delta: 'a'.repeat(192) });
+    r.emit('item/completed', {
+      item: { type: 'agentMessage', id: 'first', text: 'a'.repeat(192) },
+    });
+    codexFinish(r, 'b'.repeat(192));
+  });
+  const result = await runCodex(rpc, { budgets: { maxOutputTokens: 64 } });
+  assert.equal(result.text, 'a'.repeat(192) + '\n\n' + 'b'.repeat(192));
+  const excessive = new CodexRpc((r) => codexFinish(r, 'x'.repeat(385)));
+  await assert.rejects(runCodex(excessive, { budgets: { maxOutputTokens: 64 } }), {
+    code: 'OUTPUT_BUDGET',
+  });
+  assert(excessive.closed);
+});
+
 test('Codex refuses incomplete or foreign MCP inventories before any model request', async (t) => {
   const studio = {
     name: 'studio_authoring',

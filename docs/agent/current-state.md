@@ -11,7 +11,8 @@ replacement of failed workers even at an unchanged project fingerprint.
 
 Streaming detail reads newer than their compact list snapshot are retained,
 preventing the last-20-events tail from replacing the full response. Unfinished
-Markdown preserves its characters. Reverted edits and wrapped tool failures are
+Markdown preserves its characters; separate assistant messages retain paragraph
+breaks. Reverted edits and wrapped tool failures are
 labelled explicitly. Fresh linguistic contrasts no longer reopen the worker;
 edit/final corpus checks remain intact and tool instructions avoid duplicate checks.
 Successful tool results and replay receipts commit together, eliminating one
@@ -21,7 +22,8 @@ check under the same lease while rejecting late tool results.
 The exact proposed `pûera * eo` correction was tested only in disposable live-code
 copies: `te'õmbûera`, full tree `te'õmbûeratyma`, both possessive orders unchanged,
 154 corpus expressions unchanged. No shared linguistic correction or new provider
-attempt was applied. Deployment verification is pending; see
+attempt was applied. Main release `d9f75a8` is live with exact research/evidence
+hash parity; paragraph-boundary follow-up deployment remains pending. See
 [handoff](session-handoffs/2026-09-30-repair-transport-streaming.md).
 
 ## Automatic region saves (live)

@@ -410,6 +410,7 @@ class CodexProvider {
     let threadId,
       turnId,
       text = '',
+      outputLength = 0,
       usage = checkpoint.usage || {},
       eventQueue = Promise.resolve();
     let settled = false,
@@ -419,6 +420,19 @@ class CodexProvider {
     const output = new Map();
     const history = structuredClone(messages);
     const toolEvents = structuredClone(checkpoint.toolEvents || []);
+    const appendOutput = async (itemId, delta) => {
+      if (!delta) return;
+      const prior = output.get(itemId) || '';
+      const chunk = (text && !prior ? '\n\n' : '') + delta;
+      output.set(itemId, prior + delta);
+      outputLength += delta.length;
+      // Count provider text, not the paragraph separators added for display.
+      // App-server has no max-output-token request field; this is a stop boundary.
+      if (outputLength > budgets.maxOutputTokens * 6)
+        throw failure('OUTPUT_BUDGET', 'Codex atingiu o limite observado de resposta.');
+      text += chunk;
+      await onEvent({ type: 'text-delta', text: chunk });
+    };
     const completion = new Promise((resolve, reject) => {
       resolveCompletion = resolve;
       rejectCompletion = reject;
@@ -486,14 +500,7 @@ class CodexProvider {
       if (message.method === 'item/agentMessage/delta') {
         if (typeof params.delta !== 'string')
           throw failure('PROVIDER_PROTOCOL', 'Texto Codex inválido.');
-        const next = (output.get(params.itemId) || '') + params.delta;
-        output.set(params.itemId, next);
-        text += params.delta;
-        // There is no max-output-token request field in installed app-server. This
-        // ceiling plus usage notifications is a stop boundary, not a billing guarantee.
-        if (text.length > budgets.maxOutputTokens * 6)
-          throw failure('OUTPUT_BUDGET', 'Codex atingiu o limite observado de resposta.');
-        await onEvent({ type: 'text-delta', text: params.delta });
+        await appendOutput(params.itemId, params.delta);
       }
       const item = params.item;
       if ((message.method === 'item/started' || message.method === 'item/completed') && item) {
@@ -579,10 +586,7 @@ class CodexProvider {
           const complete = item.text || '';
           if (complete.startsWith(prior)) {
             const delta = complete.slice(prior.length);
-            if (delta) {
-              text += delta;
-              await onEvent({ type: 'text-delta', text: delta });
-            }
+            await appendOutput(item.id, delta);
           } else throw failure('PROVIDER_PROTOCOL', 'Codex alterou um bloco já transmitido.');
           output.set(item.id, complete);
           history.push({ role: 'assistant', content: complete });

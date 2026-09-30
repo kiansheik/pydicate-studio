@@ -17,7 +17,8 @@ filtered timing/identity for jobs `d780d0c0-193d-45b1-ad20-37fd0ffa9ea6` and
 
 `python/worker.py`, `electron/python-worker.cjs`, `server/studio.cjs`,
 `electron/grammar-repair.cjs`, `electron/analysis-service.cjs`, `src/components/AnalysisSupport.tsx`,
-`src/domain/analysis.ts`, their focused tests and these agent guides.
+`src/domain/analysis.ts`, `electron/provider-codex.cjs`, their focused tests and
+these agent guides.
 
 ## Findings and implementation
 
@@ -37,6 +38,10 @@ and rendered only the list's final 20 events. Newer details now win, with stale,
 foreign-project and resumed-attempt guards. Unfinished bold/code markers are not
 trimmed. History explicitly separates applied edits from discarded attempts;
 raw and wrapped rollback/failure events produce coherent activity labels.
+The Codex adapter now adds paragraph boundaries between distinct assistant
+message blocks, preserving fragments and completion tails within each block.
+The output budget still counts provider characters rather than display separators;
+completed-only messages now obey the same bound.
 
 `render_candidate` now uses the current worker and its before/after source
 freshness checks. Only stale/unavailable read errors trigger one reload/retry.
@@ -59,6 +64,8 @@ tool results remain rejected.
   tests. Local MCP IPC required sandbox escalation.
 - Analysis domain: 11 pass. Six focused real-hook browser checks cover streaming,
   unfinished formatting, rollback history, summary refresh/resume and coalescing.
+- Simulated agent-runner/provider suite: 31 pass, including separate assistant
+  blocks, completed-only text and output-budget boundaries; no inference calls.
 - `npm run typecheck`, `npx vite build` and `git diff --check` pass.
 - Read-only live worker probes and filtered receipt inspection; disposable copies
   of current live source/grammar roots, initialized as separate fixture repos.
@@ -70,7 +77,16 @@ tool results remain rejected.
   actual Chrome and copied real engine: UI submits the fixture repair, checked
   `abá` → `kunhã` appears in the editor and the job reaches ready-for-review.
   Human drafts and source bytes remain unchanged; no page errors. Fixture DB
-  stopped and temporary directories removed. Deployment results remain to record.
+  stopped and temporary directories removed.
+- Main release `d9f75a8c86223acdf1911002f8b273b7781006db` deployed in 52.7s;
+  checkpoint `20260930T230325-9afb05`. All 145 grammar/corpus files and six evidence
+  manifest/PDF files retain exact before/after hashes. Live browser shows the
+  reported passage at visible 114 with two reverted edits, zero applied edits,
+  and correct rollback activity. Its read-only harness blocked an automatic
+  scroll-position preference save; no research/provider operation ran. The first
+  harness's blanket no-write assertion flagged that expected preference attempt;
+  it now distinguishes only that exact scroll-only payload. Final follow-up and
+  health results remain to record.
 
 ## What worked / what failed
 
