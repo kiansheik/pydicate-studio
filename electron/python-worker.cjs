@@ -66,12 +66,20 @@ class PythonWorker {
     });
   }
 
-  protocolError(line) {
+  protocolError(line, cause) {
     // Carry what the worker actually said. Without this the caller only learns that
     // something was wrong, never what, which makes a failed import undiagnosable.
-    const sample = String(line).trim().slice(0, 2_000);
+    const raw = String(line),
+      sample = raw.trim().slice(0, 256);
+    const tail = raw.length > 256 ? raw.slice(-192) : '';
     const errors = this.stderr.trim().slice(-4_000);
-    const details = [sample && `Resposta: ${sample}`, errors && `Saída: ${errors}`]
+    const details = [
+      cause?.message && `JSON: ${cause.message.slice(0, 384)}`,
+      `Bytes: ${Buffer.byteLength(raw, 'utf8')}`,
+      sample && `Resposta: ${sample}`,
+      tail && `Final: ${tail}`,
+      errors && `Saída: ${errors}`,
+    ]
       .filter(Boolean)
       .join(' ');
     return new Error(
@@ -85,8 +93,8 @@ class PythonWorker {
     try {
       message = JSON.parse(line);
       if (!message || typeof message !== 'object') throw new Error('Formato desconhecido.');
-    } catch {
-      this.fail(this.protocolError(line));
+    } catch (error) {
+      this.fail(this.protocolError(line, error));
       return;
     }
     // A worker that could not read the request at all answers without an id. Report

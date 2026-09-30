@@ -107,7 +107,13 @@ export interface AnalysisJob {
     };
     comparison?: ReturnType<typeof import('./grammar-regression').compareGrammarSnapshots>;
   };
-  grammarEdits?: { id: string; path: string; oldText: string; newText: string }[];
+  grammarEdits?: {
+    id: string;
+    path: string;
+    oldText: string;
+    newText: string;
+    rolledBack?: boolean;
+  }[];
 }
 export type AnalysisQuestion =
   | string
@@ -157,6 +163,48 @@ export interface AnalysisConversation {
     at: string;
   }[];
 }
+export interface AnalysisDetail {
+  job: AnalysisJob;
+  conversation: AnalysisConversation;
+  candidates: AnalysisCandidate[];
+}
+
+export function mergeAnalysisDetails(
+  listing: AnalysisListing,
+  details: Map<string, AnalysisDetail>,
+  conversations: Map<string, AnalysisConversation>,
+): AnalysisListing {
+  // The compact list contains only the last 20 events. The following detail
+  // read can already be newer while text streams; retain that complete read.
+  const currentDetails = [...details.values()].filter((detail) =>
+    listing.jobs.some(
+      (job) =>
+        job.id === detail.job.id &&
+        job.projectId === detail.job.projectId &&
+        (detail.job.updatedAt > job.updatedAt ||
+          (detail.job.updatedAt === job.updatedAt &&
+            detail.job.currentAttemptId === job.currentAttemptId)),
+    ),
+  );
+  return {
+    ...listing,
+    jobs: listing.jobs
+      .map((job) => currentDetails.find((item) => item.job.id === job.id)?.job ?? job)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    conversations: listing.conversations.map((conversation) => {
+      const cached = conversations.get(conversation.id);
+      return cached && cached.revision >= conversation.revision
+        ? cached
+        : { ...conversation, turns: cached?.turns ?? conversation.turns };
+    }),
+    candidates: [
+      ...listing.candidates.filter(
+        (candidate) => !currentDetails.some((detail) => detail.job.id === candidate.jobId),
+      ),
+      ...currentDetails.flatMap((item) => item.candidates),
+    ],
+  };
+}
 export function analysisActivity(job: AnalysisJob): string[] {
   const labels: Record<string, string> = {
     studio_guide: 'Guia de análise consultada',
@@ -192,6 +240,8 @@ export function analysisActivity(job: AnalysisJob): string[] {
     ...new Set(
       (job.events ?? []).flatMap((event) => {
         if (event.type !== 'tool-result' || !event.tool || !labels[event.tool]) return [];
+        if (event.tool === 'grammar_edit' && rolledBackGrammarEdit(event.result))
+          return ['Edição da gramática revertida'];
         return [
           failedToolResult(event.result)
             ? (failures[event.tool] ?? `Falha na ferramenta ${event.tool}`)
@@ -202,18 +252,24 @@ export function analysisActivity(job: AnalysisJob): string[] {
   ];
 }
 
+function rolledBackGrammarEdit(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const result = value as Record<string, unknown>;
+  return (
+    result.rolledBack === true ||
+    rolledBackGrammarEdit(result.receipt) ||
+    rolledBackGrammarEdit(result.structuredContent)
+  );
+}
+
 function failedToolResult(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   const result = value as Record<string, unknown>;
   if (result.isError === true || result.error || result.verificationError) return true;
+  if (result.structuredContent != null) return failedToolResult(result.structuredContent);
   // Older Codex app-server results lost MCP's isError flag. Recover only the
   // exact error envelope emitted by our gateway, not arbitrary response prose.
-  if (
-    result.structuredContent != null ||
-    !Array.isArray(result.content) ||
-    result.content.length !== 1
-  )
-    return false;
+  if (!Array.isArray(result.content) || result.content.length !== 1) return false;
   const item = result.content[0];
   if (item?.type !== 'text' || typeof item.text !== 'string') return false;
   try {

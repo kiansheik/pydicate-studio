@@ -76,3 +76,32 @@ test('structured Python errors do not destroy a usable worker', async () => {
   assert.equal(instance.failed, null);
   instance.close();
 });
+
+test('invalid JSON reports bounded parse diagnostics and byte length without dumping the middle of a project', async () => {
+  const { instance, child } = worker();
+  const line =
+    '{"id":1,"result":{"surface":"' +
+    'ẽ'.repeat(600) +
+    'PRIVATE_MIDDLE_MARKER' +
+    'x'.repeat(600) +
+    '","tail":BROKEN_JSON}}';
+  let parseMessage;
+  try {
+    JSON.parse(line);
+  } catch (error) {
+    parseMessage = error.message;
+  }
+  const result = assert.rejects(instance.request('open_project', {}), (error) => {
+    assert.equal(error.code, 'WORKER_UNAVAILABLE');
+    assert.ok(error.message.includes('JSON: ' + parseMessage.slice(0, 384)));
+    assert.ok(error.message.includes('Bytes: ' + Buffer.byteLength(line, 'utf8')));
+    assert.ok(error.message.includes('Final: '));
+    assert.ok(error.message.includes('BROKEN_JSON'));
+    assert.ok(!error.message.includes('PRIVATE_MIDDLE_MARKER'));
+    assert.ok(error.message.length < 1100);
+    return true;
+  });
+  child.stdout.write(line + '\n');
+  await result;
+  assert.equal(child.killed, true);
+});

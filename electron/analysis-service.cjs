@@ -385,20 +385,6 @@ function createAnalysisService({
         result = job.input.grammarRepair
           ? await grammar.call(job, name, args, toolOptions)
           : await scratch.call(jobId, name, args, toolOptions);
-        if (job.input.grammarRepair)
-          await mutateJob(
-            jobId,
-            (value) => {
-              if (result.receipt) {
-                value.grammarEdits ??= [];
-                value.grammarEdits.push(result.receipt);
-              }
-              if (result.verification || name === 'reload_engine')
-                value.grammarVerification = result.verification ?? result;
-              value.events.push({ type: 'tool-result', tool: name, at: now(), result });
-            },
-            { attemptId },
-          );
       } catch (reason) {
         caught = reason;
       }
@@ -406,7 +392,19 @@ function createAnalysisService({
         throw error('STALE_ATTEMPT', 'A tentativa foi encerrada; o resultado tardio foi ignorado.');
       await mutateJob(
         jobId,
-        (_job, next) => {
+        (value, next) => {
+          // Keep the visible result and its replay receipt in the same durable
+          // transaction. The grammar's before-image journal precedes the edit;
+          // the active-attempt guard still rejects cancelled or late results.
+          if (job.input.grammarRepair && !caught) {
+            if (result.receipt) {
+              value.grammarEdits ??= [];
+              value.grammarEdits.push(result.receipt);
+            }
+            if (result.verification || name === 'reload_engine')
+              value.grammarVerification = result.verification ?? result;
+            value.events.push({ type: 'tool-result', tool: name, at: now(), result });
+          }
           next.operations[key] = {
             digest: signature,
             ...(caught
@@ -1056,7 +1054,9 @@ function createAnalysisService({
             (value) => {
               value.grammarVerification = verification;
             },
-            { attemptId },
+            // Cancellation has already closed new tools and drained old ones.
+            // Record its final check under the same lease before finalizing.
+            { attemptId, allowTerminal: true },
           );
         } catch (verificationError) {
           await mutateJob(
@@ -1066,7 +1066,7 @@ function createAnalysisService({
                 error: String(verificationError.message ?? verificationError),
               };
             },
-            { attemptId },
+            { attemptId, allowTerminal: true },
           );
         }
       }

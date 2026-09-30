@@ -34,6 +34,12 @@
   checked edit rollback, drained interruption and compact repair continuation;
   repairs have no ordinary wall-clock cutoff. Light deploy uses `server/idle.cjs`
   private maintenance acknowledgment before replacing the app.
+- `python/worker.py`: complete UTF-8 JSONL writes on unbuffered output, including
+  short/interrupted writes; `test_worker_protocol.py` exercises the real main loop.
+  `server/studio.cjs` replaces failed workers even at an unchanged fingerprint.
+- `mergeAnalysisDetails` in `src/domain/analysis.ts` preserves complete details
+  newer than compact listings; rollback/error activity handles raw and MCP-wrapped
+  results. `tests/analysis-streaming.spec.ts` covers refresh races and edit history.
 
 
 - `server/passage-management.cjs`, `src/PassageManager.tsx` and

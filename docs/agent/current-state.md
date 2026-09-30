@@ -1,5 +1,29 @@
 # Current state
 
+## Grammar repair transport, streaming and repeated work
+
+The reported pluriform repair repeatedly rolled back with malformed Python JSON
+during `open_project`. Unbuffered Python output can legally write only a prefix;
+the old `print()` then terminated that truncated response. A real signal/slow
+reader reproduction produced invalid 65 KB output from a 2 MB response. The
+worker now finishes the UTF-8 byte frame, with bounded parser diagnostics and
+replacement of failed workers even at an unchanged project fingerprint.
+
+Streaming detail reads newer than their compact list snapshot are retained,
+preventing the last-20-events tail from replacing the full response. Unfinished
+Markdown preserves its characters. Reverted edits and wrapped tool failures are
+labelled explicitly. Fresh linguistic contrasts no longer reopen the worker;
+edit/final corpus checks remain intact and tool instructions avoid duplicate checks.
+Successful tool results and replay receipts commit together, eliminating one
+whole-history rewrite per call. Cancelling repairs complete their drained final
+check under the same lease while rejecting late tool results.
+
+The exact proposed `pûera * eo` correction was tested only in disposable live-code
+copies: `te'õmbûera`, full tree `te'õmbûeratyma`, both possessive orders unchanged,
+154 corpus expressions unchanged. No shared linguistic correction or new provider
+attempt was applied. Deployment verification is pending; see
+[handoff](session-handoffs/2026-09-30-repair-transport-streaming.md).
+
 ## Automatic region saves (live)
 
 Implemented automatic PDF region/view saves with a 400 ms debounce; the manual

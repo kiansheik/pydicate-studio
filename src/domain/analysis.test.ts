@@ -3,11 +3,14 @@ import {
   analysisActivity,
   analysisProgress,
   analysisStreamText,
+  emptyAnalysis,
+  mergeAnalysisDetails,
   canAcceptCandidate,
   candidateTranslation,
   citationDetails,
   comparisonLabel,
   type AnalysisCandidate,
+  type AnalysisConversation,
   type AnalysisJob,
 } from './analysis';
 
@@ -34,6 +37,66 @@ const candidate = {
   },
 } as AnalysisCandidate;
 describe('analysis review boundaries', () => {
+  it('keeps full streaming details newer than the compact list read', () => {
+    const events = Array.from({ length: 45 }, (_, index) => ({
+      type: 'text-delta',
+      attemptId: 'current',
+      text: `word-${index} `,
+    }));
+    const compact = {
+      ...job,
+      currentAttemptId: 'current',
+      createdAt: '2026-09-30T12:00:00.000Z',
+      updatedAt: '2026-09-30T12:00:01.000Z',
+      events: events.slice(-20),
+    };
+    const full = {
+      ...compact,
+      updatedAt: '2026-09-30T12:00:01.001Z',
+      events: [...events, { type: 'text-delta', attemptId: 'current', text: 'newest' }],
+    };
+    const conversation = {
+      id: 'thread',
+      revision: 1,
+      turns: [],
+    } as unknown as AnalysisConversation;
+    const result = mergeAnalysisDetails(
+      { ...emptyAnalysis(), jobs: [compact] },
+      new Map([[full.id, { job: full, conversation, candidates: [candidate] }]]),
+      new Map(),
+    );
+    expect(analysisStreamText(result.jobs[0])).toBe(
+      events.map((event) => event.text).join('') + 'newest',
+    );
+    expect(result.jobs[0]).toBe(full);
+    expect(result.candidates).toEqual([candidate]);
+  });
+  it('does not replace newer or resumed listing state with obsolete details', () => {
+    const latest = {
+      ...job,
+      currentAttemptId: 'new',
+      createdAt: '2026-09-30T12:00:00.000Z',
+      updatedAt: '2026-09-30T12:00:02.000Z',
+    };
+    const conversation = {
+      id: 'thread',
+      revision: 1,
+      turns: [],
+    } as unknown as AnalysisConversation;
+    for (const old of [
+      { ...latest, updatedAt: '2026-09-30T12:00:01.000Z' },
+      { ...latest, currentAttemptId: 'old' },
+      { ...latest, projectId: 'another-project' },
+    ]) {
+      const result = mergeAnalysisDetails(
+        { ...emptyAnalysis(), jobs: [latest] },
+        new Map([[old.id, { job: old, conversation, candidates: [candidate] }]]),
+        new Map(),
+      );
+      expect(result.jobs[0]).toBe(latest);
+      expect(result.candidates).toEqual([]);
+    }
+  });
   it('reports completed grammar calls and failed reads without claiming they succeeded', () => {
     expect(
       analysisActivity({
@@ -77,6 +140,60 @@ describe('analysis review boundaries', () => {
         events: [{ type: 'tool-result', tool: 'grammar_read', result: { content: 'rule' } }],
       }),
     ).toEqual(['Regra da gramática consultada']);
+  });
+  it('distinguishes rolled-back edits from applied grammar work in activity', () => {
+    expect(
+      analysisActivity({
+        ...job,
+        events: [
+          {
+            type: 'tool-result',
+            tool: 'grammar_edit',
+            result: { rolledBack: true, verificationError: { message: 'regression' } },
+          },
+          {
+            type: 'tool-result',
+            tool: 'grammar_edit',
+            result: { structuredContent: { receipt: { rolledBack: true } } },
+          },
+          { type: 'tool-result', tool: 'grammar_edit', result: { receipt: { id: 'applied' } } },
+        ],
+      }),
+    ).toEqual(['Edição da gramática revertida', 'Gramática editada e reavaliada']);
+  });
+  it('reports one coherent status for raw and MCP-wrapped receipts of the same edit', () => {
+    for (const [result, label] of [
+      [
+        {
+          rolledBack: true,
+          receipt: { rolledBack: true },
+          verificationError: { message: 'regression' },
+        },
+        'Edição da gramática revertida',
+      ],
+      [{ verificationError: { message: 'verification failed' } }, 'Falha ao editar a gramática'],
+      [
+        { error: { code: 'GRAMMAR_REGRESSION', message: 'regression' } },
+        'Falha ao editar a gramática',
+      ],
+    ] as const) {
+      expect(
+        analysisActivity({
+          ...job,
+          events: [
+            { type: 'tool-result', tool: 'grammar_edit', result },
+            {
+              type: 'tool-result',
+              tool: 'grammar_edit',
+              result: {
+                structuredContent: result,
+                content: [{ type: 'text', text: JSON.stringify(result) }],
+              },
+            },
+          ],
+        }),
+      ).toEqual([label]);
+    }
   });
   it('shows only the current resumed attempt stream, including before its first token', () => {
     const resumed = {

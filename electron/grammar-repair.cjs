@@ -22,7 +22,8 @@ is available. Use render_candidate to test linguistic contrasts in this same nam
 Explain the cause and proposed rule before editing. Ask a focused linguistic question only when the intended
 analysis is ambiguous. Do not require the contributor to operate a terminal, locate code or reload Python.
 Every grammar_edit refreshes Studio, evaluates the identical submitted expression and compares all historic
-sources against the saved baseline. Use reload_engine for further checks. Keep iterating until the intended form is obtained
+sources against the saved baseline. Inspect that returned verification; use reload_engine only for an additional
+explicit check, not routinely after grammar_edit. Keep iterating until the intended form is obtained
 or explain the remaining limitation. Report every changed corpus line and preexisting failures honestly.
 A matching target is not a clean repair when a previously matching reference diverges, the containing
 tree gains an execution failure, or source coverage changes. Resolve those regressions before finishing.
@@ -89,7 +90,7 @@ const REPAIR_TOOLS = [
   {
     name: 'reload_engine',
     description:
-      'Reload the selected local grammar, render the unchanged diagnostic expression, and compare every corpus source with the baseline. Call after each file edit.',
+      'Run an explicit additional check: reload the selected local grammar, render the unchanged diagnostic expression, and compare every corpus source with the baseline. grammar_edit already returns this verification.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
 ];
@@ -535,14 +536,27 @@ function createGrammarRepair({
     };
     if (name === 'reload_engine') return check(job);
     if (name === 'render_candidate') {
-      await reloadProject(job.projectId);
-      return evaluateTarget(
-        {
-          ...context,
-          sharedDefinition: job.input.grammarRepair.sharedDefinition,
-        },
-        requiredText(args.raw, 'Expressão'),
-      );
+      const evaluate = () =>
+        evaluateTarget(
+          {
+            ...context,
+            sharedDefinition: job.input.grammarRepair.sharedDefinition,
+          },
+          requiredText(args.raw, 'Expressão'),
+        );
+      try {
+        // The evaluator checks current source/engine bytes before and after its
+        // isolated read. A contrast does not require another open_project.
+        return await evaluate();
+      } catch (error) {
+        if (!['STALE_ENGINE', 'WORKER_UNAVAILABLE'].includes(error.code) || !reloadProject)
+          throw error;
+        signal?.throwIfAborted();
+        await reloadProject(job.projectId);
+        await assertWorkspace(job);
+        signal?.throwIfAborted();
+        return evaluate();
+      }
     }
     if (name === 'grammar_context')
       return {

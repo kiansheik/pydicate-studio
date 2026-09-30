@@ -1,3 +1,16 @@
+## 2026-09-30 — Reliable grammar repair transport and readable streaming
+
+Reproduced interrupted unbuffered Python writes truncating JSON; finish every
+byte before the newline and recover failed same-fingerprint workers. Keep newer
+complete analysis details instead of reverting to a rolling event tail; retain
+unfinished formatting and label rolled-back changes correctly. Fresh contrasts
+avoid redundant worker opens; edit and final regressions remain mandatory.
+One durable whole-history rewrite per successful tool call is removed by atomic
+result/replay persistence; cancellation can finish its drained verification.
+The reported pluriform patch passes in a disposable copy with all 154 corpus
+outputs/annotations unchanged; production grammar and provider jobs are untouched.
+See [handoff](session-handoffs/2026-09-30-repair-transport-streaming.md).
+
 ## 2026-09-30 — Autosave PDF regions
 
 Remove the manual region-save button; debounce completed edits and keep queued

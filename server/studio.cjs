@@ -75,7 +75,7 @@ async function createStudio(config, store, emit = () => { }) {
             const next = validate.project(await candidate.request('open_project', { parentPath: config.parent }));
             if (project && next.id !== project.id)
                 throw new Error('Project identity changed. Restart after reviewing the server workspace.');
-            if (project && next.engineFingerprint === project.engineFingerprint) {
+            if (project && next.engineFingerprint === project.engineFingerprint && worker && !worker.failed) {
                 candidate.close();
                 return project;
             }

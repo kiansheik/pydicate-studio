@@ -521,6 +521,183 @@ test('a checked grammar edit reloads real Python output and reports corpus chang
   );
 });
 
+test('grammar tool receipts and visible results commit together with one fewer durable write', async (t) => {
+  const f = await fixture(t);
+  let running, finish;
+  const service = f.service((options) => {
+    running = options;
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  });
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(() => running);
+  const file = await running.callTool(
+    'grammar_read',
+    { path: 'tupi/tupi/verb.py' },
+    { operationId: 'read' },
+  );
+  const transact = service.store.transact.bind(service.store),
+    observations = [];
+  service.store.transact = (projectId, update) =>
+    transact(projectId, async (state) => {
+      const result = await update(state),
+        saved = state.jobs[job.id];
+      observations.push({
+        receipt: Object.keys(state.operations).some((key) => key.endsWith(':checked-edit')),
+        edits: saved.grammarEdits?.length ?? 0,
+        events: saved.events.filter(
+          (event) => event.type === 'tool-result' && event.tool === 'grammar_edit',
+        ).length,
+        verified: !!saved.grammarVerification,
+      });
+      return result;
+    });
+  const args = {
+    path: file.path,
+    expectedHash: file.hash,
+    oldText: 'mororerobiare',
+    newText: 'morerobiare',
+  };
+  const result = await running.callTool('grammar_edit', args, { operationId: 'checked-edit' });
+  assert.deepEqual(observations, [
+    { receipt: false, edits: 0, events: 0, verified: false },
+    { receipt: true, edits: 1, events: 1, verified: true },
+  ]);
+  assert.deepEqual(
+    await running.callTool('grammar_edit', args, { operationId: 'checked-edit' }),
+    result,
+  );
+  assert.equal(observations.length, 2, 'replay must not write or apply the edit again');
+  const journal = JSON.parse(
+    await fs.readFile(
+      path.join(f.engine, 'state/analysis/grammar-edits', result.receipt.id + '.json'),
+    ),
+  );
+  assert.equal(journal.status, 'applied');
+  assert.match(journal.before, /mororerobiare/);
+  service.store.transact = transact;
+  finish({ text: 'Checked correction saved.' });
+  await waitFor(
+    async () =>
+      (await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id })).job
+        .status === 'needs-input',
+  );
+});
+
+test('a cancelled grammar read cannot persist its late result or idempotency receipt', async (t) => {
+  let hold = false,
+    releaseRead,
+    reading;
+  const started = new Promise((resolve) => {
+    reading = resolve;
+  });
+  const f = await fixture(t, {
+    interceptRequest(method) {
+      if (hold && method === 'assistant_context') {
+        reading();
+        return new Promise((resolve) => {
+          releaseRead = resolve;
+        });
+      }
+    },
+  });
+  let running, finish;
+  const service = f.service((options) => {
+    running = options;
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  });
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(() => running);
+  hold = true;
+  const late = running.callTool('grammar_context', {}, { operationId: 'held-read' });
+  await started;
+  await service.invoke('analysis_cancel', {
+    projectId: f.project.id,
+    jobId: job.id,
+    operationId: 'cancel-held',
+  });
+  releaseRead({ raw: job.input.raw });
+  await assert.rejects(late, { code: 'STALE_ATTEMPT' });
+  const state = await service.store.read(f.project.id);
+  assert.equal(
+    Object.keys(state.operations).some((key) => key.endsWith(':held-read')),
+    false,
+  );
+  assert.equal(
+    state.jobs[job.id].events.some(
+      (event) => event.type === 'tool-result' && event.tool === 'grammar_context',
+    ),
+    false,
+  );
+  finish({ text: 'Cancelled.' });
+  await waitFor(
+    async () =>
+      (await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id })).job
+        .status === 'cancelled',
+  );
+});
+
+test('contrasts evaluate without reopening an unchanged worker or repeating corpus regression', async (t) => {
+  const f = await fixture(t),
+    job = await f.job();
+  const regressions = f.requests.filter(
+    (request) => request.method === 'grammar_regression',
+  ).length;
+  for (const raw of ['contrast_one', 'contrast_two', 'contrast_three']) {
+    const result = await f.repair.call(job, 'render_candidate', { raw });
+    assert.equal(result.expression, raw);
+  }
+  assert.equal(f.reloads(), 0);
+  assert.equal(
+    f.requests.filter((request) => request.method === 'grammar_regression').length,
+    regressions,
+  );
+});
+
+for (const code of ['STALE_ENGINE', 'WORKER_UNAVAILABLE']) {
+  test(`a contrast retries an explicit ${code} read once after reloading`, async (t) => {
+    let attempts = 0;
+    const f = await fixture(t, {
+      interceptRequest(method, params) {
+        if (method === 'evaluate_expression' && params.raw === 'contrast' && ++attempts === 1)
+          throw Object.assign(new Error('The read needs a fresh worker'), { code });
+      },
+    });
+    const job = await f.job();
+    const result = await f.repair.call(job, 'render_candidate', { raw: 'contrast' });
+    assert.equal(result.expression, 'contrast');
+    assert.equal(attempts, 2);
+    assert.equal(f.reloads(), 1);
+    const calls = f.requests.filter((request) => request.params.raw === 'contrast');
+    assert.deepEqual(calls[0], calls[1]);
+  });
+}
+
+test('persistent worker failures stop after one read retry and linguistic errors do not reload', async (t) => {
+  const f = await fixture(t, {
+    interceptRequest(method, params) {
+      if (method === 'evaluate_expression' && params.raw === 'offline')
+        throw Object.assign(new Error('Worker unavailable'), { code: 'WORKER_UNAVAILABLE' });
+      if (method === 'evaluate_expression' && params.raw === 'invalid')
+        throw Object.assign(new Error('Invalid predicate'), { code: 'ENGINE_ERROR' });
+    },
+  });
+  const job = await f.job();
+  await assert.rejects(f.repair.call(job, 'render_candidate', { raw: 'offline' }), {
+    code: 'WORKER_UNAVAILABLE',
+  });
+  assert.equal(f.reloads(), 1);
+  assert.equal(f.requests.filter((request) => request.params.raw === 'offline').length, 2);
+  await assert.rejects(f.repair.call(job, 'render_candidate', { raw: 'invalid' }), {
+    code: 'ENGINE_ERROR',
+  });
+  assert.equal(f.reloads(), 1);
+  assert.equal(f.requests.filter((request) => request.params.raw === 'invalid').length, 1);
+});
+
 test('grammar_files advertises only available guides and grammar files that can be read', async (t) => {
   const f = await fixture(t),
     job = await f.job();

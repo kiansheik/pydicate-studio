@@ -15,6 +15,7 @@ import {
   analysisLabels,
   analysisProgress,
   analysisStreamText,
+  mergeAnalysisDetails,
   analysisTasks,
   canAcceptCandidate,
   candidateTranslation,
@@ -29,6 +30,7 @@ import {
   type AnalysisListing,
   type AnalysisTask,
   type AnalysisQuestion,
+  type AnalysisDetail,
 } from '../domain/analysis';
 import type { EvidencePointer, EvidenceStatus } from '../domain/evidence';
 import type { Studio } from '../useStudio';
@@ -40,11 +42,6 @@ import type { CanvasEdit, CanvasState } from '../domain/canvas';
 import type { EvidencePreparation } from './PdfEvidence';
 import '../analysis-support.css';
 
-type AnalysisDetail = {
-  job: AnalysisJob;
-  conversation: AnalysisConversation;
-  candidates: AnalysisCandidate[];
-};
 function rememberConversation(
   cache: Map<string, AnalysisConversation>,
   conversation: AnalysisConversation,
@@ -58,41 +55,14 @@ function readableText(text: string) {
   return text
     .split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
     .map((part, index) =>
-      part.startsWith('**') ? (
-        <strong key={index}>{part.slice(2, -2)}</strong>
-      ) : part.startsWith('`') ? (
-        <code key={index}>{part.slice(1, -1)}</code>
-      ) : (
+      index % 2 === 0 ? (
         part
+      ) : part.startsWith('**') ? (
+        <strong key={index}>{part.slice(2, -2)}</strong>
+      ) : (
+        <code key={index}>{part.slice(1, -1)}</code>
       ),
     );
-}
-function mergeAnalysisDetails(
-  listing: AnalysisListing,
-  details: Map<string, AnalysisDetail>,
-  conversations: Map<string, AnalysisConversation>,
-): AnalysisListing {
-  const currentDetails = [...details.values()].filter((detail) =>
-    listing.jobs.some((job) => job.id === detail.job.id && job.updatedAt === detail.job.updatedAt),
-  );
-  return {
-    ...listing,
-    jobs: listing.jobs
-      .map((job) => currentDetails.find((item) => item.job.id === job.id)?.job ?? job)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    conversations: listing.conversations.map((conversation) => {
-      const cached = conversations.get(conversation.id);
-      return cached && cached.revision >= conversation.revision
-        ? cached
-        : { ...conversation, turns: cached?.turns ?? conversation.turns };
-    }),
-    candidates: [
-      ...listing.candidates.filter(
-        (candidate) => !currentDetails.some((detail) => detail.job.id === candidate.jobId),
-      ),
-      ...currentDetails.flatMap((item) => item.candidates),
-    ],
-  };
 }
 export function useAnalysisWorkspace(studio: Studio) {
   const [listing, setListing] = useState<AnalysisListing>(emptyAnalysis);
@@ -1650,11 +1620,20 @@ export function AnalysisSupport({
               )}
               {!!job.grammarEdits?.length && (
                 <details>
-                  <summary>Alterações na gramática ({job.grammarEdits.length})</summary>
+                  <summary>Histórico de edições da gramática ({job.grammarEdits.length})</summary>
                   {job.grammarEdits.map((edit) => (
                     <div key={edit.id}>
                       <strong>{edit.path}</strong>
-                      <pre>{`Antes:\n${edit.oldText}\n\nDepois:\n${edit.newText}`}</pre>
+                      <p>
+                        {edit.rolledBack
+                          ? 'Tentativa revertida · não aplicada.'
+                          : 'Edição aplicada.'}
+                      </p>
+                      <pre>
+                        {edit.rolledBack
+                          ? `Código preservado:\n${edit.oldText}\n\nTentativa descartada:\n${edit.newText}`
+                          : `Antes:\n${edit.oldText}\n\nDepois:\n${edit.newText}`}
+                      </pre>
                     </div>
                   ))}
                 </details>
