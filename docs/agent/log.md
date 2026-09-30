@@ -7,6 +7,12 @@ unrelated passage saves without weakening crop/asset or analysis snapshot guards
 Actual PDF browser, domain, filesystem, capture and build checks pass. See
 [handoff](session-handoffs/2026-09-30-region-autosave.md).
 
+Release `374232e` is live after a 52.7-second light rollout. Read-only browser
+checks confirm the controls/status with no API/page errors or attempted research
+writes; three manifests and three PDF assets retain exact checksums. Fresh health
+passes all 154 lines with zero divergences/failures. Further editor metadata
+changes preserve the repaired passage's one identity, complete order and output.
+
 ## 2026-09-30 — Revision identity race and admin reservations
 
 Confirmed a successful source publication followed by another browser's

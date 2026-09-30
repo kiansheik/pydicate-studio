@@ -1,6 +1,6 @@
 # Current state
 
-## Automatic region saves
+## Automatic region saves (live)
 
 Implemented automatic PDF region/view saves with a 400 ms debounce; the manual
 **Salvar regiões** button is removed. Completed draw/move/resize, deletion and
@@ -14,7 +14,12 @@ same-passage/PDF guards. Analysis preparation flushes pending region edits and
 checks exact own evidence, so another passage's autosave does not cancel capture.
 Validation: 27 actual PDF browser cases, 13 domain cases, 16 filesystem evidence
 cases and five focused analysis capture cases; typecheck and Vite build pass.
-Deployment remains to be verified; see
+Release `374232ee725fc3cbbc02969a72dec2a66e83e522` is live; the light deployment
+took 52.7 seconds. Read-only browser verification confirms the button is absent,
+drawing remains enabled, saved feedback and the own-passage baseline are present,
+and clean navigation attempts no research writes. All three evidence manifests
+and three PDF assets retain identical checksums. Fresh health: 154 lines, zero
+divergences/failures, seven pending, 321 morphemes and no active repairs; see
 [handoff](session-handoffs/2026-09-30-region-autosave.md).
 
 ## Revision publication identity and ordering (live)
