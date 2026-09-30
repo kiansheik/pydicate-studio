@@ -15,27 +15,40 @@ function samePublishedExpression(actual, reviewed) {
 // Mirror the list's stable pending anchors and administrator ranks, using saved
 // metadata only. An already published alias keeps the pending row's old slot.
 function visibleIds(project, drafts, sourceId) {
-    const pending = Object.values(drafts).filter(d => d.pending?.sourceId === sourceId)
-        .sort((a, b) => a.pending.ordinal - b.pending.ordinal);
-    const aliases = new Set(pending.map(d => passageKey(d.passageId)));
-    const ids = project.passages.filter(p => p.sourceId === sourceId && !aliases.has(p.id)).map(p => p.id);
+    const pending = Object.values(drafts).filter(d => d.passageId.startsWith('pending:'))
+        .sort((a, b) => (a.pending?.ordinal ?? Number.MAX_SAFE_INTEGER) - (b.pending?.ordinal ?? Number.MAX_SAFE_INTEGER));
+    const published = new Map(project.passages.filter(p => !p.id.startsWith('pending:')).map(p => [p.id, p]));
+    const aliases = new Map(pending.flatMap(draft => {
+        const canonical = published.get(passageKey(draft.passageId));
+        return canonical && canonical.sourceId === draft.pending?.sourceId ? [[draft.passageId, canonical.id]] : [];
+    }));
+    const materialized = new Set(aliases.values());
+    const rows = [...published.values()].filter(p => !materialized.has(p.id));
     const waiting = [...pending];
     for (let attempts = 0; waiting.length && attempts <= pending.length; attempts++) {
-        const draft = waiting.shift(), before = draft.pending.beforePassageId;
-        if (before && !ids.includes(before) && waiting.some(d => d.passageId === before) && attempts < pending.length) {
+        const draft = waiting.shift(), pendingBefore = draft.pending?.beforePassageId;
+        const before = aliases.get(pendingBefore) ?? pendingBefore;
+        if (pendingBefore?.startsWith('pending:') && !rows.some(p => p.id === before) &&
+            waiting.some(d => d.passageId === pendingBefore) && attempts < pending.length) {
             waiting.push(draft); continue;
         }
-        attempts = -1;
-        const index = ids.indexOf(before);
-        ids.splice(index < 0 ? ids.length : index, 0, draft.passageId);
+        attempts = 0;
+        const index = rows.findIndex(p => p.id === before);
+        rows.splice(index < 0 ? rows.length : index, 0,
+            published.get(aliases.get(draft.passageId)) ?? { id: draft.passageId,
+                sourceId: draft.pending?.sourceId ?? 'araujo_catecismo_1686' });
     }
-    if (!ids.some(id => drafts[id]?.organization)) return ids;
-    const ordered = ids.filter(id => drafts[id]?.organization)
-        .sort((a, b) => drafts[a].organization.position - drafts[b].organization.position);
-    const unranked = ids.filter(id => !drafts[id]?.organization);
+    const ids = rows.filter(p => p.sourceId === sourceId).map(p => p.id);
+    const organization = id => drafts[id]?.organization ?? drafts[id.replace(/^passage:/, 'pending:')]?.organization;
+    const pendingDraft = id => drafts[id]?.pending ?? drafts[id.replace(/^passage:/, 'pending:')]?.pending;
+    if (!ids.some(id => organization(id))) return ids;
+    const unranked = ids.filter(id => !organization(id) && (id.startsWith('pending:') || pendingDraft(id)));
+    const ordered = ids.filter(id => !unranked.includes(id))
+        .sort((a, b) => (organization(a)?.position ?? Number.MAX_SAFE_INTEGER) - (organization(b)?.position ?? Number.MAX_SAFE_INTEGER));
     for (let attempts = 0; unranked.length && attempts <= unranked.length; attempts++) {
         const id = unranked.shift();
-        const before = drafts[id]?.pending?.beforePassageId;
+        const anchor = pendingDraft(id)?.beforePassageId;
+        const before = anchor && !ids.includes(anchor) ? passageKey(anchor) : anchor;
         if (before && unranked.includes(before) && attempts < unranked.length) {
             unranked.push(id); continue;
         }
@@ -43,7 +56,7 @@ function visibleIds(project, drafts, sourceId) {
         const index = ordered.indexOf(before);
         ordered.splice(index < 0 ? ordered.length : index, 0, id);
     }
-    return ordered.filter(id => !drafts[id]?.organization?.deleted);
+    return ordered.filter(id => !organization(id)?.deleted);
 }
 
 async function capturePublication(store, project, params) {

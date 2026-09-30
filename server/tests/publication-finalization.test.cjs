@@ -136,6 +136,36 @@ test('publishing the final pending row keeps earlier unpublished rows ahead of i
     assert.equal(after.envelope.drafts[earlierId].revisionId, earlier.revisionId);
 });
 
+test('an unrelated hidden pending alias cannot hide its visible ranked canonical row during publication', async t => {
+    const f = await setup(t), saved = await f.store.snapshot(f.project.id);
+    const oldAlias = { ...saved.envelope.drafts['passage:a'], passageId: 'pending:a', sourceFingerprint: 'pending',
+        pending: { sourceId: 'source', ordinal: 1, beforePassageId: 'pending:missing' },
+        organization: { sourceId: 'source', position: 1, deleted: true } };
+    await f.store.patch(f.project.id, [
+        { id: 'pending:a', version: 0, draft: oldAlias },
+        ...['passage:a', 'passage:b'].map((id, index) => ({ id, version: saved.versions[id],
+            draft: { ...saved.envelope.drafts[id], organization: { sourceId: 'source', position: index * 2, deleted: false } } })),
+    ], f.user, 'publisher', true, true);
+    const before = await f.store.snapshot(f.project.id);
+    assert.deepEqual(visibleIds(f.project, before.envelope.drafts, 'source'), ['passage:a', f.pendingId, 'passage:b']);
+    const result = await f.run(), after = await f.store.snapshot(f.project.id);
+    assert.deepEqual(visibleIds(result, after.envelope.drafts, 'source'), ['passage:a', f.canonicalId, 'passage:b']);
+    assert.deepEqual(after.envelope.drafts['pending:a'], oldAlias, 'Unrelated hidden alias must remain untouched.');
+    assert.equal(after.envelope.drafts['passage:a'].organization.deleted, false);
+});
+
+test('ranked rows, unranked canonical rows and anchored pending chains keep frontend ordering', () => {
+    const project = { passages: ['a', 'b', 'c'].map(id => ({ id: 'passage:' + id, sourceId: 'source' })) };
+    const drafts = {
+        'passage:a': { passageId: 'passage:a', organization: { sourceId: 'source', position: 1, deleted: false } },
+        'passage:b': { passageId: 'passage:b' },
+        'passage:c': { passageId: 'passage:c', organization: { sourceId: 'source', position: 0, deleted: false } },
+        'pending:first': { passageId: 'pending:first', pending: { sourceId: 'source', ordinal: 3, beforePassageId: 'pending:second' } },
+        'pending:second': { passageId: 'pending:second', pending: { sourceId: 'source', ordinal: 4, beforePassageId: 'passage:b' } },
+    };
+    assert.deepEqual(visibleIds(project, drafts, 'source'), ['passage:c', 'passage:a', 'pending:first', 'pending:second', 'passage:b']);
+});
+
 test('source failure leaves metadata untouched; exact-pair recovery after a cross-resource failure remains explicit and guarded', async t => {
     const f = await setup(t), before = await f.store.snapshot(f.project.id);
     await assert.rejects(f.run(async () => { throw new Error('source failed'); }), /source failed/);

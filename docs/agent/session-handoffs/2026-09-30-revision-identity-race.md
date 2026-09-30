@@ -89,6 +89,16 @@ passages. Text equality must never be used to delete or merge separate IDs.
 The original name-only search missed the published tree after lexical promotion;
 following its UUID located the canonical counterpart exactly.
 
+First release `9764cd4` deployed healthy in 63.2 seconds; checkpoint
+`20260930T220025-0c508d`. Exact recovery preflight then stopped before any write:
+the server's order calculation omitted a visible canonical row whose older
+pending alias was explicitly hidden. Browser precedence correctly retained the
+canonical organization metadata. The follow-up mirrors that precedence and
+matches complete ID arrays for every live source (Araújo 119, Bettendorff 40,
+Brasilico 2), with the target at 118. Twenty-one publication/review tests pass.
+Two verified-unused oldest images (`78db33e`, `113c9aa`) were removed to provide
+1.9 GB deployment headroom while retaining running/recent rollback images.
+
 ## Remaining questions
 
 Deploy and recover only the reported legacy pair with current version/content
