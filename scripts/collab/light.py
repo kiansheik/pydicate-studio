@@ -34,7 +34,7 @@ def drained(host, timeout=3600):
             ready = False
             try:
                 value = json.loads(state.read_text())
-                ready = value.get('maintenanceRequestId') == request_id and value.get('busyRequests') == 0 and 0 <= now - value['heartbeatAt'] <= 5000
+                ready = value.get('maintenanceRequestId') == request_id and value.get('busyRequests') == 0 and 0 <= int(time.time() * 1000) - value['heartbeatAt'] <= 5000
             except (OSError, ValueError, KeyError):
                 pass
             if ready:

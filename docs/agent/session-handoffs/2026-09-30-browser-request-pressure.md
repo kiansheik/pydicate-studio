@@ -41,3 +41,8 @@ Cross-tab concurrency remains subject to server limits, now with cooldown.
 ## Suggested next prompt
 Check live browser request rates during ordinary contributor work and keep any
 further diagnosis limited to request method/status aggregates.
+
+Deployment preflight exposed an acknowledgment timestamp race: the drain check
+compared against a timestamp sampled before writing the request. It now samples
+the clock after reading the acknowledgment. The failed preflight did not touch
+production. This also prevents rejecting valid fast acknowledgments in real use.
