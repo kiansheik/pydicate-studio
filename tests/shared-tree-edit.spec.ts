@@ -571,16 +571,38 @@ test('the shared definition canvas fits an 800 by 600 browser without horizontal
   // The editor has scrolled to its canvas; tab navigation must still be usable
   // without scrolling back to the declaration heading.
   const tabs = page.getByRole('tablist', { name: 'Árvores abertas', exact: true });
+  const root = canvas.locator('[data-canvas-key="main:root"] > [aria-pressed]');
+  await root.focus();
+  await root.press('Enter');
+  // A focused canvas followed by scrolling can put its raised piece-search
+  // input directly underneath the sticky strip. Check the actual tab buttons,
+  // not the empty right half of the tablist, where the overlap is invisible.
+  await canvas
+    .locator('.canvas-piece-search')
+    .evaluate((element) => element.scrollIntoView({ block: 'start' }));
   await expect(tabs).toBeInViewport({ ratio: 1 });
-  expect(
-    await tabs.evaluate((element) => {
-      const bounds = element.getBoundingClientRect();
-      return element.contains(
-        document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2),
-      );
-    }),
-  ).toBe(true);
+  for (const name of ['Passagem', 'enosem']) {
+    const tab = tabs.getByRole('tab', { name, exact: true });
+    expect(
+      await tab.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return element.contains(
+          document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2),
+        );
+      }),
+      `The ${name} tab must remain clickable over the scrolled canvas toolbar`,
+    ).toBe(true);
+  }
   await page.screenshot({ path: 'test-results/shared-tree-editor.png' });
+  await root.focus();
+  await root.press('Shift+F10');
+  await canvas.getByRole('menuitem', { name: 'Adicionar operação', exact: true }).click();
+  const operation = canvas.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  await operation.getByRole('combobox', { name: 'Operação na peça', exact: true }).click();
+  await page.keyboard.press('Escape');
+  if (await operation.isVisible())
+    await operation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(operation).not.toBeVisible();
   await tabs.getByRole('tab', { name: 'Passagem', exact: true }).click();
   await expect(page.getByRole('tabpanel', { name: 'Passagem', exact: true })).toBeVisible();
   await tabs.getByRole('tab', { name: 'enosem', exact: true }).click();

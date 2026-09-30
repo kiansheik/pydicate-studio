@@ -5,6 +5,11 @@
 .tree-workspace > [role='tabpanel'][hidden] {
   display: none !important;
 }
+.tree-workspace > [role='tabpanel'] {
+  /* Keep canvas search/popover layers beneath the sticky tabs without clipping
+     their contents or changing their positioning inside the active panel. */
+  isolation: isolate;
+}
 .tree-tabs {
   position: sticky;
   top: 0;
