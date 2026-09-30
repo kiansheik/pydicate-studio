@@ -52,3 +52,13 @@ these hosted admin controls. PDF crops are not duplicated.
 Use Organizar passagens to place the final Araújo passages in the intended order
 and exclude confirmed accidental duplicates; audit any remaining source-level
 changes separately.
+
+## Live visual check
+
+First rollout `3613067` completed in 51.6 seconds. The authenticated read-only
+smoke saw all 114 source entries and the admin actions at 800×600 with no content
+writes or browser errors. Visual inspection found reference-only passages labelled
+Por transcrever and dark-mode paragraph contrast too low. Follow-up uses canonical
+reference labels (including archived records), raw-expression fallback, inherited
+text color, and the selected row's current position. Focused browser tests pass
+again, now covering the canonical-reference label.

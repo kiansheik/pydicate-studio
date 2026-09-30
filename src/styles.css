@@ -2733,7 +2733,7 @@ button:hover:not(:disabled) {
 
 .passage-manager {
   background: var(--paper, #fffdf7);
-  color: var(--ink, #28251f);
+  color: inherit;
   width: min(680px, calc(100% - 24px));
   max-height: calc(100dvh - 24px);
   overflow: auto;

@@ -15,6 +15,7 @@ test('admin organizes, duplicates, deletes, restores and reloads on a cramped sc
     .click();
   await page.getByRole('button', { name: 'Organizar passagens', exact: true }).click();
   const modal = page.getByRole('dialog', { name: 'Organizar passagens' });
+  await expect(modal.locator('option').first()).toHaveText('1. Referência antiga');
   await modal.getByLabel('Passagem', { exact: true }).selectOption('passage-a');
   await modal.getByRole('button', { name: '↓ Descer', exact: true }).click();
   await expect(modal.locator('option').first()).toHaveAttribute('value', 'passage-b');

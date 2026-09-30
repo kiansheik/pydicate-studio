@@ -19,7 +19,14 @@ export function PassageManager({ studio, sourceId }: { studio: Studio; sourceId:
   const selected = passages.find((p) => p.id === target) ?? passages[0];
   const label = (id: string) => {
     const draft = studio.envelope.drafts[id];
-    return draft?.normalized || draft?.diplomatic || 'Por transcrever';
+    const source = studio.sourcePassages.find((p) => p.id === id);
+    return (
+      draft?.normalized ||
+      draft?.diplomatic ||
+      source?.acceptedReference ||
+      draft?.raw ||
+      'Por transcrever'
+    );
   };
   async function act(
     action: 'reorder' | 'duplicate' | 'delete' | 'restore',
@@ -65,6 +72,9 @@ export function PassageManager({ studio, sourceId }: { studio: Studio; sourceId:
         disabled={!studio.ready || studio.busy}
         onClick={() => {
           setTarget(studio.passage.id);
+          setPosition(
+            String(Math.max(1, passages.findIndex((p) => p.id === studio.passage.id) + 1)),
+          );
           setOpen(true);
         }}
       >

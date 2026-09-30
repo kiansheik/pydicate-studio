@@ -749,6 +749,7 @@ window.studio = {
 };
 
 if (new URLSearchParams(location.search).has('passage-admin')) {
+  project.passages[0].acceptedReference = 'Referência antiga';
   window.studio.capabilities = { passageManagement: true };
   window.studio.managePassages = async ({ sourceId, orderedIds, action, passageId }) => {
     const envelope = structuredClone(control.saved[project.id]);

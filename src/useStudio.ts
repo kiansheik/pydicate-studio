@@ -1452,6 +1452,7 @@ export function useStudio() {
       : [];
   return {
     project,
+    sourcePassages: sourceProject.passages,
     passage,
     draft,
     ready: editable,
