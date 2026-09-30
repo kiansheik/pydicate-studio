@@ -148,6 +148,7 @@ function Projections({
   openLaboratory,
   translate,
   onSurfaceHighlight,
+  onEditingSharedTree,
 }: {
   studio: Studio;
   tab: Tab;
@@ -160,6 +161,7 @@ function Projections({
   openLaboratory: () => void;
   translate: () => void;
   onSurfaceHighlight: (highlight: MorphemeSurfaceHighlight | null) => void;
+  onEditingSharedTree: (name: string | null) => void;
 }) {
   const { draft, passage, result } = studio;
   if (studio.project.mode === 'local' && tab === 'Árvore')
@@ -170,6 +172,7 @@ function Projections({
         selectedSourceNodeId={selected}
         onSelectSourceNode={select}
         onSurfaceHighlight={onSurfaceHighlight}
+        onEditingSharedTree={onEditingSharedTree}
         status={studio.pending ? 'Avaliando a estrutura…' : studio.renderError || undefined}
         authoringRoot={studio.parsed?.root}
         raw={draft?.raw ?? passage.sourceExpression}
@@ -646,6 +649,7 @@ export default function App() {
       })
     : null;
   const [grammarReport, setGrammarReport] = useState<CanvasDiagnostic | null>(null);
+  const [sharedTreeName, setSharedTreeName] = useState<string | null>(null);
   const restoredPendingProject = useRef('');
   useEffect(() => {
     if (!studio.ready || restoredPendingProject.current === project.id) return;
@@ -1252,7 +1256,11 @@ export default function App() {
               >
                 <div className="surface-label">
                   <Layers size={13} />
-                  {project.mode === 'local' ? 'RESULTADO ATUAL' : 'RESULTADO DO EXEMPLO'}
+                  {project.mode === 'local'
+                    ? sharedTreeName
+                      ? 'RESULTADO DA PASSAGEM'
+                      : 'RESULTADO ATUAL'
+                    : 'RESULTADO DO EXEMPLO'}
                 </div>
                 <p data-testid="generated-surface" lang="tpw">
                   {studio.pending ? (
@@ -1518,6 +1526,7 @@ export default function App() {
                     selected={selected}
                     select={setSelected}
                     onSurfaceHighlight={setSurfaceHighlight}
+                    onEditingSharedTree={setSharedTreeName}
                     inspectLexeme={() => changeMode('lexicon')}
                     lexicalPreview={setPreview}
                     prepareDiagnostic={setGrammarReport}
@@ -1743,80 +1752,97 @@ export default function App() {
             </div>
           )}
           <footer className="workspace-footer">
-            <span className="save-status" role="status">
-              <span className={studio.saveState.includes('salvo') ? 'saved-dot' : 'status-dot'} />
-              {studio.saveState}
-            </span>
-            <div>
-              <button
-                className="icon-button"
-                aria-label="Desfazer"
-                title="Desfazer última edição desta passagem"
-                disabled={!studio.canUndo || !studio.ready || studio.conflict}
-                onClick={studio.undo}
-              >
-                <Undo2 size={17} />
-              </button>
-              <button
-                className="button"
-                disabled={!draft || !studio.ready || studio.conflict}
-                onClick={() => void studio.verify()}
-              >
-                <RefreshCw size={14} className={studio.busy ? 'spin' : ''} />
-                Verificar
-              </button>
-              <button
-                className="button primary"
-                disabled={!studio.ready}
-                onClick={() => void save()}
-              >
-                <Check size={15} />
-                Salvar rascunho
-              </button>
-              {window.studio?.submitContribution && (
-                <button
-                  className="button"
-                  disabled={
-                    !studio.ready ||
-                    !draft?.raw?.trim() ||
-                    submitting ||
-                    (!!currentSubmission && !!waitingSubmission)
-                  }
-                  onClick={() => {
-                    setSubmitting(true);
-                    void studio
-                      .persist()
-                      .then(() => window.studio!.submitContribution!())
-                      .then(() =>
-                        setNotice(
-                          'Contribuição enviada para revisão. Você pode continuar trabalhando; a versão enviada foi preservada.',
-                        ),
-                      )
-                      .catch((reason) =>
-                        studio.setError(reason instanceof Error ? reason.message : String(reason)),
-                      )
-                      .finally(() => setSubmitting(false));
-                  }}
-                >
-                  {submitting
-                    ? 'Enviando…'
-                    : currentSubmission && waitingSubmission
-                      ? 'Enviada para revisão ✓'
-                      : submitted
-                        ? 'Enviar atualização para revisão'
-                        : 'Enviar para revisão'}
+            {sharedTreeName ? (
+              <>
+                <span className="save-status">
+                  Editando {sharedTreeName} · rascunho guardado nesta aba
+                </span>
+                <button onClick={() => window.dispatchEvent(new Event('studio:show-passage-tree'))}>
+                  Voltar à passagem
                 </button>
-              )}
-              {project.mode === 'local' && canReviewSource && (
-                <button
-                  className="button"
-                  disabled={!draft || !studio.ready || reviewBusy}
-                  onClick={() => void reviewSource(!!analysis.preview)}
-                >
-                  <ClipboardCheck size={15} /> Salvar como referência
-                </button>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                <span className="save-status" role="status">
+                  <span
+                    className={studio.saveState.includes('salvo') ? 'saved-dot' : 'status-dot'}
+                  />
+                  {studio.saveState}
+                </span>
+                <div>
+                  <button
+                    className="icon-button"
+                    aria-label="Desfazer"
+                    title="Desfazer última edição desta passagem"
+                    disabled={!studio.canUndo || !studio.ready || studio.conflict}
+                    onClick={studio.undo}
+                  >
+                    <Undo2 size={17} />
+                  </button>
+                  <button
+                    className="button"
+                    disabled={!draft || !studio.ready || studio.conflict}
+                    onClick={() => void studio.verify()}
+                  >
+                    <RefreshCw size={14} className={studio.busy ? 'spin' : ''} />
+                    Verificar
+                  </button>
+                  <button
+                    className="button primary"
+                    disabled={!studio.ready}
+                    onClick={() => void save()}
+                  >
+                    <Check size={15} />
+                    Salvar rascunho
+                  </button>
+                  {window.studio?.submitContribution && (
+                    <button
+                      className="button"
+                      disabled={
+                        !studio.ready ||
+                        !draft?.raw?.trim() ||
+                        submitting ||
+                        (!!currentSubmission && !!waitingSubmission)
+                      }
+                      onClick={() => {
+                        setSubmitting(true);
+                        void studio
+                          .persist()
+                          .then(() => window.studio!.submitContribution!())
+                          .then(() =>
+                            setNotice(
+                              'Contribuição enviada para revisão. Você pode continuar trabalhando; a versão enviada foi preservada.',
+                            ),
+                          )
+                          .catch((reason) =>
+                            studio.setError(
+                              reason instanceof Error ? reason.message : String(reason),
+                            ),
+                          )
+                          .finally(() => setSubmitting(false));
+                      }}
+                    >
+                      {submitting
+                        ? 'Enviando…'
+                        : currentSubmission && waitingSubmission
+                          ? 'Enviada para revisão ✓'
+                          : submitted
+                            ? 'Enviar atualização para revisão'
+                            : 'Enviar para revisão'}
+                    </button>
+                  )}
+                  {project.mode === 'local' && canReviewSource && (
+                    <button
+                      className="button"
+                      disabled={!draft || !studio.ready || reviewBusy}
+                      onClick={() => void reviewSource(!!analysis.preview)}
+                    >
+                      <ClipboardCheck size={15} /> Salvar como referência
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </footer>
           {(notice || studio.verification) && (
             <div className="notice" role="status">
@@ -2157,6 +2183,10 @@ export default function App() {
                       passageReview && approveOnSave ? reviewedResult! : undefined,
                     )
                     .then((outcome) => {
+                      if (outcome?.sourceApplied)
+                        requestAnimationFrame(() =>
+                          window.dispatchEvent(new Event('studio:source-applied')),
+                        );
                       setPreview(null);
                       setEvidencePointer(null);
                       setReviewError('');

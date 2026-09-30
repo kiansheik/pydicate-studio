@@ -4,9 +4,12 @@ import { invoke, type SourcePreview } from '../domain/authoring';
 import type { RuntimeGraph } from '../domain/runtime-tree';
 import { RuntimeTree } from './RuntimeTree';
 import { OperationPreview } from './OperationPreview';
-import { SharedTreeEditor } from './SharedTreeEditor';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
-import type { SharedDefinitionTarget, SharedTreeTarget } from '../domain/shared-definition';
+import type {
+  SharedDefinitionTarget,
+  SharedTreeTarget,
+  SharedTreeEntry,
+} from '../domain/shared-definition';
 
 interface ReferenceInfo {
   name: string;
@@ -42,6 +45,8 @@ export function ReferenceInspector(props: {
   onPreview?: (preview: SourcePreview) => void;
   onPrepareDiagnostic?: (report: CanvasDiagnostic) => void;
   definitionContext?: SharedDefinitionTarget;
+  onOpenSharedTree?: (entry: SharedTreeEntry) => void;
+  inactive?: boolean;
 }) {
   const identity = JSON.stringify([
     props.name,
@@ -58,10 +63,10 @@ export function ReferenceInspector(props: {
   const [scope, setScope] = useState('occurrence');
   const [busy, setBusy] = useState(false);
   const [copy, setCopy] = useState(false);
-  const [editingTree, setEditingTree] = useState(false);
   const activeIdentity = useRef<string | null>(identity);
   activeIdentity.current = identity;
   useEffect(() => {
+    if (props.inactive) return;
     let active = true;
     activeIdentity.current = identity;
     setState({ identity });
@@ -89,7 +94,7 @@ export function ReferenceInspector(props: {
       active = false;
       activeIdentity.current = null;
     };
-  }, [identity]);
+  }, [identity, props.inactive]);
   const info = state.identity === identity ? state.info : undefined;
   return (
     <section className="reference-inspector" aria-label={`Estrutura de ${props.name}`}>
@@ -101,28 +106,29 @@ export function ReferenceInspector(props: {
       {info && (
         <>
           <p>{info.definition || 'Significado não informado.'}</p>
-          {props.onPreview && info.treeEdit?.editable && !editingTree && (
-            <button onClick={() => setEditingTree(true)}>Editar árvore compartilhada</button>
+          {props.onOpenSharedTree && info.treeEdit?.editable && (
+            <button
+              onClick={() => {
+                if (info.treeEdit?.editable)
+                  props.onOpenSharedTree?.({ target: info.treeEdit, sourcePath: info.sourcePath });
+              }}
+            >
+              Editar árvore compartilhada
+            </button>
           )}
           {info.treeEdit && !info.treeEdit.editable && <p>{info.treeEdit.reason}</p>}
-          {editingTree && info.treeEdit?.editable && props.onPreview && (
-            <SharedTreeEditor
-              target={info.treeEdit}
-              sourcePath={info.sourcePath}
-              passageId={props.passageId}
-              sourceId={props.sourceId}
-              revisionId={props.revisionId}
-              engineFingerprint={props.engineFingerprint}
-              onPreview={props.onPreview}
-              onPrepareDiagnostic={props.onPrepareDiagnostic}
-              onClose={() => setEditingTree(false)}
-            />
-          )}
-          {!editingTree && info.runtimeTree && (
-            <RuntimeTree
-              graph={info.runtimeTree}
-              status="Estrutura do objeto compartilhado · consulta"
-            />
+          {info.runtimeTree && (
+            <details>
+              <summary>Ver objeto calculado pelo motor</summary>
+              <p>
+                Esta consulta mostra o resultado das operações. Para editar os passos e variantes,
+                abra a peça em uma aba.
+              </p>
+              <RuntimeTree
+                graph={info.runtimeTree}
+                status="Estrutura do objeto compartilhado · consulta"
+              />
+            </details>
           )}
           <details>
             <summary>Expressão e origem</summary>

@@ -10,8 +10,48 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapter import AdapterError, ProjectAdapter
+from shared_definition import edit_target, module_bindings
 
 REAL = Path(os.environ.get('PYDICATE_PROJECT_PARENT', str(Path(__file__).resolve().parents[3])))
+
+
+class SharedDefinitionIdentityTests(unittest.TestCase):
+    def test_storage_identity_is_stable_only_for_a_unique_module_binding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            corpus=Path(temporary)
+            source=corpus/'historic/lexicon.tu.py';source.parent.mkdir()
+            source.write_text("word = Noun('first')\nword = Noun('second')\n")
+            first=edit_target(corpus,{'name':'word','sourcePath':str(source),'line':1})
+            second=edit_target(corpus,{'name':'word','sourcePath':str(source),'line':2})
+            self.assertEqual(first['storageId'],first['declarationId'])
+            self.assertEqual(second['storageId'],second['declarationId'])
+            self.assertNotEqual(first['storageId'],second['storageId'])
+            source.write_text("word = Noun('first')\n")
+            unique=edit_target(corpus,{'name':'word','sourcePath':str(source),'line':1})
+            source.write_text("# inserted elsewhere\nword = Noun('first')\n")
+            shifted=edit_target(corpus,{'name':'word','sourcePath':str(source),'line':2})
+            self.assertNotEqual(unique['declarationId'],shifted['declarationId'])
+            self.assertEqual(unique['storageId'],shifted['storageId'])
+
+    def test_binding_inventory_counts_imports_and_module_rebindings_not_function_locals(self):
+        tree=ast.parse('''from values import root as piece
+import source as piece
+piece: object
+piece, other = pair
+piece += other
+if enabled:
+    piece = other
+def helper(piece):
+    piece = other
+    return piece
+class Group:
+    piece = other
+mapper = lambda piece: piece
+''')
+        counts=module_bindings(tree)
+        self.assertEqual(counts['piece'],6)
+        self.assertEqual(counts['helper'],1)
+        self.assertEqual(counts['Group'],1)
 
 
 @unittest.skipUnless((REAL/'oldtupicorpus/historic/lexicon.tu.py').exists(), 'selected local corpus unavailable')
@@ -58,6 +98,10 @@ studio_tree_helper = lambda value: value.copy()
         cls.temporary.cleanup()
 
     def setUp(self):
+        for directory in ('historic','authoring','ground_truth'):
+            for path in (self.corpus/directory).rglob('*'):
+                if path.is_file() and path not in self.originals:
+                    path.unlink()
         for path,data in self.originals.items():
             path.write_bytes(data)
         self.adapter = ProjectAdapter(self.parent/'state')
@@ -173,6 +217,80 @@ studio_tree_helper = lambda value: value.copy()
         with self.assertRaises(AdapterError) as caught:
             self.adapter.invoke('lexicon_tree_evaluate',{**request,'declarationId':'wrong identity'})
         self.assertEqual(caught.exception.code,'STALE_SOURCE')
+
+    def test_read_refresh_keeps_explicit_declaration_after_save_and_line_shift(self):
+        passage=next(item for item in self.project['passages'] if item['sourceId']=='studio_definition_second' and item['ordinal']==2)
+        original=self.inspect()['treeEdit']
+        locator={'name':original['name'],'declarationSourceId':original['sourceId'],
+                 'declarationLine':original['line'],'declarationId':original['declarationId']}
+        preview=self.adapter.invoke('lexicon_tree_preview',self.request("Noun('aba').copy()"))
+        self.project=self.adapter.invoke('source_apply',preview)
+        # The passage's same-named local object must not replace the shared tab.
+        fresh=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':original['name'],'declarationTarget':locator})
+        self.assertEqual(fresh['treeEdit']['scope'],'shared')
+        self.assertIn('.copy()',fresh['expression'])
+        self.assertEqual(fresh['definition'],'meaning override')
+        self.assertNotEqual(fresh['treeEdit']['sourceFingerprint'],original['sourceFingerprint'])
+        self.lexicon.write_text('# harmless earlier line\n'+self.lexicon.read_text())
+        self.project=self.adapter.refresh_project()
+        shifted=self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':original['name'],'declarationTarget':locator})
+        self.assertEqual(shifted['line'],original['line']+1)
+        self.assertNotEqual(shifted['treeEdit']['declarationId'],original['declarationId'])
+        self.assertEqual(shifted['treeEdit']['storageId'],original['storageId'])
+        self.assertEqual(shifted['definition'],'meaning override')
+        self.lexicon.write_text(self.lexicon.read_text().replace('__all__ = [',"studio_tree_word = Noun('another')\n__all__ = [",1))
+        self.project=self.adapter.refresh_project()
+        with self.assertRaises(AdapterError) as caught:
+            self.adapter.invoke('lexicon_inspect',{'passageId':passage['id'],'name':original['name'],'declarationTarget':locator})
+        self.assertEqual(caught.exception.code,'STALE_SOURCE')
+
+    def test_promoted_enosem_variant_survives_reference_approval_and_reopens_as_authoring_steps(self):
+        # The actual production declaration is (((ero) * (sem)).var(1)).copy().
+        # Supply its lexical base in this disposable corpus; the older laptop
+        # corpus does not necessarily contain the newer production sem entry.
+        self.lexicon.write_text(self.lexicon.read_text().replace('__all__ = [',"sem = Verb('sem')\n__all__ = [",1))
+        self.project=self.adapter.refresh_project()
+        raw="studio_define((((ero) * (sem)).var(1)), 'retirar; resgatar — variante preservada')"
+        expected=self.adapter.invoke('evaluate_expression',{'passageId':self.passage['id'],'raw':raw})
+        before={path:path.read_bytes() for path in self.originals}
+        preview=self.adapter.invoke('source_new_preview',{'sourceId':self.passage['sourceId'],'raw':raw})
+        self.assertEqual({path:path.read_bytes() for path in before},before)
+        self.project=self.adapter.invoke('source_apply',preview)
+        passage=next(item for item in self.project['passages'] if item['id']==preview['targetPassageId'])
+        name=passage['sourceExpression']
+        self.assertTrue(name.isidentifier(),name)
+        self.assertNotEqual(name,'enosem')
+        approved=self.adapter.invoke('reference_approve',{'passageId':passage['id'],
+            'sourceFingerprint':passage['sourceFingerprint'],'reviewedSurface':expected['surface']})
+        self.project=approved['project']
+        self.adapter=ProjectAdapter(self.parent/'state')
+        self.project=self.adapter.open_project(str(self.parent))
+        passage=next(item for item in self.project['passages'] if item['id']==passage['id'])
+        self.assertEqual(passage['sourceExpression'],name)
+        self.assertEqual(passage['acceptedReference'],expected['surface'])
+        inspected=self.inspect(name,passage)
+        self.assertEqual(inspected['expression'],'(((ero) * (sem)).var(1)).copy()')
+        def nodes(node):
+            return [node]+[item for child in node['children'] for item in nodes(child['node'])]
+        variants=[node for node in nodes(inspected['authoring']['root']) if node.get('method')=='var']
+        self.assertEqual(len(variants),1)
+        variant=variants[0]
+        encoded=inspected['expression'].encode('utf-16-le')
+        self.assertEqual(encoded[variant['start']*2:variant['end']*2].decode('utf-16-le'),variant['code'])
+        self.assertEqual(variant['children'][1]['node']['value'],1)
+        self.assertEqual(inspected['runtimeTree']['nodes'][0]['attributes']['variation_id'],1)
+        target=inspected['treeEdit']
+        request={'passageId':passage['id'],'name':name,'raw':target['expression'],
+                 'expectedExpression':target['expression'],'sourceFingerprint':target['sourceFingerprint'],
+                 'declarationId':target['declarationId'],'declarationSourceId':target['sourceId'],
+                 'declarationLine':target['line'],'engineFingerprint':self.project['engineFingerprint']}
+        result=self.adapter.invoke('lexicon_tree_evaluate',request)
+        self.assertEqual(result['surface'],expected['surface'])
+        self.assertEqual(result['annotated'],expected['annotated'])
+        saved={path:path.read_bytes() for path in self.corpus.rglob('*') if path.is_file() and '.git' not in path.parts}
+        unchanged=self.adapter.invoke('lexicon_tree_preview',request)
+        self.assertEqual(unchanged['diff'],'')
+        self.assertEqual({path:path.read_bytes() for path in saved},saved)
 
 
 if __name__=='__main__':

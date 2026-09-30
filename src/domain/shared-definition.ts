@@ -17,6 +17,7 @@ export type SharedTreeTarget =
       expression: string;
       sourceFingerprint: string;
       declarationId: string;
+      storageId?: string;
       scope: 'shared' | 'source';
       sourceId: string;
       line: number;
@@ -27,3 +28,13 @@ export type SharedTreeEvaluation = RenderResult & {
   authoring?: ParsedExpression;
   treeEdit?: SharedTreeTarget;
 };
+
+export interface SharedTreeEntry {
+  target: Extract<SharedTreeTarget, { editable: true }>;
+  sourcePath: string;
+}
+
+export interface SharedTreeRequest {
+  name: string;
+  definitionContext?: SharedDefinitionTarget;
+}

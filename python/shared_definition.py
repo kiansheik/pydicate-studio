@@ -15,6 +15,55 @@ def fingerprint(data):
     return 'sha256:' + hashlib.sha256(data).hexdigest()
 
 
+def module_bindings(tree):
+    """Count explicit module bindings without treating function locals as aliases."""
+    found = Counter()
+    class Bindings(ast.NodeVisitor):
+        def visit_Name(self, node):
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
+                found[node.id] += 1
+
+        def visit_FunctionDef(self, node):
+            found[node.name] += 1
+            # Defaults and decorators execute in the outer scope; the function
+            # body and argument names do not declare module variables.
+            for value in (*node.decorator_list, *node.args.defaults,
+                          *(value for value in node.args.kw_defaults if value is not None)):
+                self.visit(value)
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_ClassDef(self, node):
+            found[node.name] += 1
+            for value in (*node.decorator_list, *node.bases,
+                          *(keyword.value for keyword in node.keywords)):
+                self.visit(value)
+
+        def visit_Lambda(self, node):
+            for value in (*node.args.defaults,
+                          *(value for value in node.args.kw_defaults if value is not None)):
+                self.visit(value)
+
+        def visit_Import(self, node):
+            for alias in node.names:
+                found[alias.asname or alias.name.split('.')[0]] += 1
+
+        def visit_ImportFrom(self, node):
+            for alias in node.names:
+                # A star import supplies the initial namespace, not a concrete
+                # authored declaration address for any particular lexical name.
+                if alias.name != '*':
+                    found[alias.asname or alias.name] += 1
+
+        def visit_ExceptHandler(self, node):
+            if node.name:
+                found[node.name] += 1
+            self.generic_visit(node)
+
+    Bindings().visit(tree)
+    return found
+
+
 def edit_target(corpus, entry):
     """Expose only the exact declaration resolved by the selected passage."""
     unsupported = {'editable': False, 'reason': 'Esta peça é definida pelo motor; sua árvore não tem uma atribuição editável no corpus.'}
@@ -28,7 +77,8 @@ def edit_target(corpus, entry):
     if path.parent != historic or not path.name.endswith('.tu.py'):
         return unsupported
     before = path.read_bytes()
-    target = next((node for node in ast.parse(before.decode('utf-8')).body
+    tree = ast.parse(before.decode('utf-8'))
+    target = next((node for node in tree.body
                    if node.lineno == entry['line']), None)
     if not (isinstance(target, ast.Assign) and len(target.targets) == 1
             and isinstance(target.targets[0], ast.Name)
@@ -38,9 +88,12 @@ def edit_target(corpus, entry):
     text = before.decode('utf-8')
     expression = ast.get_source_segment(text, target.value)
     scope = 'shared' if path.name == 'lexicon.tu.py' else 'source'
+    identity = fingerprint((path.name + ':' + str(target.lineno) + ':' + entry['name']).encode())
+    storage = (fingerprint(('definition-draft:' + path.name + ':' + entry['name']).encode())
+               if module_bindings(tree)[entry['name']] == 1 else identity)
     return {'editable': True, 'name': entry['name'], 'expression': expression,
             'sourceFingerprint': fingerprint(before),
-            'declarationId': fingerprint((path.name + ':' + str(target.lineno) + ':' + entry['name']).encode()),
+            'declarationId': identity, 'storageId': storage,
             'scope': scope, 'sourceId': path.name.removesuffix('.tu.py'), 'line': target.lineno}
 
 

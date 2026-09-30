@@ -41,13 +41,14 @@ import { expressionGraph } from '../domain/expression-tree';
 import { TreeScopeEditor } from './TreeScopeEditor';
 import { LexicalInput } from './LexicalInput';
 import { operationTerm } from '../domain/operation-terms';
-import { ExpressionCanvas } from './ExpressionCanvas';
+import { TreeWorkspace } from './TreeWorkspace';
 import type { CanvasEdit, CanvasState } from '../domain/canvas';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type { EvaluationFailure } from '../domain/authoring';
 import type { MorphemeSurfaceHighlight } from '../domain/morpheme-display';
 
 interface TreeEditingProps {
+  onEditingSharedTree?: (name: string | null) => void;
   onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
   canvas?: CanvasState;
   onChangeCanvas?: (change: CanvasEdit) => void;
@@ -127,7 +128,7 @@ type PydicateTreeProps = TreeEditingProps & {
 };
 export function PydicateTree(props: PydicateTreeProps) {
   return props.onChangeCanvas ? (
-    <ExpressionCanvas
+    <TreeWorkspace
       key={props.passageId ?? 'canvas'}
       {...props}
       onChangeCanvas={props.onChangeCanvas}

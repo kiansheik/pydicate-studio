@@ -24,6 +24,40 @@ function parse(raw: string): AuthorNode {
 }
 
 describe('Pydicate source operation tree', () => {
+  it('keeps the editable variant inside a published shared definition and its copy wrapper', () => {
+    const raw = '(((ero) * (sem)).var(1)).copy()';
+    const source = parse(raw);
+    const graph = expressionGraph(source, raw)!;
+    expect(graph.nodes.map((node) => node.label)).toEqual([
+      '.copy()',
+      '.var(1)',
+      '*',
+      'ero',
+      'sem',
+    ]);
+    const variant = graph.nodes.find((node) => node.expression?.method === 'var')!;
+    const [scope] = editableRuntimeScopes(variant, source, raw);
+    expect(scope.method).toBe('var');
+    expect(variant.expression?.inlineCall?.arguments).toMatchObject([
+      { slot: 'arg0', kind: 'number', editText: '1', code: '1' },
+    ]);
+    const edited = editInlineArgument(raw, scope, 'arg0', '2');
+    expect(edited).toBe('(((ero) * (sem)).var(2)).copy()');
+    expect(expressionGraph(parse(edited), edited)!.nodes.map((node) => node.label)).toEqual([
+      '.copy()',
+      '.var(2)',
+      '*',
+      'ero',
+      'sem',
+    ]);
+    // A referencing passage exposes the binding. Its source does not contain
+    // those inner operations; the definition tab must inspect the saved RHS.
+    const reference = 'enosem_26169d1f';
+    expect(expressionGraph(parse(reference), reference)!.nodes.map((node) => node.label)).toEqual([
+      reference,
+    ]);
+  });
+
   it('keeps a composition definition on its existing visible operation and retains exact outer edit scope', () => {
     const raw = "studio_define((potar * moro).var(1).base_nominal(), 'conjunto')";
     const source = parse(raw);

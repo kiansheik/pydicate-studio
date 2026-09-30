@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import type { AuthorNode, SourcePreview } from '../src/domain/authoring';
 
 // These fixtures test scope, source review and persistent request wiring. They
@@ -6,6 +7,20 @@ import type { AuthorNode, SourcePreview } from '../src/domain/authoring';
 const passageRaw = 'enosem * beta';
 const definitionRaw = 'Verb("enosem")';
 const proposedRaw = 'mo.var(2) * pytá';
+
+function parsedSource(raw: string): AuthorNode {
+  return JSON.parse(
+    execFileSync(
+      'python3',
+      [
+        '-B',
+        '-c',
+        'import json,sys;from python.studio_authoring import expression_tree;print(json.dumps(expression_tree(sys.stdin.read())))',
+      ],
+      { input: raw, encoding: 'utf8' },
+    ),
+  ).root;
+}
 
 function leaf(code: string, id = 'root', start = 0): AuthorNode {
   return {
@@ -53,33 +68,45 @@ const preview: SourcePreview = {
   },
 };
 
-async function openReference(page: Page) {
+async function openReference(
+  page: Page,
+  options: {
+    name?: string;
+    definition?: string;
+    storageId?: string;
+    trees?: Record<string, AuthorNode>;
+  } = {},
+) {
+  const name = options.name ?? 'enosem';
+  const definition = options.definition ?? definitionRaw;
+  const raw = `${name} * beta`;
   await page.addInitScript(
     ({ raw, trees, responses }) => {
       window.__nextInitial = { raw, trees, responses };
     },
     {
-      raw: passageRaw,
+      raw,
       trees: {
-        [passageRaw]: binary(passageRaw, 'enosem', 'beta'),
-        [definitionRaw]: leaf(definitionRaw),
+        [raw]: binary(raw, name, 'beta'),
+        [definition]: leaf(definition),
         [proposedRaw]: binary(proposedRaw, 'mo.var(2)', 'pytá'),
+        ...options.trees,
       },
       responses: {
         lexicon_inspect: {
-          name: 'enosem',
+          name,
           definition: '',
-          expression: definitionRaw,
+          expression: definition,
           sourcePath: 'historic/lexicon.tu.py',
           line: 12,
-          safeOccurrenceExpansion: definitionRaw,
+          safeOccurrenceExpansion: definition,
           projectUses: {
             uses: [
               {
                 sourceId: 'araujo_catecismo_1686',
                 ordinal: 1,
                 line: 8,
-                expression: passageRaw,
+                expression: raw,
                 via: [],
                 direct: true,
               },
@@ -96,10 +123,11 @@ async function openReference(page: Page) {
           },
           treeEdit: {
             editable: true,
-            name: 'enosem',
-            expression: definitionRaw,
+            name,
+            expression: definition,
             sourceFingerprint: 'lexicon-before',
-            declarationId: 'enosem:12',
+            declarationId: `${name}:12`,
+            storageId: options.storageId,
             scope: 'shared',
             sourceId: 'lexicon',
             line: 12,
@@ -110,15 +138,15 @@ async function openReference(page: Page) {
     },
   );
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
-  await expect(page.getByTestId('generated-surface')).toHaveText(`SIMULADO:${passageRaw}`);
+  await expect(page.getByTestId('generated-surface')).toHaveText(`SIMULADO:${raw}`);
   await page
     .locator('.expression-canvas [data-canvas-key="main:root/left"] > [aria-pressed]')
     .click();
-  const inspector = page.getByRole('region', { name: 'Estrutura de enosem', exact: true });
+  const inspector = page.getByRole('region', { name: `Estrutura de ${name}`, exact: true });
   await expect(
     inspector.getByRole('button', { name: 'Editar árvore compartilhada', exact: true }),
   ).toBeEnabled();
-  await expect.poll(() => savedRaw(page)).toBe(passageRaw);
+  await expect.poll(() => savedRaw(page)).toBe(raw);
   return inspector;
 }
 
@@ -308,6 +336,7 @@ test('a correction inside a proposed definition retains both its selected part a
   await expect(
     editing.getByRole('button', { name: 'Corrigir gramática desta árvore', exact: true }),
   ).toBeEnabled();
+  await editing.getByRole('button', { name: 'Ajustar', exact: true }).click();
   await editing
     .locator(':scope > .expression-canvas [data-canvas-key="main:root/right"] > [aria-pressed]')
     .click();
@@ -376,6 +405,8 @@ test('Delete and undo in a shared tree keep the parent passage and its own undo 
   const code = editing.getByLabel('Expressão da árvore compartilhada', { exact: true });
   await code.fill(proposedRaw);
   const inner = editing.locator(':scope > .expression-canvas');
+  await expect(inner.locator('[data-canvas-key="main:root/right"]')).toBeAttached();
+  await inner.getByRole('button', { name: 'Ajustar', exact: true }).click();
   const selected = inner.locator('[data-canvas-key="main:root/right"] > [aria-pressed]');
   await selected.click();
   await selected.focus();
@@ -412,6 +443,7 @@ test('the shared definition canvas fits an 800 by 600 browser without horizontal
   const canvas = editing.locator(':scope > .expression-canvas');
   await expect(canvas.locator('[data-canvas-key="main:root/right"]')).toBeAttached();
   const viewport = canvas.locator(':scope > .canvas-viewport');
+  await canvas.getByRole('button', { name: 'Ajustar', exact: true }).click();
   await viewport.scrollIntoViewIfNeeded();
   await expect(viewport).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -423,5 +455,196 @@ test('the shared definition canvas fits an 800 by 600 browser without horizontal
   const box = await viewport.boundingBox();
   expect(box!.width).toBeGreaterThan(150);
   expect(box!.height).toBeGreaterThanOrEqual(200);
+  // The editor has scrolled to its canvas; tab navigation must still be usable
+  // without scrolling back to the declaration heading.
+  const tabs = page.getByRole('tablist', { name: 'Árvores abertas', exact: true });
+  await expect(tabs).toBeInViewport({ ratio: 1 });
+  expect(
+    await tabs.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return element.contains(
+        document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2),
+      );
+    }),
+  ).toBe(true);
   await page.screenshot({ path: 'test-results/shared-tree-editor.png' });
+  await tabs.getByRole('tab', { name: 'Passagem', exact: true }).click();
+  await expect(page.getByRole('tabpanel', { name: 'Passagem', exact: true })).toBeVisible();
+  await tabs.getByRole('tab', { name: 'enosem', exact: true }).click();
+  await expect(
+    editing.getByLabel('Expressão da árvore compartilhada', { exact: true }),
+  ).toHaveValue(proposedRaw);
+});
+
+test('adding a loose piece invalidates a pending shared-definition review even when its expression is unchanged', async ({
+  page,
+}) => {
+  const editing = await editor(page);
+  const code = editing.getByLabel('Expressão da árvore compartilhada', { exact: true });
+  await expect(editing.getByLabel('Resultado da árvore compartilhada')).toContainText(
+    definitionRaw,
+  );
+  await page.evaluate(() => window.__nextControl.holds.push({ method: 'lexicon_tree_preview' }));
+  await editing.getByRole('button', { name: 'Revisar árvore compartilhada', exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__nextControl.pending.some((item) => item.method === 'lexicon_tree_preview'),
+      ),
+    )
+    .toBe(true);
+  const selected = editing.locator('[data-canvas-key="main:root"] > [aria-pressed]');
+  await selected.focus();
+  await selected.press('Enter');
+  await selected.press('Control+d');
+  await expect(
+    editing.getByText('Conecte ou retire as peças soltas antes de revisar esta definição.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(code).toHaveValue(definitionRaw);
+  await page.evaluate(() => window.__nextControl.release('lexicon_tree_preview'));
+  await expect(
+    editing.getByRole('button', { name: 'Revisar árvore compartilhada', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole('dialog', { name: 'Revisar entrada do léxico', exact: true }),
+  ).toHaveCount(0);
+  expect(await savedRaw(page)).toBe(passageRaw);
+});
+
+test('shared-definition morphology uses the declaration namespace instead of the passage evaluator', async ({
+  page,
+}) => {
+  const editing = await editor(page);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.__nextControl.requests.filter(
+            (item) =>
+              item.method === 'lexicon_tree_evaluate' && item.params.includeMorphology === true,
+          ).length,
+      ),
+    )
+    .toBeGreaterThan(0);
+  const requests = await page.evaluate(() =>
+    window.__nextControl.requests.filter(
+      (item) => item.params.raw === 'Verb("enosem")' && item.params.includeMorphology === true,
+    ),
+  );
+  expect(requests.length).toBeGreaterThan(0);
+  for (const request of requests) {
+    expect(request.method).toBe('lexicon_tree_evaluate');
+    expect(request.params).toMatchObject({
+      name: 'enosem',
+      expectedExpression: definitionRaw,
+      sourceFingerprint: 'lexicon-before',
+      declarationId: 'enosem:12',
+      declarationSourceId: 'lexicon',
+      declarationLine: 12,
+      passageId: 'passage-a',
+    });
+  }
+  await expect(editing.getByLabel('Resultado da árvore compartilhada')).toContainText(
+    definitionRaw,
+  );
+  expect(await savedRaw(page)).toBe(passageRaw);
+});
+
+test('definition tabs retain the published variant, their undo history and camera without changing the passage', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  const name = 'enosem_26169d1f';
+  const raw = '(((ero) * (sem)).var(1)).copy()';
+  const edited = raw.replace('.var(1)', '.var(2)');
+  const parentRaw = `${name} * beta`;
+  await openReference(page, {
+    name,
+    definition: raw,
+    storageId: 'shared:enosem_26169d1f',
+    trees: { [raw]: parsedSource(raw), [edited]: parsedSource(edited) },
+  });
+  const tabs = page.getByRole('tablist', { name: 'Árvores abertas', exact: true });
+  const passage = page.getByRole('tabpanel', { name: 'Passagem', exact: true });
+  await passage.getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  const parentZoom = await passage.getByLabel('Zoom da árvore', { exact: true }).innerText();
+  await passage.getByRole('button', { name: 'Abrir peça em aba', exact: true }).click();
+  await expect(tabs.getByRole('tab', { name, exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(passage).toBeHidden();
+  const editing = page.getByRole('region', {
+    name: `Editar árvore compartilhada de ${name}`,
+    exact: true,
+  });
+  const variant = editing.getByRole('button', { name: 'Editar argumento 1 de .var', exact: true });
+  await expect(variant).toHaveText('1');
+  const graph = editing.getByRole('group', {
+    name: 'Diagrama interativo das operações Pydicate',
+    exact: true,
+  });
+  await expect(graph.locator('[data-canvas-key="main:root"]')).toContainText('.copy');
+  await expect(graph.locator('[data-canvas-key="main:root/receiver"]')).toContainText('.var');
+  await expect(page.getByRole('button', { name: 'Salvar rascunho', exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Salvar como referência', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(`Editando ${name} · rascunho guardado nesta aba`, { exact: true }),
+  ).toBeVisible();
+  await variant.click();
+  const input = editing.getByRole('textbox', { name: 'Valor do argumento', exact: true });
+  await input.fill('2');
+  await input.press('Enter');
+  await expect(variant).toHaveText('2');
+  await expect(
+    editing.getByLabel('Expressão da árvore compartilhada', { exact: true }),
+  ).toHaveValue(edited);
+  await editing.getByRole('button', { name: 'Ampliar árvore', exact: true }).click();
+  const sharedZoom = await editing.getByLabel('Zoom da árvore', { exact: true }).innerText();
+  await tabs.getByRole('tab', { name: 'Passagem', exact: true }).click();
+  await expect(editing).toBeHidden();
+  await expect(passage.getByLabel('Zoom da árvore', { exact: true })).toHaveText(parentZoom);
+  await expect(passage.locator('[data-canvas-key="main:root/left"]')).toContainText(name);
+  expect(await savedRaw(page)).toBe(parentRaw);
+  await tabs.getByRole('tab', { name, exact: true }).click();
+  await expect(editing.getByLabel('Zoom da árvore', { exact: true })).toHaveText(sharedZoom);
+  await expect(variant).toHaveText('2');
+  await editing.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await expect(variant).toHaveText('1');
+  await editing.getByRole('button', { name: 'Refazer edição na árvore', exact: true }).click();
+  await expect(variant).toHaveText('2');
+  expect(await savedRaw(page)).toBe(parentRaw);
+  await tabs.getByRole('button', { name: `Fechar aba ${name}`, exact: true }).click();
+  await expect(tabs.getByRole('tab', { name, exact: true })).toHaveCount(0);
+  await expect(tabs.getByRole('tab', { name: 'Passagem', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  // An unrelated insertion earlier in the file changes declaration coordinates,
+  // but the stable binding identity must still recover this definition's draft.
+  await page.evaluate(() => {
+    const response = window.__nextControl.responses.lexicon_inspect as {
+      treeEdit: { declarationId: string; line: number; sourceFingerprint: string };
+    };
+    response.treeEdit.declarationId = 'enosem_26169d1f:13';
+    response.treeEdit.line = 13;
+    response.treeEdit.sourceFingerprint = 'lexicon-after-earlier-line-insertion';
+  });
+  await passage.getByRole('button', { name: 'Abrir peça em aba', exact: true }).click();
+  await expect(variant).toHaveText('2');
+  await expect(
+    editing.getByLabel('Expressão da árvore compartilhada', { exact: true }),
+  ).toHaveValue(edited);
+  expect(await savedRaw(page)).toBe(parentRaw);
+  expect(
+    await page.evaluate(() =>
+      window.__nextControl.requests.filter((item) =>
+        ['source_apply', 'reference_approve', 'analysis_submit'].includes(item.method),
+      ),
+    ),
+  ).toHaveLength(0);
 });

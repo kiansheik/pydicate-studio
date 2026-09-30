@@ -123,12 +123,14 @@
 - `src/components/useMorphemeTrace.ts`, `MorphemeHighlight.tsx`, `src/domain/morpheme-display.ts`: revision-bound evidence request, selection-only reuse, exact display offsets and automatic HTML/SVG highlights in existing labels in `ExpressionCanvas`; context-bound `onSurfaceHighlight` carries main-root ranges through `Projections` to App’s current-result panel.
 - `authoring_runtime.morphology_evidence` and `includeMorphology` on evaluation: independently isolated per-step annotations, spacing-tolerant UTF-16 display segments and partial-tree evidence; default evaluation is unchanged.
 
-- `src/components/ReferenceInspector.tsx`: selected-reference runtime tree, source and project usage list, verified occurrence copy and local/shared meanings through the existing review callback.
+- `src/components/TreeWorkspace.{tsx,css}`: main passage/shared-definition tabs, exact declaration refresh and inactive-editor read suspension. `SharedTreeEditor.tsx` retains per-definition drafts/camera/undo, declaration-scoped evaluation and full-corpus review.
+- `src/components/ReferenceInspector.tsx`: selected-reference source and project usage list, collapsed runtime-object graph, shared-definition tab entry, verified occurrence copy and local/shared meanings through the existing review callback.
 - `python/reference_expansion.py`: bounded nested compound/alias copies verified against current runtime shape, including explicit meaning-only overrides.
 - `python/reference_uses.py`: read-only AST dependency candidates across historic sources, preserving declaration identity through aliases and later name rebinding.
 - `python/shared_definition.py`, `authoring_service.py`: named declaration tree
   inspection, bounded unsaved evaluation in the original declaration namespace,
-  nested reference context and exact-source guarded RHS previews. Shared edits
+  nested reference context, exact-declaration refresh, stable unique-definition
+  draft identity and exact-source guarded RHS previews. Shared edits
   use the complete disposable-corpus regression and existing reviewed apply;
   `python/tests/test_shared_definition.py` covers real-engine cross-source and
   shadowed-name behavior. Desktop and hosted allowlists expose

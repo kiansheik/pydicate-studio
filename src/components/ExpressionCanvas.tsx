@@ -67,7 +67,11 @@ import {
   treeOperations,
 } from '../domain/tree-operations';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
-import type { SharedDefinitionTarget } from '../domain/shared-definition';
+import type {
+  SharedDefinitionTarget,
+  SharedTreeEntry,
+  SharedTreeRequest,
+} from '../domain/shared-definition';
 import type { RenderResult } from '../domain/types';
 import { track } from '../domain/usage';
 import { useAdvancedTools } from '../domain/preferences';
@@ -89,6 +93,10 @@ import '../expression-canvas.css';
 
 export interface ExpressionCanvasProps {
   onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
+  onOpenReference?: (request: SharedTreeRequest) => void;
+  onOpenSharedTree?: (entry: SharedTreeEntry) => void;
+  onEditingSharedTree?: (name: string | null) => void;
+  inactive?: boolean;
   raw?: string;
   authoringRoot?: AuthorNode | null;
   evaluatedRoot?: AuthorNode | null;
@@ -178,6 +186,7 @@ export function ExpressionCanvas({
   const generation = useRef(0);
   const fragmentSignature = JSON.stringify(saved.fragments.map(({ id, raw: code }) => [id, code]));
   useEffect(() => {
+    if (props.inactive) return;
     const ticket = ++generation.current;
     let current = true;
     const next: Record<string, FragmentResult> = {};
@@ -262,6 +271,7 @@ export function ExpressionCanvas({
     props.sourceId,
     props.engineFingerprint,
     JSON.stringify(props.sharedDefinition),
+    props.inactive,
   ]);
 
   const pieces = useMemo<Piece[]>(() => {
@@ -516,6 +526,8 @@ export function ExpressionCanvas({
     raw: selectedPiece?.raw ?? '',
     root: selectedRoot,
     selectedId: selectedNode?.id,
+    sharedDefinition: props.sharedDefinition,
+    inactive: props.inactive,
     pieceId: selectedPiece?.id,
     passageId: props.passageId,
     sourceId: props.sourceId,
@@ -2597,15 +2609,31 @@ export function ExpressionCanvas({
               {advanced ? <ChevronUp size={15} /> : <ChevronDown size={15} />}Detalhes e edição
             </button>
             {selectedScope && definitionBody(selectedScope).kind === 'reference' && (
-              <button
-                onClick={() =>
-                  container.current
-                    ?.querySelector('.reference-inspector')
-                    ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-                }
-              >
-                Ver estrutura e usos
-              </button>
+              <>
+                {props.onOpenReference && (
+                  <button
+                    onClick={async () => {
+                      if (document.fullscreenElement === container.current)
+                        await document.exitFullscreen();
+                      props.onOpenReference?.({
+                        name: definitionBody(selectedScope).code,
+                        definitionContext: props.sharedDefinition,
+                      });
+                    }}
+                  >
+                    Abrir peça em aba
+                  </button>
+                )}
+                <button
+                  onClick={() =>
+                    container.current
+                      ?.querySelector('.reference-inspector')
+                      ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+                  }
+                >
+                  Ver estrutura e usos
+                </button>
+              </>
             )}
             {selectedRoot && props.onPrepareDiagnostic && (
               <button
@@ -2657,6 +2685,8 @@ export function ExpressionCanvas({
                 engineFingerprint={props.engineFingerprint}
                 onPreview={props.onLexicalPreview}
                 onPrepareDiagnostic={props.onPrepareDiagnostic}
+                onOpenSharedTree={props.onOpenSharedTree}
+                inactive={props.inactive}
                 definitionContext={props.sharedDefinition}
                 onCopy={(replacement) =>
                   commit({

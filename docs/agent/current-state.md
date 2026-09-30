@@ -1,5 +1,25 @@
 # Current state
 
+## Shared pieces in main tree tabs (locally verified; rollout pending)
+
+The actual `imomiaûsupyrarenosema` passage (Araújo ordinal 112) references
+`enosem_26169d1f`, whose saved expression is `(((ero) * (sem)).var(1)).copy()`.
+The variant survives publication; the former runtime-object view hid its authored
+steps. This is distinct from the older literal `enosem = Verb("enosem")`.
+
+**Abrir peça em aba** now opens the saved definition beside **Passagem**, above
+the main canvas, with the same editable operations and variant arguments. Tabs
+retain independent selection, camera and undo history while switching; closed
+tabs recover browser-session drafts. Shared review/repair controls are above the
+canvas; passage save controls clearly give way to the active shared definition.
+Inactive tabs pause reads. Shared morphology uses the declaration namespace.
+
+Reviewed saves refresh the exact declaration with stale-source guards intact.
+Unique definitions retain draft identity when earlier source lines shift;
+ambiguous bindings stay separate. A changed proposal or loose piece invalidates
+an in-flight review. Focused actual-engine, browser, domain and build checks pass;
+see [handoff](session-handoffs/2026-09-30-shared-tree-tabs.md).
+
 ## Shared definition trees and scoped grammar repair (live)
 
 Release `020f0ea195e8ce9eb6182f1bbd73ddb8eef3efd3` is live from PR #16.

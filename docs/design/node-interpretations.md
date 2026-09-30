@@ -58,6 +58,18 @@ first be copied into the visible tree before a local definition edit.
 
 ## Shared tree editing
 
+`TreeWorkspace` places the passage and shared definitions in tabs above the same
+canvas area. **Abrir peça em aba** opens a reference directly; the inspector also
+offers **Editar árvore compartilhada**. Both load the saved authored expression,
+so operations such as `.var(1).copy()` remain editable even when the calculated
+runtime object condenses them. The latter is a collapsed inspection detail.
+Each mounted tab retains its own camera, selection and undo history. Closing a
+tab retains its browser-session draft, including loose pieces. Hidden tabs pause
+evaluation/inspection requests; shared morphology uses the declaration scope.
+The active definition has its own review/repair controls, and the passage footer
+indicates that shared editing is active. Review responses are bound to both the
+expression and loose-piece state, so a changed draft cannot open an old review.
+
 The reference inspector exposes `treeEdit` only for a named, simple assignment
 in a corpus `.tu.py` file. It carries the original RHS, source fingerprint,
 declaration identity, source ID and line. Helpers, multiple assignment targets
@@ -72,6 +84,16 @@ for further editing or a targeted grammar repair. The request retains `name`,
 from the containing passage's source context. Nested `lexicon_inspect` requests
 carry that descriptor as `definitionContext`, so a later passage-local binding
 cannot silently replace the meaning of a referenced piece.
+
+After a reviewed save, an open definition tab refreshes through
+`lexicon_inspect.declarationTarget` using its name and original declaration
+coordinates. This read-only lookup prefers the same binding at that line, or
+requires a unique same-name binding when lines have shifted. Ambiguous rebinding
+requires explicit selection. The returned fresh fingerprint is necessary for
+later previews; refreshing never bypasses their exact-source guards.
+`treeEdit.storageId` gives a uniquely declared name a stable tab/draft key when
+earlier edits shift its line. Repeated module bindings retain their separate
+line-bound identities; function-local variables do not count as rebindings.
 
 `lexicon_tree_preview` validates the expression through the bounded interpreter,
 replaces only the selected assignment's RHS, preserves comments and subsequent

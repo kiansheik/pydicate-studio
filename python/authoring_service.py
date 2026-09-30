@@ -755,7 +755,11 @@ class AuthoringService:
 
     def lexicon_inspect(self,params):
         context=self.structure_context(params); self.fresh(params)
-        if params.get('definitionContext') is not None:
+        if params.get('declarationTarget') is not None:
+            target=self._refresh_definition_target(params['declarationTarget'],params.get('name'))
+            result=self.child({'action':'lexicon_tree_inspect','name':params.get('name'),
+                'declarationSourceId':target['sourceId'],'declarationLine':target['contextLine']})
+        elif params.get('definitionContext') is not None:
             owner=self._definition_context(params['definitionContext'])
             result=self.child({'action':'lexicon_tree_inspect','name':params.get('name'),
                 'declarationSourceId':owner['sourceId'],'declarationLine':owner['line']})
@@ -765,6 +769,37 @@ class AuthoringService:
         result['treeEdit']=edit_target(self.corpus,result)
         self.fresh(params)
         return result
+
+    def _refresh_definition_target(self,target,name):
+        """Read a fresh target after publication without rebinding through a passage."""
+        sources={'lexicon',*(source['id'] for source in self.adapter.project.get('sources',[]))}
+        if (not isinstance(target,dict) or not isinstance(name,str) or not name.isidentifier()
+                or name.startswith('_') or target.get('name')!=name
+                or target.get('declarationSourceId') not in sources
+                or type(target.get('declarationLine')) is not int or target['declarationLine']<1):
+            self.error('A origem da definição precisa ser selecionada novamente.','LEXICAL_SCOPE')
+        source=target['declarationSourceId'];line=target['declarationLine']
+        path=self.corpus/'historic'/(source+'.tu.py')
+        statements=ast.parse(path.read_text(encoding='utf-8')).body
+        # Multiple assignments and helper bindings remain possible rebindings,
+        # even though the tree editor cannot rewrite them.
+        bindings=[node for node in statements if
+            isinstance(node,ast.Assign) and any(isinstance(item,ast.Name) and item.id==name for item in node.targets)
+            or isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)) and node.name==name
+            or isinstance(node,ast.AnnAssign) and isinstance(node.target,ast.Name) and node.target.id==name]
+        selected=next((node for node in bindings if node.lineno==line),None)
+        if selected is None:
+            if len(bindings)!=1:
+                self.error('A definição mudou de lugar e há mais de uma declaração possível. Selecione a peça novamente.','STALE_SOURCE')
+            selected=bindings[0]
+        from shared_definition import edit_target
+        current=edit_target(self.corpus,{'name':name,'sourcePath':str(path),'line':selected.lineno})
+        if not current['editable']:
+            self.error(current['reason'],'LEXICAL_SCOPE')
+        # Keep this declaration's later meaning overrides, stopping before a
+        # later binding of the same name could silently select another piece.
+        following=next((node.lineno for node in bindings if node.lineno>selected.lineno),10**9)
+        return {**current,'contextLine':following}
 
     def _definition_context(self,context):
         """Resolve nested references in their owner's declaration, not the passage."""

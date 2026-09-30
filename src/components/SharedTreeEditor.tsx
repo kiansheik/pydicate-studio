@@ -6,6 +6,8 @@ import type {
   SharedDefinitionTarget,
   SharedTreeEvaluation,
   SharedTreeTarget,
+  SharedTreeEntry,
+  SharedTreeRequest,
 } from '../domain/shared-definition';
 import { workspaceAutofill } from '../domain/workspace-autofill';
 import { ExpressionCanvas } from './ExpressionCanvas';
@@ -26,9 +28,14 @@ export function SharedTreeEditor(props: {
   onPreview: (preview: SourcePreview) => void;
   onPrepareDiagnostic?: (report: CanvasDiagnostic) => void;
   onClose: () => void;
+  onOpenReference?: (request: SharedTreeRequest) => void;
+  onOpenSharedTree?: (entry: SharedTreeEntry) => void;
+  onReload?: () => void;
+  inactive?: boolean;
 }) {
   const { target } = props;
-  const storageKey = `studio:shared-tree:${JSON.stringify([props.sourcePath, target.declarationId, target.name])}`;
+  const storageKey = `studio:shared-tree:${JSON.stringify([props.sourcePath, target.storageId ?? target.declarationId, target.name])}`;
+  const legacyStorageKey = `studio:shared-tree:${JSON.stringify([props.sourcePath, target.declarationId, target.name])}`;
   const initial = (): DefinitionDraft => ({
     name: target.name,
     expectedExpression: target.expression,
@@ -42,15 +49,14 @@ export function SharedTreeEditor(props: {
   const [draft, setDraft] = useState<DefinitionDraft>(() => {
     try {
       const saved = JSON.parse(
-        sessionStorage.getItem(storageKey) || 'null',
+        sessionStorage.getItem(storageKey) || sessionStorage.getItem(legacyStorageKey) || 'null',
       ) as DefinitionDraft | null;
       if (
         saved?.name === target.name &&
         typeof saved.raw === 'string' &&
         typeof saved.expectedExpression === 'string' &&
         typeof saved.sourceFingerprint === 'string' &&
-        isCanvasState(saved.canvas) &&
-        saved.raw !== target.expression
+        isCanvasState(saved.canvas)
       )
         return saved;
     } catch {
@@ -69,6 +75,31 @@ export function SharedTreeEditor(props: {
   }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => {
+    // A clean draft follows the saved declaration; a reviewed draft becomes the
+    // new baseline. Unrelated edits in the same source preserve our proposal.
+    if (
+      draft.expectedExpression === target.expression ||
+      draft.raw === target.expression ||
+      (draft.raw === draft.expectedExpression && draft.canvas.fragments.length === 0)
+    ) {
+      if (
+        draft.sourceFingerprint === target.sourceFingerprint &&
+        draft.expectedExpression === target.expression
+      )
+        return;
+      setDraft((previous) => ({
+        ...previous,
+        raw: previous.raw === previous.expectedExpression ? target.expression : previous.raw,
+        expectedExpression: target.expression,
+        sourceFingerprint: target.sourceFingerprint,
+        declarationId: target.declarationId,
+        declarationSourceId: target.sourceId,
+        declarationLine: target.line,
+      }));
+      setHistory({ past: [], future: [] });
+    }
+  }, [target.expression, target.sourceFingerprint, target.declarationId]);
   const identity = JSON.stringify([
     draft.raw,
     draft.expectedExpression,
@@ -77,8 +108,12 @@ export function SharedTreeEditor(props: {
     props.revisionId,
     props.engineFingerprint,
   ]);
-  const live = useRef<string | null>(identity);
-  live.current = identity;
+  const reviewIdentity = JSON.stringify([
+    identity,
+    draft.canvas.fragments.map(({ id, raw }) => [id, raw]),
+  ]);
+  const live = useRef<string | null>(reviewIdentity);
+  live.current = reviewIdentity;
   const stale =
     draft.expectedExpression !== target.expression ||
     draft.sourceFingerprint !== target.sourceFingerprint;
@@ -106,6 +141,7 @@ export function SharedTreeEditor(props: {
     }
   }, [draft, storageKey]);
   useEffect(() => {
+    if (props.inactive) return;
     let active = true;
     setSnapshot({ identity });
     if (stale || !draft.raw.trim()) return;
@@ -130,7 +166,7 @@ export function SharedTreeEditor(props: {
       active = false;
       clearTimeout(timer);
     };
-  }, [identity, stale]);
+  }, [identity, stale, props.inactive]);
   useEffect(
     () => () => {
       live.current = null;
@@ -163,7 +199,7 @@ export function SharedTreeEditor(props: {
         <h3>
           Editar árvore compartilhada · <code>{target.name}</code>
         </h3>
-        <button onClick={props.onClose}>Fechar editor da definição</button>
+        <button onClick={props.onClose}>Voltar à passagem</button>
       </header>
       <p>
         O nome <code>{target.name}</code> continua nas passagens. Ao aplicar a revisão, todas as
@@ -178,6 +214,7 @@ export function SharedTreeEditor(props: {
           A definição salva mudou. Seu rascunho foi mantido; confira a origem antes de continuar.
         </p>
       )}
+      {props.onReload && <button onClick={props.onReload}>Atualizar definição salva</button>}
       {(stale || draft.raw !== target.expression) && (
         <button
           disabled={busy}
@@ -188,6 +225,43 @@ export function SharedTreeEditor(props: {
           Recarregar definição salva
         </button>
       )}
+      {hasLoosePieces && <p>Conecte ou retire as peças soltas antes de revisar esta definição.</p>}
+      <div className="shared-tree-actions">
+        {props.onPrepareDiagnostic && (
+          <button
+            disabled={stale || !root || busy || hasLoosePieces}
+            onClick={() => {
+              if (root)
+                diagnose({
+                  raw: draft.raw,
+                  root: result?.tree ?? root,
+                  selectedNodeId: root.id,
+                  failures: result?.failures,
+                });
+            }}
+          >
+            Corrigir gramática desta árvore
+          </button>
+        )}
+        <button
+          disabled={busy || stale || hasLoosePieces || !draft.raw.trim()}
+          onClick={async () => {
+            const requestIdentity = reviewIdentity;
+            setBusy(true);
+            setError('');
+            try {
+              const preview = await invoke<SourcePreview>('lexicon_tree_preview', params);
+              if (live.current === requestIdentity) props.onPreview(preview);
+            } catch (reason) {
+              if (live.current === requestIdentity) setError(String(reason));
+            } finally {
+              if (live.current !== null) setBusy(false);
+            }
+          }}
+        >
+          {busy ? 'Verificando todas as passagens…' : 'Revisar árvore compartilhada'}
+        </button>
+      </div>
       <ExpressionCanvas
         raw={draft.raw}
         canvas={draft.canvas}
@@ -198,6 +272,9 @@ export function SharedTreeEditor(props: {
         revisionId={props.revisionId}
         engineFingerprint={props.engineFingerprint}
         sharedDefinition={sharedDefinition}
+        inactive={props.inactive}
+        onOpenReference={props.onOpenReference}
+        onOpenSharedTree={props.onOpenSharedTree}
         onChangeCanvas={(edit: CanvasEdit) =>
           change({ ...draft, raw: edit.raw, canvas: edit.canvas })
         }
@@ -239,43 +316,6 @@ export function SharedTreeEditor(props: {
       )}
       {current?.error && <p role="alert">{current.error}</p>}
       {error && <p role="alert">{error}</p>}
-      {hasLoosePieces && <p>Conecte ou retire as peças soltas antes de revisar esta definição.</p>}
-      <div className="shared-tree-actions">
-        {props.onPrepareDiagnostic && (
-          <button
-            disabled={stale || !root || busy || hasLoosePieces}
-            onClick={() => {
-              if (root)
-                diagnose({
-                  raw: draft.raw,
-                  root: result?.tree ?? root,
-                  selectedNodeId: root.id,
-                  failures: result?.failures,
-                });
-            }}
-          >
-            Corrigir gramática desta árvore
-          </button>
-        )}
-        <button
-          disabled={busy || stale || hasLoosePieces || !draft.raw.trim()}
-          onClick={async () => {
-            const requestIdentity = identity;
-            setBusy(true);
-            setError('');
-            try {
-              const preview = await invoke<SourcePreview>('lexicon_tree_preview', params);
-              if (live.current === requestIdentity) props.onPreview(preview);
-            } catch (reason) {
-              if (live.current === requestIdentity) setError(String(reason));
-            } finally {
-              if (live.current !== null) setBusy(false);
-            }
-          }}
-        >
-          {busy ? 'Verificando todas as passagens…' : 'Revisar árvore compartilhada'}
-        </button>
-      </div>
     </section>
   );
 }

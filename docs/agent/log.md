@@ -1,3 +1,13 @@
+## 2026-09-30 — Shared pieces in main tree tabs
+
+Confirmed the published `enosem_26169d1f` retains `.var(1).copy()`; its runtime
+graph hid editable steps. Shared references now open beside the passage in the
+main canvas tabs. Independent drafts, camera and undo survive switching; closed
+drafts survive declaration line shifts. Shared morphology uses exact declaration
+scope; stale reviews and changed loose pieces stay guarded. Browser checks cover
+800×600 sticky tabs and the actual published expression. See
+[handoff](session-handoffs/2026-09-30-shared-tree-tabs.md).
+
 ## 2026-09-30 — Shared tree editing and subtree grammar repair
 
 Added an editable shared-definition canvas inside the imported-piece inspector,
