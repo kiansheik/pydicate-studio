@@ -1,6 +1,12 @@
 # Current state
 
-## Definition reuse, persistent tabs and passage accordions (rollout pending)
+## Definition reuse, persistent tabs and passage accordions (live)
+
+Release `3aee95d10afacec596179d28039885a910fbd79c` is live from PR #16.
+The feature rollout took 51.6s; a compact-screen tab stacking follow-up took 62.7s
+after unused build-cache cleanup. Fresh live health: 153 lines, zero divergences
+or execution failures, no active grammar repairs. Exact live alias review checked
+all 153 references successfully; research sources were not applied by verification.
 
 Shared definition tabs now survive passage changes, with bordered tab styling
 and independent draft/camera/undo state. Their evaluation and grammar correction
@@ -14,13 +20,19 @@ The navigator groups passages by source, section and subsection, preserving
 administrator order and reflecting current draft labels/status. Initial load opens
 the final passage in the restored source, including pending rows, and reveals its
 section path. Filters reveal matches; subsequent navigation remains explicit.
+Live browser checks preserve tabs, variant and zoom between passages and find the
+exact newer definition for reuse. Tabpanels isolate canvas overlay layers so the
+sticky tabs remain clickable after keyboard focus scrolls the compact editor.
+This was verified on the deployed follow-up at 800×600 with actual tab hit tests
+and switching; no research writes occurred during the browser checks.
 
-A disposable production snapshot confirms `enosem_26169d1f.copy()` preserves all
+A production snapshot and deployed preview confirm `enosem_26169d1f.copy()` preserves all
 153 surfaces when replacing old `enosem`. Araújo58 changes only its annotation to
 `eno[CAUSATIVE_PREFIX:ERO]sem[ROOT]`. Shared-definition review now shows annotated
 before/after rows and requires acknowledgement bound to that exact preview.
 Surface/reference/coverage/execution regressions remain blocked; this does not
-approve saved references. See
+approve saved references. Imported definitions also retain complete meaning and
+structure: indirect alias mutations fail before reuse. See
 [handoff](session-handoffs/2026-09-30-definition-reuse-navigation.md).
 
 The ordinary tree operation menu exposes **Verbo de 2ª classe (estativo)** via

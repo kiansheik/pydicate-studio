@@ -13,6 +13,14 @@ checks pass. A generalized `v()` engine patch was tested separately against all
 153 saved lines; applying it awaits explicit permission to edit the neighboring
 engine. Confirmed that `ba'e` loses argument negation; that repair remains separate.
 
+Release `f7fe580d` deployed in 51.6s. Fresh live health: 153 lines with zero
+divergences/failures; exact alias preview checks all 153 references and presents
+the single annotation change. Verification applies no research edits.
+Live browser checks pass for tabs/variant/zoom/reuse. Screenshot review caught
+canvas controls covering sticky tabs after focus; follow-up `3aee95d` isolates
+tabpanel stacking and its focused regression fails before/passes after. The
+follow-up light rollout completed in 62.7s after unused build-cache cleanup.
+
 ## 2026-09-30 — Shared pieces in main tree tabs
 
 Confirmed the published `enosem_26169d1f` retains `.var(1).copy()`; its runtime

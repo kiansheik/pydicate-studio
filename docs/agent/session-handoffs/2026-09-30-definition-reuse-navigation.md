@@ -42,19 +42,19 @@ isolated corpus/grammar snapshot checked the exact definitions and all saved lin
 
 - Focused browser checks passed for persistent camera/undo, 800×600 appearance,
   origin-bound grammar submission, reference/copy/undo and stale search responses.
-  Final four reuse/race cases passed in15.4s on isolated port5181.
+  Final four reuse/race cases passed in 15.4s on isolated port 5181.
 - Navigator: four domain, four browser and six Python search-ranking checks passed.
 - TypeScript and final app build pass (existing large-chunk advisory only).
 - 19 actual-engine shared-definition tests and seven publication-portability tests
   pass. Two browser checks cover annotation before/after, acknowledgement reset
   and submission of the exact reviewed preview.
 - Two final focused shared-definition tests pass after the indirect alias-mutation
-  guard; the exact production-snapshot preview still passes all153 lines/references
+  guard; the exact production-snapshot preview still passes all 153 lines/references
   with only the one explicitly reported annotation change and no source writes.
 - Stative operation: 27 domain, four selected-engine Python and one actual-engine
   normal-mode browser preview/apply/undo check pass.
 - `.local/vps-qa/stative-engine-proposal/generalized-v.patch`: five isolated engine
-  tests pass; all153 saved outputs and annotations remain unchanged. The portable
+  tests pass; all 153 saved outputs and annotations remain unchanged. The portable
   patch affects only `v()`, copied source provenance and a focused engine test.
   No neighboring or live engine file was modified before requesting permission.
 
@@ -92,10 +92,58 @@ negation fix has been applied.
 
 ## Deployment and live verification
 
-Pending. No live research mutation was made during implementation/snapshot checks.
-Final preflight: live release `e5852d84`, running; host4.0GB free. The generalized
-engine patch is awaiting the user's explicit exception to the neighboring-repo
-restriction; Studio rollout remains independently authorized.
+Committed/pushed `f7fe580d223fa25ebf94cec1304c106aa7cc5bc1`; ran
+`STUDIO_REF=unlocked-light-deploy make collab-deploy-light`. Six deployment checks
+passed; the real app-only rollout completed in 51.6s with database checkpoint
+`20260930T150020-6fe550`. Running image and health independently verified.
+
+Fresh live health: 153 lines, zero divergences/failures, six pending passages,
+319 morphemes, no active repairs, 3.465s. The actual navigator restores the source,
+selects its final pending row and groups one section into 12 subsections.
+Read-only `.local/vps-qa/definition-alias-preview-live.cjs` generated the exact
+`enosem_26169d1f.copy()` review on production: 153 lines/references checked,
+zero output changes, one expected annotated pair, original source fingerprint
+and expression unchanged. It never calls source_apply.
+
+Authenticated `.local/vps-qa/persistent-tabs-live.cjs` passed with 46 invokes,
+zero browser/HTTP/invoke errors or blocked writes, unchanged saved drafts and
+restored original selection. Tabs, `.var(1)` and zoom persist between the actual
+visible passages 113 and 58. The old-definition picker finds the exact new name
+with both reference/copy choices. At 800×600 the tab targets are 90×38, 140×38 and
+79×38 with no page overflow. The normal stative operation is DOM-verified; the
+dropdown was canceled without selecting/evaluating/applying. Final health again:
+153 lines, zero divergences/failures, 2.552s. All three screenshots inspected.
+
+Live harness corrections: administrator order changes displayed ordinals relative
+to source ordinals; startup must await restored remote drafts; live async searches
+need an explicit assertion timeout beyond Playwright's default 5s. The successful
+run did not instrument exact search latency. Screenshot review identified one
+real compact-layout problem: canvas toolbar z-index 20 can cover sticky tabs at
+z-index 3 after keyboard focus scrolls. Follow-up `3aee95d` adds `isolation:isolate`
+to each tabpanel, preserving popup positioning without clipping contents. The
+focused 800×600 regression failed before the fix and passed afterward (4.2s),
+including actual tab hit targets, normal operation dropdown/cancel and switching.
+Typecheck passed; screenshot visually confirms the fix.
+Follow-up `3aee95d10afacec596179d28039885a910fbd79c` deployed successfully with
+`make collab-deploy-light` in 62.7s; checkpoint `20260930T151037-7d4c18`.
+Narrow deployed check (`.local/vps-qa/sticky-tabs-live.cjs`) confirms computed
+isolation, unobscured 90×38/148×38 tab centers after focus/scroll and working tab
+switching at 800×600; screenshot visually inspected. 27 invokes, no research writes
+or HTTP/page errors, original selection restored. The script's final monitor
+initially dereferenced successful `session_select` null responses; optional
+chaining fixed that harness assertion without repeating the accepted UI flow.
+
+Preflight host space 4.0GB; after rollout 2.7GB. Preserve research/backups and
+running/rollback images before another build. The two engine patch targets still
+have their original hashes. The generalized engine patch awaits the user's
+explicit exception to the neighboring-repo restriction; it has not been applied.
+Before the small CSS follow-up, reclaimed only 878.5MB of unused Docker build
+cache, leaving 3.5GB free. Images, volumes, research and backups were retained.
+Proposal: `.local/vps-qa/stative-engine-proposal/generalized-v.patch`, SHA256
+`c203651c89102aa1c29a1c2781eb2c0cf2fb5c00a84033fb0ef8adceb7603c02`.
+If approved, inspect neighboring instructions/current hashes, apply only those
+reviewed files and update `test_stative_operation`'s old-engine unsupported-root
+expectation to the generalized conversion contract. Preserve live dirty research.
 
 ## Remaining questions
 
