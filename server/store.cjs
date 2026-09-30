@@ -251,4 +251,4 @@ class Store {
     }
     async close() { await this.db.close(); }
 }
-module.exports = { Store, fault, text, identifier, same, CLAIM_MS, passageKey };
+module.exports = { Store, fault, text, identifier, same, stable, CLAIM_MS, passageKey };

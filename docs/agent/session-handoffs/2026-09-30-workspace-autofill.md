@@ -18,7 +18,7 @@ Docs: current-state/log/repo-map/this handoff. Preserved prior deployment notes.
 
 ## Commands / results
 `npm run build:app`: passed (existing large-chunk warning).
-Existing Playwright default desk and hosted source editing checks run.
+Existing Playwright default desk and hosted source editing checks passed.
 `git diff --check`: run before commit.
 No generated files or corpus/grammar content edited.
 
@@ -26,7 +26,7 @@ No generated files or corpus/grammar content edited.
 Browser and extension heuristics can override autocomplete=off. Explicit extension
 ignore hints help; actual saved-credential profiles require user confirmation.
 Do not use fake password fields, disable paste, or change user-entered values.
-Deployment and live DOM verification pending.
+Deployed a784d1c in 50.3 seconds. Live authenticated DOM check: 24 mounted controls all opt out; login keeps username/current-password. The first probe incorrectly waited for a hidden pane to be visible; checking attached controls passed.
 
 ## Suggested next prompt
 Confirm credential autofill behavior in the contributors' actual browsers after

@@ -1,3 +1,5 @@
+import { SubmissionReviewQueue } from './components/SubmissionReviewQueue';
+import { useSubmissions, submissionKey, submissionLabels } from './domain/submissions';
 import { workspaceAutofill } from './domain/workspace-autofill';
 import { CorpusHealth } from './CorpusHealth';
 import { PassageManager } from './PassageManager';
@@ -582,6 +584,10 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
 export default function App() {
   const studio = useStudio();
   const { project, passage, draft, result } = studio;
+  const { submissions, error: submissionError } = useSubmissions(project.id);
+  const submitted = submissions[submissionKey(passage.id)];
+  const currentSubmission = submitted?.revisionId === draft?.revisionId ? submitted : undefined;
+  const waitingSubmission = submitted && ['submitted', 'ready'].includes(submitted.status);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState<Tab>(
@@ -737,11 +743,20 @@ export default function App() {
     const timer = setTimeout(() => track('navigation.search', { count: query.length }), 800);
     return () => clearTimeout(timer);
   }, [query]);
-  const passages = sourcePassages.filter(
+  const reviewingSubmissions = ['submitted', 'ready', 'changes_requested'].includes(filter);
+  const listedPassages = reviewingSubmissions ? project.passages : sourcePassages;
+  const passages = listedPassages.filter(
     (p) =>
+      (filter !== 'submitted' ||
+        ['submitted', 'ready'].includes(submissions[submissionKey(p.id)]?.status)) &&
+      (filter !== 'ready' || submissions[submissionKey(p.id)]?.status === 'ready') &&
+      (filter !== 'changes_requested' ||
+        submissions[submissionKey(p.id)]?.status === 'changes_requested') &&
       (filter !== 'editable' || project.mode === 'local' || p.analysis) &&
       (filter !== 'complete' || studio.envelope.drafts[p.id]?.workflow?.stage === 'complete') &&
-      (filter !== 'open' || studio.envelope.drafts[p.id]?.workflow?.stage !== 'complete') &&
+      (filter !== 'open' ||
+        (studio.envelope.drafts[p.id]?.workflow?.stage !== 'complete' &&
+          !['submitted', 'ready'].includes(submissions[submissionKey(p.id)]?.status))) &&
       `${p.title} ${p.ordinal} ${p.acceptedReference ?? ''}`
         .normalize('NFD')
         .replace(/\p{M}/gu, '')
@@ -910,7 +925,30 @@ export default function App() {
         >
           Concluídas <span>{completed}</span>
         </button>
+        {window.studio?.listSubmissions && (
+          <select
+            {...workspaceAutofill}
+            aria-label="Filtrar envios para revisão"
+            value={reviewingSubmissions ? filter : ''}
+            onChange={(event) => setFilter(event.target.value || 'all')}
+          >
+            <option value="">Envios para revisão…</option>
+            <option value="submitted">Aguardando revisão / incorporação</option>
+            <option value="ready">Prontas para incorporar</option>
+            <option value="changes_requested">Correção solicitada</option>
+          </select>
+        )}
       </div>
+      {reviewingSubmissions && (
+        <p role="status">{passages.length} passagem(ns) · todas as fontes</p>
+      )}
+      {submissionError && <p role="alert">{submissionError}</p>}
+      <SubmissionReviewQueue
+        studio={studio}
+        items={project.passages.flatMap((p) =>
+          submissions[submissionKey(p.id)] ? [submissions[submissionKey(p.id)]] : [],
+        )}
+      />
       <div className="passage-list">
         {sourceIds.map((sourceId) => (
           <section key={sourceId}>
@@ -945,7 +983,9 @@ export default function App() {
                     <span
                       className={`status-dot ${studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status}`}
                     />
-                    {statusLabels[studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status]}
+                    {submissions[submissionKey(p.id)]
+                      ? submissionLabels[submissions[submissionKey(p.id)].status]
+                      : statusLabels[studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status]}
                     {analysis.listing.jobs.find((job) => job.passageId === p.id) && (
                       <span className="analysis-nav-badge">
                         IA ·{' '}
@@ -1122,6 +1162,13 @@ export default function App() {
             </div>
             <div className="workspace-title">
               <div className="workflow-control">
+                {submitted && (
+                  <p role="status">
+                    Revisão: <strong>{submissionLabels[submitted.status]}</strong>
+                    {submitted.revisionId !== draft?.revisionId &&
+                      ' · há edições posteriores ao envio'}
+                  </p>
+                )}
                 <label>
                   Etapa do meu trabalho
                   <select
@@ -1722,7 +1769,12 @@ export default function App() {
               {window.studio?.submitContribution && (
                 <button
                   className="button"
-                  disabled={!studio.ready || !draft?.raw?.trim() || submitting}
+                  disabled={
+                    !studio.ready ||
+                    !draft?.raw?.trim() ||
+                    submitting ||
+                    (!!currentSubmission && !!waitingSubmission)
+                  }
                   onClick={() => {
                     setSubmitting(true);
                     void studio
@@ -1739,7 +1791,13 @@ export default function App() {
                       .finally(() => setSubmitting(false));
                   }}
                 >
-                  {submitting ? 'Enviando…' : 'Enviar para revisão'}
+                  {submitting
+                    ? 'Enviando…'
+                    : currentSubmission && waitingSubmission
+                      ? 'Enviada para revisão ✓'
+                      : submitted
+                        ? 'Enviar atualização para revisão'
+                        : 'Enviar para revisão'}
                 </button>
               )}
               {project.mode === 'local' && canReviewSource && (

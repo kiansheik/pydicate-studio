@@ -43,13 +43,16 @@ class Submissions {
       return {id,snapshotSha256:sha,reused:false};
     });
   }
-  async list(user,after=0){
+  async list(user,after=0,projectId=null){
+    if(projectId!==null)identifier(projectId);
     if(!Number.isSafeInteger(after)||after<0)throw fault(400,'CURSOR','Cursor inválido.');
     // All workspace members can review scientific submissions; account emails are never returned.
-    const rows=(await this.store.db.query(`SELECT s.id,s.passage_id AS "passageId",s.author_id AS "authorId",u.name AS author,
+    const rows=(await this.store.db.query(`SELECT s.id,s.project_id AS "projectId",s.snapshot::jsonb->'draft'->>'revisionId' AS "revisionId",s.passage_id AS "passageId",s.snapshot::jsonb->>'sourceId' AS "sourceId",
+      COALESCE(s.snapshot::jsonb->'source'->>'title',s.snapshot::jsonb->>'sourceId') AS "sourceTitle",
+      COALESCE(s.snapshot::jsonb->'original'->>'ordinal',s.snapshot::jsonb->'draft'->'pending'->>'ordinal') AS ordinal,s.author_id AS "authorId",u.name AS author,
       s.snapshot_sha256 AS "snapshotSha256",s.submitted_at AS "submittedAt",s.draft_revision_id AS "draftRevisionId",
       (SELECT e.event FROM submission_events e WHERE e.submission_id=s.id ORDER BY e.id DESC LIMIT 1) AS status
-      FROM submissions s JOIN users u ON u.id=s.author_id WHERE s.draft_revision_id>$1 ORDER BY s.draft_revision_id LIMIT 101`,[after])).rows;
+      FROM submissions s JOIN users u ON u.id=s.author_id WHERE s.draft_revision_id>$1 AND ($2::text IS NULL OR s.project_id=$2) ORDER BY s.draft_revision_id LIMIT 101`,[after,projectId])).rows;
     return {submissions:rows.slice(0,100),next:rows.length>100?rows[99].draftRevisionId:null};
   }
   async get(id){

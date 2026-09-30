@@ -8,6 +8,13 @@
 
 ## Hosted collaboration and deployment
 
+- `server/submission-review.cjs`, `src/components/SubmissionReviewQueue.tsx`,
+  `SubmissionPdf.tsx`: explicit admin PDF/result review with checked row receipts,
+  final re-evaluation, guarded sequential source/reference publication.
+- `src/domain/submissions.ts`: latest durable submission status, pending/canonical
+  identity mapping and coalesced event refresh; navigator filters span sources.
+
+
 - `electron/corpus-health.cjs`, `src/CorpusHealth.tsx`: fresh whole-source
   reference/error overview with observed annotated morpheme counts; no AI.
 - `electron/grammar-repair.cjs`, `analysis-service.cjs`, `agent-runner.cjs`:

@@ -6,13 +6,22 @@
   document.body.append(toggle,panel);panel.hidden=true;
   function element(tag,text,parent=panel){const node=document.createElement(tag);if(['input','textarea','select','form'].includes(tag)){node.autocomplete='off';node.setAttribute('data-1p-ignore','true');node.setAttribute('data-lpignore','true');}if(text!==undefined)node.textContent=text;parent.append(node);return node;}
   function button(text,action,parent=panel){const node=element('button',text,parent);node.type='button';node.onclick=()=>Promise.resolve().then(action).catch(error=>{status.textContent=error.message;});return node;}
+  function feedbackButton(text,action,parent){
+    const group=element('div',undefined,parent),node=element('button',text,group),message=element('p','',group);
+    node.type='button';message.setAttribute('role','status');message.setAttribute('aria-live','polite');
+    node.onclick=async()=>{if(node.disabled)return;node.disabled=true;node.textContent='Enviando…';node.setAttribute('aria-busy','true');message.setAttribute('role','status');message.textContent='Enviando…';
+      try{message.textContent=await action();}
+      catch(error){message.setAttribute('role','alert');message.textContent=error.message;}
+      finally{node.disabled=false;node.textContent=text;node.removeAttribute('aria-busy');}
+    };return node;
+  }
   element('h2','Servidor colaborativo');const status=element('p','Conectando…');status.setAttribute('role','status');
   const identity=element('p',''),selection=element('p',''),people=element('div'),actions=element('div');
   button('Exportar cópia local',()=>api.exportLocal(),actions);
   button('Carregar estado compartilhado',()=>api.reload(),actions);
   button('Sair',()=>api.logout(),actions);
   const help=element('a','Tutorial e documentação ↗',actions);help.href='/help';help.target='_blank';help.rel='noopener';
-  button('Enviar última versão salva para revisão',async()=>{const result=await api.submit();status.textContent='Versão congelada enviada para revisão: '+result.id;await loadSubmissions();},actions);
+  feedbackButton('Enviar última versão salva para revisão',async()=>{await api.submit();void loadSubmissions().catch(()=>{});return 'Enviada. A passagem está aguardando revisão; a versão enviada foi preservada.';},actions);
   element('p','Edição sem reservas. Se outra pessoa salvar primeiro, sua cópia local será preservada para comparar com a versão compartilhada.');
   const upstreamBox=element('details');element('summary','Atualizações do corpus e da gramática',upstreamBox);
   const upstreamStatus=element('p','Consultando atualizações…',upstreamBox),upstreamRows=element('div',undefined,upstreamBox);
@@ -45,7 +54,7 @@
   let currentUser;
   async function loadSubmissions(){
     const data=await api.request('/api/submissions');submissionRows.replaceChildren();
-    for(const item of data.submissions){const row=element('article',undefined,submissionRows);element('p',`${item.author} · ${item.passageId} · ${item.status}`,row);
+    for(const item of data.submissions){const row=element('article',undefined,submissionRows);element('p',`${item.author} · ${item.passageId} · ${{submitted:'Aguardando revisão',ready:'Pronta para incorporar',changes_requested:'Correção solicitada',imported:'Incorporada',merged:'Publicada'}[item.status]||item.status}`,row);
       button('Ver versão enviada',async()=>{const detail=await api.request('/api/submission?id='+encodeURIComponent(item.id));api.download(detail,'studio-submission-'+item.id+'.json');},row);
       if(currentUser?.role==='admin'||currentUser?.role==='reviewer'){
         button('Marcar pronta para revisão local',async()=>{await api.request('/api/submission/review',{id:item.id,snapshotSha256:item.snapshotSha256,event:'ready'});await loadSubmissions();},row);
@@ -126,7 +135,7 @@
     const address=element('input',undefined,section);address.type='email';address.placeholder='E-mail do convite';address.setAttribute('aria-label','E-mail do convite');
     const name=element('input',undefined,section);name.placeholder='Nome';name.maxLength=80;name.setAttribute('aria-label','Nome');
     const role=element('select',undefined,section);role.setAttribute('aria-label','Papel');for(const [value,text]of[['contributor','Colaborador'],['reviewer','Revisor'],['admin','Administrador']]){const option=element('option',text,role);option.value=value;}
-    button('Enviar convite',async()=>{await api.request('/api/admin/invite',{email:address.value,name:name.value,role:role.value});status.textContent='Convite enviado. A pessoa definirá sua própria senha.';},section);
+    feedbackButton('Enviar convite',async()=>{const email=address.value.trim();if(!address.reportValidity()||!email)throw new Error('Informe um e-mail válido para o convite.');await api.request('/api/admin/invite',{email,name:name.value,role:role.value});return 'Convite enviado para '+email+'. Peça à pessoa para conferir a caixa de entrada e o spam.';},section);
     const users=element('div',undefined,section);
     async function loadUsers(){const data=await api.request('/api/admin/users');users.replaceChildren();for(const user of data.users){const row=element('article',undefined,users);element('p',`${user.name} · ${user.email} · ${user.role}${user.disabled?' · desativado':''}`,row);
       const select=element('select',undefined,row);select.setAttribute('aria-label','Papel de '+user.name);for(const value of ['contributor','reviewer','admin']){const option=element('option',value,select);option.value=value;}select.value=user.role;
@@ -154,5 +163,5 @@
   api.me().then(({user})=>{currentUser=user;identity.textContent=user.name+' · '+user.role;
     if(user.authMethod==='academia'){account.replaceChildren();element('summary','Minha conta Academia Tupi',account);const link=element('a','Gerenciar senha no Neologismos',account);link.href='https://neo.academiatupi.com/login';link.target='_blank';link.rel='noopener noreferrer';}
     else fetch('/api/auth-options').then(r=>r.json()).then(options=>{if(options.academia)button('Vincular conta Neo (confirme a senha atual acima)',async()=>{const result=await api.request('/api/sso/link',{currentPassword:old.value});old.value='';location.assign(result.url);},account);}).catch(()=>{});
-    if(user.role==='admin')admin();return loadComments();}).catch(error=>{status.textContent=error.message;});
+    if(user.role==='admin')admin();return Promise.all([loadComments(),loadSubmissions()]);}).catch(error=>{status.textContent=error.message;});
 })();

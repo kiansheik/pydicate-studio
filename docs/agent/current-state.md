@@ -1,6 +1,19 @@
 # Current state
 
-## Workspace autofill suppression (deployment pending)
+## Submission feedback and checked batch review (deployment pending)
+
+Invites and submissions have persistent adjacent sending/success/error messages.
+The navigator shows durable submission status and filters awaiting review, ready
+to incorporate and requested corrections across all sources. Admins can open
+**Revisar envios em lote**, compare each engine result with saved PDF crop pixels
+or a chosen physical PDF page, check reviewed lines, then incorporate selected
+lines with approved references. See
+[handoff](session-handoffs/2026-09-30-submission-review-queue.md).
+
+## Workspace autofill suppression (live)
+
+Release `a784d1cc1617b540c6facbfd20a527687827e6cd` is live (50.3 seconds).
+Authenticated checks found all 24 mounted controls opted out and login tokens intact.
 
 All React workspace inputs, textareas, selects and forms use shared
 `workspaceAutofill` props before insertion: autocomplete off plus password-manager

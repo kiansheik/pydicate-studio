@@ -172,6 +172,12 @@ export interface StudioBridge {
     passageId: string;
   }): Promise<{ envelope: DraftEnvelope; selectedId: string }>;
   submitContribution?(): Promise<{ id: string }>;
+  prepareSubmission?(
+    id: string,
+    pageIndex?: number,
+  ): Promise<import('./submissions').SubmissionReview>;
+  publishSubmission?(token: string): Promise<import('./submissions').SubmissionPublication>;
+  listSubmissions?(projectId: string): Promise<import('./submissions').SubmissionSummary[]>;
   setupProject?(): Promise<StudioProject>;
   installationStatus?(): Promise<InstallationStatus>;
   openReleasePage?(): Promise<void>;

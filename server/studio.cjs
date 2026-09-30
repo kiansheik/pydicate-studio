@@ -150,11 +150,15 @@ async function createStudio(config, store, emit = () => { }) {
         }
     }
     async function invoke(method, input, context) {
+        if (method === 'dictionary_status') return dictionary.status(input);
+        return queue.run(context.user.id, () => invokeNow(method, input, context));
+    }
+    async function invokeNow(method, input, context) {
         if (method === 'dictionary_status')
             return dictionary.status(input);
         if (!READ.has(method) && !REVIEW.has(method) && !(config.aiEnabled && AI.has(method)))
             throw fault(403, 'HOSTED_UNAVAILABLE', 'Esta operação não está habilitada nesta configuração do servidor colaborativo.');
-        return queue.run(context.user.id, async () => {
+        {
             if(store.db.unavailable) throw fault(503, 'DATABASE_UNAVAILABLE', 'Banco de dados indisponível.');
             const user = await store.assertUser(context.user);
             authorizeMethod(method, user.role, config.aiEnabled);
@@ -214,9 +218,14 @@ async function createStudio(config, store, emit = () => { }) {
                 }
                 throw error;
             }
-        });
+        }
     }
+    const submissionReview = require('./submission-review.cjs').createSubmissionReview({ store, getProject: () => project, invoke: invokeNow });
     return {
+        reviewSubmission: (action, input, context) => queue.run(context.user.id, async () => {
+            if (service.hasWork()) throw fault(409, 'ANALYSIS_ACTIVE', 'Aguarde a conclusão das análises antes de revisar o lote.');
+            return submissionReview[action](input, context);
+        }),
         get project() { return project; }, hasWork: () => service.hasWork(), dictionary, hasPassage, passage, validateChanges, invoke,
         // PDF bytes do not use the serialized grammar worker queue. Each range
         // still revalidates the authenticated user, project and source binding.

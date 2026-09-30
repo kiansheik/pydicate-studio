@@ -92,6 +92,17 @@
     evidenceUrl:({projectId,sourceId,assetId})=>'/api/pdf?'+new URLSearchParams({projectId,sourceId,assetId}),
     evidenceCacheScope:()=>identity?.user?.id??null,
     submitContribution:()=>window.collab.submit(),
+    prepareSubmission:(id,pageIndex)=>request('/api/submission/prepare',{id,pageIndex}),
+    publishSubmission:async token=>{
+      const value=await request('/api/submission/publish',{token});
+      snapshots.set(value.envelope.projectId,structuredClone({envelope:value.envelope,versions:value.versions}));
+      latestEnvelope=value.envelope;notify({type:'submissions-change'});return value;
+    },
+    listSubmissions:async id=>{
+      const rows=[];let after=0;
+      do{const data=await request('/api/submissions?'+new URLSearchParams({projectId:id,after:String(after)}));rows.push(...data.submissions);after=data.next;}while(after!==null);
+      return rows;
+    },
     invoke:async(method,params={})=>{
       if(method==='evidence_attach'||method==='evidence_relocate'){
         if(method==='evidence_relocate')throw new Error('Peça à administração para recuperar o PDF do backup no servidor.');
@@ -139,7 +150,8 @@
       if(failed||inflight)throw new Error('Espere a confirmação do salvamento antes de enviar.');
       const saved=snapshots.get(projectId)?.envelope?.drafts[selected];
       if(!saved)throw new Error('Salve sua edição antes de enviar.');
-      return request('/api/submit',{passageId:selected,revisionId:saved.revisionId});
+      const result=await request('/api/submit',{passageId:selected,revisionId:saved.revisionId});
+      notify({type:'submissions-change'});return result;
     },
     reload:()=>{if((failed||inflight)&&!confirm('Há edições não confirmadas. Exporte a cópia local antes de recarregar. Continuar?'))return;location.reload();},
     logout:async()=>{if(failed||inflight)throw new Error('Exporte as edições locais antes de sair.');await request('/api/logout',{});if(identity)sessionStorage.removeItem('collab-recovery:'+identity.user.id);location.assign('/login');},

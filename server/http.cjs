@@ -193,7 +193,7 @@ function createHttp({ config, store, auth, runtime }) {
                 const asset = await runtime.openPdf(params, { user: session.user });
                 return await require('./pdf.cjs').servePdf(req, res, asset);
             }
-            if (route === '/api/submissions' && req.method === 'GET') return json(res,200,await submissions.list(session.user,integer(url.searchParams.get('after')||0)));
+            if (route === '/api/submissions' && req.method === 'GET') return json(res,200,await submissions.list(session.user,integer(url.searchParams.get('after')||0),url.searchParams.get('projectId')));
             if (route === '/api/submission' && req.method === 'GET') {
                 const row=await submissions.get(url.searchParams.get('id'));
                 return json(res,200,{id:row.id,authorId:row.author_id,snapshotSha256:row.snapshot_sha256,snapshot:JSON.parse(row.snapshot)});
@@ -319,6 +319,12 @@ function createHttp({ config, store, auth, runtime }) {
                     // submit() hands the claim back; tell every open tab at once so the
                     // passage stops showing as reserved without waiting for a poll.
                     emit({type:'submissions-change'});emit(await presence());
+                    return json(res,200,result);
+                }
+                if(route==='/api/submission/prepare'||route==='/api/submission/publish') {
+                    admin(session);
+                    const result=await runtime.reviewSubmission(route.endsWith('/prepare')?'prepare':'publish',input,context(req,session));
+                    if(route.endsWith('/publish')) {emit({type:'submissions-change'});emit({type:'source-change',projectId:runtime.project.id,engineFingerprint:runtime.project.engineFingerprint});}
                     return json(res,200,result);
                 }
                 if(route==='/api/submission/review') { const result=await submissions.review(session.user,input);emit({type:'submissions-change'});return json(res,200,result); }

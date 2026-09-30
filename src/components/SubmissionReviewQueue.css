@@ -1,0 +1,64 @@
+.submission-review-dialog {
+  width: min(1100px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 20px;
+  background: var(--paper, #fff);
+  color: inherit;
+}
+.submission-review-dialog > header,
+.submission-review-line > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.submission-review-line {
+  border: 1px solid #8886;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.submission-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  margin: 16px 0;
+}
+.submission-pdf figure {
+  margin: 8px 0;
+}
+.submission-pdf img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: white;
+}
+.submission-surface {
+  font-size: 1.4em;
+  overflow-wrap: anywhere;
+}
+.submission-review-dialog footer {
+  position: sticky;
+  bottom: -20px;
+  background: var(--paper, #fff);
+  padding: 12px 0;
+  border-top: 1px solid #8886;
+}
+.submission-review-line > label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+@media (max-width: 800px) {
+  .submission-comparison {
+    grid-template-columns: 1fr;
+  }
+}
+
+.navigator-filter select {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}

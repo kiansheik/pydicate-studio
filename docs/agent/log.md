@@ -829,3 +829,11 @@ Applied shared initial-render autofill opt-out attributes to all workspace
 controls, including hosted collaboration/admin fields. Login/reset remain
 separate with correct credential autocomplete tokens. See
 [handoff](session-handoffs/2026-09-30-workspace-autofill.md).
+
+## 2026-09-30 — Submission queue and explicit checked batch review
+
+Persistent send feedback; durable submission statuses/filter across sources;
+admin line-by-line result/PDF comparison with checkbox-gated publication.
+Real isolated browser test published two checked lines sharing a source, preserved
+the unchecked source, verified PDF pixels and invitation feedback (mail stub).
+See [handoff](session-handoffs/2026-09-30-submission-review-queue.md).

@@ -927,6 +927,27 @@ export function useStudio() {
     );
   }
 
+  async function publishReviewedSubmission(token: string) {
+    if (!window.studio?.publishSubmission || operation.current || !latest.current.ready)
+      throw new Error('Aguarde o salvamento antes de incorporar.');
+    operation.current = true;
+    setBusy(true);
+    try {
+      await persist();
+      const response = await window.studio.publishSubmission(token);
+      storageRevisions.current[response.envelope.projectId] =
+        response.envelope.storageRevision ?? 0;
+      replaceEnvelope(response.envelope);
+      changeProject(response.project);
+      history.current = {};
+      redoHistory.current = {};
+      return response;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
+  }
+
   async function managePassages(
     input: Parameters<NonNullable<import('./domain/types').StudioBridge['managePassages']>>[0],
   ) {
@@ -1479,6 +1500,7 @@ export function useStudio() {
     refresh,
     createPendingDraft,
     managePassages,
+    publishReviewedSubmission,
     createSource,
     editPendingDraft,
     pendingDrafts: Object.values(envelope.drafts).filter(
