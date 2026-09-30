@@ -193,3 +193,25 @@ restores. The clean-install workflow uses the exact documented Make/SSH path on 
 host with real Docker/PostgreSQL/Caddy, not production credentials. Browser tests separately run
 both the transport fixture and actual compiled React/Python editor. Consult actual CI results;
 these are not a security audit, real-mail-deliverability guarantee or linguistic certification.
+
+### Fast Git contribution export
+
+`make collab-publish-all` captures each repository once, waiting for the existing
+maintenance acknowledgment so active edits/repairs finish. It does not stop or
+restart Studio. Only allowlisted source files are committed; excluded notes stay
+in the live workspace. Explicit `collab-changes` / `collab-publish REVIEW_SHA=...`
+still reject changed review snapshots.
+
+The short lease covers diff capture and the local Git commit. Bundle creation,
+transfer, upstream fetch/merge, push and PR creation happen after its release.
+Upstream reconciliation occurs in the private laptop checkout, never in the
+live engine. The bundle excludes objects reachable from the captured upstream
+base. A private partial Git cache under `backups/publication-cache/` holds base
+commit/tree metadata; sparse grammar checkouts lazily fetch needed files and
+avoid historical scans/assets. Keep that cache while using exported checkouts,
+which borrow its objects. Delta bundles require their recorded upstream base;
+they are contributions, not standalone full-repository backups.
+
+A first cache fill and GitHub operations still depend on network latency. Busy
+repairs can delay snapshot capture without being interrupted. The separate
+post-merge `collab-sync`/idle updater retains its existing synchronization rules.

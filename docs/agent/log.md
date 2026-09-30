@@ -1,3 +1,13 @@
+## 2026-09-30 — Fast Git publication without restarts
+
+Replaced two stopped-server collection passes per repository with one short
+maintenance-leased capture. Git bundles contain only contributions; upstream
+merges run in the laptop review checkout. Partial Git caching and sparse grammar
+checkout avoid historical assets. The exact pasted production snapshots produce
+6,113-byte and 6,567-byte bundles in 0.017 / 0.016 seconds, measured without
+changing live refs or source. See the
+[handoff](session-handoffs/2026-09-30-fast-git-publication.md).
+
 ## 2026-09-30 — Repair completion and corpus health
 
 Removed the grammar-repair wall-clock cutoff, compacted oversized resume context,

@@ -76,3 +76,9 @@ Live QA found that the queue could open before its initial listing arrived. The
 filter and queue now wait for the current project listing. A held-response real
 browser regression confirmed disabled controls until loading finishes, then the
 entire selected-only publication flow passed again (18.8 seconds).
+
+Loading follow-up deployed as 42158ebea7a008ea3cad106c28b862c657103d64
+in 50.5 seconds. Disposable PostgreSQL stopped again after its regression test.
+Final read-only production check passed: three submitted records reduce to two
+latest passage entries in the queue, with zero automatic approvals; all 25 mounted
+controls still opt out of autofill and login tokens remain intact.

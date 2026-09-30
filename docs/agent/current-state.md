@@ -1,8 +1,17 @@
 # Current state
 
+## Fast contribution publication
+
+`collab-publish-all` captures each repository once without restarting Studio.
+Delta bundles replace full history; upstream reconciliation runs in a private
+partial/sparse laptop checkout. Existing review hashes and allowlists remain.
+Exact recent exports measured 6,113 / 6,567 bytes, versus 2.6 MB / 4.9 GB before.
+See [handoff](session-handoffs/2026-09-30-fast-git-publication.md).
+
 ## Submission feedback and checked batch review (live)
 
-Release `bb1ad75bd966e4aa488d09b88927083cea7d7fc1` is live (50.8 seconds).
+Release `42158ebea7a008ea3cad106c28b862c657103d64` is live (50.5 seconds),
+including the initial-list loading guard.
 The read-only live check verified the queue/filter UI and all 25 mounted controls
 opted out of autofill, with login intact. Fresh health: 151 lines, no divergences
 or execution failures; 2.492 seconds.

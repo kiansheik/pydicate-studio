@@ -404,7 +404,8 @@ class Host:
         manifest={'repo':name,'origin':REPOS[name],'base':base,'head':git(repo,'rev-parse','HEAD'),'files':rows,'skipped':skipped}
         digest=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest();manifest['reviewSha']=digest
         return manifest
-    def merge_upstream(self,repo):
+    @staticmethod
+    def merge_upstream(repo):
         """Bring server/work up to date with origin/main so the pull request merges cleanly.
 
         A plain merge is attempted first. Only when it conflicts is the merge redone
@@ -413,9 +414,8 @@ class Host:
         """
         identity=['-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com']
         safe=['git','-c','safe.directory='+str(repo),*identity,'-C',str(repo)]
-        # Never prompt and never block: this runs with the application stopped, so a
-        # hung fetch is an outage. Git is told there is no terminal, and every step
-        # is bounded.
+        # Reconcile only the exported laptop checkout, never the live workspace.
+        # Git cannot prompt and every network/merge step is bounded.
         environment={**os.environ,'GIT_TERMINAL_PROMPT':'0','GIT_ASKPASS':'','SSH_ASKPASS':'',
                      'GIT_SSH_COMMAND':'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes'}
         def attempt(*args,timeout=120):
@@ -442,10 +442,14 @@ class Host:
             return {**clean,'upstreamMergeBlocked':True}
         print('[server] Upstream conflicts resolved in favour of the server copy: '+', '.join(conflicts),flush=True)
         return {'mergedUpstream':True,'conflictsResolvedFromServer':conflicts,'upstreamMergeBlocked':False}
-    def collect(self,name,dest,review_sha=''):
+    def collect(self,name,dest,review_sha='',publish_current=False):
+        from light import drained
         dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
-        with self.stopped(), self.workspace_writes():
+        # No network, bundle compression or working-tree merge under this lease.
+        # Active repairs finish before the app acknowledges the short write freeze.
+        with drained(self, purpose='capturing Git changes'):
             manifest=self.changes(name);repo=self.workspace/name
+            if publish_current and manifest['files']:review_sha=manifest['reviewSha']
             publishable=[row['path'] for row in manifest['files']]
             # The review artefacts describe exactly what publication would commit, so
             # skipped paths stay out of both the diff and the copied source bytes.
@@ -460,13 +464,20 @@ class Host:
                 if git(repo,'branch','--show-current')!='server/work':raise ValueError('Publication requires the dedicated server/work branch.')
                 if git(repo,'diff','--cached','--name-only'):raise ValueError('An existing staged change must be handled before publication.')
                 if not publishable:raise ValueError('No publishable files')
-                run(['git','-c','safe.directory='+str(repo),'-C',repo,'add','--',*publishable])
-                if git(repo,'diff','--cached','--name-only'):
-                    run(['git','-c','safe.directory='+str(repo),'-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com','-C',repo,'commit','-m','Reviewed server contribution\n\nStudio-Review-SHA: '+review_sha])
-                manifest.update(self.merge_upstream(repo))
-                run(['git','-c','safe.directory='+str(repo),'-C',repo,'bundle','create',dest/'repository.bundle','server/work'])
-                manifest['publishedHead']=git(repo,'rev-parse','HEAD');manifest['bundleSha256']=sha(dest/'repository.bundle')
-            write_json(dest/'manifest.json',manifest)
+                try:
+                    run(['git','-c','safe.directory='+str(repo),'-C',repo,'add','--',*publishable])
+                    if git(repo,'diff','--cached','--name-only'):
+                        run(['git','-c','safe.directory='+str(repo),'-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com','-C',repo,'commit','-m','Reviewed server contribution\n\nStudio-Review-SHA: '+review_sha])
+                    manifest['publishedHead']=git(repo,'rev-parse','HEAD')
+                finally:
+                    # Publication only changes Git metadata, never source ownership.
+                    self.application_ownership(repo/'.git')
+        if review_sha:
+            # Transfer only the contribution, not the entire repository history.
+            run(['git','-c','safe.directory='+str(repo),'-C',repo,'bundle','create',dest/'repository.bundle','server/work','^'+manifest['base']])
+            manifest['bundleBase']=manifest['base']
+            manifest['bundleSha256']=sha(dest/'repository.bundle')
+        write_json(dest/'manifest.json',manifest)
         return dest
     def sync(self,name):
         if name not in ALLOW:raise ValueError('Unknown repository')
@@ -513,7 +524,7 @@ def main():
         elif args.action=='db-backup':host.backup(args.file,False)
         elif args.action=='db-restore':host.restore_database(args.file,args.confirm)
         elif args.action=='restore':host.restore(args.file,args.confirm)
-        elif args.action in ('changes','publish'):host.collect(args.repo,args.file,args.review_sha if args.action=='publish' else '')
+        elif args.action in ('changes','publish','publish-current'):host.collect(args.repo,args.file,args.review_sha if args.action=='publish' else '',publish_current=args.action=='publish-current')
         elif args.action=='sync':host.sync(args.repo)
         elif args.action=='admin':host.compose('exec',*(() if sys.stdin.isatty() else ('-T',)),'studio','node','server/admin.cjs','bootstrap','--email',args.email,'--name',args.name)
         elif args.action=='start':host.compose('up','-d','--wait','studio')

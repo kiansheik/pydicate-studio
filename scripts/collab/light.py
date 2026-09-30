@@ -19,14 +19,14 @@ def server_only(changed):
 
 
 @contextmanager
-def drained(host, timeout=3600):
+def drained(host, timeout=3600, *, purpose='switching'):
     """Acquire the app's private lease; never restart an active grammar writer."""
     from upstream import atomic_json
     request = host.data / 'operations/maintenance.json'
     state = host.data / 'operations/idle.json'
     request_id = str(uuid.uuid4())
     deadline = time.monotonic() + timeout
-    print('[light] Waiting for current work to finish before switching...', flush=True)
+    print(f'[maintenance] Waiting for current work to finish before {purpose}...', flush=True)
     try:
         while time.monotonic() < deadline:
             now = int(time.time() * 1000)

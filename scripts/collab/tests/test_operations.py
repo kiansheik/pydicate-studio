@@ -28,8 +28,7 @@ class OperationsTests(unittest.TestCase):
         """Publish without contacting the real origin, which the fixtures cannot reach."""
         @contextlib.contextmanager
         def stopped(*args,**kwargs):yield
-        merged={'mergedUpstream':False,'conflictsResolvedFromServer':[],'upstreamMergeBlocked':False}
-        with patch.object(host,'stopped',stopped),patch.object(host,'merge_upstream',lambda repo:merged):yield
+        with patch('light.drained',stopped),patch.object(host,'stopped',side_effect=AssertionError('Publication must not stop Studio')),patch.object(host,'merge_upstream',side_effect=AssertionError('No upstream merge in live workspace')):yield
     def test_collect_then_publish_preserves_source_and_produces_verifiable_git_bundle(self):
         host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('changed\n')
         with self.offline_publication(host):
@@ -54,6 +53,101 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(g('status','--porcelain'),'?? AGENT_NOTES.md')
         self.assertEqual(g('show','--name-only','--format=','HEAD'),'historic/test.tu.py')
         self.assertNotIn('AGENT_NOTES.md',(dest/'review.diff').read_text())
+    def test_incremental_bundle_reconstructs_the_snapshot_with_new_and_deleted_files(self):
+        from ops import publication_checkout
+        host,repo,g=self.fixture()
+        (repo/'historic/test.tu.py').unlink()
+        (repo/'historic/new.tu.py').write_text('new line\n')
+        with self.offline_publication(host):
+            dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        manifest=json.loads((dest/'manifest.json').read_text())
+        self.assertEqual(manifest['bundleBase'],g('rev-parse','origin/main'))
+        # A tiny export has a prerequisite, rather than containing base history.
+        header=(dest/'repository.bundle').read_bytes().split(b'\n\n',1)[0]
+        self.assertIn(('-'+manifest['base']).encode(),header)
+        studio=host.workspace/'studio';studio.mkdir()
+        g('config','uploadpack.allowFilter','true')
+        manifest['origin']=repo.as_uri()
+        with patch('ops.HERE',studio):
+            clone=publication_checkout('oldtupicorpus',dest,manifest)
+        self.assertEqual((clone/'historic/new.tu.py').read_text(),'new line\n')
+        self.assertFalse((clone/'historic/test.tu.py').exists())
+        self.assertEqual(g('status','--porcelain'),'')
+
+    def test_upstream_reconciliation_changes_only_the_exported_checkout(self):
+        from ops import publication_checkout
+        host,repo,g=self.fixture();g('branch','main');g('config','uploadpack.allowFilter','true')
+        (repo/'historic/test.tu.py').write_text('server contribution\n')
+        with self.offline_publication(host):dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        server_head=g('rev-parse','HEAD')
+        g('checkout','main');(repo/'historic/upstream.py').write_text('new upstream line\n')
+        g('add','.');g('commit','-m','upstream');g('checkout','server/work')
+        manifest=json.loads((dest/'manifest.json').read_text());manifest['origin']=repo.as_uri()
+        studio=host.workspace/'studio';studio.mkdir()
+        with patch('ops.HERE',studio):clone=publication_checkout('oldtupicorpus',dest,manifest)
+        result=Host.merge_upstream(clone)
+        self.assertTrue(result['mergedUpstream'])
+        self.assertEqual((clone/'historic/upstream.py').read_text(),'new upstream line\n')
+        self.assertEqual((clone/'historic/test.tu.py').read_text(),'server contribution\n')
+        self.assertFalse((repo/'historic/upstream.py').exists())
+        self.assertEqual(g('rev-parse','HEAD'),server_head)
+        self.assertEqual(g('status','--porcelain'),'')
+
+    def test_sparse_partial_checkout_fetches_needed_blobs_without_historical_assets(self):
+        from ops import publication_checkout
+        host,repo,g=self.fixture()
+        (repo/'tupi').mkdir();(repo/'tupi/kept.py').write_text('unchanged grammar\n')
+        (repo/'media').mkdir();asset=os.urandom(1024*1024)
+        (repo/'media/large.bin').write_bytes(asset)
+        g('add','.');g('commit','-m','baseline with large asset')
+        g('update-ref','refs/remotes/origin/main','HEAD')
+        g('config','uploadpack.allowFilter','true')
+        (repo/'historic/test.tu.py').write_text('contribution\n')
+        with self.offline_publication(host):dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        manifest=json.loads((dest/'manifest.json').read_text());manifest['origin']=repo.as_uri()
+        studio=host.workspace/'studio';studio.mkdir()
+        with patch('ops.HERE',studio):clone=publication_checkout('nhe-enga',dest,manifest)
+        self.assertEqual((clone/'tupi/kept.py').read_text(),'unchanged grammar\n')
+        self.assertFalse((clone/'media/large.bin').exists())
+        objects=list((studio/'backups/publication-cache/nhe-enga/objects').rglob('*.pack'))+list((clone/'.git/objects').rglob('*.pack'))
+        self.assertLess(sum(file.stat().st_size for file in objects),len(asset)//2)
+        self.assertEqual((repo/'media/large.bin').read_bytes(),asset)
+
+    def test_bundle_is_built_after_releasing_the_app_and_later_edits_stay_local(self):
+        host,repo,g=self.fixture();source=repo/'historic/test.tu.py'
+        source.write_text('snapshot\n')
+        @contextlib.contextmanager
+        def lease(_host,**kwargs):
+            yield
+            source.write_text('later edit\n')
+        with patch('light.drained',lease),patch.object(host,'compose',side_effect=AssertionError('No Docker command')):
+            dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(source.read_text(),'later edit\n')
+        self.assertEqual(g('show','HEAD:historic/test.tu.py'),'snapshot')
+        self.assertEqual(json.loads((dest/'manifest.json').read_text())['publishedHead'],g('rev-parse','HEAD'))
+
+    def test_busy_application_does_not_commit_or_stop(self):
+        host,repo,g=self.fixture();before=g('rev-parse','HEAD')
+        (repo/'historic/test.tu.py').write_text('active repair\n')
+        @contextlib.contextmanager
+        def busy(_host,**kwargs):
+            raise RuntimeError('still busy')
+            yield
+        with patch('light.drained',busy),patch.object(host,'compose',side_effect=AssertionError('No Docker command')):
+            with self.assertRaisesRegex(RuntimeError,'still busy'):
+                host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('rev-parse','HEAD'),before)
+        self.assertEqual((repo/'historic/test.tu.py').read_text(),'active repair\n')
+
+    def test_automatic_publication_collects_only_once(self):
+        from ops import publish_repository
+        manifest={'files':[{'path':'historic/test.tu.py'}],'reviewSha':'a'*64}
+        with patch('ops.unpack_export',return_value=(pathlib.Path('/fixture'),manifest)) as export,patch('ops.open_pull_request',return_value='fixture-pr'):
+            result=publish_repository(object(),'oldtupicorpus')
+        self.assertEqual(export.call_count,1)
+        self.assertTrue(export.call_args.kwargs['publish_current'])
+        self.assertEqual(result['detail'],'fixture-pr')
+
     def test_upstream_conflicts_resolve_in_favour_of_the_server_copy(self):
         host,repo,g=self.local_fetch_fixture()
         # origin/main and server/work edit the same line; the server copy must win.
@@ -223,12 +317,13 @@ class OperationsTests(unittest.TestCase):
             with self.subTest(accepted=accepted):
                 host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('reviewed edit\n')
                 review=host.changes('oldtupicorpus')['reviewSha'] if accepted else '0'*64
-                with self.root_workspace_operation(host) as (owned,commands):
+                with self.root_workspace_operation(host) as (owned,commands),self.offline_publication(host):
                     if accepted:host.collect('oldtupicorpus',host.root/'review',review)
                     else:
                         with self.assertRaises(ValueError):host.collect('oldtupicorpus',host.root/'review',review)
-                self.assertIn(repo/'.git/index',owned)
-                self.assertIn(('up','-d','--no-deps','studio'),commands)
+                if accepted:self.assertIn(repo/'.git/index',owned)
+                self.assertEqual(commands,[])
+                self.assertNotIn(repo/'historic/test.tu.py',owned)
                 self.assertEqual((repo/'historic/test.tu.py').read_text(),'reviewed edit\n')
     def test_record_import_restores_git_access_before_restart_and_receipt_verification(self):
         host,repo,g=self.local_fetch_fixture();host.data.mkdir();receipt=host.root/'import.json';receipt.write_text('{}')

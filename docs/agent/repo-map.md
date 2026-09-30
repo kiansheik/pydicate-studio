@@ -8,6 +8,10 @@
 
 ## Hosted collaboration and deployment
 
+- `scripts/collab/host.py`, `ops.py`: maintenance-leased Git snapshot, incremental
+  contribution bundle, private partial object cache, sparse review checkout and
+  laptop-only upstream merge. Publishing never restarts Studio.
+
 - `server/submission-review.cjs`, `src/components/SubmissionReviewQueue.tsx`,
   `SubmissionPdf.tsx`: explicit admin PDF/result review with checked row receipts,
   final re-evaluation, guarded sequential source/reference publication.
