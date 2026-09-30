@@ -16,6 +16,57 @@
   status.setAttribute('role', 'status');
   note.after(status);
 
+  let pendingReveal = null;
+  function reveal() {
+    if (!pendingReveal || typeof window.__studioDictionaryNavigate !== 'function') return;
+    const result = window.__studioDictionaryNavigate(pendingReveal);
+    if (result === null) return; // Data is still loading; keep only the latest URL.
+    pendingReveal = null;
+    status.textContent = result ? '' : 'O verbete deste link não está nesta versão do dicionário.';
+  }
+  window.addEventListener('message', (event) => {
+    const message = event.data;
+    if (
+      event.source !== window.parent ||
+      event.origin !== parentOrigin ||
+      !message ||
+      typeof message !== 'object' ||
+      Array.isArray(message) ||
+      Object.keys(message).length !== 5 ||
+      message.type !== 'studio-dictionary-reveal' ||
+      message.version !== 1 ||
+      message.datasetFingerprint !== datasetFingerprint ||
+      typeof message.query !== 'string' ||
+      message.query.length > 300 ||
+      !(
+        message.entryIndex === null ||
+        (Number.isSafeInteger(message.entryIndex) &&
+          message.entryIndex >= 0 &&
+          message.entryIndex <= 1_000_000)
+      )
+    )
+      return;
+    pendingReveal = { entryIndex: message.entryIndex, query: message.query };
+    closeSource();
+    reveal();
+  });
+  window.addEventListener('studio-dictionary-loaded', reveal);
+  window.addEventListener('studio-dictionary-query', (event) => {
+    if (typeof event.detail !== 'string') return;
+    // A real search supersedes an earlier link still waiting for data.
+    pendingReveal = null;
+    window.parent.postMessage(
+      {
+        type: 'studio-dictionary-navigation',
+        version: 1,
+        entryIndex: null,
+        query: event.detail.slice(0, 300),
+        datasetFingerprint,
+      },
+      parentOrigin,
+    );
+  });
+
   function entryIndex(entry) {
     const value = entry?.dataset.studioEntryIndex;
     if (!/^(0|[1-9]\d*)$/.test(value || '')) return null;

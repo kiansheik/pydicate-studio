@@ -32,11 +32,14 @@ test('two real browsers: hosted bridge, independent edits, stale conflicts, pres
     for (const [index, name] of ['alice', 'bob'].entries()) {
         const page = await contexts[index].newPage();
         pages.push(page);
-        await page.goto(settings.origin + '/login');
+        const returnTo = index === 0 ? '/?passage=passage%3Aa&source=araujo&view=tree&tab=enosem&node=var%3A1' : '/';
+        await page.goto(settings.origin + returnTo);
+        await page.waitForURL(url => url.pathname === '/login');
+        if (index === 0) assert.equal(new URL(page.url()).searchParams.get('returnTo'), returnTo);
         await page.locator('#email').fill(name + '@example.org');
         await page.locator('#password').fill(password);
         await page.locator('#submit').click();
-        await page.waitForURL(settings.origin + '/');
+        await page.waitForURL(settings.origin + returnTo);
         await page.waitForFunction(() => document.querySelector('#result')?.textContent === 'ready');
     }
     const [alice, bob] = pages;
@@ -65,6 +68,12 @@ test('two real browsers: hosted bridge, independent edits, stale conflicts, pres
     await alice.locator('#editor').blur();
     await alice.waitForFunction(() => document.querySelector('#result').textContent.includes('SESSION_EXPIRED'));
     assert.equal(await alice.locator('#editor').inputValue(), 'Alice retained offline');
+    const loginPage = contexts[0].waitForEvent('page');
+    await alice.getByRole('button', { name: 'Entrar em outra aba', exact: true }).click();
+    const reopened = await loginPage;
+    await reopened.waitForURL(url => url.pathname === '/login');
+    assert.equal(new URL(reopened.url()).searchParams.get('returnTo'), new URL(alice.url()).pathname + new URL(alice.url()).search);
+    await reopened.close();
     const download = alice.waitForEvent('download');
     await alice.getByRole('button', { name: 'Exportar cópia local', exact: true }).click();
     assert.equal((await download).suggestedFilename(), 'studio-local-recovery.json');

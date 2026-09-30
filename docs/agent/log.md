@@ -961,3 +961,14 @@ admin line-by-line result/PDF comparison with checkbox-gated publication.
 Real isolated browser test published two checked lines sharing a source, preserved
 the unchecked source, verified PDF pixels and invitation feedback (mail stub).
 See [handoff](session-handoffs/2026-09-30-submission-review-queue.md).
+
+
+## 2026-09-30 — Shareable URL navigation
+
+Added root-query History API navigation for passages, views, source nodes,
+shared-tree tabs and lexical/dictionary locations. Explicit URLs win over latest
+startup; pending/publication aliases replace history. Hosted login retains safe
+root destinations through password and Neo SSO without schema changes. Browser
+checks cover refresh, same-document Back/Forward, unsaved drafts, delayed source
+graphs, stale targets and read-only dictionary restoration. See
+[handoff](session-handoffs/2026-09-30-url-navigation.md).

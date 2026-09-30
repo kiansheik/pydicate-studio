@@ -2,6 +2,16 @@
 
 ## Workspace controls
 
+- `src/domain/studio-location.ts`, `src/useStudioLocation.ts`: bounded root-query
+  location parsing, stable passage aliases and staged History API restoration.
+  `App.tsx` owns location state; child lexical/dictionary/shared-tree views emit
+  only intentional navigation. URL restoration never imports, edits or runs AI.
+- `server/return-to.cjs`, `identity.cjs`, hosted auth/panel scripts: root-only
+  login destinations, flow-bound HttpOnly Neo return cookie, no schema changes.
+- `tests/navigation-url.spec.ts`, `shared-tree-navigation.spec.ts`: actual App
+  Back/Forward/reload, delayed node graphs, preserved drafts and exact shared
+  declaration restoration. Dictionary tests cover parent-owned iframe history.
+
 - `src/domain/workspace-autofill.ts`: spread `workspaceAutofill` on new workspace
   input/textarea/select/form elements. Hosted imperative control factories mirror
   these hints before DOM insertion. Login/reset pages are excluded.

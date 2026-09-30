@@ -15,7 +15,9 @@ const {
 const root = path.resolve(process.env.PYDICATE_PROJECT_PARENT ?? '..', 'nhe-enga');
 test('real local dictionary retains senses, conjugations and citation browsing while emitting exact selected identity', async ({
   page,
+  baseURL,
 }) => {
+  const origin = new URL(baseURL!).origin;
   test.skip(
     !existsSync(path.join(root, 'index.html')),
     'Local dictionary checkout is unavailable.',
@@ -28,7 +30,7 @@ test('real local dictionary retains senses, conjugations and citation browsing w
   );
   const remote: string[] = [];
   page.on('request', (request) => {
-    if (!request.url().startsWith('http://127.0.0.1:5173/')) remote.push(request.url());
+    if (!request.url().startsWith(`${origin}/`)) remote.push(request.url());
   });
   await page.addInitScript(() => {
     Object.assign(window, { dictionaryMessages: [] });
@@ -36,7 +38,7 @@ test('real local dictionary retains senses, conjugations and citation browsing w
       (window as unknown as { dictionaryMessages: unknown[] }).dictionaryMessages.push(event.data),
     );
   });
-  await page.route('http://127.0.0.1:5173/**', async (route) => {
+  await page.route(`${origin}/**`, async (route) => {
     const url = new URL(route.request().url());
     const bridge = url.pathname.startsWith('/__studio_dictionary/');
     let relative = bridge
@@ -51,7 +53,7 @@ test('real local dictionary retains senses, conjugations and citation browsing w
     if (!bridge && relative === 'index.html')
       body = transformHtml(body.toString(), {
         datasetFingerprint: fingerprint,
-        parentOrigin: 'http://127.0.0.1:5173',
+        parentOrigin: origin,
       });
     if (!bridge && relative === 'js/index.js') body = transformScript(body.toString());
     if (!bridge && relative === 'styles.css') body = transformStyles(body.toString());
@@ -75,6 +77,24 @@ test('real local dictionary retains senses, conjugations and citation browsing w
   await expect(input).toBeEnabled();
   await input.fill('pysyrõ');
   await page.getByRole('button', { name: 'Pesquisar', exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as unknown as { dictionaryMessages: { type: string }[] }).dictionaryMessages.filter(
+          (message) => message.type === 'studio-dictionary-navigation',
+        ),
+      ),
+    )
+    .toEqual([
+      {
+        type: 'studio-dictionary-navigation',
+        version: 1,
+        entryIndex: null,
+        query: 'pysyrõ',
+        datasetFingerprint: fingerprint,
+      },
+    ]);
+  expect(new URL(page.url()).search).toBe('');
   const entries = page
     .locator('#results > .entry')
     .filter({ has: page.locator('.preview > a.search-link').filter({ hasText: /^pysyrõ$/ }) });
@@ -119,5 +139,63 @@ test('real local dictionary retains senses, conjugations and citation browsing w
       ),
     )
     .toBe(2);
+  const reveal = {
+    type: 'studio-dictionary-reveal',
+    version: 1,
+    entryIndex: expected,
+    query: '',
+    datasetFingerprint: fingerprint,
+  };
+  await page.evaluate((message) => window.postMessage(message, location.origin), reveal);
+  await expect(page.locator('#results > .entry')).toHaveCount(1);
+  await expect(selected).toBeVisible();
+  // Restoring a link only reveals the exact sense; it never sends an import.
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { dictionaryMessages: { type: string }[] }).dictionaryMessages.filter(
+          (message) => message.type === 'studio-dictionary-select',
+        ).length,
+    ),
+  ).toBe(2);
+  await page.evaluate((message) => window.postMessage(message, location.origin), {
+    ...reveal,
+    entryIndex: null,
+    query: 'pysyrõ',
+    datasetFingerprint: 'sha256:' + '0'.repeat(64),
+  });
+  await page.evaluate(
+    (message) =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: message,
+          source: window,
+          origin: 'https://outside.invalid',
+        }),
+      ),
+    { ...reveal, entryIndex: null, query: 'pysyrõ' },
+  );
+  await page.evaluate((message) => window.postMessage(message, location.origin), {
+    ...reveal,
+    entryIndex: null,
+    query: 'pysyrõ',
+    extra: true,
+  });
+  await expect(page.locator('#results > .entry')).toHaveCount(1);
+  await page.evaluate((message) => window.postMessage(message, location.origin), {
+    ...reveal,
+    entryIndex: null,
+    query: 'pysyrõ',
+  });
+  await expect(entries).toHaveCount(4);
+  // Restoring the search must not produce another navigation/history event.
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { dictionaryMessages: { type: string }[] }).dictionaryMessages.filter(
+          (message) => message.type === 'studio-dictionary-navigation',
+        ).length,
+    ),
+  ).toBe(1);
   expect(remote).toEqual([]);
 });

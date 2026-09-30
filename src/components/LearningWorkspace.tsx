@@ -59,10 +59,12 @@ export function LearningWorkspace({
   project,
   onClose,
   initialView = 'lessons',
+  onViewChange,
 }: {
   project: StudioProject;
   onClose: () => void;
   initialView?: 'lessons' | 'reference';
+  onViewChange?: (view: 'lessons' | 'reference') => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [live, setLive] = useState<LearningLibrary | null>(null);
@@ -120,6 +122,7 @@ export function LearningWorkspace({
           library={library}
           project={project}
           initialView={initialView}
+          onViewChange={onViewChange}
         />
       ) : (
         <div className="learning-loading" role="status">
@@ -139,12 +142,19 @@ function LearningContent({
   library,
   project,
   initialView,
+  onViewChange,
 }: {
   library: LearningLibrary;
   project: StudioProject;
   initialView: 'lessons' | 'reference';
+  onViewChange?: (view: 'lessons' | 'reference') => void;
 }) {
-  const [view, setView] = useState<'lessons' | 'reference'>(initialView);
+  const [view, updateView] = useState<'lessons' | 'reference'>(initialView);
+  useEffect(() => updateView(initialView), [initialView]);
+  const setView = (next: 'lessons' | 'reference') => {
+    updateView(next);
+    onViewChange?.(next);
+  };
   const [selected, setSelected] = useState(library.lessons[0].id);
   const [guide, setGuide] = useState('primeiros-passos');
   const storageKey = `studio-learning:v1:${project.id}:${library.engineFingerprint ?? library.contentId}:${library.documentationFingerprint ?? ''}`;

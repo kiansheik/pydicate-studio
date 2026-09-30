@@ -21,6 +21,12 @@ import {
   type DictionaryMeaningSelection,
 } from './DictionaryMeaningPicker';
 
+export interface PassageLexiconNavigation {
+  entryId?: string;
+  occurrenceId?: string;
+  query?: string;
+  scope?: 'entry' | 'occurrence';
+}
 export interface PassageLexiconProps {
   projectId: string;
   sourceId: string;
@@ -31,6 +37,8 @@ export interface PassageLexiconProps {
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string) => void;
   onRevealNode?: (nodeId: string) => void;
+  navigation?: PassageLexiconNavigation | null;
+  onNavigationChange?: (navigation: PassageLexiconNavigation) => void;
   disabled?: boolean;
   onEdit?: (raw: string, expectedRevision: string) => boolean | void;
   onPreview?: (preview: SourcePreview) => void;
@@ -475,10 +483,13 @@ export function PassageLexicon(props: PassageLexiconProps) {
   const [inventory, setInventory] = useState<PassageLexiconInventory | null>(null);
   const [records, setRecords] = useState<LexicalNote[]>([]);
   const [error, setError] = useState('');
-  const [query, setQuery] = useState('');
-  const [selection, setSelection] = useState('');
-  const [occurrenceId, setOccurrenceId] = useState('');
-  const [scope, setScope] = useState<'entry' | 'occurrence'>('occurrence');
+  const [query, setQuery] = useState(props.navigation?.query ?? '');
+  const [selection, setSelection] = useState(props.navigation?.entryId ?? '');
+  const [occurrenceId, setOccurrenceId] = useState(props.navigation?.occurrenceId ?? '');
+  const controlledNavigation = props.navigation !== undefined;
+  const [scope, setScope] = useState<'entry' | 'occurrence'>(
+    props.navigation?.scope ?? 'occurrence',
+  );
   const [noteQuery, setNoteQuery] = useState('');
   const [notesReady, setNotesReady] = useState(false);
   const [notesReload, setNotesReload] = useState(0);
@@ -532,6 +543,13 @@ export function PassageLexicon(props: PassageLexiconProps) {
     };
   }, [projectId, notesReload]);
   useEffect(() => {
+    const wanted = props.navigation;
+    if (wanted?.entryId || wanted?.occurrenceId) {
+      const occurrence = inventory?.occurrences.find((item) => item.id === wanted.occurrenceId);
+      setSelection(wanted.entryId ?? occurrence?.lexicalId ?? '');
+      setOccurrenceId(wanted.occurrenceId ?? '');
+      return;
+    }
     const matches =
       inventory?.occurrences.filter((item) => item.sourceNodeId === selectedNodeId) ?? [];
     const match =
@@ -541,14 +559,33 @@ export function PassageLexicon(props: PassageLexiconProps) {
     if (match) {
       setSelection(match.lexicalId);
       setOccurrenceId(match.id);
+    } else if (controlledNavigation) {
+      setSelection('');
+      setOccurrenceId('');
     }
-  }, [selectedNodeId, inventory]);
+  }, [
+    selectedNodeId,
+    inventory,
+    controlledNavigation,
+    props.navigation?.entryId,
+    props.navigation?.occurrenceId,
+  ]);
+  useEffect(() => {
+    if (props.navigation === undefined) return;
+    const wanted = props.navigation;
+    setQuery(wanted?.query ?? '');
+    setScope(wanted?.scope ?? 'occurrence');
+  }, [controlledNavigation, props.navigation?.query, props.navigation?.scope]);
   const chosen =
     inventory?.entries.find((entry) => entry.id === selection) ??
-    inventory?.entries.find((entry) => entry.id === inventory.occurrences[0]?.lexicalId) ??
-    inventory?.entries[0];
+    (props.navigation?.entryId
+      ? undefined
+      : (inventory?.entries.find((entry) => entry.id === inventory.occurrences[0]?.lexicalId) ??
+        inventory?.entries[0]));
   const occurrences = inventory?.occurrences.filter((item) => item.lexicalId === chosen?.id) ?? [];
-  const occurrence = occurrences.find((item) => item.id === occurrenceId) ?? occurrences[0];
+  const occurrence =
+    occurrences.find((item) => item.id === occurrenceId) ??
+    (props.navigation?.occurrenceId ? undefined : occurrences[0]);
   const filtered = lexicalOccurrenceRows(inventory, query);
   const summary = lexicalNoteSummary(records);
   const saved = records.find(
@@ -607,6 +644,12 @@ export function PassageLexicon(props: PassageLexiconProps) {
     setSelection(entry.id);
     setOccurrenceId(item?.id ?? '');
     const found = item ?? inventory?.occurrences.find((value) => value.lexicalId === entry.id);
+    props.onNavigationChange?.({
+      entryId: entry.id,
+      ...(found ? { occurrenceId: found.id } : {}),
+      ...(query ? { query } : {}),
+      ...(scope === 'entry' ? { scope } : {}),
+    });
     if (found) onSelectNode?.(found.sourceNodeId);
   }
   async function exportNotes() {
@@ -641,6 +684,11 @@ export function PassageLexicon(props: PassageLexiconProps) {
         </span>
       </div>
       {error && <p role="alert">{error}</p>}
+      {inventory &&
+        ((props.navigation?.entryId && !chosen) ||
+          (props.navigation?.occurrenceId && !occurrence)) && (
+          <p role="status">A peça ou ocorrência deste link não está na árvore atual.</p>
+        )}
       {inventory?.diagnostics.length ? (
         <details className="lexical-diagnostics">
           <summary>{inventory.diagnostics.length} observações sobre a expansão</summary>
@@ -655,7 +703,16 @@ export function PassageLexicon(props: PassageLexiconProps) {
         type="search"
         value={query}
         placeholder="Buscar forma, etapa, significado ou classe…"
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => {
+          const query = event.target.value;
+          setQuery(query);
+          props.onNavigationChange?.({
+            ...(chosen ? { entryId: chosen.id } : {}),
+            ...(occurrence ? { occurrenceId: occurrence.id } : {}),
+            ...(query ? { query } : {}),
+            ...(scope === 'entry' ? { scope } : {}),
+          });
+        }}
       />
       {inventory && (
         <div className="lexical-workspace">
@@ -776,14 +833,29 @@ export function PassageLexicon(props: PassageLexiconProps) {
                   <button
                     type="button"
                     aria-pressed={scope === 'occurrence'}
-                    onClick={() => setScope('occurrence')}
+                    onClick={() => {
+                      setScope('occurrence');
+                      props.onNavigationChange?.({
+                        entryId: chosen.id,
+                        occurrenceId: occurrence.id,
+                        ...(query ? { query } : {}),
+                      });
+                    }}
                   >
                     Nesta ocorrência
                   </button>
                   <button
                     type="button"
                     aria-pressed={scope === 'entry'}
-                    onClick={() => setScope('entry')}
+                    onClick={() => {
+                      setScope('entry');
+                      props.onNavigationChange?.({
+                        entryId: chosen.id,
+                        occurrenceId: occurrence.id,
+                        scope: 'entry',
+                        ...(query ? { query } : {}),
+                      });
+                    }}
                   >
                     Sobre esta construção
                   </button>

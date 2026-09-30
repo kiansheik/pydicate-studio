@@ -10,6 +10,14 @@ export interface SharedDefinitionTarget {
   declarationLine?: number;
 }
 
+/** Read-only location identity; source code and edit receipts never enter URLs. */
+export interface SharedTreeNavigation {
+  name: string;
+  declarationId: string;
+  sourceId: string;
+  line: number;
+}
+
 export type SharedTreeTarget =
   | {
       editable: true;

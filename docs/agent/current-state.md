@@ -1,5 +1,25 @@
 # Current state
 
+## URL navigation and shareable locations
+
+Root query parameters now identify passages/sources, views/projections, selected
+source nodes, shared declaration tabs, lexical entries/occurrences/note scope,
+dictionary entries/searches, passage filters/searches, catalog and learning views.
+History API navigation preserves the mounted editor and unsaved drafts. Explicit
+links override latest-passage startup after project/draft restoration; published
+pending UUID aliases canonicalize with replaceState. Missing/malformed targets
+remain visible errors without creating passages. Search typing replaces its
+history entry, while navigation pushes; Alt+arrows retain browser history behavior.
+The header's **Copiar link** copies the current location.
+
+Hosted password/Neo login returns to the validated root query destination. Neo
+uses a short-lived HttpOnly cookie bound to the existing flow, with no migration.
+Dictionary restores are read-only, dataset-pinned and cannot trigger imports;
+iframe searches feed parent history. Shared-tree links require exact declaration
+identity and preserve existing tab drafts. Node restoration waits for parsing
+without repeatedly taking control of the canvas. See
+[handoff](session-handoffs/2026-09-30-url-navigation.md) for checks and rollout.
+
 ## Grammar repair transport, streaming and repeated work (live)
 
 The reported pluriform repair repeatedly rolled back with malformed Python JSON

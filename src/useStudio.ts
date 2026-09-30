@@ -44,6 +44,7 @@ export interface SourceApplyOutcome {
 export function useStudio() {
   const [installation, setInstallation] = useState<InstallationStatus | null>(null);
   const [starting, setStarting] = useState(!!window.studio?.installationStatus);
+  const [sessionReady, setSessionReady] = useState(!window.studio?.invoke);
   const [setupRequired, setSetupRequired] = useState(false);
   const [setupProgress, setSetupProgress] = useState<
     InstallationStatus['workspace']['progress'] | null
@@ -435,6 +436,7 @@ export function useStudio() {
       .catch((reason) => setError(String(reason.message ?? reason)))
       .finally(() => {
         setStarting(false);
+        setSessionReady(true);
         void window.studio
           ?.installationStatus?.()
           .then(setInstallation)
@@ -1399,7 +1401,7 @@ export function useStudio() {
     }
   }
 
-  function selectPassage(id: string) {
+  function selectPassage(id: string, options?: { restoreLocation?: boolean }) {
     if (
       (operation.current && !automaticRefresh.current) ||
       !latest.current.project.passages.some((p) => p.id === id)
@@ -1410,7 +1412,7 @@ export function useStudio() {
     const previous = current.project.passages.find((p) => p.id === current.selectedId);
     const next = current.project.passages.find((p) => p.id === id)!;
     const nextDraft = current.envelope.drafts[id];
-    if (current.project.mode === 'local' && previous && nextDraft) {
+    if (!options?.restoreLocation && current.project.mode === 'local' && previous && nextDraft) {
       const prefilled = prefillEmptyNextPassage(
         previous,
         next,
@@ -1562,6 +1564,7 @@ export function useStudio() {
     passage,
     draft,
     ready: editable,
+    navigationReady: editable && sessionReady,
     selectedId,
     setSelectedId: selectPassage,
     edit,

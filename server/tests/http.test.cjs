@@ -37,11 +37,17 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     auth.origin = settings.origin;
     t.after(async () => { await app.close(); await store.close(); fs.rmSync(root, { recursive: true, force: true }); });
     async function post(route, value, session, headers = {}) { return fetch(settings.origin + route, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: settings.origin, 'X-Studio-Client': 'integration-tab', ...(session ? { Cookie: session.cookie, 'X-CSRF-Token': session.csrf } : {}), ...headers }, body: JSON.stringify(value) }); }
-    async function login(role) { const response = await post('/api/login', { email: role + '@example.org', password }); assert.equal(response.status, 200); const value = await response.json(); return { ...value, cookie: response.headers.get('set-cookie').split(';')[0] }; }
+    async function login(role, returnTo) { const response = await post('/api/login', { email: role + '@example.org', password, returnTo }); assert.equal(response.status, 200); const value = await response.json(); return { ...value, cookie: response.headers.get('set-cookie').split(';')[0] }; }
     assert.equal((await fetch(settings.origin + '/api/me')).status, 401);
     assert.equal((await fetch(settings.origin + '/', { redirect: 'manual' })).status, 303);
     assert.equal((await post('/api/login', { email: 'admin@example.org', password }, null, { Origin: 'https://evil.example' })).status, 403);
-    const admin = await login('admin'), user = await login('contributor');
+    const destination = '/?passage=passage%3Aa&source=araujo&view=tree&tab=shared&node=var%3A1';
+    const redirected = await fetch(settings.origin + destination, { redirect: 'manual' });
+    assert.equal(redirected.status, 303);
+    assert.equal(redirected.headers.get('location'), '/login?returnTo=' + encodeURIComponent(destination));
+    const admin = await login('admin', '//evil.example/'), user = await login('contributor', destination);
+    assert.equal(admin.returnTo, '/');
+    assert.equal(user.returnTo, destination);
     const page = await fetch(settings.origin + '/', { headers: { Cookie: user.cookie } });
     assert.equal(page.status, 200);
     assert.match(await page.text(), /collab\/bridge.js/);

@@ -24,6 +24,7 @@ import {
   GitBranch,
   History,
   Layers,
+  Link,
   Leaf,
   MessageSquareText,
   MoreHorizontal,
@@ -68,6 +69,11 @@ import './workbench.css';
 import { flattenNodes, invoke, type SourcePreview } from './domain/authoring';
 import { PhraseEditor, SelectionNote, nodeLabels } from './components/PhraseEditor';
 import { useStudio } from './useStudio';
+import { useStudioLocation } from './useStudioLocation';
+import { locationTabs, readStudioLocation, type StudioLocation } from './domain/studio-location';
+import type { PassageLexiconNavigation } from './components/PassageLexicon';
+import type { SharedTreeNavigation } from './domain/shared-definition';
+import type { DictionaryNavigation } from './components/DictionaryTab';
 import type { Studio } from './useStudio';
 import { NewSourceDialog } from './components/NewSourceDialog';
 import { projectSources, sourceLabel } from './domain/sources';
@@ -150,6 +156,8 @@ function Projections({
   translate,
   onSurfaceHighlight,
   onEditingSharedTree,
+  sharedTreeNavigation,
+  onSharedTreeNavigationChange,
 }: {
   studio: Studio;
   tab: Tab;
@@ -163,6 +171,8 @@ function Projections({
   translate: () => void;
   onSurfaceHighlight: (highlight: MorphemeSurfaceHighlight | null) => void;
   onEditingSharedTree: (name: string | null) => void;
+  sharedTreeNavigation?: SharedTreeNavigation | null;
+  onSharedTreeNavigationChange?: (target: SharedTreeNavigation | null) => void;
 }) {
   const { draft, passage, result } = studio;
   if (studio.project.mode === 'local' && tab === 'Árvore')
@@ -175,6 +185,8 @@ function Projections({
         onSelectSourceNode={select}
         onSurfaceHighlight={onSurfaceHighlight}
         onEditingSharedTree={onEditingSharedTree}
+        sharedTreeNavigation={sharedTreeNavigation}
+        onSharedTreeNavigationChange={onSharedTreeNavigationChange}
         status={studio.pending ? 'Avaliando a estrutura…' : studio.renderError || undefined}
         authoringRoot={studio.parsed?.root}
         raw={draft?.raw ?? passage.sourceExpression}
@@ -588,6 +600,7 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
 }
 
 export default function App() {
+  const initialLocation = useRef(readStudioLocation(new URL(window.location.href)));
   const studio = useStudio();
   const { project, passage, draft, result } = studio;
   const {
@@ -633,6 +646,10 @@ export default function App() {
   };
   const analysis = useAnalysisWorkspace(studio);
   const [dictionaryEvidence, setDictionaryEvidence] = useState<AnalysisEvidence | null>(null);
+  const [lexiconNavigation, setLexiconNavigation] = useState<PassageLexiconNavigation>({});
+  const [dictionaryNavigation, setDictionaryNavigation] = useState<DictionaryNavigation>({});
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [linkNotice, setLinkNotice] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('studio-theme') || 'dark');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
   const [approveOnSave, setApproveOnSave] = useState(true);
@@ -655,12 +672,15 @@ export default function App() {
     ? project.passages.find((item) => item.id === grammarReport.context?.passageId)
     : passage;
   const [sharedTreeName, setSharedTreeName] = useState<string | null>(null);
+  const [sharedTreeNavigation, setSharedTreeNavigation] = useState<SharedTreeNavigation | null>(
+    null,
+  );
   const restoredPendingProject = useRef('');
   useEffect(() => {
     if (!studio.ready || restoredPendingProject.current === project.id) return;
     restoredPendingProject.current = project.id;
     const saved = localStorage.getItem('studio-pending:' + project.id);
-    if (saved && studio.envelope.drafts[saved]) {
+    if (!initialLocation.current.explicit && saved && studio.envelope.drafts[saved]) {
       studio.setSelectedId(saved);
       setMode('analysis');
       setTab('Árvore');
@@ -692,7 +712,6 @@ export default function App() {
     setEvidencePointer(null);
     setPreview(null);
     setReviewError('');
-    setSelected('root');
     setGrammarReport(null);
   }, [project.id, passage.id]);
   useEffect(() => {
@@ -700,6 +719,73 @@ export default function App() {
     localStorage.setItem('studio-theme', theme);
   }, [theme]);
   const [notice, setNotice] = useState('');
+  const navigation = useStudioLocation({
+    ready: studio.navigationReady,
+    passages: project.passages,
+    location: {
+      passage: passage.id,
+      source: passage.sourceId,
+      view: mode,
+      tab: (Object.keys(locationTabs) as StudioLocation['tab'][]).find(
+        (key) => locationTabs[key] === tab,
+      )!,
+      node: selected === 'object' ? 'root' : selected,
+      support: layout.state.supportTab,
+      learning: learningView ?? undefined,
+      listQuery: query || undefined,
+      filter: filter === 'all' ? undefined : filter,
+      tree: sharedTreeNavigation?.name,
+      declaration: sharedTreeNavigation?.declarationId,
+      declarationSource: sharedTreeNavigation?.sourceId,
+      declarationLine: sharedTreeNavigation ? String(sharedTreeNavigation.line) : undefined,
+      lexiconScope: lexiconNavigation.scope,
+      lexicon: lexiconNavigation.entryId,
+      occurrence: lexiconNavigation.occurrenceId,
+      lexiconQuery: lexiconNavigation.query,
+      catalog: catalogOpen ? 'open' : undefined,
+      dictionary:
+        dictionaryNavigation.entryIndex === undefined
+          ? undefined
+          : String(dictionaryNavigation.entryIndex),
+      dataset: dictionaryNavigation.datasetFingerprint,
+      dictionaryQuery: dictionaryNavigation.query,
+    },
+    apply: (location) => {
+      if (location.passage !== passage.id)
+        studio.setSelectedId(location.passage, { restoreLocation: true });
+      setMode(location.view);
+      setTab(locationTabs[location.tab]);
+      setSelected(location.node);
+      if (layout.state.supportTab !== location.support) layout.support(location.support);
+      setLearningView(location.learning ?? null);
+      setSharedTreeNavigation(
+        location.tree
+          ? {
+              name: location.tree,
+              declarationId: location.declaration!,
+              sourceId: location.declarationSource!,
+              line: Number(location.declarationLine),
+            }
+          : null,
+      );
+      setLexiconNavigation({
+        entryId: location.lexicon,
+        occurrenceId: location.occurrence,
+        query: location.lexiconQuery,
+        scope: location.lexiconScope,
+      });
+      setDictionaryNavigation({
+        entryIndex: location.dictionary === undefined ? undefined : Number(location.dictionary),
+        datasetFingerprint: location.dataset,
+        query: location.dictionaryQuery,
+      });
+      setCatalogOpen(location.catalog === 'open');
+      setDictionaryEvidence(null);
+      setQuery(location.listQuery ?? '');
+      setFilter(location.filter ?? 'all');
+    },
+  });
+
   const note = useRef<HTMLTextAreaElement>(null);
   const comparison =
     result && result.evaluationStatus !== 'partial'
@@ -743,8 +829,11 @@ export default function App() {
   }
 
   // Turning the secondary tools off must never strand the desk on a surface it stopped showing.
+  const previousAdvanced = useRef(advanced);
   useEffect(() => {
-    if (advanced) return;
+    const disabled = previousAdvanced.current && !advanced;
+    previousAdvanced.current = advanced;
+    if (!disabled) return;
     if (!coreTabs.includes(tab)) setTab('Árvore');
     if (!(coreModes as readonly string[]).includes(mode)) setMode('analysis');
   }, [advanced, tab, mode]);
@@ -777,29 +866,15 @@ export default function App() {
   const selectedIndex = sourcePassages.findIndex((p) => p.id === passage.id);
   const orphaned = studio.orphanDrafts.length;
   const changePassage = (id: string) => {
+    navigation.dismissError();
     studio.setSelectedId(id);
     setNotice('');
     setSelected('object');
   };
-  // Passage navigation is the second most frequent thing recorded, and it runs in streaks:
-  // Alt+arrows keep a reading pass on the keyboard instead of returning to the header buttons.
-  useEffect(() => {
-    const step = (event: KeyboardEvent) => {
-      if (!event.altKey || event.metaKey || event.ctrlKey) return;
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if ((event.target as Element | null)?.closest('input,textarea,select,[contenteditable=true]'))
-        return;
-      if (!studio.ready) return;
-      const next = sourcePassages[selectedIndex + (event.key === 'ArrowRight' ? 1 : -1)];
-      if (!next) return;
-      event.preventDefault();
-      changePassage(next.id);
-    };
-    window.addEventListener('keydown', step);
-    return () => window.removeEventListener('keydown', step);
-  }, [project.passages, passage.sourceId, selectedIndex, studio.ready]);
+  // Alt+Left/Right belong to browser history, including view and node navigation.
 
   function prepareNewPassage() {
+    navigation.dismissError();
     setMode('analysis');
     setTab('Árvore');
     setSelected('root');
@@ -1442,7 +1517,10 @@ export default function App() {
           {mode === 'analysis' && (
             <>
               <div className="projection-tabs" role="tablist" aria-label="Projeções da análise">
-                {(advanced ? tabs : tabs.filter((item) => coreTabs.includes(item))).map((item) => (
+                {(advanced
+                  ? tabs
+                  : tabs.filter((item) => coreTabs.includes(item) || item === tab)
+                ).map((item) => (
                   <button
                     key={item}
                     role="tab"
@@ -1488,6 +1566,8 @@ export default function App() {
                     select={setSelected}
                     onSurfaceHighlight={setSurfaceHighlight}
                     onEditingSharedTree={setSharedTreeName}
+                    sharedTreeNavigation={sharedTreeNavigation}
+                    onSharedTreeNavigationChange={setSharedTreeNavigation}
                     inspectLexeme={() => changeMode('lexicon')}
                     lexicalPreview={setPreview}
                     prepareDiagnostic={(report) => {
@@ -1531,6 +1611,8 @@ export default function App() {
             engineFingerprint={project.engineFingerprint}
             active={mode === 'dictionary'}
             reference={dictionaryEvidence}
+            navigation={dictionaryNavigation}
+            onNavigationChange={setDictionaryNavigation}
             disabled={project.mode !== 'local' || !studio.ready || studio.busy || studio.conflict}
             onInsert={(expression, expectedRevision) => {
               if (!studio.insertPiece(expression, expectedRevision)) return false;
@@ -1551,6 +1633,8 @@ export default function App() {
                 raw={draft?.raw ?? passage.sourceExpression}
                 engineFingerprint={project.engineFingerprint}
                 selectedNodeId={selected}
+                navigation={lexiconNavigation}
+                onNavigationChange={setLexiconNavigation}
                 disabled={!studio.ready || studio.pending || studio.conflict}
                 onEdit={(raw, expectedRevision) => {
                   studio.edit({ raw }, expectedRevision);
@@ -1563,7 +1647,10 @@ export default function App() {
                   changeTab('Árvore');
                 }}
               />
-              <details>
+              <details
+                open={catalogOpen}
+                onToggle={(event) => setCatalogOpen(event.currentTarget.open)}
+              >
                 <summary>Catálogo do projeto e dicionário Navarro</summary>
                 <LexiconPanel studio={studio} onPreview={setPreview} selected={selected} />
               </details>
@@ -1903,6 +1990,22 @@ export default function App() {
           <ChevronDown size={13} />
         </button>
         <div className="header-end">
+          <button
+            className="button small"
+            aria-label="Copiar link desta localização"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(window.location.href)
+                .then(() =>
+                  setLinkNotice('Link copiado. Quem abrir precisará ter acesso ao projeto.'),
+                )
+                .catch(() =>
+                  setLinkNotice('Não foi possível copiar. Copie o endereço da barra do navegador.'),
+                );
+            }}
+          >
+            <Link size={15} /> Copiar link
+          </button>
           <CorpusHealth studio={studio} />
           {advanced && (
             <>
@@ -2049,9 +2152,27 @@ export default function App() {
           <LearningWorkspace
             project={project}
             initialView={learningView}
+            onViewChange={setLearningView}
             onClose={() => setLearningView(null)}
           />
         </Suspense>
+      )}
+      {navigation.error && (
+        <div role="alert" className="error-banner">
+          {navigation.error}
+        </div>
+      )}
+      {linkNotice && (
+        <div role="status" className="notice-banner">
+          <span>{linkNotice}</span>
+          <button
+            className="icon-button"
+            aria-label="Fechar aviso do link"
+            onClick={() => setLinkNotice('')}
+          >
+            <X size={17} />
+          </button>
+        </div>
       )}
       {groundTruthNote && (
         <div role="status" className="notice-banner">

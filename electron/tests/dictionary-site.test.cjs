@@ -16,7 +16,7 @@ async function fixture(t, extra = {}) {
     'styles.css':
       '@import url("https://fonts.googleapis.com/css2?family=Example"); body { color: green; }',
     'js/index.js':
-      "function mapCompressedData(data) { return data.map((item, index) => ({ first_word: item.f || '', })); }\nfunction renderResults(results) { results.forEach(result => { const entry = document.createElement('div'); entry.classList.add('entry'); }); }",
+      "function mapCompressedData(data) { return data.map((item, index) => ({ first_word: item.f || '', })); }\nfunction renderResults(results) { results.forEach(result => { const entry = document.createElement('div'); entry.classList.add('entry'); }); }\nfunction search() { history.pushState(null, null, newUrl); }\nasync function init() {}\n  init();",
     'js/pako.min.js': '/* local inflater */',
     'js/papaparse.min.js': '/* local CSV parser */',
     'neologisms.csv': 'Verbete,Definição Portuguesa\n',

@@ -9,8 +9,11 @@ const fingerprint = `sha256:${'a'.repeat(64)}`;
 test('dictionary source decoration preserves original row identity even with equal headwords and senses', () => {
   const source = `function mapCompressedData(data) { return data.map((item,index) => ({first_word: item.f || '', definition: item.d})); }
 function renderResult(result) { const entry = {classList:{add(){}},dataset:{}}; entry.classList.add('entry'); return entry; }
+function search() { history.pushState(null, null, newUrl); }
+async function init() {}
+  init();
 globalThis.result=mapCompressedData([{f:'ara',d:'dia'},{f:'ara',d:'tempo'}]).map(renderResult);`;
-  const context = {};
+  const context = { window: { dispatchEvent() {} }, Event };
   vm.runInNewContext(transformScript(source), context);
   assert.deepEqual(JSON.parse(JSON.stringify(context.result)), [
     { classList: {}, dataset: { studioEntryIndex: '0' } },
@@ -66,6 +69,13 @@ test('current neighboring dictionary source supports the bounded decoration with
   assert.ok(decorated.includes('appendOptionsToResultDiv(preview, result.con'));
   assert.ok(decorated.includes("classList.add('show-more')"));
   assert.ok(decorated.includes('keyForItem(entry.item)'));
+  assert.ok(decorated.includes('window.__studioDictionaryNavigate'));
+  assert.ok(decorated.includes("new CustomEvent('studio-dictionary-query'"));
+  assert.ok(!decorated.includes('history.pushState(null, null, newUrl)'));
+  assert.throws(
+    () => transformScript(script.replace('  init();', '  start();')),
+    /site do dicionário mudou/,
+  );
   new vm.Script(decorated);
   const html = transformHtml(fs.readFileSync(path.join(root, 'index.html'), 'utf8'), {
     datasetFingerprint: fingerprint,

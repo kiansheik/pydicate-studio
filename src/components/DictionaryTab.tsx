@@ -10,6 +10,11 @@ interface DictionaryStatus {
   message?: string;
   datasetFingerprint?: string;
 }
+export interface DictionaryNavigation {
+  entryIndex?: number;
+  datasetFingerprint?: string;
+  query?: string;
+}
 interface Props {
   projectId: string;
   passageId: string;
@@ -19,9 +24,17 @@ interface Props {
   disabled?: boolean;
   active: boolean;
   reference?: AnalysisEvidence | null;
+  navigation?: DictionaryNavigation | null;
+  onNavigationChange?: (navigation: DictionaryNavigation) => void;
   onInsert: (expression: string, expectedRevision: string) => boolean;
 }
 const dictionaryOrigin = 'studio://dictionary';
+const navigationKey = (navigation?: DictionaryNavigation | null) =>
+  JSON.stringify([
+    navigation?.entryIndex ?? null,
+    navigation?.datasetFingerprint ?? null,
+    navigation?.query ?? '',
+  ]);
 const dictionaryUrl = (projectId: string, fingerprint?: string) =>
   `${dictionaryOrigin}/nhe-enga/?projectId=${encodeURIComponent(projectId)}&dataset=${encodeURIComponent(fingerprint ?? '')}`;
 function validStatus(status: DictionaryStatus, projectId: string) {
@@ -71,9 +84,19 @@ export function DictionaryTab(props: Props) {
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [selection, setSelection] = useState<DictionarySelection | null>(null);
+  const [frameReady, setFrameReady] = useState(false);
+  const emittedNavigation = useRef<string | null>(null);
+  const iframeNavigation = useRef<string | null>(null);
+  const selectionNavigation = useRef<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const latest = useRef(props);
   latest.current = props;
+  const requestedNavigation = navigationKey(props.navigation);
+  const controlledNavigation = props.navigation !== undefined;
+  const staleNavigation =
+    props.navigation?.entryIndex !== undefined &&
+    !!status?.datasetFingerprint &&
+    props.navigation.datasetFingerprint !== status.datasetFingerprint;
   const contextKey = JSON.stringify([
     props.projectId,
     props.passageId,
@@ -93,16 +116,19 @@ export function DictionaryTab(props: Props) {
     if (
       Number.isSafeInteger(reference.entryIndex) &&
       reference.datasetFingerprint === status.datasetFingerprint
-    )
+    ) {
+      selectionNavigation.current = navigationKey(latest.current.navigation);
       setSelection({
         entryIndex: Number(reference.entryIndex),
         datasetFingerprint: status.datasetFingerprint,
       });
+    }
   }, [props.reference, props.active, status?.datasetFingerprint]);
   useEffect(() => {
     if (!visited) return;
     let current = true;
     setStatus(null);
+    setFrameReady(false);
     setError('');
     setSelection(null);
     void invoke<DictionaryStatus>('dictionary_status', { projectId: props.projectId })
@@ -120,10 +146,60 @@ export function DictionaryTab(props: Props) {
     };
   }, [visited, props.projectId, props.engineFingerprint, attempt]);
   useEffect(() => {
+    if (props.navigation === undefined) return;
+    // Restoring a URL is consultation only. It must never instantiate the
+    // creation component, which can insert an unambiguous entry automatically.
+    if (emittedNavigation.current !== requestedNavigation) setSelection(null);
+    emittedNavigation.current = null;
+  }, [requestedNavigation, controlledNavigation]);
+  useEffect(() => {
+    if (
+      !props.active ||
+      !frameReady ||
+      !status?.available ||
+      props.navigation === undefined ||
+      staleNavigation
+    )
+      return;
+    // The iframe already rendered a real search/selection. Acknowledging its
+    // URL state must not run that search a second time.
+    const alreadyVisible = iframeNavigation.current === requestedNavigation;
+    iframeNavigation.current = null;
+    if (alreadyVisible) return;
+    const navigation = props.navigation;
+    if (
+      navigation?.entryIndex !== undefined &&
+      (!Number.isSafeInteger(navigation.entryIndex) ||
+        navigation.entryIndex < 0 ||
+        navigation.entryIndex > 1_000_000)
+    )
+      return;
+    const origin =
+      !status.url || status.url.startsWith('studio:')
+        ? dictionaryOrigin
+        : new URL(status.url).origin;
+    frame.current?.contentWindow?.postMessage(
+      {
+        type: 'studio-dictionary-reveal',
+        version: 1,
+        entryIndex: navigation?.entryIndex ?? null,
+        query: (navigation?.query ?? '').slice(0, 300),
+        datasetFingerprint: status.datasetFingerprint,
+      },
+      origin,
+    );
+  }, [
+    props.active,
+    requestedNavigation,
+    controlledNavigation,
+    frameReady,
+    status,
+    staleNavigation,
+  ]);
+  useEffect(() => {
     const receive = (event: MessageEvent<unknown>) => {
       if (
         !latest.current.active ||
-        latest.current.disabled ||
         !status?.available ||
         !status.datasetFingerprint ||
         !frame.current ||
@@ -131,10 +207,56 @@ export function DictionaryTab(props: Props) {
         event.origin !==
           (!status.url || status.url.startsWith('studio:')
             ? dictionaryOrigin
-            : new URL(status.url!).origin) ||
-        !selectedEntry(event.data, status.datasetFingerprint)
+            : new URL(status.url!).origin)
       )
         return;
+      const data =
+        event.data && typeof event.data === 'object'
+          ? (event.data as Record<string, unknown>)
+          : null;
+      if (
+        data?.type === 'studio-dictionary-ready' &&
+        data.version === 1 &&
+        data.datasetFingerprint === status.datasetFingerprint &&
+        Object.keys(data).length === 3
+      ) {
+        setFrameReady(true);
+        return;
+      }
+      if (
+        data?.type === 'studio-dictionary-navigation' &&
+        data.version === 1 &&
+        data.datasetFingerprint === status.datasetFingerprint &&
+        Object.keys(data).length === 5 &&
+        typeof data.query === 'string' &&
+        data.query.length <= 300 &&
+        (data.entryIndex === null ||
+          (Number.isSafeInteger(data.entryIndex) &&
+            Number(data.entryIndex) >= 0 &&
+            Number(data.entryIndex) <= 1_000_000))
+      ) {
+        const next: DictionaryNavigation = {
+          ...(data.entryIndex !== null
+            ? { entryIndex: Number(data.entryIndex), datasetFingerprint: status.datasetFingerprint }
+            : {}),
+          ...(data.query ? { query: data.query } : {}),
+        };
+        emittedNavigation.current = navigationKey(next);
+        iframeNavigation.current = navigationKey(next);
+        latest.current.onNavigationChange?.(next);
+        if (data.entryIndex === null) setSelection(null);
+        return;
+      }
+      if (latest.current.disabled || !selectedEntry(event.data, status.datasetFingerprint)) return;
+      const next: DictionaryNavigation = {
+        entryIndex: event.data.entryIndex,
+        datasetFingerprint: event.data.datasetFingerprint,
+        ...(latest.current.navigation?.query ? { query: latest.current.navigation.query } : {}),
+      };
+      emittedNavigation.current = navigationKey(next);
+      iframeNavigation.current = navigationKey(next);
+      selectionNavigation.current = navigationKey(next);
+      latest.current.onNavigationChange?.(next);
       setSelection({
         entryIndex: event.data.entryIndex,
         datasetFingerprint: event.data.datasetFingerprint,
@@ -177,23 +299,30 @@ export function DictionaryTab(props: Props) {
           </small>
         </aside>
       )}
-      {selection && (
-        <DictionaryEntryCreation
-          selection={selection}
-          projectId={props.projectId}
-          passageId={props.passageId}
-          sourceId={props.sourceId}
-          revisionId={props.revisionId}
-          engineFingerprint={props.engineFingerprint}
-          contextKey={contextKey}
-          active={props.active}
-          disabled={props.disabled}
-          onInsert={(expression, expectedRevision) =>
-            expectedRevision === undefined ? false : props.onInsert(expression, expectedRevision)
-          }
-          onCancel={() => setSelection(null)}
-        />
+      {staleNavigation && (
+        <p role="status">
+          O verbete deste link pertence a outra versão do dicionário. Pesquise novamente para
+          conferir a entrada.
+        </p>
       )}
+      {selection &&
+        (!controlledNavigation || selectionNavigation.current === requestedNavigation) && (
+          <DictionaryEntryCreation
+            selection={selection}
+            projectId={props.projectId}
+            passageId={props.passageId}
+            sourceId={props.sourceId}
+            revisionId={props.revisionId}
+            engineFingerprint={props.engineFingerprint}
+            contextKey={contextKey}
+            active={props.active}
+            disabled={props.disabled}
+            onInsert={(expression, expectedRevision) =>
+              expectedRevision === undefined ? false : props.onInsert(expression, expectedRevision)
+            }
+            onCancel={() => setSelection(null)}
+          />
+        )}
       {!status && !error && <p role="status">Abrindo o dicionário local…</p>}
       {(error || (status && !status.available)) && (
         <div className="dictionary-unavailable">
@@ -209,6 +338,7 @@ export function DictionaryTab(props: Props) {
         <iframe
           key={`${props.projectId}:${status.datasetFingerprint}`}
           ref={frame}
+          onLoad={() => setFrameReady(true)}
           title="Dicionário de tupi antigo"
           src={status.url ?? dictionaryUrl(props.projectId, status.datasetFingerprint)}
           sandbox="allow-scripts allow-same-origin"

@@ -47,9 +47,12 @@ import type { CanvasEdit, CanvasState } from '../domain/canvas';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type { EvaluationFailure } from '../domain/authoring';
 import type { MorphemeSurfaceHighlight } from '../domain/morpheme-display';
+import type { SharedTreeNavigation } from '../domain/shared-definition';
 
 interface TreeEditingProps {
   onEditingSharedTree?: (name: string | null) => void;
+  sharedTreeNavigation?: SharedTreeNavigation | null;
+  onSharedTreeNavigationChange?: (target: SharedTreeNavigation | null) => void;
   onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
   canvas?: CanvasState;
   onChangeCanvas?: (change: CanvasEdit) => void;

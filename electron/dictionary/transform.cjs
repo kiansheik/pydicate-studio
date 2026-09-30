@@ -1,5 +1,30 @@
 const INDEX_ANCHOR = "first_word: item.f || '',";
 const ENTRY_ANCHOR = "entry.classList.add('entry');";
+const HISTORY_ANCHOR = 'history.pushState(null, null, newUrl);';
+const INIT_ANCHOR = '  init();';
+
+// Installed inside the dictionary closure so exact row identity, rendering and
+// search behavior stay owned by the dictionary. This API only changes its view.
+const NAVIGATION = `  window.__studioDictionaryNavigate = ({ entryIndex, query }) => {
+    if (!dataReady) return null;
+    const row = entryIndex === null ? null : jsonData.find(item => item.__studioEntryIndex === entryIndex);
+    if (entryIndex !== null && !row) return false;
+    searchInput.value = query || (row ? row.first_word : '');
+    if (query) performSearch({ updateHistory: false });
+    else resultsDiv.replaceChildren();
+    if (row) {
+      let entry = resultsDiv.querySelector('[data-studio-entry-index="' + entryIndex + '"]');
+      if (!entry) {
+        renderResults([{ ...row, exact_match: true }], query || row.first_word);
+        updateShowMoreLinks();
+        updateRetainQueryLinks();
+        entry = resultsDiv.querySelector('[data-studio-entry-index="' + entryIndex + '"]');
+      }
+      entry?.scrollIntoView({ block: 'nearest' });
+    }
+    return true;
+  };
+  init().then(() => window.dispatchEvent(new Event('studio-dictionary-loaded')));`;
 
 function replaceOnce(source, marker, replacement) {
   if (source.split(marker).length !== 2)
@@ -11,11 +36,19 @@ function replaceOnce(source, marker, replacement) {
 
 function transformScript(source) {
   source = replaceOnce(source, INDEX_ANCHOR, `__studioEntryIndex: index,\n      ${INDEX_ANCHOR}`);
-  return replaceOnce(
+  source = replaceOnce(
     source,
     ENTRY_ANCHOR,
     `${ENTRY_ANCHOR}\n      if (Number.isSafeInteger(result.__studioEntryIndex) && result.__studioEntryIndex >= 0) entry.dataset.studioEntryIndex = String(result.__studioEntryIndex);`,
   );
+  // Parent history owns searches in Studio. An iframe history entry would make
+  // browser Back change only the child and leave the visible workspace URL stale.
+  source = replaceOnce(
+    source,
+    HISTORY_ANCHOR,
+    "window.dispatchEvent(new CustomEvent('studio-dictionary-query', { detail: query }));",
+  );
+  return replaceOnce(source, INIT_ANCHOR, NAVIGATION);
 }
 
 function transformHtml(

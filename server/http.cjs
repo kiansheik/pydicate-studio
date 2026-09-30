@@ -6,6 +6,7 @@ const { isIP } = require('node:net');
 const { randomUUID } = require('node:crypto');
 const { fault, identifier, passageKey } = require('./store.cjs');
 const { RateLimiter } = require('./auth.cjs');
+const { safeReturnTo } = require('./return-to.cjs');
 const UI_EVENTS = new Set(`navigation.passage navigation.mode navigation.projection navigation.search editor.batch
 editor.selection editor.operation editor.undo editor.redo draft.save source.preview source.apply source.conflict
 review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export`.split(/\s+/));
@@ -137,8 +138,8 @@ function createHttp({ config, store, auth, runtime }) {
             if (req.method === 'POST' && ['/api/sso/start','/api/sso/finish'].includes(route)) {
                 limiter.hit('sso:'+ip(req),30,600000);
                 const input=await body(req,4096);
-                if(route==='/api/sso/start') { const result=await identity.start(input);res.setHeader('Set-Cookie',result.cookie);return json(res,200,{url:result.url}); }
-                const result=await identity.finish(input,req.headers.cookie);res.setHeader('Set-Cookie',[result.cookie,identity.cookie('',true)]);return json(res,200,{ok:true});
+                if(route==='/api/sso/start') { const result=await identity.start(input);res.setHeader('Set-Cookie',[result.cookie,result.destinationCookie]);return json(res,200,{url:result.url}); }
+                const result=await identity.finish(input,req.headers.cookie);res.setHeader('Set-Cookie',[result.cookie,identity.cookie('',true),identity.destinationCookie('',true)]);return json(res,200,{ok:true,returnTo:result.returnTo});
             }
             const publicPost = ['/api/login', '/api/forgot', '/api/reset'];
             if (req.method === 'POST' && publicPost.includes(route)) {
@@ -147,7 +148,7 @@ function createHttp({ config, store, auth, runtime }) {
                 if (route === '/api/login') {
                     const result = await auth.login(input, ip(req));
                     res.setHeader('Set-Cookie', result.cookie);
-                    return json(res, 200, { user: result.user, csrf: result.csrf });
+                    return json(res, 200, { user: result.user, csrf: result.csrf, returnTo: safeReturnTo(input.returnTo) });
                 }
                 if (route === '/api/forgot')
                     return json(res, 200, await auth.forgot(input, ip(req)));
@@ -156,7 +157,8 @@ function createHttp({ config, store, auth, runtime }) {
             const session = await auth.session(req.headers.cookie, !['/api/events', '/api/presence', '/api/me', '/api/upstream-status'].includes(route));
             if (!session) {
                 if (req.method === 'GET' && !route.startsWith('/api/')) {
-                    res.writeHead(303, { Location: '/login' });
+                    const returnTo = safeReturnTo(route + url.search);
+                    res.writeHead(303, { Location: returnTo === '/' ? '/login' : '/login?returnTo=' + encodeURIComponent(returnTo) });
                     return res.end();
                 }
                 throw fault(401, 'SESSION_EXPIRED', 'Sessão expirada. Exporte eventuais edições locais antes de entrar novamente.');
@@ -278,7 +280,7 @@ function createHttp({ config, store, auth, runtime }) {
             }
             if (req.method === 'POST' && route.startsWith('/api/')) {
                 const input = await body(req, route === '/api/drafts' ? 4 * 1024 * 1024 : 1000000);
-                if (route === '/api/sso/link') { limiter.hit('sso-link:'+session.user.id,5,600000);const result=await identity.start(input,session);res.setHeader('Set-Cookie',result.cookie);return json(res,200,{url:result.url}); }
+                if (route === '/api/sso/link') { limiter.hit('sso-link:'+session.user.id,5,600000);const result=await identity.start(input,session);res.setHeader('Set-Cookie',[result.cookie,result.destinationCookie]);return json(res,200,{url:result.url}); }
                 if (route === '/api/logout') {
                     await auth.logout(session);
                     res.setHeader('Set-Cookie', auth.cookie('', true));

@@ -1,6 +1,7 @@
 'use strict';
 (() => {
   const api=window.collab;if(!api)return;
+  const loginUrl=()=>'/login?returnTo='+encodeURIComponent(location.pathname+location.search);
   const panel=document.createElement('aside');panel.id='collab-panel';panel.setAttribute('aria-label','Colaboração');
   const toggle=document.createElement('button');toggle.id='collab-toggle';toggle.textContent='Equipe e comentários';toggle.onclick=()=>{panel.hidden=!panel.hidden;};
   document.body.append(toggle,panel);panel.hidden=true;
@@ -129,7 +130,7 @@
   const account=element('details');element('summary','Alterar minha senha',account);
   const old=element('input',undefined,account);old.type='password';old.placeholder='Senha atual';old.autocomplete='off';old.setAttribute('aria-label','Senha atual');
   const next=element('input',undefined,account);next.type='password';next.placeholder='Nova senha (15+ caracteres)';next.autocomplete='off';next.setAttribute('aria-label','Nova senha');
-  button('Trocar senha e encerrar sessões',async()=>{if(api.state().failed||api.state().inflight)throw new Error('Exporte as edições locais antes de trocar a senha.');await api.request('/api/password',{currentPassword:old.value,password:next.value});old.value='';next.value='';location.assign('/login');},account);
+  button('Trocar senha e encerrar sessões',async()=>{if(api.state().failed||api.state().inflight)throw new Error('Exporte as edições locais antes de trocar a senha.');await api.request('/api/password',{currentPassword:old.value,password:next.value});old.value='';next.value='';location.assign(loginUrl());},account);
   function admin(){
     const section=element('details');element('summary','Administração',section);
     const address=element('input',undefined,section);address.type='email';address.placeholder='E-mail do convite';address.setAttribute('aria-label','E-mail do convite');
@@ -155,13 +156,13 @@
     if(data.type==='presence'){people.replaceChildren();element('h3','Quem está aqui',people);for(const person of data.people)element('p',`${person.name}: ${person.active?'ativo':'ausente'} — ${person.passageId||'consultando'}`,people);}
     if(data.type==='saved')status.textContent='Rascunho salvo no servidor.';
     if(data.type==='save-failed'){status.textContent=data.message;panel.hidden=false;}
-    if(data.type==='session-expired'){status.textContent='Sessão expirada. Exporte suas edições locais antes de entrar novamente.';panel.hidden=false;button('Entrar em outra aba',()=>window.open('/login','_blank','noopener'));}
+    if(data.type==='session-expired'){status.textContent='Sessão expirada. Exporte suas edições locais antes de entrar novamente.';panel.hidden=false;button('Entrar em outra aba',()=>window.open(loginUrl(),'_blank','noopener'));}
     if(data.type==='disconnected')status.textContent='Conexão interrompida. Salvamentos não confirmados continuam nesta aba.';
     if(data.type==='connected')status.textContent='Conectado ao servidor. Rascunhos e comentários compartilhados.';
     if(data.type==='resync-required'||(data.type==='drafts-change'&&data.clientId!==api.clientId))status.textContent='Há mudanças remotas. Salve ou exporte o trabalho local e use “Carregar estado compartilhado” para vê-las.';
   });
   api.me().then(({user})=>{currentUser=user;identity.textContent=user.name+' · '+user.role;
     if(user.authMethod==='academia'){account.replaceChildren();element('summary','Minha conta Academia Tupi',account);const link=element('a','Gerenciar senha no Neologismos',account);link.href='https://neo.academiatupi.com/login';link.target='_blank';link.rel='noopener noreferrer';}
-    else fetch('/api/auth-options').then(r=>r.json()).then(options=>{if(options.academia)button('Vincular conta Neo (confirme a senha atual acima)',async()=>{const result=await api.request('/api/sso/link',{currentPassword:old.value});old.value='';location.assign(result.url);},account);}).catch(()=>{});
+    else fetch('/api/auth-options').then(r=>r.json()).then(options=>{if(options.academia)button('Vincular conta Neo (confirme a senha atual acima)',async()=>{const result=await api.request('/api/sso/link',{currentPassword:old.value,returnTo:location.pathname+location.search});old.value='';location.assign(result.url);},account);}).catch(()=>{});
     if(user.role==='admin')admin();return Promise.all([loadComments(),loadSubmissions()]);}).catch(error=>{status.textContent=error.message;});
 })();

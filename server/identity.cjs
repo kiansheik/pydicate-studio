@@ -2,9 +2,14 @@
 const fs = require('node:fs/promises');
 const { randomBytes, createHash } = require('node:crypto');
 const { fault } = require('./store.cjs');
+const { safeReturnTo } = require('./return-to.cjs');
 const token = () => randomBytes(32).toString('base64url');
 const digest = text => createHash('sha256').update(text).digest('hex');
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
+function readCookie(rawCookie, name) {
+  const cookies = String(rawCookie ?? '').split(';').map(s => s.trim()).filter(s => s.startsWith(name + '='));
+  return cookies.length === 1 ? cookies[0].slice(name.length + 1) : '';
+}
 
 /** Fixed first-party code bridge, not a general OIDC client. No password/hash import. */
 class AcademiaIdentity {
@@ -13,6 +18,7 @@ class AcademiaIdentity {
     this.checks = new Map();
     this.enabled = settings.enabled === true;
     this.cookieName = auth.secure ? '__Host-studio-identity' : 'studio-dev-identity';
+    this.destinationCookieName = this.cookieName + '-return';
     if (this.enabled) {
       const parsed = new URL(settings.issuer);
       if (parsed.origin !== settings.issuer || (parsed.protocol !== 'https:' && !(settings.allowHttp && ['127.0.0.1','localhost'].includes(parsed.hostname)))) throw new Error('Identity issuer must be an HTTPS origin.');
@@ -20,7 +26,18 @@ class AcademiaIdentity {
     }
   }
   assertEnabled() { if (!this.enabled) throw fault(404,'IDENTITY_DISABLED','O login Academia Tupi ainda não foi habilitado.'); }
-  cookie(value, clear = false) { return `${this.cookieName}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${clear ? 0 : 600}${this.auth.secure ? '; Secure' : ''}`; }
+  cookie(value, clear = false, name = this.cookieName) { return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${clear ? 0 : 600}${this.auth.secure ? '; Secure' : ''}`; }
+  destinationCookie(value, clear = false) { return this.cookie(value, clear, this.destinationCookieName); }
+  returnDestination(rawCookie, flowCookie) {
+    const encoded = readCookie(rawCookie, this.destinationCookieName);
+    if (!/^[A-Za-z0-9_-]{1,3500}$/.test(encoded)) return '/';
+    try {
+      const destination = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+      // Navigation is not authorization: still validate the root-only target,
+      // even if a client replaces this cookie. Binding prevents stale tab reuse.
+      return destination.flow === digest(flowCookie) ? safeReturnTo(destination.returnTo) : '/';
+    } catch { return '/'; }
+  }
   async call(endpoint, payload) {
     this.assertEnabled();
     try {
@@ -67,12 +84,12 @@ class AcademiaIdentity {
     const url=new URL(this.settings.issuer+'/api/auth/studio/authorize');
     url.search=new URLSearchParams({client_id:this.settings.clientId,redirect_uri:this.auth.origin+'/sso/callback',state,
       code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'}).toString();
-    return {url:url.href,cookie:this.cookie(cookie)};
+    const destination = Buffer.from(JSON.stringify({flow:digest(cookie),returnTo:safeReturnTo(input.returnTo)})).toString('base64url');
+    return {url:url.href,cookie:this.cookie(cookie),destinationCookie:this.destinationCookie(destination)};
   }
   async finish(input, rawCookie) {
     this.assertEnabled();
-    const cookies=String(rawCookie??'').split(';').map(s=>s.trim()).filter(s=>s.startsWith(this.cookieName+'='));
-    const cookie=cookies.length===1?cookies[0].slice(this.cookieName.length+1):'';
+    const cookie=readCookie(rawCookie,this.cookieName);
     if (!tokenPattern.test(cookie)||!tokenPattern.test(input.state??'')||!tokenPattern.test(input.code??'')||input.iss!==this.settings.issuer)throw fault(400,'IDENTITY_STATE','Recomece o login nesta aba.');
     const flow=(await this.store.db.query('DELETE FROM identity_flows WHERE cookie_hash=$1 AND state_hash=$2 AND expires_at>$3 RETURNING *',[digest(cookie),digest(input.state),this.store.now()])).rows[0];
     if(!flow)throw fault(400,'IDENTITY_STATE','Este login expirou ou já foi utilizado.');
@@ -97,7 +114,8 @@ class AcademiaIdentity {
       }else if(!user || user.disabled || linked.verified_email!==claims.email || user.email!==claims.email || (flow.link_user_id && flow.link_user_id!==user.id)){
         throw fault(403,'IDENTITY_ACCOUNT_CHANGED','A conta foi alterada ou desativada. Peça ajuda à administração.');
       }
-      return this.auth.issueSession(await this.store.user(user.id),claims);
+      const session = await this.auth.issueSession(await this.store.user(user.id),claims);
+      return {...session,returnTo:this.returnDestination(rawCookie,cookie)};
     });
   }
   async checkSession(row) {

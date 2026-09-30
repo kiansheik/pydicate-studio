@@ -134,6 +134,90 @@ const inventory: PassageLexiconInventory = {
     },
   ],
 };
+test('lexical URL selection restores exact occurrences without edits or navigation feedback', async ({
+  page,
+}) => {
+  await page.goto('/tests/passage-lexicon-harness.html');
+  await page.evaluate(() =>
+    window.__lexicalFixture.setNavigation!({
+      entryId: 'entry:ore',
+      occurrenceId: 'occurrence:ore-inner',
+      query: 'oré',
+    }),
+  );
+  const inner = page.getByRole('button', { name: /oré Dentro de compound/ });
+  await expect(inner).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Buscar no léxico desta passagem')).toHaveValue('oré');
+  await expect(page.locator('#lexical-selection')).toHaveText('');
+  await page.evaluate(() =>
+    window.__lexicalFixture.setNavigation!({
+      entryId: 'entry:ore',
+      occurrenceId: 'occurrence:ore-inner',
+      query: 'oré',
+      scope: 'entry',
+    }),
+  );
+  await expect(
+    page.getByRole('button', { name: 'Sobre esta construção', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Significado geral', { exact: true })).toBeVisible();
+  await page.evaluate(() =>
+    window.__lexicalFixture.setNavigation!({
+      entryId: 'entry:compound',
+      occurrenceId: 'occurrence:compound',
+    }),
+  );
+  await expect(
+    page.getByRole('button', { name: /obaixuara Construção reutilizada/ }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Buscar no léxico desta passagem')).toHaveValue('');
+  await page.evaluate(() =>
+    window.__lexicalFixture.setNavigation!({
+      entryId: 'entry:gone',
+      occurrenceId: 'occurrence:gone',
+    }),
+  );
+  await expect(
+    page.getByText('A peça ou ocorrência deste link não está na árvore atual.'),
+  ).toBeVisible();
+  await expect(page.locator('.lexical-entry-title')).toHaveCount(0);
+  await page.evaluate(() =>
+    window.__lexicalFixture.setNavigation!({
+      entryId: 'entry:ore',
+      occurrenceId: 'occurrence:ore-inner',
+      query: 'oré',
+    }),
+  );
+  await expect(inner).toHaveAttribute('aria-pressed', 'true');
+  // Let the existing note autosave timer run: simply opening a linked note is read-only.
+  await page.waitForTimeout(750);
+  expect(await page.evaluate(() => window.__lexicalFixture.navigations ?? [])).toEqual([]);
+  expect(
+    await page.evaluate(() =>
+      window.__lexicalFixture.requests.filter(
+        (item) => !['passage_lexicon', 'lexical_notes_list'].includes(item.method),
+      ),
+    ),
+  ).toEqual([]);
+  await expect(page.getByTestId('lexical-raw')).toHaveText('compound * oré');
+  await page.getByLabel('Buscar no léxico desta passagem').fill('');
+  await page.getByRole('button', { name: /obaixuara Construção reutilizada/ }).click();
+  expect(await page.evaluate(() => window.__lexicalFixture.navigations?.at(-1))).toEqual({
+    entryId: 'entry:compound',
+    occurrenceId: 'occurrence:compound',
+  });
+  await expect(page.locator('#lexical-selection')).toHaveText('root/left');
+  await page.evaluate(() => window.__lexicalFixture.setNavigation!({}));
+  await expect(
+    page.getByRole('button', { name: /obaixuara Construção reutilizada/ }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Sobre esta construção', exact: true }).click();
+  expect(await page.evaluate(() => window.__lexicalFixture.navigations?.at(-1))).toEqual({
+    entryId: 'entry:compound',
+    occurrenceId: 'occurrence:compound',
+    scope: 'entry',
+  });
+});
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((fixture) => {
     const control = (window.__lexicalFixture = {

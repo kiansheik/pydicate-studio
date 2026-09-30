@@ -70,6 +70,7 @@ import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type {
   SharedDefinitionTarget,
   SharedTreeEntry,
+  SharedTreeNavigation,
   SharedTreeRequest,
 } from '../domain/shared-definition';
 import type { RenderResult } from '../domain/types';
@@ -96,6 +97,8 @@ export interface ExpressionCanvasProps {
   onOpenReference?: (request: SharedTreeRequest) => void;
   onOpenSharedTree?: (entry: SharedTreeEntry) => void;
   onEditingSharedTree?: (name: string | null) => void;
+  sharedTreeNavigation?: SharedTreeNavigation | null;
+  onSharedTreeNavigationChange?: (target: SharedTreeNavigation | null) => void;
   inactive?: boolean;
   raw?: string;
   authoringRoot?: AuthorNode | null;
@@ -816,12 +819,19 @@ export function ExpressionCanvas({
     document.addEventListener('keydown', focusAddition);
     return () => document.removeEventListener('keydown', focusAddition);
   }, []);
+  const restoredSourceSelection = useRef('');
   useEffect(() => {
     const id = props.selectedSourceNodeId;
-    if (!id || (selected.startsWith('main:') && selected === 'main:' + id)) return;
+    const identity = JSON.stringify([props.passageId, props.sourceId, id]);
+    if (!id || restoredSourceSelection.current === identity) return;
     const main = pieces.find((piece) => piece.id === 'main');
-    if (main?.graph?.nodes.some((node) => node.id === id)) focusNode(main, id);
-  }, [props.selectedSourceNodeId]);
+    // A direct link can arrive before parsing has supplied the source graph.
+    // Retry when it arrives, then leave subsequent local canvas choices alone.
+    if (main?.graph?.nodes.some((node) => node.id === id)) {
+      restoredSourceSelection.current = identity;
+      if (selected !== 'main:' + id) focusNode(main, id);
+    }
+  }, [props.selectedSourceNodeId, props.passageId, props.sourceId, pieces]);
   useEffect(() => {
     if (!menu) return;
     requestAnimationFrame(() =>
