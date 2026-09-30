@@ -815,3 +815,10 @@ credential installation. Acceptance uses attributed PostgreSQL revisions and
 claims; active AI blocks idle maintenance. Focused browser, compiled hosted editor,
 domain, desktop, hosted and credential/deploy tests pass. Live rollout pending;
 see [handoff](session-handoffs/2026-09-28-demo-readiness.md).
+
+## 2026-09-30 — Browser request pressure
+
+Bound hosted engine concurrency, share pending identical reads, honor 429
+cooldowns, and serialize/throttle streamed analysis refreshes. The earlier
+reported grammar repair completed with target matched and all 151 rows unchanged.
+See [handoff](session-handoffs/2026-09-30-browser-request-pressure.md).

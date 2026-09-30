@@ -108,63 +108,91 @@ export function useAnalysisWorkspace(studio: Studio) {
   const activeThreads = useRef(new Map<string, string>());
   for (const thread of listing.conversations)
     activeThreads.current.set(`${thread.projectId}:${thread.passageId}`, thread.id);
-  const refresh = useCallback(async () => {
-    const projectId = latest.current.project.id;
-    const passageId = latest.current.passage.id;
-    if (!analysisAvailable() || latest.current.project.mode !== 'local' || !window.studio?.invoke)
-      return;
-    const request = ++sequence.current;
-    try {
-      const data = await invoke<AnalysisListing>('analysis_list', { projectId });
-      const activeThread = data.conversations.find((item) => item.passageId === passageId);
-      const newest = data.jobs
-        .filter(
-          (job) =>
-            job.passageId === passageId &&
-            (!activeThread || job.conversationId === activeThread.id),
-        )
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      const selectedId =
-        localRef.current[passageId]?.selectedCandidateId ??
-        data.conversations.find((item) => item.passageId === passageId)?.selectedCandidateId;
-      const selectedJob = data.jobs.find(
-        (job) => selectedId && job.candidateIds.includes(selectedId),
-      );
-      for (const job of [newest, selectedJob].filter(
-        (value, index, values) =>
-          value && values.findIndex((item) => item?.id === value.id) === index,
-      )) {
-        if (!job) continue;
-        const thread = data.conversations.find((item) => item.passageId === job.passageId);
-        if (
-          jobDetails.current.get(job.id)?.job.updatedAt === job.updatedAt &&
-          (!thread ||
-            (conversationDetails.current.get(thread.id)?.revision ?? -1) >= thread.revision)
-        )
-          continue;
-        const detail = await invoke<AnalysisDetail>('analysis_get', { projectId, jobId: job.id });
-        if (projectId === latest.current.project.id) {
-          jobDetails.current.set(job.id, detail);
-          if (detail.conversation)
-            rememberConversation(conversationDetails.current, detail.conversation);
-          if (jobDetails.current.size > 8)
-            jobDetails.current.delete(jobDetails.current.keys().next().value!);
-        }
-      }
-      if (projectId === latest.current.project.id && request === sequence.current) {
-        setListing(mergeAnalysisDetails(data, jobDetails.current, conversationDetails.current));
-        setError((current) =>
-          current.startsWith('Não foi possível carregar a fila:') ? '' : current,
-        );
-      }
-    } catch (failure) {
-      if (projectId === latest.current.project.id)
-        setError((current) =>
-          current && !current.startsWith('Não foi possível carregar a fila:')
-            ? current
-            : `Não foi possível carregar a fila: ${analysisError(failure)}`,
-        );
+  const refreshing = useRef<Promise<void> | null>(null);
+  const refreshAgain = useRef(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(refreshTimer.current);
+    };
+  }, []);
+  const refresh = useCallback((): Promise<void> => {
+    if (refreshing.current) {
+      refreshAgain.current = true;
+      return refreshing.current;
     }
+    clearTimeout(refreshTimer.current);
+    refreshAgain.current = false;
+    const task = (async () => {
+      const projectId = latest.current.project.id;
+      const passageId = latest.current.passage.id;
+      if (!analysisAvailable() || latest.current.project.mode !== 'local' || !window.studio?.invoke)
+        return;
+      const request = ++sequence.current;
+      try {
+        const data = await invoke<AnalysisListing>('analysis_list', { projectId });
+        const activeThread = data.conversations.find((item) => item.passageId === passageId);
+        const newest = data.jobs
+          .filter(
+            (job) =>
+              job.passageId === passageId &&
+              (!activeThread || job.conversationId === activeThread.id),
+          )
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+        const selectedId =
+          localRef.current[passageId]?.selectedCandidateId ??
+          data.conversations.find((item) => item.passageId === passageId)?.selectedCandidateId;
+        const selectedJob = data.jobs.find(
+          (job) => selectedId && job.candidateIds.includes(selectedId),
+        );
+        for (const job of [newest, selectedJob].filter(
+          (value, index, values) =>
+            value && values.findIndex((item) => item?.id === value.id) === index,
+        )) {
+          if (!job) continue;
+          const thread = data.conversations.find((item) => item.passageId === job.passageId);
+          if (
+            jobDetails.current.get(job.id)?.job.updatedAt === job.updatedAt &&
+            (!thread ||
+              (conversationDetails.current.get(thread.id)?.revision ?? -1) >= thread.revision)
+          )
+            continue;
+          const detail = await invoke<AnalysisDetail>('analysis_get', { projectId, jobId: job.id });
+          if (projectId === latest.current.project.id) {
+            jobDetails.current.set(job.id, detail);
+            if (detail.conversation)
+              rememberConversation(conversationDetails.current, detail.conversation);
+            if (jobDetails.current.size > 8)
+              jobDetails.current.delete(jobDetails.current.keys().next().value!);
+          }
+        }
+        if (projectId === latest.current.project.id && request === sequence.current) {
+          setListing(mergeAnalysisDetails(data, jobDetails.current, conversationDetails.current));
+          setError((current) =>
+            current.startsWith('Não foi possível carregar a fila:') ? '' : current,
+          );
+        }
+      } catch (failure) {
+        if (projectId === latest.current.project.id)
+          setError((current) =>
+            current && !current.startsWith('Não foi possível carregar a fila:')
+              ? current
+              : `Não foi possível carregar a fila: ${analysisError(failure)}`,
+          );
+      }
+    })();
+    const context = `${latest.current.project.id}:${latest.current.passage.id}`;
+    refreshing.current = task.finally(() => {
+      refreshing.current = null;
+      // Navigation during a slow request needs a fresh read of the new passage.
+      if (!mounted.current) return;
+      if (context !== `${latest.current.project.id}:${latest.current.passage.id}`) void refresh();
+      else if (refreshAgain.current) refreshTimer.current = setTimeout(() => void refresh(), 1500);
+    });
+    return refreshing.current;
   }, []);
   useEffect(() => {
     setListing(emptyAnalysis());
@@ -184,7 +212,7 @@ export function useAnalysisWorkspace(studio: Studio) {
         timer = setTimeout(() => {
           timer = undefined;
           void refresh();
-        }, 100);
+        }, 1500);
     });
     return () => {
       unsubscribe?.();

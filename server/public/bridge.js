@@ -20,9 +20,34 @@
     if(!response.ok){
       let error;try{error=(await response.json()).error;}catch{error={message:'Resposta inválida do servidor.'};}
       if(response.status===401)notify({type:'session-expired'});
-      const failure=new Error(`[STUDIO:${error.code||'HTTP_ERROR'}] ${error.message}`);failure.code=error.code;throw failure;
+      const failure=new Error(`[STUDIO:${error.code||'HTTP_ERROR'}] ${error.message}`);failure.code=error.code;failure.status=response.status;failure.retryAfterMs=Math.max(1000,Number(response.headers.get('retry-after'))*1000||(error.code==='ENGINE_BUSY'?2000:60000));throw failure;
     }
     return response.headers.get('content-type')?.startsWith('application/pdf')?response.arrayBuffer():response.json();
+  }
+  // Share identical reads and bound browser pressure on the serialized engine.
+  // Writes remain distinct and are never retried automatically.
+  const readMethods=new Set('analysis_list analysis_get ai_status ai_history render evaluate_expression parse_expression predicate_catalog lexicon_search lexicon_inspect structure_search structure_resolve structure_prepare dictionary_status dictionary_search dictionary_lookup dictionary_entry_get dictionary_predicate assistant_context reference_status passage_lexicon evidence_status lexical_notes_list learning_library'.split(' '));
+  const reads=new Map(),invokeQueue=[];
+  let activeInvokes=0,cooldownUntil=0,wakeTimer;
+  function pumpInvokes(){
+    clearTimeout(wakeTimer);
+    if(!invokeQueue.length)return;
+    if(Date.now()<cooldownUntil){wakeTimer=setTimeout(pumpInvokes,cooldownUntil-Date.now());return;}
+    while(activeInvokes<3&&invokeQueue.length){
+      const task=invokeQueue.shift();activeInvokes++;
+      request('/api/invoke',task.input).then(task.resolve,error=>{
+        if(error.status===429)cooldownUntil=Math.max(cooldownUntil,Date.now()+error.retryAfterMs);
+        task.reject(error);
+      }).finally(()=>{activeInvokes--;pumpInvokes();});
+    }
+  }
+  function invokeRequest(method,params){
+    const key=readMethods.has(method)?stable({method,params}):null;
+    if(key&&reads.has(key))return reads.get(key);
+    const pending=new Promise((resolve,reject)=>{invokeQueue.push({input:{method,params},resolve,reject});pumpInvokes();});
+    const result=pending.finally(()=>{if(key)reads.delete(key);});
+    if(key)reads.set(key,result);
+    return result;
   }
   function stable(value){
     if(Array.isArray(value))return '['+value.map(stable).join(',')+']';
@@ -72,7 +97,7 @@
         if(method==='evidence_relocate')throw new Error('Peça à administração para recuperar o PDF do backup no servidor.');
         return upload(params);
       }
-      const value=await request('/api/invoke',{method,params});
+      const value=await invokeRequest(method,params);
       if(method==='session_restore'){projectId=value.project?.id??null;selected=value.selectedPassageId??value.project?.passages[0]?.id??null;notify({type:'selection',passageId:selected});}
       if(method==='analysis_accept' && value.envelope && value.versions) snapshots.set(value.envelope.projectId,structuredClone({envelope:value.envelope,versions:value.versions}));
       if(method==='session_select'){selected=params.passageId;projectId=params.projectId;notify({type:'selection',passageId:selected});void heartbeat();}
@@ -91,7 +116,7 @@
     refreshProject:()=>request('/api/refresh',{}),
     openProject:()=>request('/api/refresh',{}),
     setupProject:()=>Promise.reject(new Error('O projeto é configurado pela administração do servidor.')),
-    render:params=>request('/api/invoke',{method:'render',params}),
+    render:params=>invokeRequest('render',params),
     onEvent:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},
     copyText:text=>navigator.clipboard.writeText(text),
     recordUsage:event=>request('/api/usage',event).catch(()=>{}),

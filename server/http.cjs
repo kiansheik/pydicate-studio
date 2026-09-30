@@ -441,7 +441,7 @@ function createHttp({ config, store, auth, runtime }) {
             }
             const status = Number.isInteger(error.status) ? error.status : (error.code === 'ENOENT' ? 404 : 500);
             if (status === 429 || error.code === 'UPSTREAM_UPDATING')
-                res.setHeader('Retry-After', status === 429 ? '60' : '15');
+                res.setHeader('Retry-After', status === 429 ? (error.code === 'ENGINE_BUSY' ? '2' : '60') : '15');
             json(res, status, { error: { code: status === 500 ? 'SERVER_ERROR' : error.code || 'INVALID_INPUT', message: status === 500 ? 'Não foi possível completar o pedido. A administração deve verificar o servidor.' : String(error.message).slice(0, 4000) } });
         } finally { finishWork(); }
     });

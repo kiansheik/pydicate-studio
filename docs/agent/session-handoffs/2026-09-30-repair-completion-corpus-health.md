@@ -67,3 +67,31 @@ Pending draft trees are counted but are not all evaluated as historical source r
 After rollout, open Saúde do corpus and inspect actual divergences. If a future
 repair needs more than its step/output budget, assess that exact case; do not
 silently replay paid provider attempts or broaden the grammar rule.
+
+## Deployment and live health
+
+`bee3ba1e2a38a81676cd2d3e06f45fa53d7a9d71` is live from the review branch.
+The private drained-work lease was acknowledged before restart; rollout took
+50.5 seconds. Checkpoint: `light-backups/20260930T104849-935fa0`.
+
+The live authenticated browser check passes at 800×600, including readable dark
+mode and all source table columns. Fresh check: 151 lines / 3 sources / zero
+reference divergences / zero execution failures / 3 pending drafts / 312 distinct
+annotated surface-tag forms. Runtime 2428 ms. Source counts: Araújo 111,
+Bettendorff 40, Catecismo Brasílico 0 (two pending drafts). Historical interrupted
+attempts remain visible separately. Screenshot: `.local/vps-qa/corpus-health-live.png`.
+The extra MCP lifetime/revocation test also passes. Production build passes.
+
+Only the reported job was explicitly resumed through the authenticated API,
+operation `resume:verified-completion-20260930`, at 10:49:53Z. Instructions require
+verification and completion of saved work without replaying edits or broadening
+the rule. No passage/reference writes or automatic new analyses were permitted
+by the live browser verification. Terminal outcome follows below.
+
+### Terminal result
+
+The resumed attempt finished ready-for-review at 10:58:07.935Z, after more than
+eight minutes. The target matched and all 151 source lines were unchanged with
+no failures. The continuation completed documentation without further grammar
+rule edits. One documentation edit failed worker reload and was rolled back;
+its retry succeeded and verification remained clean.

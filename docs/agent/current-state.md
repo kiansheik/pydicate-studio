@@ -1,6 +1,24 @@
 # Current state
 
-## Repair completion and whole-corpus health
+## Browser request pressure (deployment pending)
+
+Streamed AI refreshes now run one at a time, coalesce updates over 1.5 seconds,
+and retain a trailing refresh. Hosted engine requests share identical pending
+reads, allow three concurrent calls per tab, and respect 429 cooldowns. Writes
+are neither deduplicated nor retried. See
+[handoff](session-handoffs/2026-09-30-browser-request-pressure.md).
+
+## Repair completion and whole-corpus health (live)
+
+Release `bee3ba1e2a38a81676cd2d3e06f45fa53d7a9d71` is live from PR #16.
+The rollout acquired its private drain lease and completed in 50.5 seconds.
+Live authenticated health checks cover 151 source lines across three sources:
+zero reference divergences or execution failures, three pending drafts, and
+312 distinct annotated surface/tag forms. The check takes about 2.4 seconds;
+the dark-mode dialog was visually checked at 800×600.
+
+The reported interrupted repair finished at 10:58:07Z on its third attempt:
+target matched, all 151 corpus lines unchanged, no verification failures.
 
 Grammar repairs no longer stop at the ordinary five-minute deadline. Resume
 compacts provider context while preserving full saved history; in-flight edits
