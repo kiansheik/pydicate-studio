@@ -419,6 +419,63 @@ test('source translation can start without expression; failed save/evidence revi
   assert.equal((await f.service.invoke('analysis_list', { projectId })).jobs.length, 1);
 });
 
+test('prepared own-passage evidence survives another passage autosave before and during capture', async (t) => {
+  const f = await fixture(t),
+    fingerprint = 'a'.repeat(64);
+  f.setEvidence({ ...f.evidence(), passageFingerprint: fingerprint });
+  f.setRequestHook(async (method) => {
+    if (method === 'dictionary_lookup') f.setEvidence({ ...f.evidence(), revision: 5 });
+  });
+  const job = await f.service.invoke(
+    'analysis_submit',
+    f.params({
+      evidenceRevision: 2,
+      evidencePassageFingerprint: fingerprint,
+    }),
+  );
+  assert.equal(job.input.evidence.revision, 4);
+  assert.equal(job.input.evidence.passageFingerprint, fingerprint);
+  assert.equal(f.evidence().revision, 5);
+  assert.equal((await f.service.invoke('analysis_list', { projectId })).jobs.length, 1);
+});
+
+test('prepared evidence requires an exact own-passage fingerprint even with the current source revision', async (t) => {
+  const f = await fixture(t);
+  f.setEvidence({ ...f.evidence(), passageFingerprint: 'a'.repeat(64) });
+  for (const [index, value] of [null, '', 'invalid', 'b'.repeat(64)].entries())
+    await assert.rejects(
+      f.service.invoke(
+        'analysis_submit',
+        f.params({
+          operationId: 'own-evidence:' + index,
+          evidencePassageFingerprint: value,
+        }),
+      ),
+      { code: 'EVIDENCE_CONFLICT' },
+    );
+  assert.equal((await f.service.invoke('analysis_list', { projectId })).jobs.length, 0);
+});
+
+test('own-passage evidence changing during capture creates no job even when source revision is unchanged', async (t) => {
+  const f = await fixture(t),
+    fingerprint = 'a'.repeat(64);
+  f.setEvidence({ ...f.evidence(), passageFingerprint: fingerprint });
+  f.setRequestHook(async (method) => {
+    if (method === 'dictionary_lookup')
+      f.setEvidence({ ...f.evidence(), passageFingerprint: 'b'.repeat(64) });
+  });
+  await assert.rejects(
+    f.service.invoke(
+      'analysis_submit',
+      f.params({
+        evidencePassageFingerprint: fingerprint,
+      }),
+    ),
+    { code: 'EVIDENCE_CONFLICT' },
+  );
+  assert.equal((await f.service.invoke('analysis_list', { projectId })).jobs.length, 0);
+});
+
 test('scratch queue produces a proposed revision, atomically accepts to draft, preserves receipt through undo and rejects stale autosave', async (t) => {
   const f = await fixture(t, { autoRun: true, runner: candidateRunner });
   const old = await f.draftStore.load(projectId),

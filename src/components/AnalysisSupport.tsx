@@ -915,6 +915,7 @@ export function AnalysisSupport({
         selectedNode: selected,
         includeImages,
         evidenceRevision: prepared.revision,
+        evidencePassageFingerprint: prepared.passageFingerprint,
         description,
         ...(nextTask === 'revise' && replyQuestion
           ? {
@@ -1020,6 +1021,7 @@ export function AnalysisSupport({
                 : 'translate-source',
           scope: 'passage',
           evidenceRevision: status.revision,
+          evidencePassageFingerprint: status.passageFingerprint,
           includeImages,
         };
         items.push({

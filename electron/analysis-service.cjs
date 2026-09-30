@@ -519,7 +519,14 @@ function createAnalysisService({
       passageId: draft.passageId.replace(/^pending:/, 'passage:'),
     };
     const saved = await evidence.invoke('evidence_status', evidenceParams);
-    if (params.evidenceRevision !== undefined && saved.revision !== params.evidenceRevision)
+    const ownEvidenceBaseline = params.evidencePassageFingerprint !== undefined;
+    if (
+      ownEvidenceBaseline
+        ? typeof params.evidencePassageFingerprint !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(params.evidencePassageFingerprint) ||
+          saved.passageFingerprint !== params.evidencePassageFingerprint
+        : params.evidenceRevision !== undefined && saved.revision !== params.evidenceRevision
+    )
       throw error(
         'EVIDENCE_CONFLICT',
         'A evidência mudou durante o envio. Confira as regiões e tente novamente.',
@@ -528,14 +535,14 @@ function createAnalysisService({
     if (!draft.diplomatic.trim() && !draft.aiInput?.tentativeReading?.trim() && !ownRegions.length)
       throw error(
         'EMPTY_INPUT',
-        'Digite a transcrição ou salve uma região própria desta passagem.',
+        'Digite a transcrição ou marque uma região própria desta passagem e aguarde o salvamento automático.',
       );
     let capturedImages = [];
     if (params.includeImages) {
       if (!ownRegions.length || saved.asset?.managedState !== 'ok')
         throw error(
           'EVIDENCE_UNAVAILABLE',
-          'Salve uma região do PDF disponível antes de enviar imagens.',
+          'Marque uma região do PDF disponível e aguarde o salvamento automático antes de enviar imagens.',
         );
       const bytes = await evidence.invoke('evidence_bytes', {
         ...evidenceParams,
@@ -634,6 +641,7 @@ function createAnalysisService({
       locators: { ...passage?.witness, ...draft.locators },
       evidence: {
         revision: saved.revision,
+        ...(saved.passageFingerprint ? { passageFingerprint: saved.passageFingerprint } : {}),
         assetId: saved.asset?.id,
         assetHash: saved.asset?.fingerprint,
         regions: ownRegions,
@@ -679,7 +687,7 @@ function createAnalysisService({
       includeImages: Boolean(params.includeImages),
       createdAt: now(),
     };
-    // No save or namespace change may slip between evidence capture and commit.
+    // This draft, its evidence and the namespace must stay stable during capture.
     if (
       (await draftStore.load(project.id))?.drafts[draft.passageId]?.revisionId !== draft.revisionId
     )
@@ -687,7 +695,12 @@ function createAnalysisService({
         'DRAFT_CONFLICT',
         'Você editou a entrada durante o envio. Tente novamente com o texto atual.',
       );
-    if ((await evidence.invoke('evidence_status', evidenceParams)).revision !== saved.revision)
+    const currentEvidence = await evidence.invoke('evidence_status', evidenceParams);
+    if (
+      ownEvidenceBaseline
+        ? currentEvidence.passageFingerprint !== saved.passageFingerprint
+        : currentEvidence.revision !== saved.revision
+    )
       throw error(
         'EVIDENCE_CONFLICT',
         'A evidência mudou durante o envio; nenhuma análise foi criada.',

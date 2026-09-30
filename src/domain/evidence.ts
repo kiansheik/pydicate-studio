@@ -22,6 +22,7 @@ export interface EvidenceGuide {
 export interface WorkingEvidence {
   assetId: string;
   revision: number;
+  passageFingerprint?: string;
   regions: EvidenceRegion[];
   view: EvidenceView;
   baseline?: string;
@@ -164,6 +165,7 @@ export interface EvidencePointer {
 export interface EvidenceStatus {
   version: 1;
   revision: number;
+  passageFingerprint?: string;
   projectId: string;
   sourceId: string;
   asset: null | {

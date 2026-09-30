@@ -1,3 +1,12 @@
+## 2026-09-30 — Autosave PDF regions
+
+Remove the manual region-save button; debounce completed edits and keep queued
+writes bound to their passage across navigation. Preserve recoverable local
+geometry on errors, with retry feedback. Exact own-passage fingerprints permit
+unrelated passage saves without weakening crop/asset or analysis snapshot guards.
+Actual PDF browser, domain, filesystem, capture and build checks pass. See
+[handoff](session-handoffs/2026-09-30-region-autosave.md).
+
 ## 2026-09-30 — Revision identity race and admin reservations
 
 Confirmed a successful source publication followed by another browser's

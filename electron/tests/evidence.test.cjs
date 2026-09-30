@@ -183,6 +183,157 @@ test('serialized concurrent saves reject stale versions without losing the accep
   assert.deepEqual((await f.api.invoke('evidence_status', f.params)).passage.regions, [f.region]);
 });
 
+test('passage baselines permit concurrent saves to different passages and survive restart', async (t) => {
+  const f = await fixture(t);
+  const other = { ...f.params, passageId: 'passage:b' };
+  const a = await f.api.invoke('evidence_status', f.params);
+  const b = await f.api.invoke('evidence_status', other);
+  assert.match(a.passageFingerprint, /^[a-f0-9]{64}$/);
+  const regionB = { ...f.region, id: 'region:b', rect: [120, 200, 280, 260] };
+  const results = await Promise.all([
+    f.api.invoke('evidence_save', { ...f.save, expectedPassageFingerprint: a.passageFingerprint }),
+    f.api.invoke('evidence_save', {
+      ...f.save,
+      ...other,
+      regions: [regionB],
+      expectedPassageFingerprint: b.passageFingerprint,
+    }),
+  ]);
+  assert.deepEqual(
+    results.map((result) => result.revision),
+    [2, 3],
+  );
+  const restarted = f.service();
+  const savedA = await restarted.invoke('evidence_status', f.params);
+  const savedB = await restarted.invoke('evidence_status', other);
+  assert.deepEqual(savedA.passage.regions, [f.region]);
+  assert.deepEqual(savedB.passage.regions, [regionB]);
+  assert.equal(savedA.passageFingerprint, results[0].passageFingerprint);
+  assert.equal(savedB.passageFingerprint, results[1].passageFingerprint);
+  assert.notEqual(savedA.passageFingerprint, a.passageFingerprint);
+});
+
+test('same-passage concurrency rejects the stale baseline even with a refreshed source revision', async (t) => {
+  const f = await fixture(t),
+    baseline = f.attached.passageFingerprint;
+  const results = await Promise.allSettled([
+    f.api.invoke('evidence_save', { ...f.save, expectedPassageFingerprint: baseline }),
+    f.api.invoke('evidence_save', { ...f.save, regions: [], expectedPassageFingerprint: baseline }),
+  ]);
+  assert.equal(results[0].status, 'fulfilled');
+  assert.equal(results[1].status, 'rejected');
+  assert.match(results[1].reason.message, /mudou em outra janela/);
+  await assert.rejects(
+    f.api.invoke('evidence_save', {
+      ...f.save,
+      expectedRevision: 2,
+      regions: [],
+      expectedPassageFingerprint: baseline,
+    }),
+    /mudou em outra janela/,
+  );
+  const unchanged = await f.api.invoke('evidence_status', f.params);
+  assert.equal(unchanged.revision, 2);
+  assert.deepEqual(unchanged.passage.regions, [f.region]);
+});
+
+test('legacy saves stay source-strict; missing, malformed and future passage baselines cannot bypass checks', async (t) => {
+  const f = await fixture(t),
+    other = { ...f.params, passageId: 'passage:b' };
+  const baseline = await f.api.invoke('evidence_status', other);
+  await f.api.invoke('evidence_save', f.save);
+  await assert.rejects(
+    f.api.invoke('evidence_save', { ...f.save, ...other }),
+    /mudou em outra janela/,
+  );
+  for (const invalid of [null, '', 'not-a-hash', 'a'.repeat(64)])
+    await assert.rejects(
+      f.api.invoke('evidence_save', {
+        ...f.save,
+        ...other,
+        expectedRevision: 2,
+        expectedPassageFingerprint: invalid,
+      }),
+      /mudou em outra janela/,
+    );
+  for (const invalid of [undefined, -1, 3, '2'])
+    await assert.rejects(
+      f.api.invoke('evidence_save', {
+        ...f.save,
+        ...other,
+        expectedRevision: invalid,
+        expectedPassageFingerprint: baseline.passageFingerprint,
+      }),
+      /mudou em outra janela/,
+    );
+  assert.equal((await f.api.invoke('evidence_status', other)).passage, null);
+});
+
+test('inherited regions and changing predecessor guides never become the own-passage baseline', async (t) => {
+  const f = await fixture(t);
+  await f.api.invoke('evidence_save', f.save);
+  const next = {
+    ...f.params,
+    passageId: 'passage:b',
+    previousPassages: [{ id: f.params.passageId, ordinal: 1 }],
+    previousPassageId: f.params.passageId,
+  };
+  const inherited = await f.api.invoke('evidence_status', next);
+  const guide = await f.api.invoke('evidence_status', { ...next, newPassageGuide: true });
+  assert.ok(inherited.inherited);
+  assert.ok(guide.guideSeed);
+  assert.equal(inherited.passageFingerprint, guide.passageFingerprint);
+  assert.equal(inherited.passage, null);
+  await f.api.invoke('evidence_save', { ...f.save, expectedRevision: 2, regions: [] });
+  const changedGuide = await f.api.invoke('evidence_status', { ...next, newPassageGuide: true });
+  assert.deepEqual(changedGuide.guideSeed.regions, []);
+  assert.equal(changedGuide.passageFingerprint, guide.passageFingerprint);
+  const saved = await f.api.invoke('evidence_save', {
+    ...f.save,
+    ...next,
+    expectedRevision: guide.revision,
+    expectedPassageFingerprint: guide.passageFingerprint,
+  });
+  assert.equal(saved.revision, 4);
+  assert.deepEqual(saved.passage.regions, [f.region]);
+});
+
+test('PDF changes invalidate passage baselines and never relax attach or relocation revisions', async (t) => {
+  const f = await fixture(t),
+    baseline = f.attached.passageFingerprint;
+  await f.api.invoke('evidence_save', { ...f.save, passageId: 'passage:b' });
+  for (const method of ['evidence_attach', 'evidence_relocate'])
+    await assert.rejects(
+      f.api.invoke(method, {
+        ...f.params,
+        expectedRevision: 1,
+        expectedPassageFingerprint: baseline,
+        replace: true,
+      }),
+      /mudou em outra janela/,
+    );
+  await fs.writeFile(f.original, makePdfFixture({ variant: true }));
+  const replaced = await f.api.invoke('evidence_attach', {
+    ...f.params,
+    expectedRevision: 2,
+    replace: true,
+  });
+  assert.notEqual(replaced.passageFingerprint, baseline);
+  await assert.rejects(
+    f.api.invoke('evidence_save', { ...f.save, expectedPassageFingerprint: baseline }),
+    /mudou em outra janela/,
+  );
+  await assert.rejects(
+    f.api.invoke('evidence_save', {
+      ...f.save,
+      expectedRevision: replaced.revision,
+      expectedPassageFingerprint: replaced.passageFingerprint,
+    }),
+    /PDF selecionado mudou/,
+  );
+  assert.equal((await f.api.invoke('evidence_status', f.params)).passage, null);
+});
+
 test('corrupt manifests, damaged PDF copies and interrupted temporary saves are preserved', async (t) => {
   const f = await fixture(t);
   await f.api.invoke('evidence_save', f.save);

@@ -238,6 +238,13 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
       return 'unreadable';
     }
   }
+  const passageFingerprint = (document, passageId) =>
+    hash(
+      JSON.stringify([
+        document.selectedAssetId,
+        Object.hasOwn(document.passages, passageId) ? document.passages[passageId] : null,
+      ]),
+    );
   async function status(params, document) {
     const selected = document.assets.find((asset) => asset.id === document.selectedAssetId);
     const states = selected
@@ -350,6 +357,8 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
     return {
       version: 1,
       revision: document.revision,
+      // The baseline belongs to this passage, never its predecessor's guide.
+      passageFingerprint: passageFingerprint(document, params.passageId),
       projectId: document.projectId,
       sourceId: document.sourceId,
       asset: selected
@@ -369,15 +378,29 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
       retainedAssetCount: document.assets.length,
     };
   }
-  const staleCheck = (params, document) => {
-    if (params.expectedRevision !== document.revision)
+  const staleCheck = (method, params, document) => {
+    const hasPassageBaseline =
+      method === 'evidence_save' && params.expectedPassageFingerprint !== undefined;
+    // Only region/view saves can rebase across another passage's save. A supplied
+    // passage baseline is checked even when the caller has the latest revision.
+    const matchingPassage =
+      hasPassageBaseline &&
+      typeof params.expectedPassageFingerprint === 'string' &&
+      /^[a-f0-9]{64}$/.test(params.expectedPassageFingerprint) &&
+      params.expectedPassageFingerprint === passageFingerprint(document, params.passageId);
+    if (
+      !Number.isSafeInteger(params.expectedRevision) ||
+      params.expectedRevision < 0 ||
+      params.expectedRevision > document.revision ||
+      (hasPassageBaseline ? !matchingPassage : params.expectedRevision !== document.revision)
+    )
       fail(
         'A evidência mudou em outra janela. Recarregue antes de salvar; suas regiões ainda estão na tela.',
       );
   };
   async function mutate(method, params) {
     const document = await read(params);
-    staleCheck(params, document);
+    staleCheck(method, params, document);
     if (method === 'evidence_save') {
       const assetId = fingerprint(params.assetId);
       if (assetId !== document.selectedAssetId)

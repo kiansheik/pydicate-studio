@@ -1,5 +1,22 @@
 # Current state
 
+## Automatic region saves
+
+Implemented automatic PDF region/view saves with a 400 ms debounce; the manual
+**Salvar regiões** button is removed. Completed draw/move/resize, deletion and
+reading-order edits remain editable while writes run. Outgoing passage saves
+retain their original identity; delayed acknowledgements cannot replace another
+passage's regions. Failure retains local data with retry/export/reload feedback.
+Loading an inherited guide creates no owned regions and performs no save.
+
+Passage fingerprints let unrelated passages save concurrently while preserving
+same-passage/PDF guards. Analysis preparation flushes pending region edits and
+checks exact own evidence, so another passage's autosave does not cancel capture.
+Validation: 27 actual PDF browser cases, 13 domain cases, 16 filesystem evidence
+cases and five focused analysis capture cases; typecheck and Vite build pass.
+Deployment remains to be verified; see
+[handoff](session-handoffs/2026-09-30-region-autosave.md).
+
 ## Revision publication identity and ordering (live)
 
 The reported `oîkotebẽba'emoapysyka` duplicate is one UUID left under both

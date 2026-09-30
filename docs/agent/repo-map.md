@@ -158,6 +158,9 @@
 - `src/components/AuthoringEditor.tsx`: recursive typed construction cards, scope edits, editable raw text, lexical selection, helper parameters/templates and explicit lexical edit scopes.
 - `src/domain/next-page.ts`: location-only inheritance (never passage text, translations or AI hints) and pending-shell projection into ordinary navigation; `SourcePane.tsx` edits section/subsection. `NewPassageDialog.tsx` remains only for legacy regression fixtures; App no longer opens it.
 - `src/components/PdfEvidence.tsx`, `src/domain/evidence.ts`, `src/evidence.css`: actual PDF.js canvas/worker, native page-coordinate regions, zoom/rotation and recoverable unsaved evidence.
+- `src/domain/evidence-autosave.ts`: coalesced passage-bound region/view saves,
+  outgoing flush and late-response isolation. Evidence status fingerprints permit
+  unrelated passage saves while protecting exact own evidence and analysis capture.
 - `src/components/AssistantPanel.tsx`, `src/domain/ai.ts`: provider state, streamed candidates, revision checks and explicit human acceptance.
 - `AssistantPanel` also supplies the compact current-tree translator launched by `App`/`AnalysisSupport`: language choice, local prompt preview/copy and explicit translation review. `provider-service.cjs` uses one context/prompt path for preview and generation; constituent evidence and engine freshness are verified. `electron/tests/translation-context.test.cjs` exercises the real desktop/Python path without inference.
 - `src/components/SourcePane.tsx`, `SourceRecovery.tsx`: source evidence, locators, diplomatic transcription and explicit recovery previews. Fonte has no AI-submit button or extra reading fields; translations live in App’s Tradução tab.
