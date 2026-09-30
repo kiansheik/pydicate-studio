@@ -972,3 +972,8 @@ root destinations through password and Neo SSO without schema changes. Browser
 checks cover refresh, same-document Back/Forward, unsaved drafts, delayed source
 graphs, stale targets and read-only dictionary restoration. See
 [handoff](session-handoffs/2026-09-30-url-navigation.md).
+
+URL navigation rollout: release `335de372a78c57d48f3a0623aff482fdb3c5e670`,
+52.9-second light deploy, actual production login/history/refresh/dictionary
+checks passed without research writes; 145 research and six evidence files
+unchanged, fresh corpus health 154 lines with zero divergences/failures.

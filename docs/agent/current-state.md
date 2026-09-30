@@ -1,6 +1,6 @@
 # Current state
 
-## URL navigation and shareable locations
+## URL navigation and shareable locations (live)
 
 Root query parameters now identify passages/sources, views/projections, selected
 source nodes, shared declaration tabs, lexical entries/occurrences/note scope,
@@ -19,6 +19,13 @@ iframe searches feed parent history. Shared-tree links require exact declaration
 identity and preserve existing tab drafts. Node restoration waits for parsing
 without repeatedly taking control of the canvas. See
 [handoff](session-handoffs/2026-09-30-url-navigation.md) for checks and rollout.
+Release `335de372a78c57d48f3a0623aff482fdb3c5e670` is live after a 52.9-second
+light deployment. Actual production Chrome checks passed login return, refresh,
+same-document Back/Forward and dictionary search restoration, with no page errors
+or attempted research mutations. All 145 research files and six evidence/PDF
+files retain exact parity. Fresh health: 154 lines, zero divergences/failures,
+seven pending, 321 morphemes, no active repairs (2.708 seconds).
+
 
 ## Grammar repair transport, streaming and repeated work (live)
 

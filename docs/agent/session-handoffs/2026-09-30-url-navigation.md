@@ -34,9 +34,11 @@ harnesses, light deployment script and current live dictionary JavaScript.
 - `npx vite build`: passed; existing large-chunk warning only. No generated
   corpus/learning files rebuilt or changed.
 - `npx vitest run src/domain/studio-location.test.ts`: 5 passed.
-- App URL/navigation suite includes direct links, reload, history without a
-  document reload, unsaved drafts, delayed source nodes, alias canonicalization,
-  malformed targets, list filters, lexical catalog and shared declaration tabs.
+- `npx playwright test tests/navigation-url.spec.ts tests/passage-navigation.spec.ts
+  --config=.local/shared-tabs.playwright.config.ts --workers=1 --reporter=line`:
+  14/14 passed (21.3 seconds), including 10 actual App cases for direct links,
+  reload, history without document reload, unsaved drafts, delayed source nodes,
+  alias canonicalization, malformed targets, filters/catalog and shared tabs.
 - Child lexical/dictionary browser suites: 24 passing cases; adapter/site Node
   tests: 11 passing cases.
 - Shared-tree navigation: 3 standalone cases and 2 existing tab regressions pass.
@@ -81,3 +83,27 @@ publication, reorder or editorial approval is part of this change.
 
 Check a shared passage/lexical/tree link from another contributor's actual account
 and report any missing navigation state, keeping links read-only on open.
+
+## Deployment and live verification
+
+Committed/pushed release `335de372a78c57d48f3a0623aff482fdb3c5e670` to existing
+`unlocked-light-deploy`; ran `STUDIO_REF=unlocked-light-deploy make collab-deploy-light`.
+The six rollout checks passed. The real rollout took 52.9 seconds; PostgreSQL
+stayed running. Backup: `20260930T233134-5a2242`. No migrations or research imports.
+
+Private before/after parity: exactly 145 research files and six evidence/PDF
+files unchanged. Authenticated fresh corpus health: 154 lines, zero divergences
+or execution failures, seven pending, 321 morphemes, no active repairs, 2.708s.
+
+Actual production Chromium started at an earlier passage link while logged out,
+returned through password login to its lexical view, navigated tree/projection
+Back/Forward without replacing the document, reloaded the same passage/projection,
+then searched the real dictionary and reloaded that exact search. The copy-link
+control is visible. No page errors and no attempted research mutations (all
+research writes blocked by the QA route guard). Screenshot and scripts remain in
+ignored `.local/vps-qa/navigation-*`; no credentials are committed or printed.
+
+The QA checks themselves passed before its final cleanup helper incorrectly
+accessed `.error` on the valid null session_select acknowledgement. The selection
+restore returned HTTP 200. Fixed the private helper's null handling/cleanup and
+closed its owned QA process; no production product defect was involved.
