@@ -5,8 +5,11 @@ with exact declaration scope, preserved parent references and reviewed full-corp
 publication. Grammar repair accepts a validated subtree or unsaved definition,
 checks enclosing/saved trees and corpus after each edit, and withholds readiness
 on unexpected output/reference/coverage changes. Focused real-engine, browser,
-repair and build checks pass; rollout pending. See the
+repair and build checks pass. Deployed `020f0ea` in 175.8 seconds after clearing
+unused Docker cache that had filled the disk and stalled the idle handshake. See the
 [handoff](session-handoffs/2026-09-30-shared-tree-editing.md).
+Live `enosem` shared editor opens and evaluates the original tree; 153 corpus lines
+have no divergences or execution failures. No research edits or AI calls were made.
 
 ## 2026-09-30 — Remove publication maintenance freezes
 

@@ -1,6 +1,11 @@
 # Current state
 
-## Shared definition trees and scoped grammar repair
+## Shared definition trees and scoped grammar repair (live)
+
+Release `020f0ea195e8ce9eb6182f1bbd73ddb8eef3efd3` is live from PR #16.
+Rollout took 175.8 seconds because Docker filled the host disk and stalled the
+idle heartbeat. Cleared only unused build cache; 5.3 GB available afterward,
+with research, backups and running/rollback images retained.
 
 Imported source variables expose **Editar árvore compartilhada**. A separate
 canvas edits the declaration while retaining its name in every parent passage;
@@ -14,8 +19,12 @@ passage where applicable, and the corpus. New execution errors roll back; unexpe
 output/reference/coverage changes prevent a clean completion. Definition publication
 remains a separate explicit source review. Draft definitions stay in tab storage.
 
-Actual-engine, focused repair, browser and build checks pass; production rollout
-pending. See [handoff](session-handoffs/2026-09-30-shared-tree-editing.md).
+Actual-engine, focused repair, browser and build checks pass. Live inspection and
+scoped evaluation confirm `enosem` resolves its original declaration and yields
+`enosem`; its shared editor opens with grammar repair enabled. Fresh health:
+153 lines across three sources, zero divergence or execution failures, 2.6 seconds.
+Twenty-nine authenticated invokes had no HTTP/page errors or blocked mutations.
+See [handoff](session-handoffs/2026-09-30-shared-tree-editing.md).
 
 ## Instant contribution capture (live)
 

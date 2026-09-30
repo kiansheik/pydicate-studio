@@ -68,7 +68,30 @@ No real lexical definition or live AI conversation was changed during testing.
 
 ## Deployment and live verification
 
-Pending light rollout of the existing `unlocked-light-deploy` PR #16 branch.
+- Pushed and light-deployed `020f0ea195e8ce9eb6182f1bbd73ddb8eef3efd3` from
+  existing PR #16 (`unlocked-light-deploy`). Main remains unchanged.
+- Six rollout checks passed. New release healthy in 175.8 seconds; backup
+  `20260930T133632-d74c55`. The image build exhausted the host disk, leaving a
+  zero-byte idle temporary file and stale heartbeat. Pruned unused Docker build
+  cache older than 24 hours, then one hour (4.335 + 2.8 GB reported reclaimed).
+  Heartbeat recovered automatically; deployment continued without interrupting
+  research work. Final disk availability: 5.3 GB, 93% used. Research files,
+  backups and running/rollback images were not removed.
+- Authenticated read-only `lexicon_inspect` and `lexicon_tree_evaluate` confirmed
+  real `enosem` at lexicon line 262, `Verb("enosem")`, complete surface `enosem`.
+- `.local/vps-qa/shared-tree-live.cjs` explicitly blocks source/draft/reference
+  writes and AI starts. Fresh health: 153 lines / three sources, zero divergence
+  and execution failures, 319 observed morpheme forms; 2.555 seconds, no active
+  repair. Twenty-nine browser invokes returned without HTTP or page errors and
+  with zero blocked mutation attempts.
+- Actual live `enosem` editor opened with original expression, evaluated result,
+  and enabled **Corrigir gramática desta árvore**. Screenshot:
+  `.local/vps-qa/shared-tree-live.png` (private/ignored).
+- Earlier smoke attempts raced initial tree hydration and selected an offscreen
+  node, then incorrectly waited for every status element to disappear (the loaded
+  inspector retains a runtime-tree status). Waiting for actual render readiness,
+  selecting through visible search/keyboard and waiting for the exact loading
+  message resolved the verification failures. No product change was needed.
 
 ## Remaining questions
 
@@ -76,6 +99,7 @@ Definition drafts persist in this browser tab, not collaborative server storage.
 Helpers, dynamic/multiple assignments and engine-owned names remain read-only.
 Concurrent source changes require reloading the declaration before review.
 No live AI generation or human linguistic acceptance is claimed by fixture tests.
+Host capacity remains finite; another large build should check available space.
 
 ## Suggested next prompt
 
