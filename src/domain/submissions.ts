@@ -35,7 +35,8 @@ export function useSubmissions(projectId: string) {
     projectId: string;
     rows: SubmissionSummary[];
     error: string;
-  }>({ projectId, rows: [], error: '' });
+    loaded: boolean;
+  }>({ projectId, rows: [], loaded: false, error: '' });
   useEffect(() => {
     const bridge = window.studio;
     if (!bridge?.listSubmissions) return;
@@ -51,7 +52,7 @@ export function useSubmissions(projectId: string) {
       running = true;
       try {
         const rows = await bridge!.listSubmissions!(projectId);
-        if (alive) setState({ projectId, rows, error: '' });
+        if (alive) setState({ projectId, rows, loaded: true, error: '' });
       } catch {
         if (alive)
           setState((current) => ({
@@ -78,6 +79,7 @@ export function useSubmissions(projectId: string) {
     };
   }, [projectId]);
   return {
+    ready: state.projectId === projectId && state.loaded,
     submissions: latestSubmissions(state.projectId === projectId ? state.rows : []),
     error: state.error,
   };

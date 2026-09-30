@@ -584,7 +584,11 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
 export default function App() {
   const studio = useStudio();
   const { project, passage, draft, result } = studio;
-  const { submissions, error: submissionError } = useSubmissions(project.id);
+  const {
+    submissions,
+    error: submissionError,
+    ready: submissionsReady,
+  } = useSubmissions(project.id);
   const submitted = submissions[submissionKey(passage.id)];
   const currentSubmission = submitted?.revisionId === draft?.revisionId ? submitted : undefined;
   const waitingSubmission = submitted && ['submitted', 'ready'].includes(submitted.status);
@@ -929,6 +933,7 @@ export default function App() {
           <select
             {...workspaceAutofill}
             aria-label="Filtrar envios para revisão"
+            disabled={!submissionsReady}
             value={reviewingSubmissions ? filter : ''}
             onChange={(event) => setFilter(event.target.value || 'all')}
           >
@@ -944,6 +949,7 @@ export default function App() {
       )}
       {submissionError && <p role="alert">{submissionError}</p>}
       <SubmissionReviewQueue
+        ready={submissionsReady}
         studio={studio}
         items={project.passages.flatMap((p) =>
           submissions[submissionKey(p.id)] ? [submissions[submissionKey(p.id)]] : [],

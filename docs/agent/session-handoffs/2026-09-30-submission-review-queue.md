@@ -50,7 +50,7 @@ Initial fixture runs needed expectedRevision=0 for attachment and explicit compa
 Passagens pane navigation; those failures did not touch production.
 
 ## Remaining questions / limits
-Deployment/live read-only verification pending. Browsers may ignore autofill hints;
+Deployed bb1ad75bd966e4aa488d09b88927083cea7d7fc1 in 50.8 seconds. Live read-only queue/filter verification passed; no lines automatically approved. All 25 mounted controls opt out of autofill; login remains intact. Fresh corpus health: 151 lines, zero divergences/failures, 2.492 seconds. Browsers may ignore autofill hints;
 that prior fix is live and DOM verified. Receipts are process-local and expire;
 reopening/rechecking after deployment is required. Each selected line is its own
 publication; this is not an all-or-nothing cross-filesystem/database transaction.
@@ -66,3 +66,13 @@ Final combined run: all 17 focused server/transport/submission tests passed,
 including the real browser/engine/PDF flow (18.9 seconds). Production build and
 diff checks passed. Batch preparation serializes per dialog to avoid request
 bursts. Readable source/line labels and publication follow the displayed order.
+
+Disposable PostgreSQL stopped after validation. The initial push was rejected by
+automatic review for unverified destination; read-only remote/PR checks confirmed
+the same existing kiansheik/pydicate-studio PR #16 branch, and the exact push was
+then approved. No main merge or automatic live contribution publication.
+
+Live QA found that the queue could open before its initial listing arrived. The
+filter and queue now wait for the current project listing. A held-response real
+browser regression confirmed disabled controls until loading finishes, then the
+entire selected-only publication flow passed again (18.8 seconds).

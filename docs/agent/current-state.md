@@ -1,6 +1,11 @@
 # Current state
 
-## Submission feedback and checked batch review (deployment pending)
+## Submission feedback and checked batch review (live)
+
+Release `bb1ad75bd966e4aa488d09b88927083cea7d7fc1` is live (50.8 seconds).
+The read-only live check verified the queue/filter UI and all 25 mounted controls
+opted out of autofill, with login intact. Fresh health: 151 lines, no divergences
+or execution failures; 2.492 seconds.
 
 Invites and submissions have persistent adjacent sending/success/error messages.
 The navigator shows durable submission status and filters awaiting review, ready

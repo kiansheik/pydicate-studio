@@ -133,7 +133,9 @@ function ReviewLine({
 export function SubmissionReviewQueue({
   studio,
   items,
+  ready,
 }: {
+  ready: boolean;
   studio: Studio;
   items: SubmissionSummary[];
 }) {
@@ -181,7 +183,7 @@ export function SubmissionReviewQueue({
     <>
       <button
         className="button small"
-        disabled={!studio.ready}
+        disabled={!studio.ready || !ready}
         onClick={() => {
           setRows(items.filter((item) => ['submitted', 'ready'].includes(item.status)));
           setChecked({});

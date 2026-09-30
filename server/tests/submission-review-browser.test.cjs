@@ -161,6 +161,16 @@ test(
     });
     const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
     page.setDefaultTimeout(60000);
+    let listingBlocked = true;
+    const listingWaiters = [];
+    await page.route('**/api/submissions?**', async (route) => {
+      if (
+        listingBlocked &&
+        new URL(route.request().url()).searchParams.get('projectId') === original.id
+      )
+        await new Promise((resolve) => listingWaiters.push(resolve));
+      await route.continue();
+    });
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.addInitScript(() => localStorage.setItem('studio-theme', 'dark'));
@@ -169,6 +179,23 @@ test(
     await page.locator('#password').fill(password);
     await page.locator('#submit').click();
     await page.waitForURL(config.origin + '/');
+    await page
+      .getByRole('navigation', { name: 'Navegar entre janelas' })
+      .getByRole('button', { name: 'Passagens', exact: true })
+      .click();
+    await expect.poll(() => listingWaiters.length).toBeGreaterThan(0);
+    await expect(
+      page.getByRole('button', { name: 'Revisar envios em lote', exact: true }),
+    ).toBeDisabled();
+    listingBlocked = false;
+    listingWaiters.forEach((resolve) => resolve());
+    await expect(
+      page.getByRole('button', { name: 'Revisar envios em lote', exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole('navigation', { name: 'Navegar entre janelas' })
+      .getByRole('button', { name: 'Editor', exact: true })
+      .click();
     await expect(
       page.getByRole('button', { name: 'Enviada para revisão ✓', exact: true }),
     ).toBeDisabled({ timeout: 60000 });
