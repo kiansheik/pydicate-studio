@@ -63,7 +63,7 @@
   }
   window.studio=Object.freeze({
     runtime:'collaborative',
-    capabilities:Object.freeze({get analysis(){return identity?.aiEnabled===true;},get sourceReview(){return ['reviewer','admin'].includes(identity?.user?.role);}}),
+    capabilities:Object.freeze({get passageManagement(){return identity?.user?.role==='admin';},get analysis(){return identity?.aiEnabled===true;},get sourceReview(){return ['reviewer','admin'].includes(identity?.user?.role);}}),
     evidenceUrl:({projectId,sourceId,assetId})=>'/api/pdf?'+new URLSearchParams({projectId,sourceId,assetId}),
     evidenceCacheScope:()=>identity?.user?.id??null,
     submitContribution:()=>window.collab.submit(),
@@ -79,6 +79,14 @@
       return value;
     },
     loadDrafts:async(id)=>{if(id.startsWith('example:'))return null;const value=await request('/api/drafts/load',{projectId:id});snapshots.set(id,structuredClone(value));return value.envelope;},
+    managePassages:async(input)=>{
+      const base=snapshots.get(projectId);
+      if(failed||inflight||!base)throw new Error('Espere o salvamento terminar antes de organizar.');
+      const value=await request('/api/admin/passages',{...input,projectId,storageRevision:base.envelope.storageRevision});
+      snapshots.set(projectId,structuredClone({envelope:value.envelope,versions:value.versions}));
+      latestEnvelope=value.envelope;
+      return value;
+    },
     saveDrafts,
     refreshProject:()=>request('/api/refresh',{}),
     openProject:()=>request('/api/refresh',{}),

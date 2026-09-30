@@ -1,6 +1,7 @@
 import type { Draft, DraftEnvelope, Passage, StudioProject } from './types';
 import { emptySourcePassage, projectSources } from './sources';
 import { createDraft, updateDraft } from './model';
+import { organizePassages } from './passage-organization';
 
 /** Continue the same book location; turning the physical PDF page is explicit. */
 export function nextPassageLocators(
@@ -143,7 +144,7 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
   const ordinals = new Map<string, number>();
   return {
     ...project,
-    passages: passages.map((p) => {
+    passages: organizePassages(passages, envelope).map((p) => {
       const ordinal = (ordinals.get(p.sourceId) ?? 0) + 1;
       ordinals.set(p.sourceId, ordinal);
       return { ...p, ordinal };

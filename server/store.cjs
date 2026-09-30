@@ -128,8 +128,8 @@ class Store {
         if (!this.passageClaims) return [];
         return await this.db.prepare("SELECT c.passage_id AS \"passageId\",c.client_id AS \"clientId\",c.user_id AS \"userId\",\n      u.name,c.expires_at AS \"expiresAt\" FROM claims c JOIN users u ON u.id=c.user_id WHERE c.expires_at>$1 AND u.disabled=0").all(this.now());
     }
-    async patch(projectId, changes, user, clientId, trustedAcceptance = false) {
-        if (!Array.isArray(changes) || changes.length > 200)
+    async patch(projectId, changes, user, clientId, trustedAcceptance = false, trustedOrganization = false) {
+        if (!Array.isArray(changes) || changes.length > (trustedOrganization ? 5000 : 200))
             throw fault(400, 'INVALID_PATCH', 'Alterações demais em um pedido.');
         return await this.transaction(async () => {
             await this.assertUser(user);
@@ -150,6 +150,9 @@ class Store {
                     // Only unpublished shells can be removed. Source passages retain their work history.
                     if (!id.startsWith('pending:'))
                         throw fault(400, 'DRAFT_DELETE', 'Uma passagem da fonte não pode ser removida por autosave.');
+                    if (current.envelope.drafts[id]?.organization &&
+                        !changes.some(c => c.id === id.replace(/^pending:/, 'passage:') && c.draft))
+                        throw fault(400, 'DRAFT_DELETE', 'Use a organização de passagens para excluir esta entrada.');
                     delete next.drafts[id];
                 }
                 else {
@@ -160,6 +163,12 @@ class Store {
                     const old = current.envelope.drafts[id] ?? current.envelope.drafts[id.replace(/^passage:/, 'pending:')];
                     if (!trustedAcceptance && old?.aiAcceptances)
                         draft.aiAcceptances = structuredClone(old.aiAcceptances);
+                    if (!trustedOrganization) {
+                        delete draft.organization;
+                        if (old?.organization) draft.organization = structuredClone(old.organization);
+                        if (old?.organization?.deleted && !same(old, draft))
+                            throw fault(409, 'PASSAGE_DELETED', 'Esta passagem foi excluída da lista. Recarregue para continuar.');
+                    }
                     next.drafts[id] = draft;
                 }
             }

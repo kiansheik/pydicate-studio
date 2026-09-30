@@ -1,5 +1,35 @@
 # Current state
 
+## Admin passage list organization
+
+Hosted admins now have **Organizar passagens** beside the source selector: move
+up/down or to a numbered position, duplicate, exclude from the list, and restore.
+Order and exclusions are shared draft metadata, with admin authorization,
+optimistic revision checks and immutable before/after history. Source files and
+approved references are retained. Duplicates receive new pending identities and
+copy authored content/tree/locators, without completion, AI acceptance or PDF crops.
+New unranked drafts still follow their insertion anchors. Ordinary autosaves cannot
+change organization or overwrite deleted entries. The last active project entry
+cannot be excluded until another is created.
+See [handoff](session-handoffs/2026-09-30-admin-passage-list.md).
+
+## Reservations disabled; 18-second light deployment (live)
+
+Release `290da542827bf9909e238c97b17c0b9f3deb556d` is live from PR #16's
+reviewable `unlocked-light-deploy` branch. Main remains unchanged pending CI/review.
+Reservations default off: existing rows cannot block saves or appear in presence,
+and reserve/release controls are removed. Identity, role, optimistic-version and
+immutable-history checks remain. Read-only production checks passed for both
+Kian and Emerson on the formerly blocked passage.
+
+The new light command took 18.1 seconds including preflight; server rollout was
+13.4 seconds. It reused the frontend/dependencies, took a small DB snapshot,
+restarted only Studio, and verified health. No full CI wait, workspace archive,
+dependency sync or PostgreSQL restart. Installation/schema changes require full
+deploy; unhealthy app startup restores the previous image. Until PR #16 merges,
+use `STUDIO_REF=unlocked-light-deploy make collab-deploy-light`.
+See [handoff](session-handoffs/2026-09-30-unlocked-light-deploy.md).
+
 ## Studio production release 21d6035
 
 PR #15 is merged and deployed as `21d60355767a1a4a105fdcc440d4f5d2e59bcb2e`.

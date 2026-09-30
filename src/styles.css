@@ -2726,3 +2726,53 @@ button:hover:not(:disabled) {
     overflow: auto;
   }
 }
+
+.passage-manager::backdrop {
+  background: #0007;
+}
+
+.passage-manager {
+  background: var(--paper, #fffdf7);
+  color: var(--ink, #28251f);
+  width: min(680px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px #0005;
+}
+.passage-manager header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.passage-manager select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0 16px;
+}
+.passage-manager option {
+  padding: 7px;
+}
+.passage-manager-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.passage-manager-actions input {
+  width: 65px;
+}
+.passage-manager-deleted {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+.passage-manager-deleted span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}

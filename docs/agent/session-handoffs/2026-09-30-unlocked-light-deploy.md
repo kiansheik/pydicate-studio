@@ -44,10 +44,32 @@ still vary. First implementation and testing are separate from deployment time.
 
 ## Remaining questions
 
-Record live release, actual rollout timing and read-only claim/UI verification
-below. Actual concurrent draft conflicts remain intentional and protect edits.
+Actual concurrent draft conflicts remain intentional and protect edits. PR #16
+is open; do not deploy old main and accidentally restore reservations. Until it
+merges, pin `STUDIO_REF=unlocked-light-deploy make collab-deploy-light`.
 
 ## Suggested next prompt
 
 Use the light deployment path for routine app changes, keeping focused tests and
 checking live health. Revisit collaborative editing only after contributor feedback.
+
+## Live result
+
+- Release `290da542827bf9909e238c97b17c0b9f3deb556d`, PR #16. The automatic
+  reviewer rejected direct-main publication without full CI; the separate
+  reviewable branch and explicitly requested light deployment were approved.
+  No full-CI gate was added; main remains unchanged pending ordinary review.
+- Exact Make command wall time: **18.1 seconds**, including preflight and focused
+  rollout tests. Server rollout: **13.4 seconds**. PostgreSQL stayed running.
+- Light DB checkpoint: `light-backups/20260930T034213-340ee6` with manifest hash.
+  Live grammar, PDFs, research and existing full checkpoints were not changed.
+- Existing Kian/Emerson identities both passed `assertClaim` on the exact pending
+  passage; reservationsEnabled=false and claimList=[]; no draft saves or claims
+  were created by this verification. Public app health reports the exact SHA.
+- Server-only optimization copies server/docs/deploy tooling onto the previous
+  image only when the changed paths allow it; any frontend/runtime change takes
+  the normal image build, and install/schema changes refuse the light path.
+- The old claim rows may remain until ordinary expiry cleanup; they are ignored.
+  An already open browser can retry its save without reservation enforcement.
+  A refresh updates the old panel; unsaved local work should be retained/exported
+  before reloading when the existing recovery prompt advises it.

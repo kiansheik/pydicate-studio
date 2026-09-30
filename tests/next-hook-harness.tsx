@@ -748,6 +748,42 @@ window.studio = {
   },
 };
 
+if (new URLSearchParams(location.search).has('passage-admin')) {
+  window.studio.capabilities = { passageManagement: true };
+  window.studio.managePassages = async ({ sourceId, orderedIds, action, passageId }) => {
+    const envelope = structuredClone(control.saved[project.id]);
+    const order = [...orderedIds];
+    let selectedId = passageId;
+    if (action === 'duplicate') {
+      selectedId = 'pending:' + crypto.randomUUID();
+      const copy = {
+        ...envelope.drafts[passageId],
+        passageId: selectedId,
+        sourceFingerprint: 'pending',
+        pending: { sourceId, ordinal: 1 },
+      };
+      delete copy.workflow;
+      delete copy.aiAcceptances;
+      envelope.drafts[selectedId] = copy;
+      order.splice(order.indexOf(passageId) + 1, 0, selectedId);
+    }
+    if (action === 'delete') {
+      const position = order.indexOf(passageId);
+      envelope.drafts[passageId].organization = { sourceId, position, deleted: true };
+      order.splice(position, 1);
+      selectedId = order[0];
+    }
+    if (action === 'restore')
+      order.splice(envelope.drafts[passageId].organization!.position, 0, passageId);
+    order.forEach((id, position) => {
+      envelope.drafts[id].organization = { sourceId, position, deleted: false };
+    });
+    control.saved[project.id] = envelope;
+    localStorage.setItem(`simulated-next:${project.id}`, JSON.stringify(envelope));
+    return { envelope, selectedId };
+  };
+}
+
 function Harness() {
   const studio = useStudio();
   const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);

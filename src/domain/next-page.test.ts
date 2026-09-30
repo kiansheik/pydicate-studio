@@ -298,3 +298,41 @@ it('places missed drafts between stable passages and preserves a chain of pendin
   ]);
   expect(result.passages.at(-1)!.acceptedReference).toBe(source.passages[1].acceptedReference);
 });
+
+describe('admin passage organization', () => {
+  it('persists order and deletion without changing source; places later insertions by anchor', () => {
+    const source = project();
+    const original = structuredClone(source);
+    const drafts = Object.fromEntries(source.passages.map((p) => [p.id, createDraft(p)]));
+    drafts['passage:0'].organization = {
+      sourceId: source.passages[0].sourceId,
+      position: 1,
+      deleted: false,
+    };
+    drafts['passage:1'].organization = {
+      sourceId: source.passages[0].sourceId,
+      position: 0,
+      deleted: false,
+    };
+    drafts['pending:new'] = {
+      ...createDraft(source.passages[0]),
+      passageId: 'pending:new',
+      pending: { sourceId: source.passages[0].sourceId, ordinal: 2, beforePassageId: 'passage:0' },
+    };
+    const saved: DraftEnvelope = { version: 1, projectId: source.id, drafts };
+    expect(validateDraftEnvelope(saved)).toBe(true);
+    expect(projectWithPending(source, saved).passages.map((p) => p.id)).toEqual([
+      'passage:1',
+      'pending:new',
+      'passage:0',
+    ]);
+    drafts['passage:0'].organization.deleted = true;
+    expect(projectWithPending(source, saved).passages.map((p) => p.id)).toEqual([
+      'passage:1',
+      'pending:new',
+    ]);
+    drafts['passage:0'].organization.deleted = false;
+    expect(projectWithPending(source, saved).passages.map((p) => p.ordinal)).toEqual([1, 2, 3]);
+    expect(source).toEqual(original);
+  });
+});

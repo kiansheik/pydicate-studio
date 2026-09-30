@@ -1,3 +1,4 @@
+import { PassageManager } from './PassageManager';
 import { TranslationFields } from './components/TranslationFields';
 import { MorphemeText } from './components/MorphemeHighlight';
 import type { MorphemeSurfaceHighlight } from './domain/morpheme-display';
@@ -855,6 +856,7 @@ export default function App() {
         <span className="edition-number">01</span>
       </div>
       <h1>Fontes e passagens</h1>
+      {selectedSource && <PassageManager studio={studio} sourceId={selectedSource.id} />}
       <div className="source-selector">
         <label htmlFor="source-selection">Fonte</label>
         <select

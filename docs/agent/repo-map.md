@@ -2,6 +2,12 @@
 
 ## Hosted collaboration and deployment
 
+- `server/passage-management.cjs`, `src/PassageManager.tsx` and
+  `src/domain/passage-organization.ts`: admin-only shared list ordering,
+  duplication, reversible exclusion and restoration; atomic revision-checked
+  writes with history, preserving canonical source files/references.
+
+
 - `scripts/collab/light.py`: app-only rollout with unchanged-installation/schema
   guard, small DB snapshot, no dependency/PDF sync, and app-image rollback.
   `make collab-deploy-light` runs focused rollout tests; full CI is independent.

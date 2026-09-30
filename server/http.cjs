@@ -357,6 +357,12 @@ function createHttp({ config, store, auth, runtime }) {
                         throw fault(403, 'PROJECT_MISMATCH', 'Projeto inválido.');
                     return json(res, 200, await store.snapshot(runtime.project.id));
                 }
+                if (route === '/api/admin/passages') {
+                    admin(session);
+                    const result = await require('./passage-management.cjs').managePassages(store, runtime.project, input, session.user, ctx.clientId);
+                    emit({ type: 'drafts-change', projectId: runtime.project.id, passageIds: result.changed, userId: session.user.id, clientId: ctx.clientId });
+                    return json(res, 200, result);
+                }
                 if (route === '/api/drafts') {
                     if (input.projectId !== runtime.project.id)
                         throw fault(403, 'PROJECT_MISMATCH', 'Projeto inválido.');

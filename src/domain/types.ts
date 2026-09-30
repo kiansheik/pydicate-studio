@@ -73,6 +73,8 @@ export interface StudioProject {
   diagnostics: string[];
 }
 export interface Draft {
+  /** Shared admin list organization; source records and history remain intact. */
+  organization?: { sourceId: string; position: number; deleted: boolean };
   /** Tentative analysis guidance is never a reviewed @target. */
   aiInput?: { tentativeReading: string; meaning: string; constraints: string };
   /** Immutable human acceptance receipts; undo changes content, not this history. */
@@ -162,7 +164,13 @@ export interface StudioBridge {
   runtime?: 'desktop' | 'collaborative';
   evidenceUrl?: (params: { projectId: string; sourceId: string; assetId: string }) => string;
   evidenceCacheScope?: () => string | null;
-  capabilities?: { analysis?: boolean; sourceReview?: boolean };
+  capabilities?: { analysis?: boolean; sourceReview?: boolean; passageManagement?: boolean };
+  managePassages?(input: {
+    sourceId: string;
+    orderedIds: string[];
+    action: 'reorder' | 'duplicate' | 'delete' | 'restore';
+    passageId: string;
+  }): Promise<{ envelope: DraftEnvelope; selectedId: string }>;
   submitContribution?(): Promise<{ id: string }>;
   setupProject?(): Promise<StudioProject>;
   installationStatus?(): Promise<InstallationStatus>;

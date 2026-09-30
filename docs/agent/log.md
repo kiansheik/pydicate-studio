@@ -1,4 +1,22 @@
+## 2026-09-30 — Admin passage list organization
+
+Added hosted admin move/position, duplicate, delete-from-list and restore controls.
+Shared metadata survives reload and autosave, with server authorization, version
+checks and before/after history. No automatic deduplication or source rewriting.
+Focused domain, PostgreSQL and browser validation recorded in the
+[handoff](session-handoffs/2026-09-30-admin-passage-list.md).
+
 # Work log
+
+## 2026-09-30 - Reservations disabled with an 18-second deployment
+
+Published PR #16, deployed its pinned `290da54` head through the new app-only
+light path, and verified that both affected contributors pass the reservation
+check without acquiring a claim. 23 focused collaboration tests and four rollout
+tests passed. Main stayed unchanged after automatic review rejected a direct push
+without full CI; deployment of the reviewable branch was approved. The deployment
+command took 18.1 seconds. See the
+[handoff](session-handoffs/2026-09-30-unlocked-light-deploy.md).
 
 ## 2026-09-30 - Contributor UI deployed
 

@@ -47,6 +47,7 @@ export function useStudio() {
     InstallationStatus['workspace']['progress'] | null
   >(null);
   const [sourceProject, setProject] = useState(createExampleProject);
+  const sourceProjectRef = useRef(sourceProject);
   const [selectedId, setSelectedId] = useState(
     () => sourceProject.passages.find((p) => p.analysis)?.id ?? sourceProject.passages[0].id,
   );
@@ -201,7 +202,7 @@ export function useStudio() {
 
   function replaceEnvelope(next: DraftEnvelope) {
     latest.current.envelope = next;
-    latest.current.project = projectWithPending(latest.current.project, next);
+    latest.current.project = projectWithPending(sourceProjectRef.current, next);
     setEnvelope(next);
   }
 
@@ -926,6 +927,31 @@ export function useStudio() {
     );
   }
 
+  async function managePassages(
+    input: Parameters<NonNullable<import('./domain/types').StudioBridge['managePassages']>>[0],
+  ) {
+    if (!window.studio?.managePassages || operation.current || !latest.current.ready) return;
+    operation.current = true;
+    setBusy(true);
+    try {
+      await persist();
+      const result = await window.studio.managePassages(input);
+      storageRevisions.current[result.envelope.projectId] = result.envelope.storageRevision ?? 0;
+      replaceEnvelope(result.envelope);
+      latest.current.selectedId = result.selectedId;
+      setSelectedId(result.selectedId);
+      history.current = {};
+      redoHistory.current = {};
+      setParsed(null);
+      setResult(null);
+      setVerification('Lista de passagens atualizada.');
+      return result.selectedId;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
+  }
+
   function createPendingDraft(position?: 'before' | 'after', requestedSourceId?: string) {
     const current = latest.current;
     if (!current.ready || (operation.current && !automaticRefresh.current)) return null;
@@ -1077,6 +1103,7 @@ export function useStudio() {
   }
 
   function changeProject(next: StudioProject) {
+    sourceProjectRef.current = next;
     const sameProject = next.id === latest.current.project.id;
     if (sameProject && latest.current.ready) {
       const drafts = { ...latest.current.envelope.drafts };
@@ -1417,7 +1444,10 @@ export function useStudio() {
   const orphanDrafts =
     envelope.projectId === project.id
       ? Object.values(envelope.drafts).filter(
-          (item) => !item.passageId.startsWith('pending:') && !passageIds.has(item.passageId),
+          (item) =>
+            !item.organization?.deleted &&
+            !item.passageId.startsWith('pending:') &&
+            !passageIds.has(item.passageId),
         )
       : [];
   return {
@@ -1447,10 +1477,11 @@ export function useStudio() {
     reconcileDraft,
     refresh,
     createPendingDraft,
+    managePassages,
     createSource,
     editPendingDraft,
-    pendingDrafts: Object.values(envelope.drafts).filter((item) =>
-      item.passageId.startsWith('pending:'),
+    pendingDrafts: Object.values(envelope.drafts).filter(
+      (item) => !item.organization?.deleted && item.passageId.startsWith('pending:'),
     ),
     renderError,
     pending,

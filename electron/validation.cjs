@@ -157,6 +157,7 @@ function envelope(value) {
       'pending',
       'aiInput',
       'aiAcceptances',
+      'organization',
     ]);
     if (draft.aiInput !== undefined) {
       object(draft.aiInput, 'orientação de análise', [
@@ -166,6 +167,16 @@ function envelope(value) {
       ]);
       for (const key of ['tentativeReading', 'meaning', 'constraints'])
         string(draft.aiInput[key], 'orientação de análise');
+    }
+    if (draft.organization !== undefined) {
+      object(draft.organization, 'organização da lista', ['sourceId', 'position', 'deleted']);
+      if (
+        !/^[a-zA-Z0-9_-]{1,200}$/.test(draft.organization.sourceId) ||
+        !Number.isSafeInteger(draft.organization.position) ||
+        draft.organization.position < 0 ||
+        typeof draft.organization.deleted !== 'boolean'
+      )
+        fail('organização da lista');
     }
     if (draft.aiAcceptances !== undefined) {
       if (!Array.isArray(draft.aiAcceptances) || draft.aiAcceptances.length > 1000)
