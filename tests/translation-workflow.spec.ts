@@ -1,31 +1,38 @@
+import { submitPassageAnalysis } from './explicit-analysis';
 import { expect, test } from '@playwright/test';
 
 test('human translation is editable before analysis, preserved on acceptance and explicitly replaceable afterward', async ({
   page,
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   const translation = page.getByLabel('Tradução em português', { exact: true });
-  await page.getByLabel('Tradução', { exact: true }).fill('Texto anterior sem idioma.');
+  await page
+    .getByLabel('Tradução sem idioma informado', { exact: true })
+    .fill('Texto anterior sem idioma.');
   await page.getByLabel('Tradução em inglês', { exact: true }).fill('Independent English text.');
   await translation.fill('Minha tradução inicial.');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Abá.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   const suggestion = page.getByRole('region', { name: 'Tradução sugerida' });
   await expect(suggestion).toContainText('Pessoa: tradução sugerida pela fixture.');
   await expect(suggestion).toContainText('Hipótese para revisão humana.');
   await suggestion.screenshot({ path: test.info().outputPath('candidate-translation.png') });
   await page.getByRole('tab', { name: 'Fonte', exact: true }).click();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   await expect(translation).toHaveValue('Minha tradução inicial.');
   await page.getByRole('tab', { name: /^IA/ }).click();
   await page.getByRole('button', { name: 'Usar no rascunho', exact: true }).click();
   await page.getByRole('tab', { name: 'Fonte', exact: true }).click();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   await expect(translation).toHaveValue('Minha tradução inicial.');
   await page.getByRole('tab', { name: /^IA/ }).click();
   await page
     .getByRole('button', { name: 'Substituir minha tradução por esta', exact: true })
     .click();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   await expect(translation).toHaveValue('Pessoa: tradução sugerida pela fixture.');
-  await expect(page.getByLabel('Tradução', { exact: true })).toHaveValue(
+  await expect(page.getByLabel('Tradução sem idioma informado', { exact: true })).toHaveValue(
     'Texto anterior sem idioma.',
   );
   await expect(page.getByLabel('Tradução em inglês', { exact: true })).toHaveValue(
@@ -47,6 +54,7 @@ test('human translation is editable before analysis, preserved on acceptance and
     ),
   ).toBe(1);
   await page.reload();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   await expect(translation).toHaveValue('Pessoa; tradução revisada por mim.');
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:beta');
 });
@@ -56,8 +64,9 @@ test('using a proposal and translation together avoids a stale draft and saves b
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Abá.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await page.getByRole('button', { name: 'Usar proposta e tradução', exact: true }).click();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   await expect(page.getByLabel('Tradução em português', { exact: true })).toHaveValue(
     'Pessoa: tradução sugerida pela fixture.',
   );

@@ -115,6 +115,11 @@ export function GrammarDiagnosticDialog({
           Completar ou ajustar a árvore
         </label>
       </fieldset>
+      <p className="tree-operation-help" aria-live="polite">
+        {mode === 'engine'
+          ? 'Use quando as peças e operações da árvore estão certas, mas a forma produzida precisa de uma regra ou variante. A mudança na gramática também pode afetar outras passagens.'
+          : 'Use quando falta uma peça ou é preciso trocar uma operação ou sua posição. A IA propõe ajustes nesta árvore, sem corrigir as regras da gramática.'}
+      </p>
       <label className="grammar-repair-field">
         Como deveria ficar?
         <input
@@ -129,6 +134,7 @@ export function GrammarDiagnosticDialog({
           aria-label="Explicação linguística"
           value={explanation}
           onChange={(event) => setExplanation(event.target.value)}
+          placeholder="Explique a regra ou variante desejada, em qual peça ela se aplica e quais formas devem continuar iguais. Inclua a fonte ou indique se é uma hipótese."
           rows={3}
         />
       </label>

@@ -24,6 +24,7 @@ import '../workspace.css';
 import { track } from '../domain/usage';
 import { useAdvancedTools } from '../domain/preferences';
 
+const compactQuery = '(max-width: 1100px)';
 const storageKey = 'pydicate-studio:workspace:v2';
 const legacyStorageKey = 'pydicate-studio:workspace:v1';
 const titles: Record<WorkspacePane, string> = {
@@ -64,7 +65,7 @@ export function useWorkspaceLayout() {
         ...current,
         supportTab: tab,
         hidden: { ...current.hidden, source: false },
-        maximized: window.matchMedia('(max-width: 760px)').matches
+        maximized: window.matchMedia(compactQuery).matches
           ? 'source'
           : current.maximized && current.maximized !== 'source'
             ? null
@@ -110,15 +111,14 @@ export function WorkspaceLayout({
   panes: Record<WorkspacePane, ReactNode>;
 }) {
   const { state } = layout;
-  // Pane docking, hiding and resetting recorded no use at all; the row returns with the
-  // secondary tools, and the panes themselves stay draggable and resizable either way.
+  // Basic mode keeps every pane reachable, including panes hidden in a saved advanced layout.
   const advanced = useAdvancedTools();
   const [dragging, setDragging] = useState<WorkspacePane | null>(null);
-  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  const [narrow, setNarrow] = useState(() => window.matchMedia(compactQuery).matches);
   const grid = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ position: ResizePosition; start: number; size: number } | null>(null);
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 760px)');
+    const media = window.matchMedia(compactQuery);
     const change = () => setNarrow(media.matches);
     media.addEventListener('change', change);
     return () => media.removeEventListener('change', change);
@@ -126,13 +126,15 @@ export function WorkspaceLayout({
   const focused =
     state.maximized ||
     (narrow
-      ? !state.hidden.editor
+      ? !advanced || !state.hidden.editor
         ? 'editor'
-        : workspacePanes.find((pane) => !state.hidden[pane]) || null
+        : workspacePanes.find((pane) => !advanced || !state.hidden[pane]) || null
       : null);
-  const visible = (pane: WorkspacePane) => !state.hidden[pane] && (!focused || focused === pane);
+  const visible = (pane: WorkspacePane) =>
+    (!advanced || !state.hidden[pane]) && (!focused || focused === pane);
+  const positions = advanced ? state.positions : defaultWorkspace().positions;
   const occupied = (position: DockPosition) =>
-    workspacePanes.some((pane) => state.positions[pane] === position && visible(pane));
+    workspacePanes.some((pane) => positions[pane] === position && visible(pane));
   const style = {
     '--workspace-left':
       !focused && occupied('left') ? `clamp(140px, ${state.sizes.left}px, 28vw)` : '0px',
@@ -204,6 +206,21 @@ export function WorkspaceLayout({
           </button>
         </div>
       )}
+      {!advanced && (narrow || focused) && (
+        <nav className="workspace-toolbar" aria-label="Navegar entre janelas">
+          {workspacePanes.map((pane) => (
+            <button
+              key={pane}
+              aria-pressed={visible(pane)}
+              onClick={() => {
+                if (!visible(pane)) layout.maximize(pane);
+              }}
+            >
+              {titles[pane]}
+            </button>
+          ))}
+        </nav>
+      )}
       {layout.error && (
         <p role="status" className="workspace-storage-error">
           {layout.error}
@@ -215,30 +232,32 @@ export function WorkspaceLayout({
             key={pane}
             className={`workspace-pane workspace-pane-${pane}`}
             data-pane={pane}
-            data-position={state.positions[pane]}
+            data-position={positions[pane]}
             aria-label={`Janela ${titles[pane]}`}
             hidden={!visible(pane)}
-            style={{ gridArea: focused ? '1 / 1 / -1 / -1' : state.positions[pane] }}
+            style={{ gridArea: focused ? '1 / 1 / -1 / -1' : positions[pane] }}
           >
             <header
               className="workspace-pane-title"
-              draggable
+              draggable={advanced}
               onDragStart={(event) => dragStart(event, pane)}
               onDragEnd={() => setDragging(null)}
             >
-              <GripVertical size={14} aria-hidden="true" />
+              {advanced && <GripVertical size={14} aria-hidden="true" />}
               <strong>{titles[pane]}</strong>
-              <select
-                aria-label={`Posição de ${titles[pane]}`}
-                value={state.positions[pane]}
-                onChange={(event) => layout.move(pane, event.target.value as DockPosition)}
-              >
-                {dockPositions.map((position) => (
-                  <option value={position} key={position}>
-                    {positionTitles[position]}
-                  </option>
-                ))}
-              </select>
+              {advanced && (
+                <select
+                  aria-label={`Posição de ${titles[pane]}`}
+                  value={state.positions[pane]}
+                  onChange={(event) => layout.move(pane, event.target.value as DockPosition)}
+                >
+                  {dockPositions.map((position) => (
+                    <option value={position} key={position}>
+                      {positionTitles[position]}
+                    </option>
+                  ))}
+                </select>
+              )}
               <button
                 aria-label={`${state.maximized === pane ? 'Restaurar' : 'Maximizar'} ${titles[pane]}`}
                 title={state.maximized === pane ? 'Restaurar janela' : 'Maximizar janela'}
@@ -246,13 +265,15 @@ export function WorkspaceLayout({
               >
                 {state.maximized === pane ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
-              <button
-                aria-label={`Recolher ${titles[pane]}`}
-                title="Recolher janela"
-                onClick={() => layout.toggle(pane)}
-              >
-                <X size={14} />
-              </button>
+              {advanced && (
+                <button
+                  aria-label={`Recolher ${titles[pane]}`}
+                  title="Recolher janela"
+                  onClick={() => layout.toggle(pane)}
+                >
+                  <X size={14} />
+                </button>
+              )}
             </header>
             <div className="workspace-pane-content">{panes[pane]}</div>
           </section>

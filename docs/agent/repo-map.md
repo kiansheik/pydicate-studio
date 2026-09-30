@@ -99,11 +99,11 @@
 - `src/App.tsx`: passage navigation, reading/analysis/review/lexicon/AI modes, theme, pane resizing, explicit source/Git/reference review, metadata conflict comparison and pending-reading navigation.
 - `src/useStudio.ts`: draft envelopes, selected pending shells with predecessor/order metadata, per-project undo/redo, revision-bound parsing/evaluation, source preview/apply, explicit reconciliation and session restoration.
 - `src/components/AuthoringEditor.tsx`: recursive typed construction cards, scope edits, editable raw text, lexical selection, helper parameters/templates and explicit lexical edit scopes.
-- `src/domain/next-page.ts`: same-page cumulative locators and pending-shell projection into ordinary navigation; `SourcePane.tsx` edits section/subsection. `NewPassageDialog.tsx` remains only for legacy regression fixtures; App no longer opens it.
+- `src/domain/next-page.ts`: location-only inheritance (never passage text, translations or AI hints) and pending-shell projection into ordinary navigation; `SourcePane.tsx` edits section/subsection. `NewPassageDialog.tsx` remains only for legacy regression fixtures; App no longer opens it.
 - `src/components/PdfEvidence.tsx`, `src/domain/evidence.ts`, `src/evidence.css`: actual PDF.js canvas/worker, native page-coordinate regions, zoom/rotation and recoverable unsaved evidence.
 - `src/components/AssistantPanel.tsx`, `src/domain/ai.ts`: provider state, streamed candidates, revision checks and explicit human acceptance.
 - `AssistantPanel` also supplies the compact current-tree translator launched by `App`/`AnalysisSupport`: language choice, local prompt preview/copy and explicit translation review. `provider-service.cjs` uses one context/prompt path for preview and generation; constituent evidence and engine freshness are verified. `electron/tests/translation-context.test.cjs` exercises the real desktop/Python path without inference.
-- `src/components/SourcePane.tsx`, `SourceRecovery.tsx`: source-adjacent scholarly fields and explicit recovery previews.
+- `src/components/SourcePane.tsx`, `SourceRecovery.tsx`: source evidence, locators, diplomatic transcription and explicit recovery previews. Fonte has no AI-submit button or extra reading fields; translations live in App’s Tradução tab.
 - `src/domain/project-recovery.ts`: coded service-error normalization and bounded browse-only retry through `useStudio`'s coalesced project refresh. Refresh preserves current local edits and never replays source writes or selected insertion choices.
 - `src/domain/model.ts`, `types.ts`, `authoring.ts`: draft validation, source/reference separation, UTF-16 replacement, projection contracts and exact revision checks.
 - `src/domain/example*`, `render-snapshots.json`, `PhraseEditor.tsx`: retained browser-only initial example, clearly distinct from live desktop authoring.
@@ -131,7 +131,7 @@
 - `src/components/DictionaryTab.tsx`, `dictionary-tab.css`: persistent local-site iframe, explicit refresh and strict selected-entry messaging. `DictionaryEntryCreation.tsx` shares exact-sense/constructor/partial-result handling with the piece palette.
 - `src/components/DictionaryMeaningPicker.tsx` and its CSS: shared form/meaning consultation for existing Canvas compositions and Léxico definition editors, exact sense selection, contextual excerpts and cancelled/stale query invalidation. It supplies meanings without replacing constructors or subtrees.
 - `src/components/PieceSearch.tsx`, `PredicatePalette.tsx`, `LexicalInput.tsx`: shared natural search, direct inline canvas insertion, reuse-first ordering, Navarro fallback, retained queries, stale-choice invalidation and visible **Criar peça** constructor/code entry, including unmatched searches. `useStudio.insertPiece` preserves the main tree and provides one-step undo for inserted loose pieces.
-- `src/components/UsagePanel.tsx`, `src/domain/usage.ts`: local activity report/export and categorical renderer event/edit-batch recording.
+- `src/components/UsagePanel.tsx`, `src/domain/usage.ts`: local activity report/export and categorical renderer event/edit-batch recording. Hosted `/api/usage` uses `server/research.cjs` sanitization; tab destinations and search outcomes require explicit allowlists. See [contributor feedback review](../research/2026-09-29-contributor-feedback.md) for read-only aggregates and their limits.
 
 ## Desktop and Python
 

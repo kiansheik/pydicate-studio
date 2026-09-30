@@ -5,6 +5,7 @@ test('independent PT and EN translations autosave, reopen and clear without chan
 }) => {
   await page.goto('/');
   await expect(page.getByTestId('generated-surface')).toHaveText('eporoapiti umẽ');
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   const pt = page.getByLabel('Tradução em português', { exact: true }).first();
   const en = page.getByLabel('Tradução em inglês', { exact: true }).first();
   await pt.fill('  Primeira linha.\n\nSegunda linha.  ');
@@ -19,6 +20,7 @@ test('independent PT and EN translations autosave, reopen and clear without chan
     )
     .toEqual({ pt: '  Primeira linha.\n\nSegunda linha.  ', en: 'First line.\nSecond line.' });
   await page.reload();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
   await expect(pt).toHaveValue('  Primeira linha.\n\nSegunda linha.  ');
   await expect(en).toHaveValue('First line.\nSecond line.');
   await pt.fill('');

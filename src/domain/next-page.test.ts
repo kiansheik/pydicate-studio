@@ -51,7 +51,7 @@ function pending(source = project(), suffix = 'a', ordinal = 3): Draft {
   };
 }
 describe('next-passage shells', () => {
-  it('copies reading context and prayer without carrying trees, notes, evidence or completion', () => {
+  it('copies only source locators and prayer, never passage-specific content', () => {
     const previous = project().passages[0];
     const draft = {
       ...createDraft(previous),
@@ -62,17 +62,23 @@ describe('next-passage shells', () => {
       workflow: { stage: 'complete' as const, updatedAt: new Date().toISOString() },
     };
     const context = nextPassageContext(previous, draft);
-    expect(context).toMatchObject({
-      diplomatic: draft.diplomatic,
-      normalized: draft.normalized,
-      translations: draft.translations,
-      aiInput: draft.aiInput,
-      locators: { prayerName: 'Pai-nosso', printedPage: '27', line: '3–5' },
+    expect(context).toEqual({
+      locators: { ...nextPassageLocators(previous, draft), prayerName: 'Pai-nosso' },
     });
-    for (const key of ['raw', 'notes', 'analysis', 'workflow', 'aiAcceptances', 'canvas'])
+    for (const key of [
+      'diplomatic',
+      'normalized',
+      'translation',
+      'translations',
+      'aiInput',
+      'raw',
+      'notes',
+      'analysis',
+      'workflow',
+      'aiAcceptances',
+      'canvas',
+    ])
       expect(context).not.toHaveProperty(key);
-    expect(context.translations).not.toBe(draft.translations);
-    expect(context.aiInput).not.toBe(draft.aiInput);
   });
   it('prefills only an empty immediate same-source next passage and preserves every authored field', () => {
     const previous = project().passages[0];
@@ -95,7 +101,9 @@ describe('next-passage shells', () => {
       locators: { printedPage: '29', prayerName: 'Ave-Maria' },
     };
     expect(prefillEmptyNextPassage(previous, next, donor, blank)).toMatchObject({
-      diplomatic: 'Última leitura',
+      diplomatic: '',
+      normalized: '',
+      translation: '',
       raw: '',
       locators: { printedPage: '29', prayerName: 'Ave-Maria' },
     });

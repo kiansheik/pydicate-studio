@@ -3,20 +3,15 @@ import { BookOpen, FileImage, Minus, Plus, ScanLine, X } from 'lucide-react';
 import { PdfEvidence, type EvidencePreparation } from './PdfEvidence';
 import type { EvidencePointer } from '../domain/evidence';
 import type { Studio } from '../useStudio';
-import { TranslationFields } from './TranslationFields';
 
 export function SourcePane({
   studio,
   onEvidence,
   preparationRef,
-  onAnalyze,
-  analyzing,
 }: {
   studio: Studio;
   onEvidence?: (value: EvidencePointer | null) => void;
   preparationRef?: Ref<EvidencePreparation>;
-  onAnalyze?: () => void;
-  analyzing?: boolean;
 }) {
   const { passage, draft, edit, ready } = studio;
   const isNewPassage = passage.id.startsWith('pending:');
@@ -302,108 +297,6 @@ export function SourcePane({
             onChange={(e) => edit({ diplomatic: e.target.value })}
           />
         </label>
-        <label>
-          <span>
-            Grafia provável em Navarro <span className="subtle">· hipótese de leitura</span>
-          </span>
-          <textarea
-            aria-label="Grafia provável em Navarro"
-            rows={2}
-            value={draft?.aiInput?.tentativeReading ?? ''}
-            disabled={disabled}
-            placeholder="Uma pista, mesmo incerta…"
-            onChange={(event) =>
-              edit({
-                aiInput: {
-                  ...{ tentativeReading: '', meaning: '', constraints: '' },
-                  ...draft?.aiInput,
-                  tentativeReading: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label>
-          <span>Significado provável</span>
-          <textarea
-            aria-label="Significado provável"
-            rows={2}
-            value={draft?.aiInput?.meaning ?? ''}
-            disabled={disabled}
-            onChange={(event) =>
-              edit({
-                aiInput: {
-                  ...{ tentativeReading: '', meaning: '', constraints: '' },
-                  ...draft?.aiInput,
-                  meaning: event.target.value,
-                },
-              })
-            }
-          />
-        </label>
-        <label>
-          <span>Tradução sem idioma informado</span>
-          <textarea
-            aria-label="Tradução"
-            rows={3}
-            value={draft?.translation ?? ''}
-            disabled={disabled}
-            placeholder="Escreva sua tradução…"
-            onChange={(event) => edit({ translation: event.target.value })}
-          />
-          <span className="field-hint">
-            Você pode escrever e editar antes ou depois da análise.
-          </span>
-        </label>
-        <TranslationFields
-          value={draft?.translations}
-          disabled={disabled}
-          onChange={(translations) => edit({ translations })}
-        />
-        <details>
-          <summary>Orientações para a análise e leitura revisada</summary>
-          <label>
-            Orientações linguísticas
-            <textarea
-              aria-label="Orientações linguísticas"
-              rows={2}
-              value={draft?.aiInput?.constraints ?? ''}
-              disabled={disabled}
-              onChange={(event) =>
-                edit({
-                  aiInput: {
-                    ...{ tentativeReading: '', meaning: '', constraints: '' },
-                    ...draft?.aiInput,
-                    constraints: event.target.value,
-                  },
-                })
-              }
-            />
-          </label>
-          <label>
-            <span>Leitura normalizada revisada · @target</span>
-            <textarea
-              className="tupi-input"
-              rows={2}
-              value={draft?.normalized ?? ''}
-              disabled={disabled}
-              placeholder="Somente a leitura que você já revisou…"
-              onChange={(e) => edit({ normalized: e.target.value })}
-            />
-          </label>
-          <p className="field-hint">
-            A grafia provável é uma pista. Ela não substitui esta leitura revisada nem aprova ground
-            truth.
-          </p>
-        </details>
-        <p className="field-hint">
-          Uma leitura já é uma contribuição. Você pode salvar sem completar a análise.
-        </p>
-        {onAnalyze && (
-          <button className="button primary" disabled={disabled || analyzing} onClick={onAnalyze}>
-            {analyzing ? 'Salvando entrada…' : 'Salvar e analisar'}
-          </button>
-        )}
       </div>
     </section>
   );

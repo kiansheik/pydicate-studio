@@ -1,3 +1,4 @@
+import { seedSavedReading } from './saved-reading-fixture';
 import { expect, test, type Page } from '@playwright/test';
 import type { DraftEnvelope } from '../src/domain/types';
 
@@ -106,9 +107,7 @@ test('a later pending line can be reviewed while the first remains an unfinished
   );
 });
 
-test('one click opens the next passage with prior reading context and an empty analysis tree', async ({
-  page,
-}) => {
+test('one click opens a blank passage with source locators and no AI request', async ({ page }) => {
   await workspace(page);
   await page.getByRole('button', { name: 'Próxima passagem', exact: true }).click();
   await contextFields(page);
@@ -119,12 +118,13 @@ test('one click opens the next passage with prior reading context and an empty a
   await page.getByLabel('Linhas no texto da passagem', { exact: true }).fill('10–15');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura anterior');
   await page.getByLabel('Oração (opcional) da passagem', { exact: true }).fill('Pai-nosso');
-  await page.getByLabel('Tradução em português', { exact: true }).fill('Nosso pai');
-  await page.getByLabel('Tradução em inglês', { exact: true }).fill('Our father');
-  await page.getByLabel('Grafia provável em Navarro', { exact: true }).fill('tuba');
-  await page.getByLabel('Significado provável', { exact: true }).fill('pai');
-  await page.getByText('Orientações para a análise e leitura revisada', { exact: true }).click();
-  await page.getByLabel('Orientações linguísticas', { exact: true }).fill('Preservar grafia');
+  await seedSavedReading(page, {
+    normalized: 'Forma da passagem anterior',
+    translation: 'Sentido anterior',
+    translations: { pt: 'Nosso pai', en: 'Our father' },
+    aiInput: { tentativeReading: 'tuba', meaning: 'pai', constraints: 'Preservar grafia' },
+    notes: 'Nota anterior',
+  });
   await page.locator('.add-next-passage').click();
   await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0003');
   await expect(page.locator('.new-passage-badge')).toBeVisible();
@@ -137,12 +137,9 @@ test('one click opens the next passage with prior reading context and an empty a
     page.getByRole('combobox', { name: 'Adicionar peça: buscar em tupi', exact: true }),
   ).toBeVisible();
   await expect(page.locator('[data-canvas-key]')).toHaveCount(0);
-  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
-    'Leitura anterior',
-  );
-  await expect(
-    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
-  ).toHaveValue('');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
+  await expect(page.locator('.reading-fields textarea')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Salvar e analisar' })).toHaveCount(0);
   await contextFields(page);
   for (const [label, value] of [
     ['Página impressa', '26–27'],
@@ -163,9 +160,13 @@ test('one click opens the next passage with prior reading context and an empty a
   expect(envelope.drafts[id]).toMatchObject({
     pending: { previousPassageId: 'passage-b', ordinal: 3 },
     canvas: { layout: 'bottom-up', fragments: [], positions: {} },
-    translations: { pt: 'Nosso pai', en: 'Our father' },
-    aiInput: { tentativeReading: 'tuba', meaning: 'pai', constraints: 'Preservar grafia' },
+    diplomatic: '',
+    normalized: '',
+    translation: '',
+    notes: '',
   });
+  expect(envelope.drafts[id].translations).toBeUndefined();
+  expect(envelope.drafts[id].aiInput).toBeUndefined();
   expect(envelope.drafts[id].workflow).toBeUndefined();
   expect(envelope.drafts['passage-b'].diplomatic).toBe('Leitura anterior');
   const requests = await page.evaluate(() => window.__nextControl.requests);
@@ -185,28 +186,26 @@ test('one click opens the next passage with prior reading context and an empty a
   });
 });
 
-test('advancing into an empty existing passage carries context once and preserves subsequent saved edits', async ({
+test('advancing into an empty existing passage carries only locators and preserves subsequent saved edits', async ({
   page,
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&empty-next');
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura de continuação');
-  await page.getByLabel('Tradução em português', { exact: true }).fill('Tradução');
-  await page.getByLabel('Tradução em inglês', { exact: true }).fill('Translation');
   await contextFields(page);
   await page.getByLabel('Página impressa da passagem', { exact: true }).fill('2');
   await page.getByLabel('Oração (opcional) da passagem', { exact: true }).fill('Ave-Maria');
-  await page.getByLabel('Grafia provável em Navarro', { exact: true }).fill('tuba');
-  await page.getByLabel('Significado provável', { exact: true }).fill('pai');
-  await page.getByText('Orientações para a análise e leitura revisada', { exact: true }).click();
-  await page.getByLabel('Orientações linguísticas', { exact: true }).fill('Conservar o texto');
+  await seedSavedReading(page, {
+    translations: { pt: 'Tradução', en: 'Translation' },
+    aiInput: { tentativeReading: 'tuba', meaning: 'pai', constraints: 'Conservar o texto' },
+  });
   await page.getByRole('button', { name: 'Próxima passagem', exact: true }).click();
-  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
-    'Leitura de continuação',
-  );
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
   await expect
-    .poll(async () => (await saved(page)).drafts['passage-b']?.translations?.en)
-    .toBe('Translation');
+    .poll(async () => (await saved(page)).drafts['passage-b']?.locators?.printedPage)
+    .toBe('2');
+  expect((await saved(page)).drafts['passage-b'].translations).toBeUndefined();
+  expect((await saved(page)).drafts['passage-b'].aiInput).toBeUndefined();
   expect((await saved(page)).drafts['passage-b']).toMatchObject({
     raw: '',
     locators: { printedPage: '2', prayerName: 'Ave-Maria' },
@@ -232,25 +231,18 @@ test('repeated pending passages inherit cumulative locators, retain normal undo,
   await page.getByLabel('Página impressa da passagem', { exact: true }).fill('28');
   await page.getByLabel('Seção da passagem', { exact: true }).fill('Novo capítulo');
   await page.getByLabel('Subseção da passagem', { exact: true }).fill('Perguntas');
-  await page.getByText('Orientações para a análise e leitura revisada', { exact: true }).click();
-  await page
-    .getByLabel('Leitura normalizada revisada · @target', { exact: false })
-    .fill('Leitura só desta linha');
+  await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura só desta linha');
   await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
-  await expect(
-    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
-  ).toHaveValue('');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
   await page.getByRole('button', { name: 'Refazer edição na árvore', exact: true }).click();
-  await expect(
-    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
-  ).toHaveValue('Leitura só desta linha');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
+    'Leitura só desta linha',
+  );
   await page.locator('.add-next-passage').click();
   await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0004');
   const second = await selectedId(page);
   expect(second).not.toBe(first);
-  await expect(
-    page.getByLabel('Leitura normalizada revisada · @target', { exact: false }),
-  ).toHaveValue('Leitura só desta linha');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
   await contextFields(page);
   await expect(page.getByLabel('Página impressa da passagem', { exact: true })).toHaveValue('28');
   await expect(page.getByLabel('Seção da passagem', { exact: true })).toHaveValue('Novo capítulo');
@@ -267,7 +259,8 @@ test('repeated pending passages inherit cumulative locators, retain normal undo,
   await contextFields(page);
   await expect(page.getByLabel('Subseção da passagem', { exact: true })).toHaveValue('Perguntas');
   const envelope = await saved(page);
-  expect(envelope.drafts[first].normalized).toBe('Leitura só desta linha');
+  expect(envelope.drafts[first].diplomatic).toBe('Leitura só desta linha');
+  expect(envelope.drafts[second].diplomatic).toBe('');
   expect(Object.keys(envelope.drafts).filter((key) => key.startsWith('pending:'))).toHaveLength(2);
 });
 

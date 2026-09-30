@@ -86,8 +86,8 @@ const tabs = [
   'Código',
 ] as const;
 type Tab = (typeof tabs)[number];
-// The everyday desk shows the projections the usage log records people moving between.
-// The remaining four stay one switch away under the secondary tools.
+// Keep the core reading and editing projections visible by default.
+// Additional projections remain available through the advanced-tools preference.
 const coreTabs: readonly Tab[] = ['Árvore', 'Sugerir', 'Tradução'];
 const coreModes = ['analysis', 'lexicon', 'dictionary'] as const;
 const statusLabels = {
@@ -329,6 +329,7 @@ function Projections({
         <label className="editor-label">
           Tradução sem idioma informado
           <textarea
+            aria-label="Tradução sem idioma informado"
             rows={7}
             disabled={!studio.ready}
             value={draft?.translation ?? ''}
@@ -1528,6 +1529,7 @@ export default function App() {
               <label className="editor-label">
                 Tradução sem idioma informado
                 <textarea
+                  aria-label="Tradução sem idioma informado"
                   rows={3}
                   value={draft?.translation ?? ''}
                   disabled={!studio.ready}

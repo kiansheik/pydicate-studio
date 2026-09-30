@@ -1148,7 +1148,7 @@ export function AnalysisSupport({
       );
       await analysis.selectCandidate(null);
       layout.support('source');
-      setNotice('Tradução copiada para o rascunho. Edite o texto em Fonte.');
+      setNotice('Tradução copiada para o rascunho. Edite o texto na aba Tradução do editor.');
       await refresh();
     });
   }
@@ -1227,13 +1227,7 @@ export function AnalysisSupport({
         aria-label="Fonte"
         hidden={layout.state.supportTab !== 'source'}
       >
-        <SourcePane
-          studio={studio}
-          onEvidence={onEvidence}
-          preparationRef={evidence}
-          onAnalyze={() => void submit('analyze', 'passage')}
-          analyzing={busy}
-        />
+        <SourcePane studio={studio} onEvidence={onEvidence} preparationRef={evidence} />
       </div>
       <div
         id="support-ai"

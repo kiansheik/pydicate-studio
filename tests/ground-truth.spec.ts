@@ -136,7 +136,10 @@ test('new passage acceptance approves the stable published identity in the same 
   await workspace(page);
   await page.locator('.add-next-passage').click();
   await editRaw(page, 'new_expression');
-  await page.getByLabel('Tradução', { exact: true }).fill('Tradução humana da nova passagem.');
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
+  await page
+    .getByLabel('Tradução sem idioma informado', { exact: true })
+    .fill('Tradução humana da nova passagem.');
   const pendingId = await page.evaluate(
     () => localStorage.getItem('simulated-selection:simulated:a')!,
   );

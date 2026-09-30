@@ -19,17 +19,9 @@ export function nextPassageLocators(
   };
 }
 
-/** Borrow editable reading context, never an analysis tree, evidence or approval. */
+/** Continue the source location, never passage-specific reading or AI input. */
 export function nextPassageContext(previous: Passage, draft?: Draft) {
-  const reading = draft ?? createDraft(previous);
-  return {
-    diplomatic: reading.diplomatic,
-    normalized: reading.normalized,
-    translation: reading.translation,
-    ...(reading.translations ? { translations: { ...reading.translations } } : {}),
-    ...(reading.aiInput ? { aiInput: { ...reading.aiInput } } : {}),
-    locators: nextPassageLocators(previous, draft),
-  };
+  return { locators: nextPassageLocators(previous, draft) };
 }
 
 /** An existing passage with any authored material keeps its own draft intact. */

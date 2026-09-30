@@ -20,6 +20,21 @@ function categoricalDetails(input) {
     const value = input.details?.[key];
     if (Number.isSafeInteger(value) && Math.abs(value) <= 1e9) result[key] = value;
   }
+  // Explicit vocabularies also admit translated projection names. Never retain queries.
+  const destinations = input.event === 'navigation.projection'
+    ? ['Construção','Morfemas','Árvore','Sugerir','Tradução','Histórico','Código']
+    : input.event === 'navigation.mode'
+      ? ['analysis','reading','review','lexicon','dictionary'] : [];
+  for (const key of ['from','to']) {
+    if (destinations.includes(input.details?.[key])) result[key] = input.details[key];
+  }
+  if (['lexicon.search','lexicon.select'].includes(input.event)) {
+    if (['rendered-form','dictionary'].includes(input.details?.source)) result.source = input.details.source;
+    if (['reference','expression','entry'].includes(input.details?.category)) result.category = input.details.category;
+    if (typeof input.details?.reused === 'boolean') result.reused = input.details.reused;
+    const count = input.details?.resultCount;
+    if (Number.isSafeInteger(count) && count >= 0 && count <= 1e9) result.resultCount = count;
+  }
   return { ui: result };
 }
 async function researchPage(store, kind, after = 0, through = Number.MAX_SAFE_INTEGER) {

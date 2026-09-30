@@ -1172,6 +1172,15 @@ export function ExpressionCanvas({
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function revealPartEditor() {
+    setAdvanced(true);
+    requestAnimationFrame(() => {
+      const editor = container.current?.querySelector('.tree-scope-editor');
+      editor?.scrollIntoView({ block: 'nearest' });
+      editor?.querySelector<HTMLSelectElement>('select')?.focus({ preventScroll: true });
+    });
+  }
+
   const menuPosition = menu ? layout.positions.get(canvasPositionKey(menu.address)) : undefined;
   const menuScope = menu ? getScope(menu.address).node : undefined;
   const menuRemovalChoices = menuScope ? operationRemovalChoices(menuScope) : [];
@@ -2144,11 +2153,13 @@ export function ExpressionCanvas({
               role="menuitem"
               onClick={() => {
                 setSelected(canvasPositionKey(menu.address));
-                setAdvanced(true);
+                revealPartEditor();
                 setMenu(null);
               }}
             >
-              Editar esta parte
+              {menuScope && ['binary', 'comparison'].includes(definitionBody(menuScope).kind)
+                ? 'Trocar operador / editar esta parte'
+                : 'Editar esta parte'}
             </button>
             <button
               role="menuitem"
@@ -2553,6 +2564,10 @@ export function ExpressionCanvas({
                 )}
               </p>
             </div>
+            {selectedScope &&
+              ['binary', 'comparison'].includes(definitionBody(selectedScope).kind) && (
+                <button onClick={revealPartEditor}>Editar operador…</button>
+              )}
             <button aria-expanded={advanced} onClick={() => setAdvanced((value) => !value)}>
               {advanced ? <ChevronUp size={15} /> : <ChevronDown size={15} />}Detalhes e edição
             </button>
@@ -2658,6 +2673,7 @@ export function ExpressionCanvas({
           {advanced &&
             (selectedRoot && selectedScope ? (
               <TreeScopeEditor
+                revealOperation
                 node={selectedNode}
                 authoringRoot={selectedRoot}
                 raw={selectedPiece!.raw}

@@ -1,3 +1,4 @@
+import { submitPassageAnalysis } from './explicit-analysis';
 import { expect, test } from '@playwright/test';
 
 test('inspection refreshes a changed local engine once and reuses the same acceptance command without another AI request', async ({
@@ -5,7 +6,7 @@ test('inspection refreshes a changed local engine once and reuses the same accep
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Mendâra');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await page.evaluate(() => window.__nextControl.holds.push({ method: 'analysis_accept' }));
   await page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }).click();
   await expect
@@ -61,7 +62,7 @@ test('a local version that keeps changing stops after one refresh and preserves 
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Mendâra');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await page.evaluate(() =>
     window.__nextControl.holds.push({ method: 'analysis_accept' }, { method: 'analysis_accept' }),
   );

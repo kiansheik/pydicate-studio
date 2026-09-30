@@ -1,3 +1,4 @@
+import { submitPassageAnalysis } from './explicit-analysis';
 import { expect, test } from '@playwright/test';
 
 test('correction prefills the current form and submits notes into a separate persistent AI conversation', async ({
@@ -5,7 +6,7 @@ test('correction prefills the current form and submits notes into a separate per
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Morerobiare yma');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   const prior = await page.evaluate(
     () => JSON.parse(localStorage.getItem('simulated-analysis')!).jobs[0],

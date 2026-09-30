@@ -1,3 +1,4 @@
+import { submitPassageAnalysis } from './explicit-analysis';
 import { expect, test, type Page } from '@playwright/test';
 
 const noun = 'Noun(value="mendara", definition="casamento; matrimônio")';
@@ -9,8 +10,11 @@ async function prepareNoun(page: Page, restorePreview = false) {
     page.getByRole('button', { name: 'Revisar nova passagem', exact: true }),
   ).toBeDisabled();
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Mendâra');
-  await page.getByLabel('Tradução', { exact: true }).fill('Casamento, na minha leitura.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
+  await page
+    .getByLabel('Tradução sem idioma informado', { exact: true })
+    .fill('Casamento, na minha leitura.');
+  await submitPassageAnalysis(page);
   await expect(
     page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }),
   ).toBeVisible();
