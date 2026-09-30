@@ -2,8 +2,13 @@
 
 ## Hosted collaboration and deployment
 
+- `scripts/collab/light.py`: app-only rollout with unchanged-installation/schema
+  guard, small DB snapshot, no dependency/PDF sync, and app-image rollback.
+  `make collab-deploy-light` runs focused rollout tests; full CI is independent.
+
 - `server/ai.cjs`: opt-in hosted AI allowlist, passage-claim checks and shared
   desktop acceptance receipts committed through PostgreSQL; per-request context.
+  Passage reservations default off; version checks and revision history remain.
   `scripts/collab/codex_auth.py` transfers only the login cache through SSH stdin,
   preserving refreshed server credentials unless explicitly replaced.
 - `electron/dictionary-site.cjs`, `server/http.cjs`: authenticated Navarro assets

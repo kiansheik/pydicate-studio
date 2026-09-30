@@ -259,6 +259,9 @@ def main():
     output=os.getenv('FILE') or str(HERE/'backups'/f'{action}-{label}.tar.gz')
     repo=os.getenv('REPO') or 'oldtupicorpus'
     if action in ('install','redeploy'):remote.deploy()
+    elif action=='deploy-light':
+        sha=remote.prepare_release(os.getenv('STUDIO_REF','main'))
+        remote.ssh(['python3','-B',remote.root+'/releases/'+sha+'/scripts/collab/host.py','light-deploy','--root',remote.root])
     elif action=='codex-auth':
         from codex_auth import install
         install(remote,replace=True)

@@ -8,14 +8,12 @@
   function button(text,action,parent=panel){const node=element('button',text,parent);node.type='button';node.onclick=()=>Promise.resolve().then(action).catch(error=>{status.textContent=error.message;});return node;}
   element('h2','Servidor colaborativo');const status=element('p','Conectando…');status.setAttribute('role','status');
   const identity=element('p',''),selection=element('p',''),people=element('div'),actions=element('div');
-  button('Reservar passagem',()=>api.request('/api/claim',{passageId:api.state().selected}),actions);
-  button('Liberar passagem',()=>api.request('/api/claim',{passageId:api.state().selected,release:true}),actions);
   button('Exportar cópia local',()=>api.exportLocal(),actions);
   button('Carregar estado compartilhado',()=>api.reload(),actions);
   button('Sair',()=>api.logout(),actions);
   const help=element('a','Tutorial e documentação ↗',actions);help.href='/help';help.target='_blank';help.rel='noopener';
   button('Enviar última versão salva para revisão',async()=>{const result=await api.submit();status.textContent='Versão congelada enviada para revisão: '+result.id;await loadSubmissions();},actions);
-  element('p','A reserva dura dois minutos e é renovada enquanto você está ativo. Outras pessoas podem consultar e comentar. Mudanças remotas exigem recarga explícita; não misturamos árvores concorrentes automaticamente.');
+  element('p','Edição sem reservas. Se outra pessoa salvar primeiro, sua cópia local será preservada para comparar com a versão compartilhada.');
   const upstreamBox=element('details');element('summary','Atualizações do corpus e da gramática',upstreamBox);
   const upstreamStatus=element('p','Consultando atualizações…',upstreamBox),upstreamRows=element('div',undefined,upstreamBox);
   let upstreamHeads;
@@ -145,7 +143,7 @@
     if(data.type==='submissions-change')void loadSubmissions().catch(()=>{});
     if(data.type==='selection')void loadComments().catch(error=>{status.textContent=error.message;});
     if(data.type==='comments-change'&&data.passageId===api.state().selected?.replace(/^pending:/,'passage:'))void loadComments().catch(()=>{});
-    if(data.type==='presence'){people.replaceChildren();element('h3','Quem está aqui',people);for(const person of data.people)element('p',`${person.name}: ${person.active?'ativo':'ausente'} — ${person.passageId||'consultando'}`,people);for(const claim of data.claims)element('small',`${claim.name} reservou ${claim.passageId} · `,people);}
+    if(data.type==='presence'){people.replaceChildren();element('h3','Quem está aqui',people);for(const person of data.people)element('p',`${person.name}: ${person.active?'ativo':'ausente'} — ${person.passageId||'consultando'}`,people);}
     if(data.type==='saved')status.textContent='Rascunho salvo no servidor.';
     if(data.type==='save-failed'){status.textContent=data.message;panel.hidden=false;}
     if(data.type==='session-expired'){status.textContent='Sessão expirada. Exporte suas edições locais antes de entrar novamente.';panel.hidden=false;button('Entrar em outra aba',()=>window.open('/login','_blank','noopener'));}

@@ -506,6 +506,9 @@ def main():
     with host.lock():
         if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence,desktop=args.desktop)
         elif args.action=='redeploy':host.deploy(evidence=args.evidence,desktop=args.desktop)
+        elif args.action=='light-deploy':
+            from light import deploy_light
+            deploy_light(host)
         elif args.action=='backup':host.backup(args.file,True)
         elif args.action=='db-backup':host.backup(args.file,False)
         elif args.action=='db-restore':host.restore_database(args.file,args.confirm)

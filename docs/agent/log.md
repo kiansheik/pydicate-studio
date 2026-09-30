@@ -1,5 +1,13 @@
 # Work log
 
+## 2026-09-30 - Contributor UI deployed
+
+Merged PR #15 and deployed `21d6035` with a full private server checkpoint, dirty
+grammar/corpus preservation and health/publication checks. Fixed optional Claude
+status for unconfigured environments and one outdated source-append test. All CI
+checks passed; live cramped-screen browser smoke passed without content writes.
+See the [handoff](session-handoffs/2026-09-30-contributor-ui-deployment.md).
+
 ## 2026-09-30 - Production nasal mo audit and causative correction
 
 Audited the live repair and independently verified all 150 baseline corpus rows.

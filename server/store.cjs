@@ -34,10 +34,11 @@ class Store {
         try { await store.db.migrate(); return store; }
         catch(error) { await store.db.close(); throw error; }
     }
-    constructor(directory, { now = Date.now, validateEnvelope = null, databaseUrl = process.env.COLLAB_DATABASE_URL, schema = 'public' } = {}) {
+    constructor(directory, { now = Date.now, validateEnvelope = null, databaseUrl = process.env.COLLAB_DATABASE_URL, schema = 'public', passageClaims = process.env.COLLAB_PASSAGE_CLAIMS === '1' } = {}) {
         fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
         this.db = new Database(databaseUrl, { schema });
         this.now = now;
+        this.passageClaims = passageClaims;
         this.validateEnvelope = validateEnvelope;
         this.writes = new Map();
         this.context = {};
@@ -101,6 +102,7 @@ class Store {
         await this.assertUser(user);
         passageId = passageKey(passageId);
         identifier(clientId);
+        if (!this.passageClaims) return;
         const row = await this.db.prepare("SELECT * FROM claims WHERE passage_id=$1 AND expires_at>$2").get(passageId, this.now());
         if (row && (row.user_id !== user.id || row.client_id !== clientId)) {
             throw fault(409, 'PASSAGE_BUSY', 'Outra pessoa ou aba está trabalhando nesta passagem. Seu rascunho local foi preservado.');
@@ -123,6 +125,7 @@ class Store {
         await this.db.prepare("DELETE FROM claims WHERE passage_id=$1 AND user_id=$2").run(passageId, user.id);
     }
     async claimList() {
+        if (!this.passageClaims) return [];
         return await this.db.prepare("SELECT c.passage_id AS \"passageId\",c.client_id AS \"clientId\",c.user_id AS \"userId\",\n      u.name,c.expires_at AS \"expiresAt\" FROM claims c JOIN users u ON u.id=c.user_id WHERE c.expires_at>$1 AND u.disabled=0").all(this.now());
     }
     async patch(projectId, changes, user, clientId, trustedAcceptance = false) {

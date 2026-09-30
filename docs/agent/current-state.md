@@ -1,5 +1,18 @@
 # Current state
 
+## Studio production release 21d6035
+
+PR #15 is merged and deployed as `21d60355767a1a4a105fdcc440d4f5d2e59bcb2e`.
+Both full CI jobs and hosted CI passed. Public health reports this exact release.
+Live authenticated browser checks passed at 1024×768 and 800×600: every pane
+remains reachable, the passage list scrolls, Fonte ends at transcription, and
+basic mode has no pane-close controls. The smoke blocked content/AI mutations
+and reported no browser errors. Production grammar regression still covers all
+150 corpus rows unchanged; the focused suite now passes 30 tests, including a
+concurrent contributor addition. Both backup checksums are verified; all 153
+checked files and all 254 drafts match the pre-deploy backup exactly. See the
+[deployment handoff](session-handoffs/2026-09-30-contributor-ui-deployment.md).
+
 ## Nasal mo production correction (live)
 
 The production AI repair changed only `/` composition. Kian explicitly requested
@@ -13,7 +26,7 @@ choices remain editorial. See the
 [audit](../research/2026-09-30-mo-causative-production.md) and
 [handoff](session-handoffs/2026-09-30-mo-causative-production.md).
 
-## Blank new passages and consolidated source view (local, not deployed)
+## Blank new passages and consolidated source view (live)
 
 New passages and navigation into an empty existing passage inherit only source
 locators (page/folio/line/section/subsection/prayer), never transcription, normalized
@@ -25,7 +38,7 @@ IA/correction/translation action. Eight domain tests and all 57 affected browser
 cases passed across the initial run and targeted fixture-correction rerun. See
 [handoff](session-handoffs/2026-09-29-blank-passages-source-consolidation.md).
 
-## Contributor feedback and cramped-screen navigation (local, not deployed)
+## Contributor feedback and cramped-screen navigation (live)
 
 Basic mode keeps every pane reachable and hides close/docking controls. Compact
 widths (up to 1100 px) expose explicit pane navigation; passage lists scroll

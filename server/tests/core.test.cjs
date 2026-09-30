@@ -7,10 +7,10 @@ const { Auth, hashPassword, checkPassword, IDLE_MS } = require('../auth.cjs');
 const { config } = require('../config.cjs');
 const { authorizeMethod, Queue } = require('../studio.cjs');
 const secret = 'uma senha longa para teste';
-async function fixture(t) {
+async function fixture(t, options = {}) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-collab-test-'));
     let now = 1000000;
-    const store = await createTestStore(directory, { now: () => now });
+    const store = await createTestStore(directory, { now: () => now, ...options });
     t.after(async () => { await store.close(); fs.rmSync(directory, { recursive: true, force: true }); });
     const project = { id: 'project:test', passages: ['passage:a', 'passage:b'].map(id => ({ id, sourceId: 'araujo', sourceFingerprint: 'source:1', sourceExpression: 'amen', diplomatic: 'Amen', normalized: 'amém', translation: '', notes: '', witness: {} })) };
     await store.seed(project);
@@ -156,4 +156,23 @@ test('pending comments and reservations survive publication identity and report 
     await assert.rejects(async () => await store.assertClaim('passage:line-id', b, 'b-tab', true), { code: 'PASSAGE_BUSY' });
     await store.patch('project:test', [changed(await store.snapshot('project:test'), 'passage:a', 'report')], a, 'a-tab');
     assert.equal((await store.report(7)).contributions[0].checkpoints, 1);
+});
+
+test('disabled reservations ignore old claims but preserve authentication, versions and history', async (t) => {
+    const { store, user } = await fixture(t, { passageClaims: false });
+    const alice = await user('alice'), bob = await user('bob');
+    store.passageClaims = true;
+    await store.assertClaim('passage:a', alice, 'old-tab', true);
+    store.passageClaims = false;
+    await store.assertClaim('passage:a', bob, 'bob-tab', true);
+    assert.deepEqual(await store.claimList(), []);
+    const first = await store.snapshot('project:test');
+    await store.patch('project:test', [changed(first, 'passage:a', 'alice-edit')], alice, 'another-tab');
+    await assert.rejects(store.patch('project:test', [changed(first, 'passage:a', 'stale')], bob, 'bob-tab'), { code: 'DRAFT_CONFLICT' });
+    const next = await store.snapshot('project:test');
+    await store.patch('project:test', [changed(next, 'passage:a', 'bob-edit')], bob, 'bob-tab');
+    assert.equal((await store.snapshot('project:test')).envelope.drafts['passage:a'].raw, 'bob-edit');
+    assert.equal((await store.db.query('SELECT id FROM revisions')).rows.length, 2);
+    await store.db.query('UPDATE users SET disabled=1 WHERE id=$1', [bob.id]);
+    await assert.rejects(store.assertClaim('passage:a', bob, 'bob-tab', true), { code: 'SESSION_EXPIRED' });
 });

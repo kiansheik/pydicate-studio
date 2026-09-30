@@ -110,3 +110,10 @@ collab-record-import collab-notify:
 export NEO_API_ENV_FILE
 collab-sso-config:
 	@python3 scripts/collab/ops.py sso-config
+
+.PHONY: collab-deploy-light
+# App-only release: targeted checks, a small DB checkpoint and automatic app rollback.
+# Full CI continues independently; installation/schema changes require collab-deploy.
+collab-deploy-light:
+	@python3 -B -m unittest discover -s scripts/collab/tests -p test_light.py -q
+	@python3 -B scripts/collab/ops.py deploy-light
