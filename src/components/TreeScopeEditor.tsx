@@ -22,6 +22,7 @@ import { OperationPreview } from './OperationPreview';
 import { definitionBody } from '../domain/expression-tree';
 
 export interface TreeScopeEditorProps {
+  revealOperation?: boolean;
   node: RuntimeNode;
   authoringRoot?: AuthorNode | null;
   raw?: string;
@@ -40,6 +41,7 @@ const compact = (text: string, length = 80) =>
 
 export function TreeScopeEditor({
   node,
+  revealOperation = false,
   authoringRoot,
   raw = '',
   revisionId,
@@ -63,7 +65,9 @@ export function TreeScopeEditor({
   const [lookup, setLookup] = useState('');
   const [expansion, setExpansion] = useState<{ name: string; code: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [modifyOpen, setModifyOpen] = useState(false);
+  const [modifyOpen, setModifyOpen] = useState(
+    revealOperation && !!operationScope && !!binaryTreeChildren(operationScope),
+  );
   const [reuseOpen, setReuseOpen] = useState(false);
   const [replacementOpen, setReplacementOpen] = useState(operationScope?.kind === 'literal');
   const identity = JSON.stringify([
@@ -84,10 +88,10 @@ export function TreeScopeEditor({
     setBusy(false);
     setLookup('');
     setArgument('');
-    setModifyOpen(false);
+    setModifyOpen(revealOperation && !!operationScope && !!binaryTreeChildren(operationScope));
     setReuseOpen(false);
     setReplacementOpen(operationScope?.kind === 'literal');
-  }, [identity, scope?.code, operationScope?.operator, operationScope?.kind]);
+  }, [identity, scope?.code, operationScope?.operator, operationScope?.kind, revealOperation]);
 
   if (!scope || !operationScope)
     return (
@@ -194,70 +198,6 @@ export function TreeScopeEditor({
         {operationScope.kind === 'reference' ? 'referência' : selectedTerm.label}
       </span>
       <code className="runtime-source-preview tree-current-expression">{scope.code}</code>
-      <fieldset className="tree-composer" disabled={!onChangeRaw}>
-        <legend>Adicionar operação</legend>
-        <label>
-          Operação
-          <select
-            aria-label="Operação na árvore"
-            value={operation}
-            onChange={(event) => {
-              setOperation(event.target.value);
-              setArgument(event.target.value === 'var' ? '1' : '');
-            }}
-          >
-            {treeOperations.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="tree-operation-help" aria-live="polite">
-          {newOperationTerm.description}
-        </p>
-        {(needsArgument || optionalArgument) && (
-          <div className="tree-input-field">
-            {optionalArgument ? 'Argumento (opcional)' : 'Novo argumento'}
-            <LexicalInput
-              label="Argumento da operação na árvore"
-              value={argument}
-              onChange={setArgument}
-              passageId={passageId}
-              sourceId={sourceId}
-              contextKey={`${identity}:${operation}`}
-              disabled={!onChangeRaw}
-            />
-          </div>
-        )}
-        {isBinary && (
-          <label>
-            Posição do novo argumento
-            <select
-              aria-label="Posição do novo argumento"
-              value={argumentSide}
-              onChange={(event) => setArgumentSide(event.target.value as 'left' | 'right')}
-            >
-              <option value="left">À esquerda da seleção</option>
-              <option value="right">À direita da seleção</option>
-            </select>
-          </label>
-        )}
-        {operationPreview && (
-          <output aria-label="Prévia da operação" className="tree-operation-preview">
-            <code>{operationPreview}</code>
-          </output>
-        )}
-        {preview(operationPreview, 'add-operation')}
-        <button
-          className="tree-apply-operation"
-          onClick={() => apply(operationPreview, 'tree.add-operation')}
-          disabled={!operationPreview}
-        >
-          Aplicar operação
-        </button>
-      </fieldset>
-
       {(binaryChildren || removable) && (
         <details
           className="tree-modify-operation"
@@ -359,6 +299,70 @@ export function TreeScopeEditor({
           )}
         </details>
       )}
+
+      <fieldset className="tree-composer" disabled={!onChangeRaw}>
+        <legend>Adicionar operação</legend>
+        <label>
+          Operação
+          <select
+            aria-label="Operação na árvore"
+            value={operation}
+            onChange={(event) => {
+              setOperation(event.target.value);
+              setArgument(event.target.value === 'var' ? '1' : '');
+            }}
+          >
+            {treeOperations.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="tree-operation-help" aria-live="polite">
+          {newOperationTerm.description}
+        </p>
+        {(needsArgument || optionalArgument) && (
+          <div className="tree-input-field">
+            {optionalArgument ? 'Argumento (opcional)' : 'Novo argumento'}
+            <LexicalInput
+              label="Argumento da operação na árvore"
+              value={argument}
+              onChange={setArgument}
+              passageId={passageId}
+              sourceId={sourceId}
+              contextKey={`${identity}:${operation}`}
+              disabled={!onChangeRaw}
+            />
+          </div>
+        )}
+        {isBinary && (
+          <label>
+            Posição do novo argumento
+            <select
+              aria-label="Posição do novo argumento"
+              value={argumentSide}
+              onChange={(event) => setArgumentSide(event.target.value as 'left' | 'right')}
+            >
+              <option value="left">À esquerda da seleção</option>
+              <option value="right">À direita da seleção</option>
+            </select>
+          </label>
+        )}
+        {operationPreview && (
+          <output aria-label="Prévia da operação" className="tree-operation-preview">
+            <code>{operationPreview}</code>
+          </output>
+        )}
+        {preview(operationPreview, 'add-operation')}
+        <button
+          className="tree-apply-operation"
+          onClick={() => apply(operationPreview, 'tree.add-operation')}
+          disabled={!operationPreview}
+        >
+          Aplicar operação
+        </button>
+      </fieldset>
 
       <details
         className="tree-lexical-insert"

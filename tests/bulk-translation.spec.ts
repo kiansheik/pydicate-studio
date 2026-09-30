@@ -1,3 +1,4 @@
+import { submitPassageAnalysis } from './explicit-analysis';
 import { expect, test } from '@playwright/test';
 
 const queue = (page: import('@playwright/test').Page) =>
@@ -8,13 +9,15 @@ const translationField = (page: import('@playwright/test').Page) =>
   page.getByLabel('Tradução em português', { exact: true });
 async function openSource(page: import('@playwright/test').Page) {
   await page.getByRole('tab', { name: 'Fonte', exact: true }).click();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
 }
 
 async function proposeTranslation(page: import('@playwright/test').Page) {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Nhemöabaré.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
 }
 
 /** A proposal whose tree the draft already holds: its translation describes the analysis the

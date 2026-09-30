@@ -136,7 +136,7 @@ const methods: Record<string, Omit<OperationTerm, 'syntax'>> = {
   var: {
     label: 'Variante',
     description:
-      'Seleciona a variante indicada pelo número. As variantes disponíveis dependem do elemento.',
+      'Seleciona uma variante pelo número; não cria uma nova forma. As variantes dependem da peça e das regras da gramática. Se o resultado não mudar e faltar uma variante, use Corrigir gramática / árvore e explique a forma desejada e onde ela se aplica.',
   },
   redup: {
     label: 'Reduplicação',

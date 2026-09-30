@@ -1,3 +1,5 @@
+import { seedSavedReading, currentSavedDraft } from './saved-reading-fixture';
+import { submitPassageAnalysis } from './explicit-analysis';
 import { expect, test } from '@playwright/test';
 
 const sourceTab = (page: import('@playwright/test').Page) =>
@@ -54,7 +56,7 @@ test('another source can prepare desktop analysis through the same source pane',
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis&source=bettendorff_1687');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura de outra fonte');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   const requests = await page.evaluate(() => window.__nextControl.requests);
   expect(requests.find((request) => request.method === 'evidence_status')?.params.sourceId).toBe(
@@ -68,7 +70,7 @@ test('new conversation clears context while history and readable activity remain
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Nhemöabaré.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   await page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem('simulated-analysis')!);
@@ -141,7 +143,7 @@ test('unchanged passage can be resubmitted after a result while active sends sta
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Nhemöabaré.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   const state = () => page.evaluate(() => JSON.parse(localStorage.getItem('simulated-analysis')!));
   await page.evaluate(() => {
@@ -190,7 +192,7 @@ test('question replies bind the named alternative and node and refuse a later ca
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Question source');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   await page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem('simulated-analysis')!);
@@ -270,7 +272,7 @@ test('changing only saved lexical notes creates a new submission while unchanged
     };
   });
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Nhemöabaré.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   await page.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('simulated-analysis')!);
@@ -326,7 +328,7 @@ test('summary refresh preserves conversation turns and expands old source-only i
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('History source');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.locator('.analysis-turn')).toHaveCount(1);
   await page.getByLabel('Mensagem para a IA').fill('My next unsent question');
   await expect
@@ -391,11 +393,13 @@ test('batch accepts tentative and own PDF preparation and honors image consent b
   page,
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
-  await page.getByLabel('Grafia provável em Navarro').fill('Tentative only');
+  await seedSavedReading(page, {
+    aiInput: { tentativeReading: 'Tentative only', meaning: '', constraints: '' },
+  });
   await page.getByRole('button', { name: 'Próxima passagem', exact: true }).click();
-  await page
-    .getByLabel('Significado provável', { exact: true })
-    .fill('Keep a saved blank-text draft');
+  await seedSavedReading(page, {
+    aiInput: { tentativeReading: '', meaning: 'Keep a saved blank-text draft', constraints: '' },
+  });
   await page.evaluate(() => {
     window.__nextControl.evidence['passage-a'] = {
       version: 1,
@@ -507,9 +511,10 @@ test('typed source queues only a saved revision, keeps the builder, and persists
   await page
     .getByLabel('Transcrição diplomática', { exact: true })
     .fill('Original uncertain source');
-  await page.getByLabel('Grafia provável em Navarro').fill('Ã b a');
-  await page.getByLabel('Significado provável', { exact: true }).fill('Meaning hint');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await seedSavedReading(page, {
+    aiInput: { tentativeReading: 'Ã b a', meaning: 'Meaning hint', constraints: '' },
+  });
+  await submitPassageAnalysis(page);
   await expect(aiTab(page)).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('button', { name: 'Montar a análise', exact: true })).toHaveClass(
     'active',
@@ -529,7 +534,8 @@ test('typed source queues only a saved revision, keeps the builder, and persists
   expect(saved.revisionId).toBe(submission?.params.revisionId);
   await page.getByLabel('Mensagem para a IA').fill('Use the other sense, please');
   await sourceTab(page).click();
-  await expect(page.getByLabel('Grafia provável em Navarro')).toHaveValue('Ã b a');
+  expect((await currentSavedDraft(page)).aiInput?.tentativeReading).toBe('Ã b a');
+  await expect(page.getByLabel('Grafia provável em Navarro')).toHaveCount(0);
   await aiTab(page).click();
   await expect(page.getByLabel('Mensagem para a IA')).toHaveValue('Use the other sense, please');
   await page.getByRole('button', { name: 'Próxima passagem', exact: true }).click();
@@ -547,7 +553,7 @@ test('inspection immediately adopts the proposal in the vertical editor with wor
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Prepared reading');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Prévia da proposta de IA' })).toHaveCount(0);
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:beta');
@@ -597,11 +603,16 @@ test('inspection uses the current draft revision and preserves human input after
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Prepared reading');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   await sourceTab(page).click();
-  await page.getByLabel('Tradução', { exact: true }).fill('Minha tradução revisada.');
-  await page.getByLabel('Grafia provável em Navarro').fill('Changed while agent worked');
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
+  await page
+    .getByLabel('Tradução sem idioma informado', { exact: true })
+    .fill('Minha tradução revisada.');
+  await page
+    .getByLabel('Transcrição diplomática', { exact: true })
+    .fill('Changed while agent worked');
   await page.evaluate(() =>
     window.__nextControl.emit({
       type: 'analysis',
@@ -611,13 +622,10 @@ test('inspection uses the current draft revision and preserves human input after
     }),
   );
   await expect(sourceTab(page)).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Grafia provável em Navarro')).toBeFocused();
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toBeFocused();
   await expect
     .poll(() =>
-      page.evaluate(
-        () =>
-          window.__nextControl.saved['simulated:a'].drafts['passage-a'].aiInput?.tentativeReading,
-      ),
+      page.evaluate(() => window.__nextControl.saved['simulated:a'].drafts['passage-a'].diplomatic),
     )
     .toBe('Changed while agent worked');
   const revision = await page.evaluate(
@@ -632,7 +640,7 @@ test('inspection uses the current draft revision and preserves human input after
   }));
   expect(result.accepted?.params.expectedDraftRevision).toBe(revision);
   expect(result.draft.translation).toBe('Minha tradução revisada.');
-  expect(result.draft.aiInput?.tentativeReading).toBe('Changed while agent worked');
+  expect(result.draft.diplomatic).toBe('Changed while agent worked');
   expect(result.draft.aiAcceptances).toHaveLength(1);
   await page
     .locator('.workspace-footer')
@@ -640,10 +648,8 @@ test('inspection uses the current draft revision and preserves human input after
     .click();
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
   await sourceTab(page).click();
-  await expect(page.getByLabel('Tradução', { exact: true })).toHaveValue(
-    'Minha tradução revisada.',
-  );
-  await expect(page.getByLabel('Grafia provável em Navarro')).toHaveValue(
+  expect((await currentSavedDraft(page)).translation).toBe('Minha tradução revisada.');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
     'Changed while agent worked',
   );
 });
@@ -653,7 +659,7 @@ test('a draft edit during proposal loading cancels adoption without replacing th
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Prepared reading');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   await page.evaluate(() => window.__nextControl.holds.push({ method: 'analysis_get' }));
   await page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }).click();
@@ -665,7 +671,10 @@ test('a draft edit during proposal loading cancels adoption without replacing th
     )
     .toBe(true);
   await sourceTab(page).click();
-  await page.getByLabel('Tradução', { exact: true }).fill('Keep this concurrent human edit.');
+  await page.getByRole('tab', { name: 'Tradução', exact: true }).click();
+  await page
+    .getByLabel('Tradução sem idioma informado', { exact: true })
+    .fill('Keep this concurrent human edit.');
   await page.evaluate(() => window.__nextControl.release('analysis_get'));
   await expect(sourceTab(page)).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
@@ -709,7 +718,7 @@ test('failed draft save creates no job and leaves all source input intact', asyn
     )
     .toBe('Keep this input');
   await page.evaluate(() => window.__nextControl.holds.push({ method: 'draft_save' }));
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -724,10 +733,11 @@ test('failed draft save creates no job and leaves all source input intact', asyn
       window.__nextControl.requests.filter((request) => request.method === 'analysis_submit'),
     ),
   ).toHaveLength(0);
+  await expect(aiTab(page)).toHaveAttribute('aria-selected', 'true');
+  await sourceTab(page).click();
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
     'Keep this input',
   );
-  await expect(sourceTab(page)).toHaveAttribute('aria-selected', 'true');
 });
 
 test('inspection adoption is undoable, preserves the receipt and reaches ordinary source review', async ({
@@ -735,7 +745,7 @@ test('inspection adoption is undoable, preserves the receipt and reaches ordinar
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Prepared reading');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }).click();
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:beta');
   await expect
@@ -844,7 +854,7 @@ test('paused analysis resumes the same job and conversation with partial respons
 }) => {
   await page.goto('/tests/next-hook-harness.html?workspace&analysis');
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Nhemöabaré.');
-  await page.getByRole('button', { name: 'Salvar e analisar', exact: true }).click();
+  await submitPassageAnalysis(page);
   await expect(page.getByText('Proposta pronta', { exact: true })).toBeVisible();
   const before = await page.evaluate(() => {
     const saved = JSON.parse(localStorage.getItem('simulated-analysis')!);
@@ -901,6 +911,52 @@ test('current tree translation opens without source transcription or a new analy
     await page.evaluate(() =>
       window.__nextControl.requests.filter((r) =>
         ['analysis_submit', 'ai_start'].includes(r.method),
+      ),
+    ),
+  ).toEqual([]);
+});
+
+test('source view keeps only transcription, preserves legacy metadata and never starts AI on edit or add', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:alpha');
+  const legacy = {
+    normalized: 'Leitura revisada',
+    translation: 'Tradução antiga',
+    translations: { pt: 'Português salvo', en: 'Saved English' },
+    aiInput: { tentativeReading: 'hipótese', meaning: 'significado', constraints: 'orientação' },
+  };
+  await seedSavedReading(page, legacy);
+  const source = page.getByRole('tabpanel', { name: 'Fonte', exact: true });
+  await expect(source.locator('.reading-fields textarea')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Salvar e analisar' })).toHaveCount(0);
+  await source.getByLabel('Transcrição diplomática', { exact: true }).fill('Minha transcrição');
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__nextControl.saved['simulated:a']?.drafts['passage-a']?.diplomatic,
+      ),
+    )
+    .toBe('Minha transcrição');
+  await page.reload();
+  await expect(source.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
+    'Minha transcrição',
+  );
+  expect(await currentSavedDraft(page)).toMatchObject(legacy);
+  await page.getByRole('button', { name: 'Inserir depois desta passagem', exact: true }).click();
+  await expect(source.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
+  await source.getByLabel('Transcrição diplomática', { exact: true }).fill('Outra passagem');
+  await expect.poll(async () => (await currentSavedDraft(page))?.diplomatic).toBe('Outra passagem');
+
+  const draft = await currentSavedDraft(page);
+  expect(draft).toMatchObject({ normalized: '', translation: '', notes: '', raw: '' });
+  expect(draft?.translations).toBeUndefined();
+  expect(draft?.aiInput).toBeUndefined();
+  expect(
+    await page.evaluate(() =>
+      window.__nextControl.requests.filter((r) =>
+        /^(analysis_submit|analysis_batch_submit|ai_start|ai_request)$/.test(r.method),
       ),
     ),
   ).toEqual([]);

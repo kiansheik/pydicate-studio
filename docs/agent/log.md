@@ -1,5 +1,34 @@
 # Work log
 
+## 2026-09-30 - Production nasal mo audit and causative correction
+
+Audited the live repair and independently verified all 150 baseline corpus rows.
+Prepared Kian's requested move from composition to causative attachment and an
+operator-only correction of Emerson's full saved tree. Applied live after Kian
+explicitly authorized overriding Emerson's renewing claim. Production checks:
+29 tests pass; 150 corpus rows unchanged. Draft version 36/history revision 922
+preserve the prior state and all passage metadata. See the
+[handoff](session-handoffs/2026-09-30-mo-causative-production.md).
+
+## 2026-09-29 - Blank passages and source consolidation
+
+Removed reading/translation/AI-input inheritance from the common next-passage
+context helper. Removed fields after diplomatic transcription and the source-pane
+AI submission callback/button. Existing stored fields remain intact; translations
+use the existing editor tab. Updated workflow fixtures to submit explicitly via
+IA and seed historical reading data through saved envelopes. Source editing and
+passage insertion produce no generation requests. See the
+[handoff](session-handoffs/2026-09-29-blank-passages-source-consolidation.md).
+
+## 2026-09-29 - Contributor feedback and compact navigation
+
+Reviewed hosted browser-event aggregates for Kian, Emerson and Lauro read-only,
+separately from local desktop activity and recovery-account QA. Fixed basic-mode
+pane accessibility, compact passage scrolling, operator-edit discoverability, and
+inline grammar/variant/login explanations. Added narrowly allowlisted navigation
+and search-outcome telemetry for future reviews. No deployment or grammar/corpus
+changes. See the [handoff](session-handoffs/2026-09-29-contributor-feedback.md).
+
 ## 2026-09-29 - Claude Code sign-in with each contributor's own subscription
 
 The requested design — Studio running the OAuth flow and keeping the token — is

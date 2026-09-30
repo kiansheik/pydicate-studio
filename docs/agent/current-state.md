@@ -1,5 +1,47 @@
 # Current state
 
+## Nasal mo production correction (live)
+
+The production AI repair changed only `/` composition. Kian explicitly requested
+moving the variant to causative `*` and correcting Emerson's saved subtree.
+The live fix passes 29 focused tests and unchanged-output comparison for all
+150 corpus rows. Draft version 36 preserves the prior state in history revision
+922; only the operator and revision/timestamp fields changed. Kian explicitly
+authorized overriding the renewing claim; the temporary lock was released after
+verification. The full draft realizes `atara oîmombytá`; sentence argument
+choices remain editorial. See the
+[audit](../research/2026-09-30-mo-causative-production.md) and
+[handoff](session-handoffs/2026-09-30-mo-causative-production.md).
+
+## Blank new passages and consolidated source view (local, not deployed)
+
+New passages and navigation into an empty existing passage inherit only source
+locators (page/folio/line/section/subsection/prayer), never transcription, normalized
+reading, translations, meaning or AI instructions. Fonte ends at diplomatic
+transcription; the extra reading/translation/AI fields and Salvar e analisar action
+are removed. Autosave remains; existing stored data is preserved. Translation
+editing stays in the editor’s Tradução tab, and AI generation requires an explicit
+IA/correction/translation action. Eight domain tests and all 57 affected browser
+cases passed across the initial run and targeted fixture-correction rerun. See
+[handoff](session-handoffs/2026-09-29-blank-passages-source-consolidation.md).
+
+## Contributor feedback and cramped-screen navigation (local, not deployed)
+
+Basic mode keeps every pane reachable and hides close/docking controls. Compact
+widths (up to 1100 px) expose explicit pane navigation; passage lists scroll
+vertically within the available height, with wrapped readings and compact controls.
+Operator editing is named and revealed directly; grammar/tree and variant choices
+have explanations. Login copy distinguishes Neo access from local password rules.
+Hosted telemetry now retains allowlisted tab destinations and search outcome counts
+for future reviews, without search text. Existing history cannot recover those fields.
+
+Read-only production aggregates show search/add/combine workflows for Lauro and
+Emerson and frequent passage navigation for Kian. They do not establish task
+success, active time or unused features. Apostrophe lookup succeeds in the current
+local engine; the reported hosted failure remains unreproduced. See the
+[feedback review](../research/2026-09-29-contributor-feedback.md) and
+[handoff](session-handoffs/2026-09-29-contributor-feedback.md).
+
 ## Claude Code sign-in with a contributor's own subscription
 
 Anthropic's Claude Code policy forbids a third-party application from offering

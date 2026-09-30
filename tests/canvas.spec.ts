@@ -2903,3 +2903,19 @@ test('expanding one branch preserves saved manual positions and edit history', a
   expect(await page.evaluate(() => window.canvasSnapshot)).toEqual({ raw: 'emi * tym', canvas });
   await expect(page.locator('#canvas-history')).toHaveText('0');
 });
+
+test('operator editing is named in the context menu and opens the existing connection directly', async ({
+  page,
+}) => {
+  await openCanvas(page, 'tym / ypy');
+  await menu(page, 'main:root', 'Trocar operador / editar esta parte');
+  const operator = page.getByRole('combobox', { name: 'Novo operador desta parte' });
+  await expect(operator).toBeVisible();
+  await expect(operator).toBeInViewport();
+  await operator.selectOption('*');
+  await page.getByRole('button', { name: 'Trocar operador', exact: true }).click();
+  expect(
+    run('parse_expression', { raw: await page.locator('#canvas-raw').textContent() }).root.operator,
+  ).toBe('*');
+  expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
+});

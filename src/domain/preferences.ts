@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { track } from './usage';
 
-// Secondary tools stay off until the reader asks for them. The default desk carries only
-// what the usage log shows in constant use; everything else is one deliberate switch away
-// and never becomes unreachable.
+// Secondary tools stay off until the reader asks for them. Usage counts inform this
+// default, but missing events do not prove that a feature is unnecessary.
 const storageKey = 'pydicate-studio:tools:v1';
 const channel = 'pydicate-studio:tools-changed';
 
