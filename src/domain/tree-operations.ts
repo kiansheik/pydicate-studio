@@ -19,6 +19,7 @@ export const treeOperations = [
   'var',
   'redup',
   'base_nominal',
+  'v',
   'card',
   'ord',
   'inflection',
@@ -39,6 +40,7 @@ export function addTreeOperation(
   operation: string,
   argument = '',
   argumentSide: 'left' | 'right' = 'right',
+  scope?: Pick<AuthorNode, 'stativeConversion'>,
 ): string {
   if (!treeOperations.some(([value]) => value === operation))
     throw new Error('Operação Pydicate não reconhecida.');
@@ -54,6 +56,8 @@ export function addTreeOperation(
   const acceptsArgument =
     argumentTreeOperations.has(operation) || optionalArgumentTreeOperations.has(operation);
   if (!acceptsArgument && argument.trim()) throw new Error('Esta operação não recebe argumento.');
+  if (operation === 'v')
+    return scope?.stativeConversion === 'base_nominal' ? `v(${base}.base_nominal())` : `v(${base})`;
   return `${base}.${operation}(${acceptsArgument ? argument : ''})`;
 }
 

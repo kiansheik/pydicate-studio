@@ -1,5 +1,38 @@
 # Current state
 
+## Definition reuse, persistent tabs and passage accordions (rollout pending)
+
+Shared definition tabs now survive passage changes, with bordered tab styling
+and independent draft/camera/undo state. Their evaluation and grammar correction
+retain the originating passage context. **Substituir por peça existente** searches
+the complete shared léxico and offers a named reference or a copied tree. The
+resolver follows dependencies in memory; serialization preserves valid Python
+for existing corpus tools. Circular/ambiguous references and unsafe module effects
+remain explicit errors. Exact variable names rank first in search.
+
+The navigator groups passages by source, section and subsection, preserving
+administrator order and reflecting current draft labels/status. Initial load opens
+the final passage in the restored source, including pending rows, and reveals its
+section path. Filters reveal matches; subsequent navigation remains explicit.
+
+A disposable production snapshot confirms `enosem_26169d1f.copy()` preserves all
+153 surfaces when replacing old `enosem`. Araújo58 changes only its annotation to
+`eno[CAUSATIVE_PREFIX:ERO]sem[ROOT]`. Shared-definition review now shows annotated
+before/after rows and requires acknowledgement bound to that exact preview.
+Surface/reference/coverage/execution regressions remain blocked; this does not
+approve saved references. See
+[handoff](session-handoffs/2026-09-30-definition-reuse-navigation.md).
+
+The ordinary tree operation menu exposes **Verbo de 2ª classe (estativo)** via
+`v(…)`, using `.base_nominal()` first when required by the selected engine.
+The original compound remains editable; `bae * v((tekó / kuab).base_nominal())`
+produces `itekokuaba'e` with incorporation annotations. Domain, actual-engine,
+browser preview/apply/undo and final app build checks pass. An isolated engine
+proposal extends `v()` to remaining predicate categories: five tests pass and
+153 saved outputs/annotations are unchanged. Applying that neighboring-engine
+patch awaits the requested AGENTS.md exception. Separately, live `ba'e` currently
+drops argument negation; this finding has not been repaired here.
+
 ## Shared pieces in main tree tabs (live)
 
 Release `e5852d84fb0f0256a4548f02fab844942af9a77c` is live from PR #16;

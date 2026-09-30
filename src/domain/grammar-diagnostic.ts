@@ -10,6 +10,8 @@ export interface CanvasDiagnostic {
   revisionId?: string;
   failures?: EvaluationFailure[];
   sharedDefinition?: SharedDefinitionTarget;
+  /** Origin of a shared tab, retained when the main passage selection changes. */
+  context?: { passageId?: string; sourceId?: string; revisionId?: string };
 }
 
 export function diagnosticTarget(report: CanvasDiagnostic): AuthorNode {

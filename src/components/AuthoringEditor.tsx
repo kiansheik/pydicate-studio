@@ -11,6 +11,7 @@ import {
 } from '../domain/authoring';
 import type { Studio } from '../useStudio';
 import { LexicalInput } from './LexicalInput';
+import { addTreeOperation } from '../domain/tree-operations';
 export { LexicalInput } from './LexicalInput';
 
 const operations = [
@@ -21,6 +22,7 @@ const operations = [
   ['Vocativo', 'voc'],
   ['Reduplicar', 'redup'],
   ['Nominalizar', 'base_nominal'],
+  ['Verbo de 2ª classe (estativo)', 'v'],
   ['Escolher variante 1', 'var'],
   ['Circunstancial', 'circ'],
   ['Adicionar participante / complemento', '*'],
@@ -148,19 +150,28 @@ export function AuthoringEditor({
   }
   function applyOperation() {
     if (!node) return;
+    const evaluated = flattenNodes(studio.result?.tree ?? null).find(
+      (item) =>
+        item.id === node.id &&
+        item.code === node.code &&
+        item.start === node.start &&
+        item.end === node.end,
+    );
     const base = `(${node.code})`;
     const value =
-      action === 'negate'
-        ? `-${base}`
-        : action === 'hidden'
-          ? `+${base}`
-          : action === 'var'
-            ? `${base}.var(${argument || '1'})`
-            : action === 'circ'
-              ? `${base}.circ(${argument || 'False'})`
-              : ['*', '+', '/', '@', '==', '>>', '<<'].includes(action)
-                ? `${base} ${action} (${argument})`
-                : `${base}.${action}()`;
+      action === 'v'
+        ? addTreeOperation(node.code, action, '', 'right', evaluated)
+        : action === 'negate'
+          ? `-${base}`
+          : action === 'hidden'
+            ? `+${base}`
+            : action === 'var'
+              ? `${base}.var(${argument || '1'})`
+              : action === 'circ'
+                ? `${base}.circ(${argument || 'False'})`
+                : ['*', '+', '/', '@', '==', '>>', '<<'].includes(action)
+                  ? `${base} ${action} (${argument})`
+                  : `${base}.${action}()`;
     alter(value);
   }
   return (

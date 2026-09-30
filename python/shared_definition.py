@@ -97,18 +97,19 @@ def edit_target(corpus, entry):
             'scope': scope, 'sourceId': path.name.removesuffix('.tu.py'), 'line': target.lineno}
 
 
-def declaration_namespace(corpus, source_id, line):
+def declaration_namespace(corpus, source_id, line, source_statements=None):
     from authoring_runtime import namespace_for, studio_define
     from lexical_metadata import restore_namespace_lexical_status
     from semantic_context import register_declarations
     path = corpus / 'historic' / (source_id + '.tu.py')
     if source_id != 'lexicon':
         return namespace_for(corpus, path, line)
-    # Loading the full lexicon here would admit later definitions, making an
-    # apparently valid replacement fail when Python imports the actual file.
-    # Only original, trusted statements preceding this declaration execute.
-    statements = [node for node in ast.parse(path.read_text(encoding='utf-8')).body
-                  if node.lineno < line]
+    # Exact historical inspection defaults to the declaration's trusted prefix.
+    # Shared replacement evaluation supplies its resolved dependency graph instead;
+    # original AST coordinates preserve provenance independently of serialization.
+    statements = (source_statements if source_statements is not None else
+                  [node for node in ast.parse(path.read_text(encoding='utf-8')).body
+                   if node.lineno < line])
     namespace = {'__name__': 'historic._studio_definition_context',
                  '__package__': 'historic', '__file__': str(path)}
     exec(compile(ast.Module(body=statements, type_ignores=[]), str(path), 'exec'), namespace)
@@ -154,10 +155,26 @@ def validate_candidate(raw, namespace):
 
 
 def evaluate(payload, corpus):
-    from authoring_runtime import realize
-    namespace = declaration_namespace(corpus, payload['declarationSourceId'], payload['declarationLine'])
+    from authoring_runtime import realize, shape
+    from lexical_metadata import lexical_status
+    from shared_definition_imports import plan, DefinitionImportError
+    source = payload['declarationSourceId']
+    text = (corpus / 'historic' / (source + '.tu.py')).read_text(encoding='utf-8')
+    prepared = plan(text, source, payload['declarationLine'], payload['raw'])
+    namespace = declaration_namespace(corpus, source, payload['declarationLine'], prepared.get('statements'))
     validate_candidate(payload['raw'], namespace)
-    return realize(payload['raw'], namespace, payload.get('includeMorphology', False))
+    if prepared['imports']:
+        # Name-based dependency analysis cannot see mutation through an alias.
+        # Check complete saved object state before admitting the resolved graph;
+        # surface/annotation equivalence alone would miss a changed meaning.
+        original = declaration_namespace(corpus, source, 10**9)
+        for entry in prepared['imports']:
+            name = entry['name']
+            if (shape(namespace.get(name)) != shape(original.get(name))
+                    or lexical_status(namespace.get(name)) != lexical_status(original.get(name))):
+                raise DefinitionImportError('A peça ' + name + ' mudaria seu significado ou sua estrutura durante a reutilização. Revise suas dependências antes de continuar.')
+    return {**realize(payload['raw'], namespace, payload.get('includeMorphology', False)),
+            'definitionImports': prepared['imports']}
 
 
 def replace_expression(text, target, raw):

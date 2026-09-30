@@ -176,7 +176,9 @@ export function TreeScopeEditor({
   const isBinary = binaryTreeOperations.has(operation);
   const operationPreview =
     !needsArgument || argument.trim()
-      ? addTreeOperation(scope.code, operation, argument, argumentSide)
+      ? addTreeOperation(scope.code, operation, argument, argumentSide, {
+          stativeConversion: scope.stativeConversion ?? node.stativeConversion,
+        })
       : '';
   const binaryChildren = binaryTreeChildren(operationScope);
   const selectedTerm = operationTerm({

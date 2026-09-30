@@ -122,13 +122,15 @@
 - `src/domain/morpheme-trace.ts`: bounded annotated-surface alignment, cumulative ancestor tracing, unary operation deltas and explicit uncertainty; focused pure-domain tests.
 - `src/components/useMorphemeTrace.ts`, `MorphemeHighlight.tsx`, `src/domain/morpheme-display.ts`: revision-bound evidence request, selection-only reuse, exact display offsets and automatic HTML/SVG highlights in existing labels in `ExpressionCanvas`; context-bound `onSurfaceHighlight` carries main-root ranges through `Projections` to App’s current-result panel.
 - `authoring_runtime.morphology_evidence` and `includeMorphology` on evaluation: independently isolated per-step annotations, spacing-tolerant UTF-16 display segments and partial-tree evidence; default evaluation is unchanged.
+- `authoring_runtime.stative_conversion` supplies nominal-input capability without realizing incomplete trees. The ordinary tree menu wraps the selected expression in `v(…)`, inserting `.base_nominal()` for verbal inputs; the original subtree and annotations remain inspectable.
 
-- `src/components/TreeWorkspace.{tsx,css}`: main passage/shared-definition tabs, exact declaration refresh and inactive-editor read suspension. `SharedTreeEditor.tsx` retains per-definition drafts/camera/undo, declaration-scoped evaluation and full-corpus review.
+- `src/components/TreeWorkspace.{tsx,css}`: persistent shared tabs across passage changes, bound origin context, exact declaration refresh and inactive-editor read suspension. `SharedTreeEditor.tsx` retains per-definition drafts/camera/undo, declaration-scoped evaluation and full-corpus review. `SharedDefinitionReuse.tsx` searches all shared declarations for linked reuse or a copied tree, invalidating stale searches across context/query/open changes.
 - `src/components/ReferenceInspector.tsx`: selected-reference source and project usage list, collapsed runtime-object graph, shared-definition tab entry, verified occurrence copy and local/shared meanings through the existing review callback.
 - `python/reference_expansion.py`: bounded nested compound/alias copies verified against current runtime shape, including explicit meaning-only overrides.
 - `python/reference_uses.py`: read-only AST dependency candidates across historic sources, preserving declaration identity through aliases and later name rebinding.
-- `python/shared_definition.py`, `authoring_service.py`: named declaration tree
-  inspection, bounded unsaved evaluation in the original declaration namespace,
+- `python/shared_definition.py`, `shared_definition_imports.py`, `authoring_service.py`: named declaration tree
+  inspection, bounded unsaved evaluation through the complete shared dependency graph,
+  compatible Python serialization with exact comments/identity/meaning preservation,
   nested reference context, exact-declaration refresh, stable unique-definition
   draft identity and exact-source guarded RHS previews. Shared edits
   use the complete disposable-corpus regression and existing reviewed apply;
@@ -136,6 +138,7 @@
   shadowed-name behavior. Desktop and hosted allowlists expose
   `lexicon_tree_evaluate` / `lexicon_tree_preview` without a separate write path.
 
+- `src/components/PassageNavigator.{tsx,css}`, `src/domain/passage-navigation.ts`: source/section/subsection accordions, pending-inclusive startup selection, admin-order preservation and current draft locator/status labels. App supplies existing filters/submissions/AI badges; useStudio selects latest once.
 - `python/passage_insertion.py`: source-local insertion, stable identity pinning, inherited locator preservation and reference relocation.
 - `python/passage_references.py`: merged sparse approvals, contiguous legacy JSONL projection, portable companion and verification. `reviewed_files.py` includes creation/rollback of new companion files.
 - `electron/pending-context.cjs`: pending anchor chain resolution shared by desktop authoring, analysis and scratch evaluation.

@@ -52,8 +52,9 @@ def snapshot(corpus):
     return sources
 
 
-def compare(before, after, *, allow_removed=False, insertion=None):
+def compare(before, after, *, allow_removed=False, insertion=None, allow_annotation_changes=False):
     failures=[]; checked=0; changed=0; baseline=0; references=0; pending=0
+    annotation_changes=[]
     for source, old in before.items():
         new=after.get(source,{})
         if old.get('error') or new.get('error'):
@@ -62,6 +63,8 @@ def compare(before, after, *, allow_removed=False, insertion=None):
             continue
         rows=new.get('rows',[])
         if not allow_removed and len(rows)<len(old['rows']): failures.append(f'{source}: passagens removidas.')
+        if allow_annotation_changes and len(rows)!=len(old['rows']):
+            failures.append(f'{source}: a cobertura mudou durante a revisão da definição.')
         for index,row in enumerate(rows):
             checked+=1
             prior=next((item for item in old['rows'] if item.get('id')==row.get('id')),None) if row.get('id') else None
@@ -73,12 +76,24 @@ def compare(before, after, *, allow_removed=False, insertion=None):
             if row.get('error'):
                 if not prior or prior.get('error')!=row['error']: failures.append(f'{source}:{index+1}: {row["error"]}')
                 else: baseline+=1
-            elif same and not prior.get('error') and any(prior.get(key)!=row.get(key) for key in ('surface','annotated')):
-                failures.append(f'{source}:{index+1}: resultado de uma passagem não editada mudou.')
+            elif same and not prior.get('error'):
+                if prior.get('surface')!=row.get('surface'):
+                    failures.append(f'{source}:{index+1}: resultado de uma passagem não editada mudou.')
+                elif prior.get('annotated')!=row.get('annotated'):
+                    if allow_annotation_changes:
+                        annotation_changes.append({'sourceId':source,'ordinal':index+1,
+                            **({'passageId':row['id']} if row.get('id') else {}),
+                            'before':prior.get('annotated',''),'after':row.get('annotated','')})
+                    else:
+                        failures.append(f'{source}:{index+1}: resultado de uma passagem não editada mudou.')
             if insertion and insertion[0]==source and same and prior.get('locations')!=row.get('locations'):
                 failures.append(f'{source}:{index+1}: a inserção alteraria os localizadores de uma passagem existente.')
             if not same: changed+=1
             expected=row.get('reference')
+            if allow_annotation_changes and (not same or prior.get('reference')!=expected):
+                failures.append(f'{source}:{index+1}: a passagem ou sua referência mudou durante a revisão da definição.')
+            if allow_annotation_changes and prior and any(prior.get(key)!=row.get(key) for key in ('error','id')):
+                failures.append(f'{source}:{index+1}: a identidade ou o estado de execução mudou durante a revisão da definição.')
             if expected is not None:
                 if row.get('surface')==expected: references+=1
                 elif same and prior and prior.get('surface')==expected: failures.append(f'{source}:{index+1}: referência salva deixou de coincidir.')
@@ -86,11 +101,12 @@ def compare(before, after, *, allow_removed=False, insertion=None):
                 else: pending+=1
     for source in after.keys()-before.keys(): failures.append(f'{source}: fonte nova sem linha de base.')
     return {'ok':not failures,'checked':checked,'changed':changed,'references':references,
-            'baselineIssues':baseline,'pendingReferences':pending,'failures':failures}
+            'baselineIssues':baseline,'pendingReferences':pending,'failures':failures,
+            **({'annotationChanges':annotation_changes} if allow_annotation_changes else {})}
 
 
 def check_publication(service, changes, *, recovery=False, insertion=None, baseline=None,
-                      snapshots=None):
+                      snapshots=None, allow_annotation_changes=False):
     before = baseline if baseline is not None else service.child({'action':'publication_snapshot'},timeout=180)
     with tempfile.TemporaryDirectory(prefix='studio-publication-') as temporary:
         parent=Path(temporary); corpus=parent/'oldtupicorpus'; corpus.mkdir()
@@ -107,7 +123,8 @@ def check_publication(service, changes, *, recovery=False, insertion=None, basel
         # databases and scan assets for every source review.
         after=service.child({'action':'publication_snapshot','parent':str(parent),
                             'enginePath':str(service.adapter.parent/'nhe-enga')},timeout=180)
-    result=compare(before,after,allow_removed=recovery,insertion=insertion)
+    result=compare(before,after,allow_removed=recovery,insertion=insertion,
+                   allow_annotation_changes=allow_annotation_changes)
     if not result['ok']:
         service.error('A regressão bloqueou a publicação. Nenhum arquivo foi alterado: '+'; '.join(result['failures'][:5]),'REGRESSION_FAILED')
     if snapshots is not None:

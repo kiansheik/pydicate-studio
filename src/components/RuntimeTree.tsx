@@ -41,6 +41,7 @@ import { expressionGraph } from '../domain/expression-tree';
 import { TreeScopeEditor } from './TreeScopeEditor';
 import { LexicalInput } from './LexicalInput';
 import { operationTerm } from '../domain/operation-terms';
+import { addTreeOperation } from '../domain/tree-operations';
 import { TreeWorkspace } from './TreeWorkspace';
 import type { CanvasEdit, CanvasState } from '../domain/canvas';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
@@ -128,11 +129,7 @@ type PydicateTreeProps = TreeEditingProps & {
 };
 export function PydicateTree(props: PydicateTreeProps) {
   return props.onChangeCanvas ? (
-    <TreeWorkspace
-      key={props.passageId ?? 'canvas'}
-      {...props}
-      onChangeCanvas={props.onChangeCanvas}
-    />
+    <TreeWorkspace {...props} onChangeCanvas={props.onChangeCanvas} />
   ) : (
     <LegacyPydicateTree {...props} />
   );
@@ -1258,6 +1255,7 @@ const treeOperations = [
   ['var', 'Variante'],
   ['redup', 'Reduplicar'],
   ['base_nominal', 'Base nominal'],
+  ['v', 'Verbo de 2ª classe (estativo)'],
   ['card', 'Cardinal'],
   ['ord', 'Ordinal'],
   ['inflection', 'Flexão'],
@@ -1335,13 +1333,19 @@ function RuntimeScopeEditor({
     if (!scope) return;
     const base = `(${scope.code})`;
     const next =
-      operation === 'negate'
-        ? `-${base}`
-        : operation === 'hidden'
-          ? `+${base}`
-          : binaryOperations.has(operation)
-            ? `${base} ${operation} (${argument})`
-            : `${base}.${operation}(${argumentOperations.has(operation) ? argument : ''})`;
+      operation === 'v'
+        ? addTreeOperation(scope.code, operation, '', 'right', {
+            stativeConversion:
+              scope.stativeConversion ??
+              (node.sourceNodeId === scope.id ? node.stativeConversion : undefined),
+          })
+        : operation === 'negate'
+          ? `-${base}`
+          : operation === 'hidden'
+            ? `+${base}`
+            : binaryOperations.has(operation)
+              ? `${base} ${operation} (${argument})`
+              : `${base}.${operation}(${argumentOperations.has(operation) ? argument : ''})`;
     apply(next);
   }
   async function inspectExpansion() {
@@ -1435,7 +1439,7 @@ function RuntimeScopeEditor({
                 .filter(
                   ([value]) =>
                     !node.methods ||
-                    ['negate', 'hidden', ...binaryOperations].includes(value) ||
+                    ['negate', 'hidden', 'v', ...binaryOperations].includes(value) ||
                     node.methods.includes(value),
                 )
                 .map(([value, label]) => (

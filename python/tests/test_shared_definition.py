@@ -11,11 +11,60 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapter import AdapterError, ProjectAdapter
 from shared_definition import edit_target, module_bindings
+from shared_definition_imports import plan,DefinitionImportError
 
 REAL = Path(os.environ.get('PYDICATE_PROJECT_PARENT', str(Path(__file__).resolve().parents[3])))
 
 
 class SharedDefinitionIdentityTests(unittest.TestCase):
+    def test_annotation_review_does_not_relax_other_publication_checks(self):
+        import copy
+        from publication_regression import compare
+        before={'source':{'rows':[{'ordinal':1,'code':'word','surface':'aba',
+                'annotated':'aba[ROOT]','reference':'aba'}]}}
+        after=copy.deepcopy(before)
+        after['source']['rows'][0]['annotated']='a[ROOT]ba[ROOT]'
+        self.assertFalse(compare(before,after)['ok'])
+        reviewed=compare(before,after,allow_annotation_changes=True)
+        self.assertTrue(reviewed['ok'])
+        self.assertEqual(reviewed['annotationChanges'],[{'sourceId':'source','ordinal':1,
+                         'before':'aba[ROOT]','after':'a[ROOT]ba[ROOT]'}])
+        for key,value in (('surface','other'),('reference','other'),('error','failure'),('code','other'),('id','another')):
+            changed=copy.deepcopy(after);changed['source']['rows'][0][key]=value
+            with self.subTest(key=key):
+                self.assertFalse(compare(before,changed,allow_annotation_changes=True)['ok'])
+        for rows in ([],[after['source']['rows'][0],after['source']['rows'][0]]):
+            self.assertFalse(compare(before,{'source':{'rows':rows}},allow_annotation_changes=True)['ok'])
+
+    def test_definition_dependency_graph_resolves_forward_edges_and_preserves_source_blocks(self):
+        text="""from engine import *
+# old identity
+old = Noun('aba')
+# canonical identity
+canonical = base.copy()
+canonical.definition = 'new meaning'
+# base identity
+base = Noun('aba')
+"""
+        result=plan(text,'lexicon',3,'canonical.copy()')
+        self.assertEqual([entry['name'] for entry in result['imports']],['base','canonical'])
+        self.assertLess(result['text'].index('base ='),result['text'].index('canonical ='))
+        self.assertLess(result['text'].index('canonical ='),result['text'].index('old ='))
+        for comment in ('# old identity','# canonical identity','# base identity'):
+            self.assertEqual(result['text'].count(comment),1)
+        self.assertEqual(ast.parse(result['text']).body[-1].lineno,result['line'])
+
+    def test_dependency_graph_rejects_cycles_rebinding_and_contextual_mutation(self):
+        cases=(
+            "old = Noun('aba')\ncanonical = old.copy()\n",
+            "old = Noun('aba')\ncanonical = base.copy()\nbase = canonical.copy()\n",
+            "old = Noun('aba')\ncanonical = Noun('first')\ncanonical = Noun('second')\n",
+            "old = Noun('aba')\nbase = Noun('aba')\nother = Noun('aba')\nbase.definition = 'changed'\ncanonical = base.copy()\n",
+        )
+        for text in cases:
+            with self.subTest(text=text),self.assertRaises(DefinitionImportError):
+                plan(text,'lexicon',1,'canonical.copy()')
+
     def test_storage_identity_is_stable_only_for_a_unique_module_binding(self):
         with tempfile.TemporaryDirectory() as temporary:
             corpus=Path(temporary)
@@ -80,6 +129,11 @@ studio_tree_alias = studio_tree_word.copy()
 studio_tree_later = Noun('late')
 studio_tree_chain = studio_tree_other = Noun('chain')
 studio_tree_helper = lambda value: value.copy()
+# canonical dependency identity
+studio_tree_base = Noun('aba', definition='canonical base')
+# canonical shared identity
+studio_tree_canonical = studio_tree_base.copy()
+studio_tree_canonical.definition = 'canonical meaning'
 
 """
         cls.lexicon.write_text(text[:offset]+declarations+text[offset:], encoding='utf-8')
@@ -128,10 +182,135 @@ studio_tree_helper = lambda value: value.copy()
         self.assertEqual(result['surface'],'aba')
         self.assertEqual(result['tree']['kind'],'call')
         self.assertEqual(result['authoring']['root']['code'],entry['treeEdit']['expression'])
-        partial=self.adapter.invoke('lexicon_tree_evaluate',self.request('studio_tree_later'))
-        self.assertEqual(partial['evaluationStatus'],'partial')
-        self.assertIn('studio_tree_later',str(partial['failures']))
+        later=self.adapter.invoke('lexicon_tree_evaluate',self.request('studio_tree_later'))
+        self.assertNotEqual(later.get('evaluationStatus'),'partial')
+        self.assertEqual(later['surface'],'late')
+        self.assertEqual([item['name'] for item in later['definitionImports']],['studio_tree_later'])
         self.assertEqual(self.lexicon.read_bytes(),self.originals[self.lexicon])
+
+    def test_full_lexicon_search_inspection_and_alias_preview_share_dependency_resolution(self):
+        target=self.inspect()['treeEdit']
+        owner={'name':target['name'],'expectedExpression':target['expression'],
+               'sourceFingerprint':target['sourceFingerprint'],'declarationId':target['declarationId'],
+               'declarationSourceId':target['sourceId'],'declarationLine':target['line']}
+        search=self.adapter.invoke('lexicon_search',{'passageId':self.passage['id'],
+            'query':'studio_tree_canonical','definitionContext':owner,'includeLaterDefinitions':True})
+        canonical=next(item for item in search['results'] if item['name']=='studio_tree_canonical')
+        self.assertTrue(canonical['treeEdit']['editable'])
+        self.assertNotIn('reuseBlockedReason',canonical)
+        self.assertEqual([item['name'] for item in canonical['definitionImports']],
+                         ['studio_tree_base','studio_tree_canonical'])
+        nested=self.adapter.invoke('lexicon_inspect',{'passageId':self.passage['id'],
+            'name':'studio_tree_canonical','definitionContext':owner})
+        self.assertEqual(nested['treeEdit']['declarationId'],canonical['treeEdit']['declarationId'])
+        self.assertEqual(nested['definition'],'canonical meaning')
+        request=self.request('studio_tree_canonical.copy()')
+        rendered=self.adapter.invoke('lexicon_tree_evaluate',{**request,'includeMorphology':True})
+        self.assertEqual(rendered['surface'],'aba')
+        self.assertEqual([item['name'] for item in rendered['definitionImports']],
+                         ['studio_tree_base','studio_tree_canonical'])
+        def provenance(node):
+            yield node.get('provenance',{})
+            for child in node.get('children',[]):
+                yield from provenance(child['node'])
+        declaration=next(item for item in provenance(rendered['definitionContext']['root'])
+                         if item.get('name')=='studio_tree_canonical')
+        self.assertEqual(declaration['line'],canonical['treeEdit']['line'])
+        self.assertEqual(declaration['sourcePath'],canonical['sourcePath'])
+        before={path:path.read_bytes() for path in self.originals}
+        preview=self.adapter.invoke('lexicon_tree_preview',request)
+        self.assertTrue(preview['regression']['ok'])
+        self.assertGreater(preview['regression']['checked'],100)
+        self.assertEqual(preview['regression']['changed'],0)
+        self.assertEqual(preview['definitionImports'],rendered['definitionImports'])
+        self.assertEqual({path:path.read_bytes() for path in before},before)
+        self.project=self.adapter.invoke('source_apply',preview)
+        text=self.lexicon.read_text()
+        self.assertLess(text.index('studio_tree_base ='),text.index('studio_tree_canonical ='))
+        self.assertLess(text.index('studio_tree_canonical ='),text.index('studio_tree_word ='))
+        self.assertEqual(text.count('# canonical dependency identity'),1)
+        self.assertEqual(text.count('# canonical shared identity'),1)
+        self.assertEqual(text.count('# retain this historical comment'),1)
+        self.assertEqual(self.inspect()['definition'],'meaning override')
+        self.assertEqual(self.inspect('studio_tree_canonical')['definition'],'canonical meaning')
+        self.assertEqual(self.inspect()['treeEdit']['expression'],'studio_tree_canonical.copy()')
+        # Both aliases remain named references and follow future canonical edits.
+        alias=self.adapter.invoke('evaluate_expression',{'passageId':self.passage['id'],'raw':'studio_tree_alias'})
+        self.assertEqual(alias['surface'],'aba')
+
+    def test_cycle_ambiguous_dependencies_and_changed_forward_candidates_never_publish(self):
+        for raw in ('studio_tree_word.copy()','studio_tree_alias.copy()'):
+            with self.subTest(raw=raw),self.assertRaises(AdapterError) as caught:
+                self.adapter.invoke('lexicon_tree_evaluate',self.request(raw))
+            self.assertEqual(caught.exception.code,'LEXICAL_DEPENDENCY')
+        request=self.request('studio_tree_canonical.copy()')
+        self.lexicon.write_text(self.lexicon.read_text().replace("'canonical meaning'","'changed canonical meaning'"))
+        self.project=self.adapter.refresh_project()
+        with self.assertRaises(AdapterError) as caught:
+            self.adapter.invoke('lexicon_tree_evaluate',request)
+        self.assertEqual(caught.exception.code,'STALE_ENGINE')
+
+    def test_indirect_meaning_mutation_cannot_change_imported_definition_state(self):
+        text=self.lexicon.read_text()
+        text=text.replace('studio_tree_word = Noun(',
+            "studio_tree_prior_base = Noun('aba', definition='original meaning')\n"
+            'studio_tree_indirect = studio_tree_prior_base\n'
+            'studio_tree_word = Noun(',1)
+        text=text.replace('__all__ = [',
+            "studio_tree_indirect.definition = 'canonical meaning'\n"
+            'studio_tree_unsafe_canonical = studio_tree_prior_base.copy()\n'
+            '__all__ = [',1)
+        self.lexicon.write_text(text)
+        self.project=self.adapter.refresh_project()
+        before=self.lexicon.read_bytes()
+        request=self.request('studio_tree_unsafe_canonical.copy()')
+        # The static graph alone cannot recognize that `indirect` shares the
+        # dependency object. The complete runtime-state guard must reject it.
+        target=self.inspect()['treeEdit']
+        self.assertEqual([entry['name'] for entry in plan(text,'lexicon',target['line'],request['raw'])['imports']],
+                         ['studio_tree_unsafe_canonical'])
+        for method in ('lexicon_tree_evaluate','lexicon_tree_preview'):
+            with self.subTest(method=method),self.assertRaises(AdapterError) as caught:
+                self.adapter.invoke(method,request)
+            self.assertEqual(caught.exception.code,'LEXICAL_DEPENDENCY')
+            self.assertIn('significado',str(caught.exception))
+        self.assertEqual(self.lexicon.read_bytes(),before)
+        self.assertEqual(self.inspect('studio_tree_unsafe_canonical')['definition'],'canonical meaning')
+
+    def test_annotation_only_shared_edit_requires_exact_review_without_approving_references(self):
+        request=self.request("(Noun('a') / Noun('ba')).copy()")
+        preview=self.adapter.invoke('lexicon_tree_preview',request)
+        self.assertTrue(preview['regression']['ok'])
+        changes=preview['annotationChanges']
+        self.assertEqual(len(changes),3)
+        self.assertTrue(all(item['before']!=item['after'] for item in changes))
+        self.assertEqual({item['sourceId'] for item in changes},
+                         {'studio_definition_fixture','studio_definition_second'})
+        for receipt in (None,False,1,'true'):
+            params={**preview,'annotationChanges':[]}
+            if receipt is not None: params['reviewedAnnotationChanges']=receipt
+            with self.subTest(receipt=receipt),self.assertRaises(AdapterError) as caught:
+                self.adapter.invoke('source_apply',params)
+            self.assertEqual(caught.exception.code,'REVIEW_REQUIRED')
+            self.assertEqual(self.lexicon.read_bytes(),self.originals[self.lexicon])
+        self.project=self.adapter.invoke('source_apply',{**preview,'reviewedAnnotationChanges':True})
+        self.assertEqual(self.adapter.invoke('evaluate_expression',
+                         {'passageId':self.passage['id'],'raw':'studio_tree_word'})['surface'],'aba')
+        for path,data in self.originals.items():
+            if 'ground_truth' in path.parts:self.assertEqual(path.read_bytes(),data)
+        import json
+        journal=json.loads((self.adapter.state_dir/'recovery'/(preview['previewId']+'.json')).read_text())
+        self.assertEqual(journal['reviewedAnnotationChanges'],changes)
+
+    def test_annotation_review_still_blocks_surface_changes_and_stale_source(self):
+        with self.assertRaises(AdapterError) as caught:
+            self.adapter.invoke('lexicon_tree_preview',self.request("Noun('a') / Noun('ra')"))
+        self.assertEqual(caught.exception.code,'REGRESSION_FAILED')
+        preview=self.adapter.invoke('lexicon_tree_preview',self.request("Noun('a') / Noun('ba')"))
+        self.lexicon.write_text(self.lexicon.read_text()+'\n# concurrent definition edit\n')
+        with self.assertRaises(AdapterError) as caught:
+            self.adapter.invoke('source_apply',{**preview,'reviewedAnnotationChanges':True})
+        self.assertEqual(caught.exception.code,'STALE_SOURCE')
 
     def test_preview_is_read_only_and_apply_preserves_all_examples_comments_and_meaning_overrides(self):
         request=self.request("Noun('aba', definition='original meaning').copy()")

@@ -62,7 +62,8 @@ def search(entries, query, limit=40):
     matches = []
     for entry in entries:
         rendered = normalize(entry['surface'])
-        match = ('exact' if key == rendered else 'prefix' if rendered.startswith(key) else
+        exact_name = key == normalize(entry.get('name', ''))
+        match = ('name' if exact_name else 'exact' if key == rendered else 'prefix' if rendered.startswith(key) else
                  'contains' if key in rendered else 'segment' if len(rendered) >= 3 and rendered in key else
                  'name' if key in normalize(entry.get('name', '')) else
                  'definition' if key in normalize(entry.get('definition', '')) else
@@ -70,7 +71,7 @@ def search(entries, query, limit=40):
         if match:
             public = {k: v for k, v in entry.items() if not k.startswith('_')}
             matches.append({**public, 'match': match})
-    matches.sort(key=lambda row: (ranks[row['match']], -len(normalize(row['surface'])) if row['match'] == 'segment' else 0,
+    matches.sort(key=lambda row: (key != normalize(row.get('name', '')), ranks[row['match']], -len(normalize(row['surface'])) if row['match'] == 'segment' else 0,
                                  row['kind'] != 'reference', len(row['surface']), len(row['expression']), row['id']))
     return {'query': query, 'results': matches[:limit], 'total': len(matches)}
 

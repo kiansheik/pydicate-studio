@@ -158,6 +158,7 @@ export function expressionGraph(
       label: inlineCall?.label ?? sourceLabel(body),
       runtimeType: kindNames[body.kind] ?? 'Trecho preservado',
       category: body.kind,
+      stativeConversion: evaluated?.stativeConversion,
       definition: evaluated?.definition ?? '',
       baseDefinition: evaluated?.baseDefinition,
       compositeDefinition: evaluated?.compositeDefinition,

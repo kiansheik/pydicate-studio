@@ -3,6 +3,15 @@ import { operationTerm, treeOperationTerm } from './operation-terms';
 import { addTreeOperation, treeOperations } from './tree-operations';
 
 describe('Portuguese operation terminology', () => {
+  it('offers the stative helper as a visible conversion, retaining actual call syntax', () => {
+    expect(treeOperationTerm('v')).toMatchObject({
+      label: 'Verbo de 2ª classe (estativo)',
+      syntax: 'v(…)',
+    });
+    expect(operationTerm({ kind: 'call', method: 'v' })).toEqual(treeOperationTerm('v'));
+    expect(treeOperations.find(([name]) => name === 'v')?.[1]).toContain('estativo');
+  });
+
   it('distinguishes lexical composition from copular predication', () => {
     const composition = treeOperationTerm('/');
     const copula = treeOperationTerm('@');
@@ -93,7 +102,7 @@ describe('Portuguese operation terminology', () => {
   it('changes menu wording without changing source-operation keys or serialized syntax', () => {
     expect(treeOperations).toContainEqual(['*', 'Vincular elementos · *']);
     expect(treeOperations).toContainEqual(['@', 'Predicação com cópula · @']);
-    expect(new Set(treeOperations.map(([key]) => key)).size).toBe(22);
+    expect(new Set(treeOperations.map(([key]) => key)).size).toBe(23);
     expect(addTreeOperation('tym', '*', 'emi', 'left')).toBe('(emi) * (tym)');
     expect(addTreeOperation('tym', '@', 'ypy')).toBe('(tym) @ (ypy)');
     expect(addTreeOperation('tym', 'hidden')).toBe('+(tym)');

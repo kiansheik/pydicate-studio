@@ -39,6 +39,15 @@ class SearchTests(unittest.TestCase):
             self.assertFalse(valid_index(value))
         self.assertTrue(valid_index({'entries': [], 'diagnostics': []}))
 
+    def test_exact_saved_name_precedes_surface_segments_and_partial_names(self):
+        rows = [{**self.row('old', 'enosem', 'enosem'), 'name': 'enosem'},
+                {**self.row('new', 'enosem', 'enosem_26169d1f'), 'name': 'enosem_26169d1f'},
+                self.row('root', 'sem', 'sem')]
+        found = search(rows, 'enosem_26169d1f', limit=1)
+        self.assertEqual(found['total'], 3)
+        self.assertEqual(found['results'][0]['name'], 'enosem_26169d1f')
+        self.assertEqual(found['results'][0]['match'], 'name')
+
     def test_future_redefinition_is_not_the_origin_of_an_earlier_reference(self):
         with tempfile.TemporaryDirectory() as directory:
             corpus = Path(directory)

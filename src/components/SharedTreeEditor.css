@@ -26,3 +26,40 @@
 .shared-tree-editor code {
   overflow-wrap: anywhere;
 }
+.shared-definition-reuse {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 10px 0;
+}
+.shared-definition-reuse summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.shared-definition-reuse label {
+  display: grid;
+  gap: 6px;
+}
+.shared-definition-reuse input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.shared-definition-results {
+  list-style: none;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.shared-definition-results li {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+}
+.shared-definition-results li > span {
+  margin-inline-start: 10px;
+}
+.shared-definition-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

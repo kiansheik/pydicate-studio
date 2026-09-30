@@ -34,6 +34,8 @@ Ordinary local implementation and disposable-copy tests are authorized. The task
 
 19. Experimental morpheme tracing compares annotated step surfaces; it is not
 native engine provenance. Non-whitespace annotation/surface disagreement,
-unresolved changed forms, repeated matches and unavailable stages can stop tracing. Shared-reference runtime internals have no editable source
-step trace until explicitly copied into the canvas. The selected source tree and
-loose pieces are supported; no engine changes are included.
+unresolved changed forms, repeated matches and unavailable stages can stop tracing.
+Shared references now open their saved declarations in editable tabs; runtime
+internals without a saved source declaration still have no editable source trace.
+The selected source tree and loose pieces are supported. The generalized stative
+engine proposal remains separate and awaits permission to apply.

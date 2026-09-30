@@ -30,6 +30,7 @@ import {
 import { registerProjectRecovery } from './domain/project-recovery';
 import { approvalState, type ReferenceStatus } from './domain/ground-truth';
 import { emptySourcePassage, projectSources } from './domain/sources';
+import { latestSourcePassage } from './domain/passage-navigation';
 
 export interface SourceApplyOutcome {
   sourceApplied: boolean;
@@ -68,6 +69,7 @@ export function useStudio() {
   const redoHistory = useRef<Record<string, Draft[]>>({});
   const booted = useRef(false);
   const restoredSelection = useRef<string | undefined>(undefined);
+  const startAtLatest = useRef(false);
   const [result, setResult] = useState<RenderResult | null>(null);
   const [renderError, setRenderError] = useState('');
   const [pending, setPending] = useState(false);
@@ -227,12 +229,15 @@ export function useStudio() {
           drafts,
           storageRevision: saved?.storageRevision ?? 0,
         });
-        const requested = restoredSelection.current;
+        const requested = startAtLatest.current
+          ? latestSourcePassage(latest.current.project.passages, restoredSelection.current)?.id
+          : restoredSelection.current;
         if (requested && latest.current.project.passages.some((item) => item.id === requested)) {
           latest.current.selectedId = requested;
           setSelectedId(requested);
         }
         restoredSelection.current = undefined;
+        startAtLatest.current = false;
         setReady(true);
         setSaveState(saved ? 'Rascunhos recuperados' : 'Pronto para contribuir');
       })
@@ -415,6 +420,7 @@ export function useStudio() {
       .then((saved) => {
         if (saved.project) {
           restoredSelection.current = saved.selectedPassageId;
+          startAtLatest.current = true;
           changeProject(saved.project);
           if (
             saved.selectedPassageId &&
@@ -697,7 +703,10 @@ export function useStudio() {
   async function applySource(
     preview: SourcePreview,
     reviewed?: RenderResult,
+    options?: { reviewedAnnotationChanges?: boolean },
   ): Promise<SourceApplyOutcome> {
+    if (preview.annotationChanges?.length && options?.reviewedAnnotationChanges !== true)
+      throw new Error('Confira e confirme as alterações de análise morfológica antes de aplicar.');
     if (operation.current)
       throw new Error(
         'Aguarde a atualização ou operação atual antes de aplicar a edição revisada.',
@@ -757,6 +766,9 @@ export function useStudio() {
           : await invoke<StudioProject>('source_apply', {
               previewId: preview.previewId,
               sourceFingerprint: preview.sourceFingerprint,
+              ...(preview.annotationChanges?.length
+                ? { reviewedAnnotationChanges: options?.reviewedAnnotationChanges === true }
+                : {}),
             });
       outcome.sourceApplied = hasChanges;
       const current = latest.current;

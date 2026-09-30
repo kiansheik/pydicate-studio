@@ -27,7 +27,18 @@ export type SharedTreeTarget =
 export type SharedTreeEvaluation = RenderResult & {
   authoring?: ParsedExpression;
   treeEdit?: SharedTreeTarget;
+  definitionImports?: { name: string; sourceId: string; line: number }[];
 };
+
+export interface SharedDefinitionCandidate {
+  name: string;
+  headword?: string;
+  surface?: string;
+  definition?: string;
+  treeEdit?: SharedTreeTarget;
+  availableInDefinition?: boolean;
+  reuseBlockedReason?: string;
+}
 
 export interface SharedTreeEntry {
   target: Extract<SharedTreeTarget, { editable: true }>;

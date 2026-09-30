@@ -1,3 +1,18 @@
+## 2026-09-30 — Reuse definitions and navigate sections
+
+Persistent bordered tree tabs; complete shared-definition search and dependency
+resolution; linked reuse/copy with corpus review; source/section/subsection
+accordions and startup at the final listed passage. The exact production alias
+preserves 153 surfaces but changes one annotation decomposition, now exposed in
+an explicit shared-definition review. See
+[handoff](session-handoffs/2026-09-30-definition-reuse-navigation.md).
+
+Added the ordinary **Verbo de 2ª classe (estativo)** operation, retaining the
+compound tree and its annotations. Focused domain, selected-engine and browser
+checks pass. A generalized `v()` engine patch was tested separately against all
+153 saved lines; applying it awaits explicit permission to edit the neighboring
+engine. Confirmed that `ba'e` loses argument negation; that repair remains separate.
+
 ## 2026-09-30 — Shared pieces in main tree tabs
 
 Confirmed the published `enosem_26169d1f` retains `.var(1).copy()`; its runtime

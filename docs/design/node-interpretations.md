@@ -66,6 +66,10 @@ runtime object condenses them. The latter is a collapsed inspection detail.
 Each mounted tab retains its own camera, selection and undo history. Closing a
 tab retains its browser-session draft, including loose pieces. Hidden tabs pause
 evaluation/inspection requests; shared morphology uses the declaration scope.
+Shared tabs survive passage navigation; only the main passage canvas is replaced.
+Each retains its originating passage/source context, including grammar correction
+after another passage is selected. **Substituir por peça existente** offers named
+linked reuse or an independent copied tree; both produce an undoable tab draft.
 The active definition has its own review/repair controls, and the passage footer
 indicates that shared editing is active. Review responses are bound to both the
 expression and loose-piece state, so a changed draft cannot open an old review.
@@ -75,8 +79,9 @@ in a corpus `.tu.py` file. It carries the original RHS, source fingerprint,
 declaration identity, source ID and line. Helpers, multiple assignment targets
 and engine-owned definitions explain why this editor is unavailable.
 
-`lexicon_tree_evaluate` evaluates an unsaved replacement in the namespace before
-that exact declaration, returning the ordinary rendered tree and an independent
+`lexicon_tree_evaluate` resolves shared names from the complete saved lexical
+declaration graph, then evaluates an unsaved replacement with its dependency
+closure in memory, returning the ordinary rendered tree and an independent
 parsed `authoring` tree. A well-formed incomplete tree can return partial results
 for further editing or a targeted grammar repair. The request retains `name`,
 `expectedExpression`, `sourceFingerprint`, `declarationId`,
@@ -84,6 +89,16 @@ for further editing or a targeted grammar repair. The request retains `name`,
 from the containing passage's source context. Nested `lexicon_inspect` requests
 carry that descriptor as `definitionContext`, so a later passage-local binding
 cannot silently replace the meaning of a referenced piece.
+
+`lexicon_search` with `definitionContext` and `includeLaterDefinitions: true`
+searches the complete shared lexicon; results include `treeEdit` and an explicit
+`reuseBlockedReason` for unsupported or cyclic dependencies. Named reuse uses
+`name.copy()` so the dependency is retained without leaking an alias's later
+meaning override into the canonical object. A copied RHS instead retains its
+constituent references. `definitionImports` reports the checked shared definitions.
+Original AST coordinates remain in evaluation provenance. Cycles, ambiguous
+rebinding and context-dependent helper/module effects fail explicitly; arbitrary
+source-local imperative code is not treated as a reorderable lexical graph.
 
 After a reviewed save, an open definition tab refreshes through
 `lexicon_inspect.declarationTarget` using its name and original declaration
@@ -96,10 +111,14 @@ earlier edits shift its line. Repeated module bindings retain their separate
 line-bound identities; function-local variables do not count as rebindings.
 
 `lexicon_tree_preview` validates the expression through the bounded interpreter,
-replaces only the selected assignment's RHS, preserves comments and subsequent
-meaning overrides, and runs the existing complete corpus regression in a
-disposable copy. It rejects incomplete trees and any changed output or annotation
-in an unchanged saved passage. A successful preview is still read-only. Applying
+replaces the selected assignment's RHS and serializes required shared declarations
+in dependency order for Python compatibility. It preserves their comments,
+identity notes and meaning overrides, and runs the complete corpus regression in a
+disposable copy. It rejects incomplete trees and changed surfaces, references,
+coverage or execution failures. Annotation-only changes in unchanged passages are
+shown as before/after rows for shared-tree review; `source_apply` requires
+`reviewedAnnotationChanges: true` for that exact stored preview. Other publication
+modes retain their existing annotation guards. A successful preview is still read-only. Applying
 the ordinary reviewed `source_apply` transaction checks exact source bytes and
 the regression fingerprint, retains a recovery journal, and refreshes all
 references without rewriting their variable names or approving references.

@@ -212,8 +212,24 @@ def shape(value, depth=0, active=None, path='$'):
     return {'type': type(value).__module__+'.'+type(value).__name__, **{k:shape(v,depth+1,active,path+'/'+k) for k,v in sorted(vars(value).items()) if k not in ignored and not k.startswith(('__', '_studio_'))}}
 
 
+def stative_conversion(value):
+    """Choose the selected engine's existing v(noun) input, without realizing it.
+
+    Inspect descriptors without invoking computed noun properties on incomplete
+    trees. The ordinary operation preview remains responsible for evaluation.
+    """
+    if inspect.isclass(value) or not callable(getattr(value, 'eval', None)):
+        return 'unsupported'
+    if inspect.getattr_static(value, 'noun', None) is not None:
+        return 'nominal'
+    if callable(getattr(value, 'base_nominal', None)):
+        return 'base_nominal'
+    return 'unsupported'
+
+
 def runtime_summary(value):
     result = {'runtimeType':type(value).__name__, 'category':getattr(value,'category',type(value).__name__)}
+    result['stativeConversion'] = stative_conversion(value)
     status = lexical_status(value)
     if status: result['lexicalStatus'] = status
     for key in ('definition','verbete','tag','mood','negated','variation_id','reduplicated','circumstancial','_inflection'):
@@ -273,6 +289,7 @@ def runtime_graph(value, limit=1200, source_nodes=None):
                 'definition': str(getattr(current, 'definition', '') or ''), 'tag': str(getattr(current, 'tag', '') or ''),
                 'attributes': attributes, 'morphology': {}}
         node['methods'] = sorted(name for name in METHODS if callable(getattr(current, name, None)))
+        node['stativeConversion'] = stative_conversion(current)
         occurrences = [source_nodes[source_id] for source_id in getattr(current, '_studio_sources', ())
                        if source_nodes and source_id in source_nodes]
         if occurrences:
@@ -898,10 +915,19 @@ def main():
             elif payload.get('action') == 'lexicon_tree_evaluate':
                 from shared_definition import evaluate
                 result = evaluate(payload, corpus)
-            elif payload.get('action') == 'lexicon_tree_inspect':
+            elif payload.get('action') in {'lexicon_tree_inspect','lexicon_tree_search'}:
                 from shared_definition import declaration_namespace
-                namespace=declaration_namespace(corpus,payload['declarationSourceId'],payload['declarationLine'])
-                result=lexicon_result({'action':'lexicon_inspect','name':payload['name'],'line':payload['declarationLine']},
+                context_line=payload['declarationLine']
+                if payload.get('resolveDefinitions') and payload['declarationSourceId']=='lexicon':
+                    from shared_definition_imports import plan
+                    prepared=plan((corpus/'historic/lexicon.tu.py').read_text(encoding='utf-8'),
+                                  'lexicon',context_line,payload['name'])
+                    if prepared['imports']:
+                        # Inspect the exact saved definition and its final meaning,
+                        # not the owner's old prefix or a passage-local shadow.
+                        context_line=10**9
+                namespace=declaration_namespace(corpus,payload['declarationSourceId'],context_line)
+                result=lexicon_result({**payload,'action':'lexicon_inspect' if payload['action']=='lexicon_tree_inspect' else 'lexicon','line':context_line},
                     corpus,corpus/'historic'/(payload['declarationSourceId']+'.tu.py'),namespace)
             elif payload.get('action') == 'prepare_lexical_publication':
                 from lexical_publication import prepare_lexical_publication

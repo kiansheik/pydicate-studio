@@ -37,6 +37,7 @@ export interface AuthorNode {
   lexicalReference?: string;
   category?: string;
   runtimeType?: string;
+  stativeConversion?: 'nominal' | 'base_nominal' | 'unsupported';
   verbete?: string;
   tag?: string;
   dispatch?: string;
@@ -93,6 +94,13 @@ export interface SourcePreview {
   name?: string;
   scope?: string;
   affectedUses?: unknown[];
+  annotationChanges?: {
+    sourceId: string;
+    ordinal: number;
+    passageId?: string;
+    before: string;
+    after: string;
+  }[];
   draftRevisionId?: string;
   pendingDraftId?: string;
   /** Source expression after any reviewed promotion to shared lexical names. */

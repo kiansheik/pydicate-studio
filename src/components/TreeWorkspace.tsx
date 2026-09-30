@@ -9,10 +9,17 @@ import { ExpressionCanvas, type ExpressionCanvasProps } from './ExpressionCanvas
 import { SharedTreeEditor } from './SharedTreeEditor';
 import './TreeWorkspace.css';
 
+interface TreeContext {
+  passageId?: string;
+  sourceId?: string;
+  revisionId?: string;
+}
+
 interface TreeTab {
   id: string;
   name: string;
   request: SharedTreeRequest;
+  context: TreeContext;
   entry?: SharedTreeEntry;
   error?: string;
   loading?: boolean;
@@ -35,12 +42,33 @@ export function TreeWorkspace(props: ExpressionCanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const id = useId();
   const mounted = useRef(true);
+  const passageContext: TreeContext = {
+    passageId: props.passageId,
+    sourceId: props.sourceId,
+    revisionId: props.revisionId,
+  };
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    // A passage is a separate document; navigating must not retarget open definitions.
+    setActive('passage');
+  }, [props.passageId, props.sourceId]);
+  useEffect(() => {
+    // Keep a tab's original passage revision current while that same passage is open.
+    setTabs((previous) =>
+      previous.map((tab) =>
+        tab.context.passageId === props.passageId &&
+        tab.context.sourceId === props.sourceId &&
+        tab.context.revisionId !== props.revisionId
+          ? { ...tab, context: { ...tab.context, revisionId: props.revisionId } }
+          : tab,
+      ),
+    );
+  }, [props.passageId, props.sourceId, props.revisionId]);
 
   function activate(key: string) {
     setActive(key);
@@ -63,9 +91,7 @@ export function TreeWorkspace(props: ExpressionCanvasProps) {
         'lexicon_inspect',
         {
           name: tab.request.name,
-          passageId: props.passageId,
-          sourceId: props.sourceId,
-          revisionId: props.revisionId,
+          ...tab.context,
           engineFingerprint: props.engineFingerprint,
           ...(target
             ? {
@@ -113,7 +139,7 @@ export function TreeWorkspace(props: ExpressionCanvasProps) {
     }
   }
 
-  function openEntry(entry: SharedTreeEntry) {
+  function openEntry(entry: SharedTreeEntry, context = passageContext) {
     const existing = current.current.find((tab) => sameDefinition(tab.entry, entry));
     if (existing) {
       setTabs((previous) =>
@@ -125,19 +151,19 @@ export function TreeWorkspace(props: ExpressionCanvasProps) {
     const key = `definition:${entry.sourcePath}:${entry.target.storageId ?? entry.target.declarationId}`;
     setTabs((previous) => [
       ...previous,
-      { id: key, name: entry.target.name, request: { name: entry.target.name }, entry },
+      { id: key, name: entry.target.name, request: { name: entry.target.name }, context, entry },
     ]);
     activate(key);
   }
 
-  function openReference(request: SharedTreeRequest) {
-    const key = `reference:${JSON.stringify([request.name, request.definitionContext?.declarationId ?? 'passage'])}`;
+  function openReference(request: SharedTreeRequest, context = passageContext) {
+    const key = `reference:${JSON.stringify([request.name, request.definitionContext?.declarationId ?? 'passage', context.sourceId, context.passageId])}`;
     const existing = current.current.find((tab) => tab.id === key);
     if (existing) {
       activate(existing.id);
       return;
     }
-    const tab: TreeTab = { id: key, name: request.name, request, loading: true };
+    const tab: TreeTab = { id: key, name: request.name, request, context, loading: true };
     setTabs((previous) => [...previous, tab]);
     activate(key);
     void inspect(tab);
@@ -196,7 +222,7 @@ export function TreeWorkspace(props: ExpressionCanvasProps) {
         }}
       >
         {all.map((tab, index) => (
-          <div className="tree-tab" key={tab.id}>
+          <div className="tree-tab" data-active={active === tab.id} key={tab.id}>
             <button
               type="button"
               role="tab"
@@ -230,6 +256,7 @@ export function TreeWorkspace(props: ExpressionCanvasProps) {
         hidden={active !== 'passage'}
       >
         <ExpressionCanvas
+          key={`${props.sourceId ?? ''}:${props.passageId ?? 'canvas'}`}
           {...props}
           inactive={active !== 'passage'}
           onOpenReference={props.onLexicalPreview ? openReference : undefined}
@@ -254,14 +281,18 @@ export function TreeWorkspace(props: ExpressionCanvasProps) {
             <SharedTreeEditor
               target={tab.entry.target}
               sourcePath={tab.entry.sourcePath}
-              passageId={props.passageId}
-              sourceId={props.sourceId}
-              revisionId={props.revisionId}
+              passageId={tab.context.passageId}
+              sourceId={tab.context.sourceId}
+              revisionId={tab.context.revisionId}
               engineFingerprint={props.engineFingerprint}
               onPreview={props.onLexicalPreview}
-              onPrepareDiagnostic={props.onPrepareDiagnostic}
-              onOpenReference={openReference}
-              onOpenSharedTree={openEntry}
+              onPrepareDiagnostic={
+                props.onPrepareDiagnostic
+                  ? (report) => props.onPrepareDiagnostic?.({ ...report, context: tab.context })
+                  : undefined
+              }
+              onOpenReference={(request) => openReference(request, tab.context)}
+              onOpenSharedTree={(entry) => openEntry(entry, tab.context)}
               onClose={() => activate('passage')}
               onReload={() => void inspect(tab)}
               inactive={active !== tab.id}

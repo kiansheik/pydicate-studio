@@ -779,6 +779,59 @@ test('context operations chain a selected variant and imperative without writing
   expect(root.children[0].node.children[0].node.code).toBe('pysyro');
 });
 
+test('the normal tree menu converts a verb subtree to second-class stative without flattening it and supports undo', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'pydicate-studio:tools:v1',
+      JSON.stringify({ version: 1, advanced: false }),
+    ),
+  );
+  const raw = 'potar * moro';
+  const wrapped = '(v((potar * moro).base_nominal()))';
+  const requests = await openCanvas(page, raw);
+  const initial = await page.evaluate(() => window.canvasSnapshot);
+  await menu(page, 'main:root', 'Adicionar operação');
+  const dialog = page.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  const operation = dialog.getByRole('combobox', { name: 'Operação na peça', exact: true });
+  await expect(
+    operation.getByRole('option', { name: /^Verbo de 2ª classe \(estativo\)/ }),
+  ).toHaveCount(1);
+  await operation.selectOption('v');
+  const form = dialog
+    .getByRole('region', { name: 'Prévia do resultado', exact: true })
+    .getByLabel('Forma prevista', { exact: true });
+  await expect(form).toBeVisible();
+  await expect(form).not.toHaveText('');
+  await expect
+    .poll(() =>
+      requests.some(
+        (request) => request.method === 'evaluate_expression' && request.params.raw === wrapped,
+      ),
+    )
+    .toBe(true);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(wrapped);
+  const parsed = run('parse_expression', { raw: wrapped }).root;
+  expect(
+    flattenNodes(parsed).some(
+      (node) => node.kind === 'binary' && node.operator === '*' && node.code === raw,
+    ),
+  ).toBe(true);
+  expect(
+    flattenNodes(parsed)
+      .filter((node) => node.kind === 'reference')
+      .map((node) => node.code),
+  ).toEqual(['potar', 'moro']);
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+});
+
 test('combination previews follow order and operator without editing until the exact candidate is confirmed', async ({
   page,
 }) => {

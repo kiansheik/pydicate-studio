@@ -11,32 +11,62 @@
   z-index: 3;
   background: var(--paper);
   display: flex;
-  gap: 4px;
+  gap: 6px;
   max-width: 100%;
   overflow-x: auto;
-  padding: 4px 0 8px;
+  padding: 8px 6px 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px solid var(--green);
 }
 .tree-tab {
   display: flex;
   flex: 0 0 auto;
   align-items: stretch;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  background: var(--green-light);
+  color: var(--muted);
+  min-height: 39px;
+}
+.tree-tab[data-active='true'] {
+  border-color: var(--green);
+  background: var(--paper);
+  color: inherit;
+  box-shadow: inset 0 3px var(--green);
 }
 .tree-tab [role='tab'] {
   max-width: min(260px, 55vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border: 0;
+  background: transparent;
+  padding: 10px 14px;
+  border-radius: 8px 8px 0 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.tree-tab [role='tab']:hover,
+.tree-tab-close:hover {
+  background: color-mix(in srgb, var(--green) 12%, transparent);
 }
 .tree-tab [aria-selected='true'] {
-  border-color: var(--green);
-  box-shadow: inset 0 -3px var(--green);
   font-weight: 700;
 }
 .tree-tab-close {
-  padding-inline: 8px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 0 8px 0 0;
+  color: inherit;
   font-size: 18px;
+  cursor: pointer;
+}
+.tree-tab [role='tab']:focus-visible,
+.tree-tab-close:focus-visible {
+  outline-offset: -4px;
 }
 .tree-workspace .shared-tree-editor {
   border: 0;

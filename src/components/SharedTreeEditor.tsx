@@ -11,6 +11,7 @@ import type {
 } from '../domain/shared-definition';
 import { workspaceAutofill } from '../domain/workspace-autofill';
 import { ExpressionCanvas } from './ExpressionCanvas';
+import { SharedDefinitionReuse } from './SharedDefinitionReuse';
 import './SharedTreeEditor.css';
 
 interface DefinitionDraft extends SharedDefinitionTarget {
@@ -226,6 +227,22 @@ export function SharedTreeEditor(props: {
         </button>
       )}
       {hasLoosePieces && <p>Conecte ou retire as peças soltas antes de revisar esta definição.</p>}
+      <SharedDefinitionReuse
+        target={sharedDefinition}
+        passageId={props.passageId}
+        sourceId={props.sourceId}
+        revisionId={props.revisionId}
+        engineFingerprint={props.engineFingerprint}
+        inactive={props.inactive}
+        disabled={busy || stale || hasLoosePieces}
+        onChoose={(raw) => change({ ...draft, raw, canvas: emptyCanvas() })}
+      />
+      {!!result?.definitionImports?.length && (
+        <p role="status">
+          Definições compartilhadas incluídas na verificação:{' '}
+          {result.definitionImports.map((item) => item.name).join(', ')}.
+        </p>
+      )}
       <div className="shared-tree-actions">
         {props.onPrepareDiagnostic && (
           <button

@@ -1035,9 +1035,19 @@ export function ExpressionCanvas({
   }
   function getScope(address: CanvasAddress) {
     const piece = pieces.find((item) => item.id === (address.fragmentId ?? 'main'));
+    const source = flattenNodes(piece?.root ?? null).find((item) => item.id === address.nodeId);
+    const evaluated =
+      source &&
+      flattenNodes(piece?.evaluatedRoot ?? null).find(
+        (item) =>
+          item.id === source.id &&
+          item.code === source.code &&
+          item.start === source.start &&
+          item.end === source.end,
+      );
     return {
       piece,
-      node: flattenNodes(piece?.root ?? null).find((item) => item.id === address.nodeId),
+      node: source && { ...source, stativeConversion: evaluated?.stativeConversion },
     };
   }
   function addOperation() {
@@ -1274,7 +1284,7 @@ export function ExpressionCanvas({
           : 'Escolha um argumento para ver a forma. Sem ele, será criado um encaixe vazio.';
     else {
       try {
-        operationCode = addTreeOperation(scope.code, operation, argument, operationSide);
+        operationCode = addTreeOperation(scope.code, operation, argument, operationSide, scope);
         operationPreview = previewAction(
           {
             type: 'replace',

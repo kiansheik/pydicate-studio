@@ -52,11 +52,12 @@ import {
   CandidateProjection,
   useAnalysisWorkspace,
 } from './components/AnalysisSupport';
-import { analysisLabels, type AnalysisEvidence } from './domain/analysis';
+import { type AnalysisEvidence } from './domain/analysis';
 import { PydicateTree } from './components/RuntimeTree';
 import { UsagePanel } from './components/UsagePanel';
 import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
 import { PassageLexicon } from './components/PassageLexicon';
+import { PassageNavigator } from './components/PassageNavigator';
 import { PassageSolver } from './components/PassageSolver';
 import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
 import { diagnosticTarget, type CanvasDiagnostic } from './domain/grammar-diagnostic';
@@ -167,6 +168,7 @@ function Projections({
   if (studio.project.mode === 'local' && tab === 'Árvore')
     return (
       <PydicateTree
+        key={studio.project.id}
         evaluatedRoot={result?.tree}
         failures={result?.failures}
         selectedSourceNodeId={selected}
@@ -649,6 +651,9 @@ export default function App() {
       })
     : null;
   const [grammarReport, setGrammarReport] = useState<CanvasDiagnostic | null>(null);
+  const grammarPassage = grammarReport?.context?.passageId
+    ? project.passages.find((item) => item.id === grammarReport.context?.passageId)
+    : passage;
   const [sharedTreeName, setSharedTreeName] = useState<string | null>(null);
   const restoredPendingProject = useRef('');
   useEffect(() => {
@@ -663,6 +668,7 @@ export default function App() {
     localStorage.removeItem('studio-pending:' + project.id);
   }, [studio.ready, project.id, studio.envelope]);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [annotationReviewId, setAnnotationReviewId] = useState('');
   useEffect(() => {
     if (!preview) return;
     const cancel = (event: KeyboardEvent) => {
@@ -695,10 +701,6 @@ export default function App() {
   }, [theme]);
   const [notice, setNotice] = useState('');
   const note = useRef<HTMLTextAreaElement>(null);
-  const activePassage = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    activePassage.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [passage.id, layout.state.hidden.navigator, layout.state.maximized]);
   const comparison =
     result && result.evaluationStatus !== 'partial'
       ? compareReference(result.surface, passage.acceptedReference)
@@ -772,7 +774,6 @@ export default function App() {
         .toLowerCase()
         .includes(query.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()),
   );
-  const sourceIds = [...new Set(passages.map((p) => p.sourceId))];
   const selectedIndex = sourcePassages.findIndex((p) => p.id === passage.id);
   const orphaned = studio.orphanDrafts.length;
   const changePassage = (id: string) => {
@@ -960,60 +961,20 @@ export default function App() {
           submissions[submissionKey(p.id)] ? [submissions[submissionKey(p.id)]] : [],
         )}
       />
-      <div className="passage-list">
-        {sourceIds.map((sourceId) => (
-          <section key={sourceId}>
-            <div className="source-group">
-              <ChevronDown size={12} />
-              <BookOpen size={13} />
-              <span>{sourceLabel(sources.find((source) => source.id === sourceId)!)}</span>
-            </div>
-            {passages
-              .filter((p) => p.sourceId === sourceId)
-              .map((p) => (
-                <button
-                  key={p.id}
-                  ref={passage.id === p.id ? activePassage : undefined}
-                  className={`passage-item ${passage.id === p.id ? 'active' : ''}`}
-                  onClick={() => changePassage(p.id)}
-                  aria-current={passage.id === p.id ? 'page' : undefined}
-                >
-                  <span className="passage-item-top">
-                    <span className="ordinal">{String(p.ordinal).padStart(4, '0')}</span>
-                    {p.analysis && (
-                      <span className="editable-dot" title="Editor visual disponível" />
-                    )}
-                  </span>
-                  <span className="passage-reading" lang="tpw">
-                    {studio.envelope.drafts[p.id]?.normalized ||
-                      studio.envelope.drafts[p.id]?.diplomatic ||
-                      p.acceptedReference ||
-                      'Por transcrever'}
-                  </span>
-                  <span className="passage-status">
-                    <span
-                      className={`status-dot ${studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status}`}
-                    />
-                    {submissions[submissionKey(p.id)]
-                      ? submissionLabels[submissions[submissionKey(p.id)].status]
-                      : statusLabels[studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status]}
-                    {analysis.listing.jobs.find((job) => job.passageId === p.id) && (
-                      <span className="analysis-nav-badge">
-                        IA ·{' '}
-                        {
-                          analysisLabels[
-                            analysis.listing.jobs.find((job) => job.passageId === p.id)!.status
-                          ]
-                        }
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
-          </section>
-        ))}
-        {!passages.length && <p className="empty-search">Nenhuma passagem encontrada.</p>}
-      </div>
+      <PassageNavigator
+        ready={studio.ready}
+        projectId={project.id}
+        passages={passages}
+        sources={sources}
+        drafts={studio.envelope.drafts}
+        selectedId={passage.id}
+        onSelect={changePassage}
+        jobs={analysis.listing.jobs}
+        submissions={submissions}
+        filterKey={`${filter}:${query}`}
+        revealMatches={filter !== 'all' || !!query.trim()}
+        revealKey={`${layout.state.hidden.navigator}:${layout.state.maximized}`}
+      />
       <div className="navigator-bottom">
         <div className="notebook-icon">
           <FileText size={18} />
@@ -1529,7 +1490,26 @@ export default function App() {
                     onEditingSharedTree={setSharedTreeName}
                     inspectLexeme={() => changeMode('lexicon')}
                     lexicalPreview={setPreview}
-                    prepareDiagnostic={setGrammarReport}
+                    prepareDiagnostic={(report) => {
+                      const originId = report.context?.passageId ?? passage.id;
+                      const origin = project.passages.find((item) => item.id === originId);
+                      if (
+                        !origin ||
+                        (report.context?.sourceId && report.context.sourceId !== origin.sourceId)
+                      ) {
+                        studio.setError(
+                          'A passagem de origem mudou. Abra esta peça novamente para corrigir a gramática.',
+                        );
+                        return;
+                      }
+                      const revisionId =
+                        studio.envelope.drafts[origin.id]?.revisionId ?? report.revisionId;
+                      setGrammarReport({
+                        ...report,
+                        revisionId,
+                        context: { passageId: origin.id, sourceId: origin.sourceId, revisionId },
+                      });
+                    }}
                     openLaboratory={() => setLabOpen(true)}
                     translate={openTranslation}
                     askAI={(id) => {
@@ -2158,6 +2138,20 @@ export default function App() {
               saveGroundTruth={passageReview && approveOnSave}
               acceptedReference={passage.acceptedReference}
             />
+            {!!preview.annotationChanges?.length && (
+              <label className="source-review-annotation-confirmation">
+                <input
+                  {...workspaceAutofill}
+                  type="checkbox"
+                  checked={annotationReviewId === preview.previewId}
+                  disabled={reviewBusy}
+                  onChange={(event) =>
+                    setAnnotationReviewId(event.target.checked ? preview.previewId : '')
+                  }
+                />{' '}
+                Revisei e aceito as alterações de análise morfológica mostradas acima.
+              </label>
+            )}
             <div>
               <button className="button" onClick={() => setPreview(null)} disabled={reviewBusy}>
                 Voltar sem aplicar
@@ -2168,6 +2162,8 @@ export default function App() {
                   !canReviewSource ||
                   reviewBusy ||
                   !studio.ready ||
+                  (!!preview.annotationChanges?.length &&
+                    annotationReviewId !== preview.previewId) ||
                   (passageReview && approveOnSave
                     ? studio.pending ||
                       !reviewedResult ||
@@ -2181,6 +2177,7 @@ export default function App() {
                     .applySource(
                       preview,
                       passageReview && approveOnSave ? reviewedResult! : undefined,
+                      { reviewedAnnotationChanges: annotationReviewId === preview.previewId },
                     )
                     .then((outcome) => {
                       if (outcome?.sourceApplied)
@@ -2269,15 +2266,19 @@ export default function App() {
         </div>
       )}
       {projectDialog && <ProjectDialog studio={studio} close={() => setProjectDialog(false)} />}
-      {grammarReport && (
+      {grammarReport && grammarPassage && (
         <GrammarDiagnosticDialog
-          key={`${project.id}:${passage.id}:${grammarReport.revisionId}:${grammarReport.fragmentId ?? 'main'}:${grammarReport.selectedNodeId}:${grammarReport.sharedDefinition?.name ?? ''}`}
+          key={`${project.id}:${grammarPassage.id}:${grammarReport.revisionId}:${grammarReport.fragmentId ?? 'main'}:${grammarReport.selectedNodeId}:${grammarReport.sharedDefinition?.name ?? ''}`}
           project={project}
-          passage={passage}
+          passage={grammarPassage}
           report={grammarReport}
           onClose={() => setGrammarReport(null)}
           onRefresh={studio.refresh}
           onSubmit={async (request) => {
+            if (studio.envelope.drafts[grammarPassage.id]?.revisionId !== grammarReport.revisionId)
+              throw new Error(
+                'O rascunho da passagem de origem mudou. Reabra a correção para usar o contexto atual.',
+              );
             const target = diagnosticTarget(grammarReport);
             const selectedNode =
               target.id !== grammarReport.root.id
@@ -2291,13 +2292,13 @@ export default function App() {
             });
             const noteSnapshot = await analysisNoteSnapshot(
               notebook.records,
-              passage.sourceId,
-              passage.id,
+              grammarPassage.sourceId,
+              grammarPassage.id,
             );
             await studio.persist();
             await invoke('analysis_submit', {
               projectId: project.id,
-              passageId: passage.id,
+              passageId: grammarPassage.id,
               revisionId: grammarReport.revisionId,
               operationId: `${request.operationId}:${noteSnapshot}`,
               task: request.mode === 'engine' ? 'grammar-repair' : 'analyze',
@@ -2319,7 +2320,8 @@ export default function App() {
                     description: `Forma pretendida: ${request.intendedSurface}\n\n${request.explanation}\n\nInvestigue como completar ou ajustar a árvore atual para essa análise.`,
                   }),
             });
-            await analysis.openSubmittedConversation();
+            if (grammarPassage.id === passage.id) await analysis.openSubmittedConversation();
+            else studio.setSelectedId(grammarPassage.id);
             layout.support('ai');
           }}
         />
