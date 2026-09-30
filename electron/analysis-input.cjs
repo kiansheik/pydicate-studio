@@ -11,6 +11,20 @@ function isReconstruction(input) {
 function scopedAnalysisInput(input) {
   if (!input || typeof input !== 'object') return input;
   const copy = structuredClone(input);
+  if (copy.grammarRepair?.baseline) {
+    const baseline = copy.grammarRepair.baseline;
+    copy.grammarRepair.baselineSummary = {
+      engineFingerprint: baseline.engineFingerprint,
+      sources: Object.fromEntries(
+        Object.entries(baseline.sources ?? {}).map(([id, source]) => [
+          id,
+          { rows: source.rows?.length ?? 0, error: source.error },
+        ]),
+      ),
+      note: 'Full baseline retained by Studio; grammar tools compare every saved row.',
+    };
+    delete copy.grammarRepair.baseline;
+  }
   const manifest = copy.manifest ?? {};
   if (!isReconstruction(copy)) return copy;
   const excluded = new Set([copy.passageId, ...(manifest.excludePassageIds ?? [])]);

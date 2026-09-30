@@ -419,7 +419,7 @@ function createAnalysisService({
       if (caught) throw caught;
       return result;
     })();
-    toolCalls.set(key, { digest: signature, promise });
+    toolCalls.set(key, { digest: signature, promise, jobId });
     try {
       return await promise;
     } finally {
@@ -835,6 +835,7 @@ function createAnalysisService({
         jobId,
         attemptId,
         expiresInMs: job.input.budgets.timeoutMs + 10000,
+        untilClosed: Boolean(job.input.grammarRepair),
       });
       const previousAttempt = job.attempts.at(-2);
       // Resume only observable work. A pending tool is recovered from a durable
@@ -859,6 +860,22 @@ function createAnalysisService({
                   rationale: candidate.rationale,
                   translation: candidate.translation,
                 })),
+              ...(job.input.grammarRepair
+                ? {
+                    grammarEdits: (job.grammarEdits ?? []).map(
+                      ({ id, path, beforeHash, afterHash, rolledBack }) => ({
+                        id,
+                        path,
+                        beforeHash,
+                        afterHash,
+                        rolledBack,
+                      }),
+                    ),
+                    grammarVerification: job.grammarVerification,
+                    recovery:
+                      'Read the current files and verify first. Completed edits are already saved; do not replay old replacements. Full receipts remain in Studio.',
+                  }
+                : {}),
               lastCheckpoint: previousAttempt?.checkpoint?.phase,
               previousError: previousAttempt?.error,
               previousResponse: previousAttempt?.summary,
@@ -866,7 +883,9 @@ function createAnalysisService({
             }
           : null;
       const checkpoint =
-        previousAttempt?.checkpoint?.version === 1 ? previousAttempt.checkpoint : null;
+        !job.input.grammarRepair && previousAttempt?.checkpoint?.version === 1
+          ? previousAttempt.checkpoint
+          : null;
       const toolReceipts = {};
       for (const message of checkpoint?.messages || []) {
         if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
@@ -927,6 +946,13 @@ function createAnalysisService({
       });
       if (controller.signal.aborted) throw controller.signal.reason;
       if (job.input.grammarRepair) {
+        await handle.scope?.revoke();
+        await handle.scope?.waitForIdle();
+        await Promise.allSettled(
+          [...toolCalls.values()]
+            .filter((call) => call.jobId === jobId)
+            .map((call) => call.promise),
+        );
         // Always verify after the provider stops, even if it forgot its final check.
         try {
           const verification = await grammar.check(job);
@@ -996,6 +1022,39 @@ function createAnalysisService({
         { attemptId },
       );
     } catch (reason) {
+      if (job?.input.grammarRepair) {
+        if (!controller.signal.aborted) controller.abort(reason);
+        // Revoke new calls, then retain engine ownership until every in-flight
+        // edit has finished its check/rollback. Provider failure must not release
+        // the writer lock while a tool is still modifying the shared grammar.
+        await handle.scope?.revoke();
+        await handle.scope?.waitForIdle();
+        await Promise.allSettled(
+          [...toolCalls.values()]
+            .filter((call) => call.jobId === jobId)
+            .map((call) => call.promise),
+        );
+        try {
+          const verification = await grammar.check(job);
+          await mutateJob(
+            jobId,
+            (value) => {
+              value.grammarVerification = verification;
+            },
+            { attemptId },
+          );
+        } catch (verificationError) {
+          await mutateJob(
+            jobId,
+            (value) => {
+              value.grammarVerification = {
+                error: String(verificationError.message ?? verificationError),
+              };
+            },
+            { attemptId },
+          );
+        }
+      }
       const current = await jobById(jobId).catch(() => null);
       if (current && !terminal.has(current.status))
         await mutateJob(jobId, (value) => {

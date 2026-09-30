@@ -813,3 +813,34 @@ test('RPC malformed JSON fails explicitly and tool argument validation rejects s
     ),
   );
 });
+
+test('grammar repair can finish beyond the ordinary deadline but still obeys explicit cancellation', async () => {
+  const provider = {
+    id: 'codex',
+    runAgent: async ({ signal }) => {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, 160);
+        signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+          },
+          { once: true },
+        );
+      });
+      return { text: 'done' };
+    },
+  };
+  const options = {
+    provider,
+    input: { ...input, task: 'grammar-repair', grammarRepair: { raw: 'mo * pyta' } },
+    grammarRepair: true,
+    budgets: { timeoutMs: 100 },
+  };
+  assert.equal((await runAgent(options)).text, 'done');
+  const controller = new AbortController();
+  const result = runAgent({ ...options, signal: controller.signal });
+  controller.abort(Object.assign(new Error('cancel'), { code: 'CANCELLED' }));
+  await assert.rejects(result, { code: 'CANCELLED' });
+});

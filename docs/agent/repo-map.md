@@ -2,6 +2,14 @@
 
 ## Hosted collaboration and deployment
 
+- `electron/corpus-health.cjs`, `src/CorpusHealth.tsx`: fresh whole-source
+  reference/error overview with observed annotated morpheme counts; no AI.
+- `electron/grammar-repair.cjs`, `analysis-service.cjs`, `agent-runner.cjs`:
+  checked edit rollback, drained interruption and compact repair continuation;
+  repairs have no ordinary wall-clock cutoff. Light deploy uses `server/idle.cjs`
+  private maintenance acknowledgment before replacing the app.
+
+
 - `server/passage-management.cjs`, `src/PassageManager.tsx` and
   `src/domain/passage-organization.ts`: admin-only shared list ordering,
   duplication, reversible exclusion and restoration; atomic revision-checked

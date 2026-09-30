@@ -1,6 +1,23 @@
 # Current state
 
-## Admin passage list organization
+## Repair completion and whole-corpus health
+
+Grammar repairs no longer stop at the ordinary five-minute deadline. Resume
+compacts provider context while preserving full saved history; in-flight edits
+finish checking before writer release, and failed syntax/import or new execution
+errors are rolled back with hash guards. **Saúde do corpus** in the top bar runs a
+read-only whole-source check with divergences, per-source counts, pending drafts,
+annotated morpheme forms and interrupted repair history. Light rollout now waits
+for a private drained-work lease before restart. See
+[handoff](session-handoffs/2026-09-30-repair-completion-corpus-health.md).
+
+## Admin passage list organization (live)
+
+Release `d8776184ab7a7511c0db34b248b7b77880eea983` is live from PR #16.
+The final light rollout took 49.1 seconds. Authenticated read-only browser checks
+passed at 1024×768 and 800×600; the manager matches all 114 source entries, with
+reference labels visible and dark-mode text readable. No production content was
+changed by verification.
 
 Hosted admins now have **Organizar passagens** beside the source selector: move
 up/down or to a numbered position, duplicate, exclude from the list, and restore.

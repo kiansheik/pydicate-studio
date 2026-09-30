@@ -373,7 +373,7 @@ test('grammar tools reject traversal, links, instructions edits and arbitrary ho
   );
 });
 
-test('a temporarily broken edit keeps its receipt and can be repaired in the same job', async (t) => {
+test('a broken edit is rolled back with its receipt before the next attempt', async (t) => {
   const f = await fixture(t),
     job = await f.job();
   let file = await f.repair.call(job, 'grammar_read', { path: 'tupi/tupi/verb.py' });
@@ -385,6 +385,8 @@ test('a temporarily broken edit keeps its receipt and can be repaired in the sam
   });
   assert(broken.receipt);
   assert(broken.verificationError);
+  assert.equal(broken.rolledBack, true);
+  assert.equal(await fs.readFile(path.join(f.engine, file.path), 'utf8'), file.content);
   file = await f.repair.call(job, 'grammar_read', { path: file.path });
   const fixed = await f.repair.call(job, 'grammar_edit', {
     path: file.path,
@@ -494,4 +496,49 @@ test('repair jobs start a separate thread, keep other conversations running, ser
       .conversation.composer,
     'Delayed text in the repair thread',
   );
+});
+
+test('failed repair is checked and resumes from compact receipts rather than replaying megabytes of tool history', async (t) => {
+  const f = await fixture(t);
+  let runs = 0;
+  const service = f.service(async (options) => {
+    runs++;
+    if (runs === 1) {
+      await options.onCheckpoint({
+        version: 1,
+        provider: options.input.provider,
+        inputDigest: options.input.digest,
+        phase: 'provider-inflight',
+        messages: [{ role: 'user', content: 'old tool payload'.repeat(100000) }],
+        calls: [],
+      });
+      throw Object.assign(new Error('timed out'), { code: 'JOB_TIMEOUT' });
+    }
+    assert.equal(options.checkpoint, undefined);
+    assert(JSON.stringify(options.messages).length < 20000);
+    assert.match(options.messages[0].content, /Completed edits are already saved/);
+    return { text: 'Checked saved work' };
+  });
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(
+    async () =>
+      (await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id })).job
+        .status === 'blocked',
+  );
+  let detail = await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id });
+  assert.equal(detail.job.grammarVerification.comparison.checked, 1);
+  await service.invoke('analysis_resume', {
+    projectId: f.project.id,
+    jobId: job.id,
+    operationId: 'resume:compact',
+  });
+  await waitFor(() => runs === 2);
+  await waitFor(
+    async () =>
+      (await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id })).job
+        .status !== 'running',
+  );
+  detail = await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id });
+  assert.equal(detail.job.attempts.length, 2);
+  assert.equal(detail.job.attempts[0].checkpoint.messages[0].content.length, 1600000);
 });

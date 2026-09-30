@@ -321,7 +321,7 @@ function createStudioMcpGateway({
       }
     }
   }
-  async function openScope({ jobId, attemptId, expiresInMs = 30 * 60_000 }) {
+  async function openScope({ jobId, attemptId, expiresInMs = 30 * 60_000, untilClosed = false }) {
     await start();
     if (typeof jobId !== 'string' || typeof attemptId !== 'string' || !jobId || !attemptId)
       throw new Error('A job and execution attempt are required for MCP.');
@@ -335,7 +335,9 @@ function createStudioMcpGateway({
     const scope = {
       jobId,
       attemptId,
-      expiresAt: Date.now() + Math.max(1000, Math.min(24 * 60 * 60_000, expiresInMs)),
+      expiresAt: untilClosed
+        ? 8.64e15
+        : Date.now() + Math.max(1000, Math.min(24 * 60 * 60_000, expiresInMs)),
       controllers,
       inFlight: 0,
       idleWaiters: new Set(),

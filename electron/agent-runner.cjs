@@ -333,10 +333,14 @@ async function runAgent(options) {
     controller.abort(options.signal?.reason || failure('CANCELLED', 'Solicitação cancelada.'));
   options.signal?.addEventListener('abort', cancel, { once: true });
   if (options.signal?.aborted) cancel();
-  const timeout = setTimeout(
-    () => controller.abort(failure('JOB_TIMEOUT', 'A análise atingiu seu limite de tempo.')),
-    budgets.timeoutMs,
-  );
+  // Grammar edits must finish their repair/verification cycle, not hit a wall-clock cutoff.
+  const timeout =
+    options.grammarRepair || input?.grammarRepair
+      ? null
+      : setTimeout(
+          () => controller.abort(failure('JOB_TIMEOUT', 'A análise atingiu seu limite de tempo.')),
+          budgets.timeoutMs,
+        );
   const signal = controller.signal;
   const emit = async (event) => {
     aborted(signal);

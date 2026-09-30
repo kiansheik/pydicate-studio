@@ -367,3 +367,21 @@ test(
     );
   },
 );
+
+test('repair capability lasts until closure and remains revocable', async (t) => {
+  const f = await fixture(t);
+  const scope = await f.gateway.openScope({
+    jobId: 'repair',
+    attemptId: 'repair-attempt',
+    expiresInMs: 1,
+    untilClosed: true,
+  });
+  assert(Date.parse(scope.expiresAt) > Date.now() + 86400000);
+  const rpc = client(scope);
+  t.after(() => rpc.close());
+  await rpc.initialize();
+  assert((await rpc.send('tools/list', {})).result.tools.length > 0);
+  await scope.revoke();
+  const reply = await rpc.send('tools/list', {});
+  assert(reply.error);
+});

@@ -8,14 +8,14 @@ const IDLE_MS = 10 * 60_000;
 const PASSIVE = new Set(['/api/events', '/api/presence', '/api/me', '/api/usage', '/api/upstream-status']);
 function createIdle({ directory, now = Date.now, idleMs = IDLE_MS, hasWork = () => false }) {
   const root = path.join(directory, 'operations'), instance = randomUUID();
-  let busy = 0, lastActivityAt = now(), lease = null, closed = false, writing = null;
+  let busy = 0, lastActivityAt = now(), lease = null, draining = null, closed = false, writing = null;
   const state = () => ({ version: 1, instance, heartbeatAt: now(), lastActivityAt, busyRequests: busy + Number(hasWork()),
     maintenanceRequestId: lease && lease.expiresAt > now() ? lease.id : null });
   function activity() { lastActivityAt = now(); }
   function begin(route) {
     if (PASSIVE.has(route)) return () => {};
-    if (lease && lease.expiresAt > now()) {
-      const error = new Error('Atualização das fontes em andamento. Aguarde um momento.');
+    if ((lease && lease.expiresAt > now()) || (draining && draining.expiresAt > now())) {
+      const error = new Error('Atualização do servidor em andamento. Aguarde um momento.');
       Object.assign(error, { status: 503, code: 'UPSTREAM_UPDATING' }); throw error;
     }
     busy++;
@@ -35,8 +35,9 @@ function createIdle({ directory, now = Date.now, idleMs = IDLE_MS, hasWork = () 
       const current = now();
       const valid = request?.version === 1 && /^[a-f0-9-]{36}$/.test(request.id || '') &&
         Number.isFinite(request.expiresAt) && request.expiresAt > current && request.expiresAt <= current + 120_000;
+      draining = valid && request.mode === 'deploy' ? request : null;
       if (!valid || (lease && request.id !== lease.id)) lease = null;
-      if (valid && !lease && !hasWork() && busy === 0 && current - lastActivityAt >= idleMs) lease = { id: request.id, expiresAt: request.expiresAt };
+      if (valid && !lease && !hasWork() && busy === 0 && (request.mode === 'deploy' || current - lastActivityAt >= idleMs)) lease = { id: request.id, expiresAt: request.expiresAt };
       const temporary = path.join(root, '.idle-' + instance + '.json');
       await fs.writeFile(temporary, JSON.stringify(state()) + '\n', { mode: 0o600 });
       if (!closed) await fs.rename(temporary, path.join(root, 'idle.json'));

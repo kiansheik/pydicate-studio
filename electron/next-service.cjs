@@ -320,6 +320,33 @@ function createNextService(options) {
       return analysis.invoke(method, params);
     }
     if (method.startsWith('ai_')) return provider.handle(method, params);
+    if (method === 'corpus_health') {
+      if (!getWorker() || !getProject()) throw new Error('Abra o projeto local.');
+      const listing = analysis
+        ? await analysis.invoke('analysis_list', { projectId: getProject().id })
+        : { jobs: [] };
+      const activeRepairs = listing.jobs.filter(
+        (j) =>
+          j.input.task === 'grammar-repair' &&
+          ['running', 'queued', 'cancelling'].includes(j.status),
+      ).length;
+      if (activeRepairs) return { busy: true, activeRepairs };
+      const started = Date.now();
+      const refresh = options.refreshHealth ?? options.reloadProject;
+      if (refresh) await refresh(getProject().id);
+      const project = getProject();
+      const snapshot = await workerRequest('grammar_regression', { projectId: project.id });
+      const envelope = await options.draftStore?.load(project.id);
+      return {
+        ...require('./corpus-health.cjs').summarizeCorpus(
+          snapshot,
+          project,
+          envelope,
+          listing.jobs ?? [],
+        ),
+        durationMs: Date.now() - started,
+      };
+    }
     if (!METHODS.has(method)) throw new Error('Operação indisponível.');
     if (!getWorker() || !getProject()) throw new Error('Abra o projeto local.');
     const execute = async () => {

@@ -2776,3 +2776,44 @@ button:hover:not(:disabled) {
   overflow-wrap: anywhere;
   min-width: 0;
 }
+
+.corpus-health-dialog {
+  background: var(--paper);
+  color: inherit;
+  width: min(900px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.corpus-health-dialog::backdrop {
+  background: #0007;
+}
+.corpus-health-dialog header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.corpus-health-table {
+  overflow-x: auto;
+}
+.corpus-health-table table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.corpus-health-table th,
+.corpus-health-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.corpus-health-issue {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+.corpus-health-button {
+  white-space: nowrap;
+}

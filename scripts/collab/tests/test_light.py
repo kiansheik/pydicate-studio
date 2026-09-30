@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import sys
@@ -34,7 +35,7 @@ class LightTests(unittest.TestCase):
                 calls.append(args)
                 if stdout:stdout.write(b'private dump')
                 if fail and args[:2]==('up','-d'):raise RuntimeError('unhealthy')
-            with patch('host.HERE',new),patch('host.git',side_effect=git),patch.object(host,'compose',side_effect=compose),patch('host.run',side_effect=lambda args, **kwargs:rollback.append(args)):
+            with patch('light.drained',return_value=nullcontext()), patch('host.HERE',new),patch('host.git',side_effect=git),patch.object(host,'compose',side_effect=compose),patch('host.run',side_effect=lambda args, **kwargs:rollback.append(args)):
                 if fail:
                     with self.assertRaisesRegex(RuntimeError,'unhealthy'):deploy_light(host)
                 else:deploy_light(host)
@@ -47,3 +48,27 @@ class LightTests(unittest.TestCase):
             self.assertEqual(len(list((root/'light-backups').glob('*/database.dump'))),1)
     def test_app_only_rollout(self):self.scenario()
     def test_unhealthy_app_restores_previous_image(self):self.scenario(True)
+
+    def test_deploy_waits_for_the_exact_fresh_idle_lease_and_cleans_up(self):
+        from light import drained
+        from upstream import atomic_json
+        import time
+        with tempfile.TemporaryDirectory() as tmp:
+            host=Host(Path(tmp)); calls=[]
+            def acknowledge(file,value,**kwargs):
+                atomic_json(file,value,**kwargs)
+                calls.append(value)
+                atomic_json(host.data/'operations/idle.json',{'heartbeatAt':int(time.time()*1000),'busyRequests':0,'maintenanceRequestId':value['id']})
+            with patch('upstream.atomic_json',side_effect=acknowledge):
+                with drained(host,timeout=1):
+                    self.assertEqual(calls[0]['mode'],'deploy')
+                    self.assertTrue((host.data/'operations/maintenance.json').exists())
+            self.assertFalse((host.data/'operations/maintenance.json').exists())
+
+    def test_missing_idle_acknowledgment_never_allows_restart(self):
+        from light import drained
+        with tempfile.TemporaryDirectory() as tmp:
+            host=Host(Path(tmp))
+            with self.assertRaisesRegex(RuntimeError,'without restarting'):
+                with drained(host,timeout=0):
+                    self.fail('Must not enter deployment')

@@ -70,3 +70,24 @@ test('provider dispatch cannot bypass reconstruction projection through protocol
   });
   assert.ok(!JSON.stringify(observed).includes(hidden));
 });
+
+test('grammar provider projection keeps the submitted expression but retains the full corpus baseline only in storage', () => {
+  const original = {
+    raw: 'xe * obaîara',
+    grammarRepair: {
+      raw: 'xe * obaîara',
+      baseline: {
+        engineFingerprint: 'e',
+        sources: {
+          book: { rows: Array.from({ length: 151 }, () => ({ annotated: 'x'.repeat(10000) })) },
+        },
+      },
+    },
+  };
+  const projected = scopedAnalysisInput(original);
+  assert.equal(projected.raw, original.raw);
+  assert.equal(projected.grammarRepair.baseline, undefined);
+  assert.equal(projected.grammarRepair.baselineSummary.sources.book.rows, 151);
+  assert(original.grammarRepair.baseline.sources.book.rows[0].annotated.length === 10000);
+  assert(JSON.stringify(projected).length < 1000);
+});

@@ -1,6 +1,15 @@
+## 2026-09-30 — Repair completion and corpus health
+
+Removed the grammar-repair wall-clock cutoff, compacted oversized resume context,
+added failed-edit rollback and final verification on interruption. Added top-bar
+Saúde do corpus and a drain handshake before light deploy restarts. See the
+[handoff](session-handoffs/2026-09-30-repair-completion-corpus-health.md).
+
 ## 2026-09-30 — Admin passage list organization
 
-Added hosted admin move/position, duplicate, delete-from-list and restore controls.
+Deployed `d877618` in 49.1 seconds. Live read-only browser checks verify all 114
+source entries and the admin dialog at 800×600. Added hosted admin move/position,
+duplicate, delete-from-list and restore controls.
 Shared metadata survives reload and autosave, with server authorization, version
 checks and before/after history. No automatic deduplication or source rewriting.
 Focused domain, PostgreSQL and browser validation recorded in the

@@ -62,3 +62,19 @@ Por transcrever and dark-mode paragraph contrast too low. Follow-up uses canonic
 reference labels (including archived records), raw-expression fallback, inherited
 text color, and the selected row's current position. Focused browser tests pass
 again, now covering the canonical-reference label.
+
+## Final verification
+
+`d8776184ab7a7511c0db34b248b7b77880eea983` is live from PR #16's
+`unlocked-light-deploy` branch; main remains unchanged. Final light rollout: 49.1
+seconds. DB checkpoint: `light-backups/20260930T035943-b9df66`. Live authenticated
+smoke confirms navigation at 1024×768 and 800×600, all 114 manager entries match
+the authoritative source membership, no misleading blank labels, readable dark
+mode, and reservation-free collaboration. Content/publication/AI writes were
+blocked throughout; no browser errors. One viewport-resize remount detached a
+locator; the read-only retry waits for the responsive layout to settle and passes.
+Private screenshot: `.local/vps-qa/passage-management-live.png`.
+
+The management mutations are tested against disposable PostgreSQL and a simulated
+browser bridge; production verification intentionally inspected without rearranging
+or deleting real contributor work. Live grammar and corpus were not modified.

@@ -62,3 +62,24 @@ test('a running AI job prevents maintenance even after browser requests finish',
   await idle.tick();assert.equal(idle.state().maintenanceRequestId,null);assert.equal(idle.state().busyRequests,1);
   running=false;await idle.tick();assert.equal(idle.state().maintenanceRequestId,id);
 });
+
+test('explicit deploy drains work despite recent interaction and freezes new requests until release', async t=>{
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'studio-deploy-drain-'));
+  let running=true;
+  const idle=createIdle({directory,hasWork:()=>running});
+  t.after(async()=>{await idle.close();await fs.rm(directory,{recursive:true,force:true});});
+  await idle.tick();
+  const file=path.join(directory,'operations/maintenance.json');
+  const id=require('node:crypto').randomUUID();
+  await fs.writeFile(file,JSON.stringify({version:1,id,mode:'deploy',expiresAt:Date.now()+120000}));
+  await idle.tick();
+  assert.equal(idle.state().maintenanceRequestId,null);
+  assert.throws(()=>idle.begin('/api/invoke'),{code:'UPSTREAM_UPDATING'});
+  idle.begin('/api/presence')();
+  running=false;
+  await idle.tick();
+  assert.equal(idle.state().maintenanceRequestId,id);
+  await fs.unlink(file);
+  await idle.tick();
+  idle.begin('/api/invoke')();
+});

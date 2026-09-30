@@ -13,7 +13,7 @@ Only the registered grammar tools are available. Use grammar_context for the lex
 to locate rules. Read docs/agent/grammar-navigation.md when listed, then the relevant Python files with grammar_read.
 If a guide is absent, continue from the available Python rules; do not call tools outside this catalog.
 grammar_edit performs one exact, revision-checked replacement in an existing grammar file, saves a receipt,
-and automatically reloads and checks the submitted expression and corpus. No shell or general file writer
+and automatically reloads and checks the submitted expression and corpus. An edit that cannot be checked is rolled back before returning; read the current file before trying again. No shell or general file writer
 is available. Use render_candidate to test linguistic contrasts in this same namespace.
 Explain the cause and proposed rule before editing. Ask a focused linguistic question only when the intended
 analysis is ambiguous. Do not require the contributor to operate a terminal, locate code or reload Python.
@@ -296,6 +296,15 @@ function createGrammarRepair({
         evaluated.evaluationStatus !== 'partial' &&
         words(evaluated.surface) === words(repair.intendedSurface),
       failures: evaluated.failures ?? [],
+      newEvaluationErrors: Object.entries(snapshot.sources).flatMap(([source, current]) => {
+        const before = repair.baseline.sources[source];
+        if (current.error) return before?.error ? [] : [{ source, error: current.error }];
+        return (current.rows ?? [])
+          .filter(
+            (row) => row.error && !before?.rows?.find((old) => old.ordinal === row.ordinal)?.error,
+          )
+          .map((row) => ({ source, ordinal: row.ordinal, error: row.error }));
+      }),
       comparison,
     };
   }
@@ -416,12 +425,56 @@ function createGrammarRepair({
     } finally {
       await fs.rm(temporary, { force: true });
     }
-    // Return the receipt even when the edit temporarily breaks parsing/imports.
-    // The same agent can read the file and repair it without a stale-engine gate.
+    // Never strand an unchecked syntax/import change in the shared grammar.
+    // A failed check restores only this exact write, never somebody else's edit.
     try {
-      return { receipt, verification: await check(job) };
+      const verification = await check(job);
+      if (verification.newEvaluationErrors?.length)
+        throw fail(
+          'GRAMMAR_REGRESSION',
+          'A edição introduziu falhas de execução no corpus e foi desfeita.',
+        );
+      return { receipt, verification };
     } catch (error) {
-      return { receipt, verificationError: { code: error.code, message: error.message } };
+      const current = await readFile(job, args.path);
+      if (current.hash !== receipt.afterHash)
+        throw fail(
+          'ROLLBACK_CONFLICT',
+          'A gramática mudou após a edição; a recuperação automática não sobrescreveu o novo conteúdo.',
+        );
+      const recovery = file.filename + '.studio-restore-' + receipt.id;
+      try {
+        await fs.writeFile(recovery, file.content, { mode: file.mode, flag: 'wx' });
+        if ((await readFile(job, args.path)).hash !== receipt.afterHash)
+          throw fail('ROLLBACK_CONFLICT', 'A gramática mudou durante a recuperação.');
+        await fs.rename(recovery, file.filename);
+      } finally {
+        await fs.rm(recovery, { force: true });
+      }
+      receipt.rolledBack = true;
+      await fs.writeFile(
+        journal,
+        JSON.stringify({
+          ...receipt,
+          before: file.content,
+          status: 'rolled-back',
+          verificationError: String(error.message ?? error),
+        }),
+        { mode: 0o600 },
+      );
+      let verification, recoveryError;
+      try {
+        verification = await check(job);
+      } catch (failure) {
+        recoveryError = String(failure.message ?? failure);
+      }
+      return {
+        receipt,
+        verification,
+        recoveryError,
+        verificationError: { code: error.code, message: error.message },
+        rolledBack: true,
+      };
     }
   }
   return { capture, assertWorkspace, check, call };

@@ -4,7 +4,7 @@ const { spawn } = require('node:child_process');
 const { METHODS: AI, createHostedAI } = require('./ai.cjs');
 const { fault, identifier } = require('./store.cjs');
 // Deliberately NOT the entire desktop bridge. New desktop methods stay denied.
-const READ = new Set(`render learning_library parse_expression evaluate_expression predicate_catalog
+const READ = new Set(`corpus_health render learning_library parse_expression evaluate_expression predicate_catalog
 predicate_create composition_define node_definition source_preview source_new_preview source_create
 lexicon_search structure_prepare structure_search structure_resolve lexicon_inspect lexicon_create lexicon_update
 dictionary_search dictionary_lookup dictionary_entry_get dictionary_predicate assistant_context
@@ -103,6 +103,8 @@ async function createStudio(config, store, emit = () => { }) {
         providerAdapters: { 'claude-code': claudeCode },
         draftStore: hostedAI.drafts, getProject: () => project, getWorker: () => worker, getParent: () => config.parent,
         defaultParent: config.parent, openPath: open,
+        // Health already holds the request queue; do not enqueue a nested reload.
+        refreshHealth: open,
         reloadProject: () => queue.run('grammar-reload', async () => {
             const next = await open();
             emit({type:'source-change',projectId:next.id,engineFingerprint:next.engineFingerprint});

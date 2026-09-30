@@ -1,3 +1,4 @@
+import { CorpusHealth } from './CorpusHealth';
 import { PassageManager } from './PassageManager';
 import { TranslationFields } from './components/TranslationFields';
 import { MorphemeText } from './components/MorphemeHighlight';
@@ -1823,6 +1824,7 @@ export default function App() {
           <ChevronDown size={13} />
         </button>
         <div className="header-end">
+          <CorpusHealth studio={studio} />
           {advanced && (
             <>
               <button className="button small" onClick={() => setLearningView('lessons')}>
