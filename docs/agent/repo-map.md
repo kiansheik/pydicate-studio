@@ -1,5 +1,11 @@
 # Repository map
 
+## Workspace controls
+
+- `src/domain/workspace-autofill.ts`: spread `workspaceAutofill` on new workspace
+  input/textarea/select/form elements. Hosted imperative control factories mirror
+  these hints before DOM insertion. Login/reset pages are excluded.
+
 ## Hosted collaboration and deployment
 
 - `electron/corpus-health.cjs`, `src/CorpusHealth.tsx`: fresh whole-source

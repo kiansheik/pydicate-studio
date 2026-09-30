@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
@@ -1871,6 +1872,7 @@ export function ExpressionCanvas({
       </div>
       <div className="runtime-options canvas-view-options">
         <form
+          {...workspaceAutofill}
           className="runtime-search"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1887,6 +1889,7 @@ export function ExpressionCanvas({
         >
           <Search size={15} />
           <input
+            {...workspaceAutofill}
             aria-label="Buscar na árvore"
             placeholder="Encontrar nesta composição…"
             value={query}
@@ -2268,6 +2271,7 @@ export function ExpressionCanvas({
             <label>
               Definição do conjunto
               <textarea
+                {...workspaceAutofill}
                 autoFocus
                 value={compositionDefinition}
                 disabled={defining}
@@ -2292,6 +2296,7 @@ export function ExpressionCanvas({
           <div role="dialog" aria-label="Adicionar operação" className="canvas-floating-panel">
             <h3>Adicionar operação</h3>
             <select
+              {...workspaceAutofill}
               aria-label="Operação na peça"
               value={operation}
               onChange={(event) => {
@@ -2309,6 +2314,7 @@ export function ExpressionCanvas({
               <label>
                 Número da variante
                 <input
+                  {...workspaceAutofill}
                   aria-label="Número da variante"
                   type="number"
                   step="1"
@@ -2341,6 +2347,7 @@ export function ExpressionCanvas({
               <label>
                 Posição do novo encaixe
                 <select
+                  {...workspaceAutofill}
                   aria-label="Posição do novo encaixe"
                   value={operationSide}
                   onChange={(event) => setOperationSide(event.target.value as 'left' | 'right')}
@@ -2387,6 +2394,7 @@ export function ExpressionCanvas({
               <label>
                 Parte que continuará ligada
                 <select
+                  {...workspaceAutofill}
                   autoFocus
                   value={keptChildId}
                   onChange={(event) => setKeptChildId(event.target.value)}
@@ -2484,6 +2492,7 @@ export function ExpressionCanvas({
             <label>
               Como ligar
               <select
+                {...workspaceAutofill}
                 aria-label="Operação para combinar peças"
                 value={combineOperator}
                 onChange={(event) => setCombineOperator(event.target.value)}
@@ -2737,6 +2746,7 @@ function FragmentRepair({ raw, onApply }: { raw: string; onApply: (raw: string) 
       <label>
         Corrigir expressão
         <textarea
+          {...workspaceAutofill}
           aria-label="Corrigir expressão da peça"
           value={value}
           onChange={(event) => setValue(event.target.value)}

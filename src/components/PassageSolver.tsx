@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, FlaskConical, Play, RefreshCw } from 'lucide-react';
 import { invoke } from '../domain/authoring';
@@ -250,6 +251,7 @@ export function PassageSolver({
         <label>
           Forma a analisar
           <textarea
+            {...workspaceAutofill}
             data-testid="solver-input"
             rows={2}
             spellCheck={false}

@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { invoke } from '../domain/authoring';
@@ -161,6 +162,7 @@ export function BulkTranslation({
               <li key={row.candidateId} data-state={row.state}>
                 <label>
                   <input
+                    {...workspaceAutofill}
                     type="checkbox"
                     disabled={row.state === 'stale' || busy}
                     checked={!!chosen[row.candidateId]}

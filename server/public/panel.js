@@ -4,7 +4,7 @@
   const panel=document.createElement('aside');panel.id='collab-panel';panel.setAttribute('aria-label','Colaboração');
   const toggle=document.createElement('button');toggle.id='collab-toggle';toggle.textContent='Equipe e comentários';toggle.onclick=()=>{panel.hidden=!panel.hidden;};
   document.body.append(toggle,panel);panel.hidden=true;
-  function element(tag,text,parent=panel){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;parent.append(node);return node;}
+  function element(tag,text,parent=panel){const node=document.createElement(tag);if(['input','textarea','select','form'].includes(tag)){node.autocomplete='off';node.setAttribute('data-1p-ignore','true');node.setAttribute('data-lpignore','true');}if(text!==undefined)node.textContent=text;parent.append(node);return node;}
   function button(text,action,parent=panel){const node=element('button',text,parent);node.type='button';node.onclick=()=>Promise.resolve().then(action).catch(error=>{status.textContent=error.message;});return node;}
   element('h2','Servidor colaborativo');const status=element('p','Conectando…');status.setAttribute('role','status');
   const identity=element('p',''),selection=element('p',''),people=element('div'),actions=element('div');
@@ -118,8 +118,8 @@
   button('Remover minha chave',async()=>{await api.request('/api/providers',{provider:provider.value,funding:'disabled',monthlyLimitCents:0,removeKey:true});apiKey.value='';await providerLoad();},providerBox);
   void providerLoad().catch(()=>{});
   const account=element('details');element('summary','Alterar minha senha',account);
-  const old=element('input',undefined,account);old.type='password';old.placeholder='Senha atual';old.autocomplete='current-password';old.setAttribute('aria-label','Senha atual');
-  const next=element('input',undefined,account);next.type='password';next.placeholder='Nova senha (15+ caracteres)';next.autocomplete='new-password';next.setAttribute('aria-label','Nova senha');
+  const old=element('input',undefined,account);old.type='password';old.placeholder='Senha atual';old.autocomplete='off';old.setAttribute('aria-label','Senha atual');
+  const next=element('input',undefined,account);next.type='password';next.placeholder='Nova senha (15+ caracteres)';next.autocomplete='off';next.setAttribute('aria-label','Nova senha');
   button('Trocar senha e encerrar sessões',async()=>{if(api.state().failed||api.state().inflight)throw new Error('Exporte as edições locais antes de trocar a senha.');await api.request('/api/password',{currentPassword:old.value,password:next.value});old.value='';next.value='';location.assign('/login');},account);
   function admin(){
     const section=element('details');element('summary','Administração',section);

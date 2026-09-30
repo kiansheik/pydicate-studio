@@ -1,6 +1,17 @@
 # Current state
 
-## Browser request pressure (deployment pending)
+## Workspace autofill suppression (deployment pending)
+
+All React workspace inputs, textareas, selects and forms use shared
+`workspaceAutofill` props before insertion: autocomplete off plus password-manager
+ignore hints. Hosted collaboration/account/admin fields and history filters use
+the same hints. Login/reset retain their credential semantics on separate pages.
+See [handoff](session-handoffs/2026-09-30-workspace-autofill.md).
+
+## Browser request pressure (live)
+
+Release `1bb0c22c9840107afa93544e7668652949120512` is live from PR #16;
+the light rollout completed in 49.8 seconds.
 
 Streamed AI refreshes now run one at a time, coalesce updates over 1.5 seconds,
 and retain a trailing refresh. Hosted engine requests share identical pending

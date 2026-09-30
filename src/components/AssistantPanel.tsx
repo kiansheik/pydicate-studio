@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../domain/clipboard';
 import { flushLexicalNotes, LEXICAL_NOTES_CHANGED } from '../domain/lexical-note-sync';
@@ -431,6 +432,7 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Provedor
             <select
+              {...workspaceAutofill}
               aria-label="Provedor de IA"
               value={provider}
               onChange={(event) => {
@@ -454,6 +456,7 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Modelo
             <input
+              {...workspaceAutofill}
               aria-label="Modelo de IA"
               value={model}
               list="assistant-models"
@@ -479,6 +482,7 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Raciocínio
             <select
+              {...workspaceAutofill}
               aria-label="Esforço de raciocínio"
               value={reasoningEffort}
               onChange={(event) => setReasoningEffort(event.target.value)}
@@ -549,6 +553,7 @@ export function AssistantPanel(props: AssistantProps) {
             <label>
               Tarefa
               <select
+                {...workspaceAutofill}
                 aria-label="Tarefa de IA"
                 value={action}
                 onChange={(event) => {
@@ -568,6 +573,7 @@ export function AssistantPanel(props: AssistantProps) {
             <label>
               Idioma da tradução
               <input
+                {...workspaceAutofill}
                 aria-label="Idioma da tradução"
                 list="translation-languages"
                 maxLength={80}
@@ -586,6 +592,7 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Escopo da solicitação
             <select
+              {...workspaceAutofill}
               aria-label="Escopo da solicitação"
               value={requestScope}
               onChange={(event) => setScope(event.target.value as AIScope)}
@@ -624,6 +631,7 @@ export function AssistantPanel(props: AssistantProps) {
             <label>
               Descrição, dúvida ou contraste linguístico
               <textarea
+                {...workspaceAutofill}
                 aria-label="Descrição para a IA"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
@@ -701,6 +709,7 @@ export function AssistantPanel(props: AssistantProps) {
           )}
           {candidate.kind === 'expression' && <pre aria-label="Expressão atual">{raw}</pre>}
           <textarea
+            {...workspaceAutofill}
             aria-label="Sugestão revisada"
             rows={5}
             value={candidate.text}

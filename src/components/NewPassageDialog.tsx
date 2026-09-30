@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useState } from 'react';
 import { TranslationFields } from './TranslationFields';
 import type { Studio } from '../useStudio';
@@ -67,6 +68,7 @@ export function NewPassageDialog({
         <label>
           Transcrição diplomática
           <textarea
+            {...workspaceAutofill}
             aria-label="Transcrição da nova passagem"
             rows={2}
             value={draft.diplomatic}
@@ -78,6 +80,7 @@ export function NewPassageDialog({
         <label>
           Leitura normalizada
           <textarea
+            {...workspaceAutofill}
             aria-label="Leitura normalizada da nova passagem"
             rows={2}
             value={draft.normalized}
@@ -89,6 +92,7 @@ export function NewPassageDialog({
         <label>
           Tradução sem idioma informado
           <textarea
+            {...workspaceAutofill}
             aria-label="Tradução da nova passagem"
             rows={2}
             value={draft.translation}
@@ -104,6 +108,7 @@ export function NewPassageDialog({
         <label>
           Notas e incertezas
           <textarea
+            {...workspaceAutofill}
             aria-label="Notas da nova passagem"
             rows={2}
             value={draft.notes}
@@ -122,6 +127,7 @@ export function NewPassageDialog({
             <label key={key}>
               {label}
               <input
+                {...workspaceAutofill}
                 aria-label={label + ' da nova passagem'}
                 value={draft.locators?.[key] ?? ''}
                 onChange={(event) =>
@@ -175,6 +181,7 @@ export function NewPassageDialog({
           <label>
             Pydicate da nova passagem
             <textarea
+              {...workspaceAutofill}
               aria-label="Pydicate da nova passagem"
               value={draft.raw ?? ''}
               onChange={(event) => studio.editPendingDraft(draftId, { raw: event.target.value })}

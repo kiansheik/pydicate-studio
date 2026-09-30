@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Download,
@@ -187,6 +188,7 @@ function LegacyPydicateTree({
       </p>
       {editing.onChangeRaw && !editing.raw?.trim() && (
         <form
+          {...workspaceAutofill}
           className="runtime-scope-editor"
           onSubmit={(event) => {
             event.preventDefault();
@@ -585,6 +587,7 @@ function TreeCanvas({
       <div className="runtime-toolbar">
         {advancedTools && (
           <form
+            {...workspaceAutofill}
             className="runtime-search"
             onSubmit={(event) => {
               event.preventDefault();
@@ -593,6 +596,7 @@ function TreeCanvas({
           >
             <Search size={16} />
             <input
+              {...workspaceAutofill}
               aria-label="Buscar na árvore"
               placeholder={
                 sourceTree
@@ -708,6 +712,7 @@ function TreeCanvas({
             {!sourceTree && (
               <label>
                 <input
+                  {...workspaceAutofill}
                   type="checkbox"
                   checked={showLinks}
                   onChange={(event) => {
@@ -721,6 +726,7 @@ function TreeCanvas({
             {completeGraph.edges.some((edge) => edge.kind === 'internal') && (
               <label>
                 <input
+                  {...workspaceAutofill}
                   type="checkbox"
                   checked={showInternals}
                   onChange={(event) => {
@@ -1369,6 +1375,7 @@ function RuntimeScopeEditor({
         <label>
           Editar escopo
           <select
+            {...workspaceAutofill}
             aria-label="Escopo editável na árvore"
             value={scope.id}
             onChange={(event) => {
@@ -1397,6 +1404,7 @@ function RuntimeScopeEditor({
           <label>
             Substituir por
             <textarea
+              {...workspaceAutofill}
               aria-label="Expressão da parte na árvore"
               rows={Math.min(5, Math.max(2, replacement.split('\n').length))}
               value={replacement}
@@ -1412,6 +1420,7 @@ function RuntimeScopeEditor({
           </button>
           <div className="runtime-operation">
             <select
+              {...workspaceAutofill}
               aria-label="Operação na árvore"
               value={operation}
               onChange={(event) => {

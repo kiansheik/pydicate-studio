@@ -822,3 +822,10 @@ Bound hosted engine concurrency, share pending identical reads, honor 429
 cooldowns, and serialize/throttle streamed analysis refreshes. The earlier
 reported grammar repair completed with target matched and all 151 rows unchanged.
 See [handoff](session-handoffs/2026-09-30-browser-request-pressure.md).
+
+## 2026-09-30 — Suppress workspace credential autofill
+
+Applied shared initial-render autofill opt-out attributes to all workspace
+controls, including hosted collaboration/admin fields. Login/reset remain
+separate with correct credential autocomplete tokens. See
+[handoff](session-handoffs/2026-09-30-workspace-autofill.md).

@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import type { InlineCallArguments } from '../domain/inline-arguments';
 
@@ -65,6 +66,7 @@ export function InlineCallLabel({
       {editing ? (
         <foreignObject x={0} y={30} width={width} height={40}>
           <input
+            {...workspaceAutofill}
             ref={input}
             className="canvas-inline-input"
             aria-label="Valor do argumento"

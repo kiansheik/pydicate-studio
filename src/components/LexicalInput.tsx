@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { invoke } from '../domain/authoring';
 import { track } from '../domain/usage';
@@ -425,6 +426,7 @@ export const LexicalInput = forwardRef<
       }}
     >
       <input
+        {...workspaceAutofill}
         ref={input}
         aria-label={`${label}: buscar em tupi`}
         role="combobox"
@@ -637,6 +639,7 @@ export const LexicalInput = forwardRef<
         <details className="rendered-lookup-code">
           <summary>Editar código Pydicate</summary>
           <input
+            {...workspaceAutofill}
             aria-label={label}
             value={value}
             disabled={disabled || resolving}

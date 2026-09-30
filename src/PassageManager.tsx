@@ -1,3 +1,4 @@
+import { workspaceAutofill } from './domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import type { Studio } from './useStudio';
 
@@ -102,6 +103,7 @@ export function PassageManager({ studio, sourceId }: { studio: Studio; sourceId:
           </p>
           <label htmlFor="managed-passage">Passagem</label>
           <select
+            {...workspaceAutofill}
             id="managed-passage"
             size={8}
             value={selected?.id ?? ''}
@@ -138,6 +140,7 @@ export function PassageManager({ studio, sourceId }: { studio: Studio; sourceId:
                 <label>
                   Posição{' '}
                   <input
+                    {...workspaceAutofill}
                     type="number"
                     min={1}
                     max={passages.length}

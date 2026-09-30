@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import {
   LAB_MAX_LEXICAL_HINTS,
   lexicalHintCategories,
@@ -33,6 +34,7 @@ export function LabLexicalHints({
           <label>
             Raiz ou nome {index + 1}
             <input
+              {...workspaceAutofill}
               value={hint.root}
               maxLength={80}
               spellCheck={false}
@@ -43,6 +45,7 @@ export function LabLexicalHints({
           <label>
             Categoria {index + 1}
             <select
+              {...workspaceAutofill}
               value={hint.category}
               disabled={disabled}
               onChange={(event) =>

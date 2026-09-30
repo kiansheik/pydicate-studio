@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, type AuthorNode } from '../domain/authoring';
 import {
@@ -210,6 +211,7 @@ export function TreeScopeEditor({
               <label>
                 Operador desta conexão
                 <select
+                  {...workspaceAutofill}
                   aria-label="Novo operador desta parte"
                   value={replacementOperator}
                   onChange={(event) => setReplacementOperator(event.target.value)}
@@ -305,6 +307,7 @@ export function TreeScopeEditor({
         <label>
           Operação
           <select
+            {...workspaceAutofill}
             aria-label="Operação na árvore"
             value={operation}
             onChange={(event) => {
@@ -340,6 +343,7 @@ export function TreeScopeEditor({
           <label>
             Posição do novo argumento
             <select
+              {...workspaceAutofill}
               aria-label="Posição do novo argumento"
               value={argumentSide}
               onChange={(event) => setArgumentSide(event.target.value as 'left' | 'right')}
@@ -429,6 +433,7 @@ export function TreeScopeEditor({
       >
         <summary>Substituir por expressão ou valor</summary>
         <textarea
+          {...workspaceAutofill}
           aria-label="Expressão da parte na árvore"
           rows={Math.min(5, Math.max(2, replacement.split('\n').length))}
           value={replacement}

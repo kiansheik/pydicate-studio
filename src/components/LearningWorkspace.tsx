@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -486,6 +487,7 @@ function LessonPractice({
         <label>
           Expressão da prática
           <textarea
+            {...workspaceAutofill}
             spellCheck={false}
             value={state.raw}
             readOnly={!local}
@@ -503,6 +505,7 @@ function LessonPractice({
         {lesson.choices.map((choice, index) => (
           <label key={choice}>
             <input
+              {...workspaceAutofill}
               type="radio"
               name={`answer-${lesson.id}`}
               checked={state.answer === index}
@@ -620,6 +623,7 @@ function Reference({
         <label className="reference-search">
           <Search size={17} />
           <input
+            {...workspaceAutofill}
             autoFocus
             aria-label="Buscar na referência"
             placeholder="Assunto, operação ou forma"

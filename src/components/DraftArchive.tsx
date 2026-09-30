@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { expressionFor } from '../domain/model';
@@ -70,7 +71,11 @@ export function DraftArchive({ studio, onClose }: { studio: Studio; onClose: () 
         </p>
         <label className="editor-label">
           Buscar no arquivo
-          <input value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input
+            {...workspaceAutofill}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
         </label>
         <div className="archive-content">
           <div>

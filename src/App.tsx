@@ -1,3 +1,4 @@
+import { workspaceAutofill } from './domain/workspace-autofill';
 import { CorpusHealth } from './CorpusHealth';
 import { PassageManager } from './PassageManager';
 import { TranslationFields } from './components/TranslationFields';
@@ -331,6 +332,7 @@ function Projections({
         <label className="editor-label">
           Tradução sem idioma informado
           <textarea
+            {...workspaceAutofill}
             aria-label="Tradução sem idioma informado"
             rows={7}
             disabled={!studio.ready}
@@ -861,6 +863,7 @@ export default function App() {
       <div className="source-selector">
         <label htmlFor="source-selection">Fonte</label>
         <select
+          {...workspaceAutofill}
           id="source-selection"
           value={selectedSource?.id ?? ''}
           disabled={!studio.ready}
@@ -886,6 +889,7 @@ export default function App() {
       <label className="search-box">
         <Search size={15} />
         <input
+          {...workspaceAutofill}
           aria-label="Buscar passagem"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -1121,6 +1125,7 @@ export default function App() {
                 <label>
                   Etapa do meu trabalho
                   <select
+                    {...workspaceAutofill}
                     aria-label="Etapa do trabalho"
                     value={stage}
                     disabled={!studio.ready}
@@ -1532,6 +1537,7 @@ export default function App() {
               <label className="editor-label">
                 Tradução sem idioma informado
                 <textarea
+                  {...workspaceAutofill}
                   aria-label="Tradução sem idioma informado"
                   rows={3}
                   value={draft?.translation ?? ''}
@@ -1548,6 +1554,7 @@ export default function App() {
               <label className="editor-label">
                 Nota de leitura
                 <textarea
+                  {...workspaceAutofill}
                   ref={note}
                   rows={5}
                   value={draft?.notes ?? ''}
@@ -1671,6 +1678,7 @@ export default function App() {
               <label>
                 Nota de leitura
                 <textarea
+                  {...workspaceAutofill}
                   rows={1}
                   value={draft?.notes ?? ''}
                   disabled={!studio.ready}
@@ -1912,6 +1920,7 @@ export default function App() {
                   )}
                   <label className="header-menu-toggle">
                     <input
+                      {...workspaceAutofill}
                       type="checkbox"
                       checked={advanced}
                       onChange={(event) => setAdvancedTools(event.target.checked)}
@@ -2037,6 +2046,7 @@ export default function App() {
             {passageReview && (
               <label>
                 <input
+                  {...workspaceAutofill}
                   type="checkbox"
                   checked={approveOnSave}
                   disabled={reviewBusy}

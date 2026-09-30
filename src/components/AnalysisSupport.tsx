@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { translationChange } from '../domain/translations';
 import { analysisAvailable } from '../domain/capabilities';
 import { BulkTranslation } from './BulkTranslation';
@@ -1364,6 +1365,7 @@ export function AnalysisSupport({
               <label className="batch-task">
                 O que fazer com as selecionadas
                 <select
+                  {...workspaceAutofill}
                   aria-label="Tarefa do lote"
                   value={batchTask}
                   disabled={busy || batchLoading}
@@ -1393,6 +1395,7 @@ export function AnalysisSupport({
                 .map((item) => (
                   <label key={item.id}>
                     <input
+                      {...workspaceAutofill}
                       type="checkbox"
                       checked={batch.includes(item.id)}
                       onChange={(event) =>
@@ -1430,6 +1433,7 @@ export function AnalysisSupport({
         <nav className="analysis-chat-actions" aria-label="Conversas de IA">
           {jobs.length > 0 && (
             <select
+              {...workspaceAutofill}
               aria-label="Conversa de IA"
               value={conversation?.id ?? ''}
               disabled={busy}
@@ -1969,6 +1973,7 @@ export function AnalysisSupport({
           ))}
         </div>
         <form
+          {...workspaceAutofill}
           className="analysis-composer"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1979,6 +1984,7 @@ export function AnalysisSupport({
             <label>
               Tarefa
               <select
+                {...workspaceAutofill}
                 aria-label="Tarefa da análise"
                 value={task}
                 onChange={(event) => {
@@ -2000,6 +2006,7 @@ export function AnalysisSupport({
             <label>
               Escopo
               <select
+                {...workspaceAutofill}
                 aria-label="Escopo da análise"
                 value={scope}
                 onChange={(event) => setScope(event.target.value as 'passage' | 'constituent')}
@@ -2025,6 +2032,7 @@ export function AnalysisSupport({
             </div>
           )}
           <textarea
+            {...workspaceAutofill}
             ref={composer}
             aria-label="Mensagem para a IA"
             placeholder="Uma dúvida, uma acepção diferente, um papel gramatical…"
@@ -2037,6 +2045,7 @@ export function AnalysisSupport({
           {!isRepairConversation && (
             <label className="image-choice">
               <input
+                {...workspaceAutofill}
                 type="checkbox"
                 checked={includeImages}
                 onChange={(event) => setIncludeImages(event.target.checked)}

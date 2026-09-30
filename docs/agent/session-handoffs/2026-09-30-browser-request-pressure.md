@@ -27,14 +27,16 @@ two seconds, general rate limits keep 60. Mutations remain distinct with no retr
 - `git diff --check` passes.
 - HTTP integration test could not start: COLLAB_TEST_DATABASE_URL is absent;
   it requires disposable PostgreSQL. No production database used for tests.
-- Read-only authenticated production browser observed 11 engine requests over
+- Read-only authenticated production browser observed 10 engine requests over
   30 seconds after the job ended, no 429 or page errors. The original pasted
   trace has no response body, so its precise 429 code is not established.
 - Exact repair record reached ready-for-review at 10:58:07Z, target matched,
   no failures and all 151 corpus rows unchanged. No new AI generation started.
 
 ## Remaining questions
-Deployment and post-deploy browser verification pending. Multiple old tabs must
+Deployed `1bb0c22c9840107afa93544e7668652949120512` in 49.8 seconds.
+Post-deploy browser observed 10 engine requests over 30 seconds, no HTTP errors
+or page errors. Multiple old tabs must
 reload to adopt client backpressure; it cannot patch already loaded JavaScript.
 Cross-tab concurrency remains subject to server limits, now with cooldown.
 
@@ -46,3 +48,11 @@ Deployment preflight exposed an acknowledgment timestamp race: the drain check
 compared against a timestamp sampled before writing the request. It now samples
 the clock after reading the acknowledgment. The failed preflight did not touch
 production. This also prevents rejecting valid fast acknowledgments in real use.
+
+Post-deploy health UI probe initially hit its default five-second expectation
+during startup; repeated with a 60-second readiness allowance.
+
+Final authenticated health/UI check passed at 800x600: 151 lines, three sources,
+zero divergences/failures, three pending drafts, 312 annotated forms; 2.526 s
+for the fresh check. No active repairs; eight historical interrupted repairs.
+The explicitly reported repair is complete. No verification content writes.

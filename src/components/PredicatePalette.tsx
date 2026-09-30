@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -148,6 +149,7 @@ export function PredicatePalette({
         {parameter.required ? ' *' : ''}
         {parameter.kind === 'boolean' ? (
           <select
+            {...workspaceAutofill}
             disabled={busy}
             aria-label={labels[parameter.name] ?? parameter.name}
             value={String(value || false)}
@@ -163,6 +165,7 @@ export function PredicatePalette({
           </select>
         ) : (
           <input
+            {...workspaceAutofill}
             disabled={busy}
             aria-label={labels[parameter.name] ?? parameter.name}
             type={parameter.kind === 'number' ? 'number' : 'text'}
@@ -278,6 +281,7 @@ export function PredicatePalette({
       )}
       {mode === 'types' && selected && (
         <form
+          {...workspaceAutofill}
           onSubmit={(event) => {
             event.preventDefault();
             void create();
@@ -295,6 +299,7 @@ export function PredicatePalette({
                 <label>
                   Tipo de verbo
                   <select
+                    {...workspaceAutofill}
                     aria-label="Tipo de verbo"
                     disabled={busy}
                     value={lexical.verbClass}
@@ -312,6 +317,7 @@ export function PredicatePalette({
               <label>
                 Pluriformidade
                 <select
+                  {...workspaceAutofill}
                   aria-label="Pluriformidade"
                   disabled={busy}
                   value={lexical.pluriform}
@@ -330,6 +336,7 @@ export function PredicatePalette({
               <label>
                 Situação da raiz
                 <select
+                  {...workspaceAutofill}
                   aria-label="Situação da raiz"
                   disabled={busy}
                   value={lexical.status}
@@ -384,6 +391,7 @@ export function PredicatePalette({
           <label>
             Expressão Pydicate
             <textarea
+              {...workspaceAutofill}
               aria-label="Código da nova peça"
               value={raw}
               onChange={(event) => setRaw(event.target.value)}

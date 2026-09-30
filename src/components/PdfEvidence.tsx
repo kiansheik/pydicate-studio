@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import {
   useEffect,
   useImperativeHandle,
@@ -848,6 +849,7 @@ export function PdfEvidence({
           <label>
             Página física do PDF{' '}
             <input
+              {...workspaceAutofill}
               aria-label="Página física do PDF"
               type="number"
               min={1}
@@ -875,6 +877,7 @@ export function PdfEvidence({
           <label>
             Zoom{' '}
             <select
+              {...workspaceAutofill}
               aria-label="Zoom do PDF"
               disabled={locked}
               value={view.zoom}

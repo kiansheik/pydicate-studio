@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, type SourcePreview } from '../domain/authoring';
 import type { RuntimeGraph } from '../domain/runtime-tree';
@@ -161,6 +162,7 @@ export function ReferenceInspector(props: {
             <label>
               Significado
               <textarea
+                {...workspaceAutofill}
                 aria-label="Significado da referência"
                 value={definition}
                 onChange={(event) => setDefinition(event.target.value)}
@@ -169,6 +171,7 @@ export function ReferenceInspector(props: {
             <label>
               Onde muda
               <select
+                {...workspaceAutofill}
                 aria-label="Alcance do significado da referência"
                 value={scope}
                 onChange={(event) => setScope(event.target.value)}

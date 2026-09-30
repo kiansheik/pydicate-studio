@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, type SourcePreview } from '../domain/authoring';
 import {
@@ -190,6 +191,7 @@ function NoteEditor({
       <label>
         {note.scope === 'entry' ? 'Significado geral' : 'Sentido atribuído aqui'}
         <textarea
+          {...workspaceAutofill}
           value={fields.meaning}
           rows={2}
           maxLength={50_000}
@@ -201,6 +203,7 @@ function NoteEditor({
           ? 'Gramática e observações da entrada'
           : 'Função e interpretação nesta ocorrência'}
         <textarea
+          {...workspaceAutofill}
           value={fields.grammar}
           rows={2}
           maxLength={50_000}
@@ -210,6 +213,7 @@ function NoteEditor({
       <details>
         <summary>Outras notas</summary>
         <textarea
+          {...workspaceAutofill}
           aria-label="Outras notas lexicais"
           rows={2}
           value={fields.note}
@@ -345,6 +349,7 @@ function DefinitionEditor({
       <label>
         Alcance do significado
         <select
+          {...workspaceAutofill}
           aria-label="Alcance do significado"
           value={scope}
           disabled={busy || props.disabled}
@@ -368,6 +373,7 @@ function DefinitionEditor({
       <label>
         Significado revisado
         <textarea
+          {...workspaceAutofill}
           aria-label="Significado revisado"
           value={definition}
           rows={4}
@@ -644,6 +650,7 @@ export function PassageLexicon(props: PassageLexiconProps) {
         </details>
       ) : null}
       <input
+        {...workspaceAutofill}
         aria-label="Buscar no léxico desta passagem"
         type="search"
         value={query}
@@ -786,6 +793,7 @@ export function PassageLexicon(props: PassageLexiconProps) {
                     <label>
                       Ocorrência
                       <select
+                        {...workspaceAutofill}
                         aria-label="Ocorrência lexical"
                         value={occurrence.id}
                         onChange={(event) =>
@@ -871,6 +879,7 @@ export function PassageLexicon(props: PassageLexiconProps) {
         </p>
         <div className="lexical-notebook-tools">
           <input
+            {...workspaceAutofill}
             type="search"
             aria-label="Buscar nas notas lexicais"
             placeholder="Buscar em todas as notas…"

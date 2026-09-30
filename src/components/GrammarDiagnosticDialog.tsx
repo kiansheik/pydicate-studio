@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../domain/clipboard';
 import { Send, X } from 'lucide-react';
@@ -96,6 +97,7 @@ export function GrammarDiagnosticDialog({
         <legend>O que precisa ser investigado?</legend>
         <label>
           <input
+            {...workspaceAutofill}
             type="radio"
             name="grammar-repair-mode"
             checked={mode === 'engine'}
@@ -107,6 +109,7 @@ export function GrammarDiagnosticDialog({
         </label>
         <label>
           <input
+            {...workspaceAutofill}
             type="radio"
             name="grammar-repair-mode"
             checked={mode === 'tree'}
@@ -123,6 +126,7 @@ export function GrammarDiagnosticDialog({
       <label className="grammar-repair-field">
         Como deveria ficar?
         <input
+          {...workspaceAutofill}
           aria-label="Forma pretendida"
           value={intendedSurface}
           onChange={(event) => setIntendedSurface(event.target.value)}
@@ -131,6 +135,7 @@ export function GrammarDiagnosticDialog({
       <label className="grammar-repair-field">
         O que precisa mudar?
         <textarea
+          {...workspaceAutofill}
           aria-label="Explicação linguística"
           value={explanation}
           onChange={(event) => setExplanation(event.target.value)}
@@ -173,7 +178,13 @@ export function GrammarDiagnosticDialog({
       <p role="status">{status}</p>
       <details className="grammar-technical">
         <summary>Detalhes e diagnóstico</summary>
-        <textarea aria-label="Prompt de correção da gramática" readOnly value={prompt} rows={8} />
+        <textarea
+          {...workspaceAutofill}
+          aria-label="Prompt de correção da gramática"
+          readOnly
+          value={prompt}
+          rows={8}
+        />
         <div className="grammar-diagnostic-actions">
           <button
             className="button"

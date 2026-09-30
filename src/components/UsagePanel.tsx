@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { invoke } from '../domain/authoring';
@@ -96,6 +97,7 @@ export function UsagePanel({ onClose }: { onClose: () => void }) {
           <>
             <label>
               <input
+                {...workspaceAutofill}
                 type="checkbox"
                 checked={status.enabled}
                 onChange={(event) => void configure({ enabled: event.target.checked })}
@@ -105,6 +107,7 @@ export function UsagePanel({ onClose }: { onClose: () => void }) {
             <label className="editor-label">
               Nome opcional do perfil
               <input
+                {...workspaceAutofill}
                 value={profile}
                 maxLength={40}
                 onChange={(event) => setProfile(event.target.value)}
@@ -118,7 +121,11 @@ export function UsagePanel({ onClose }: { onClose: () => void }) {
         <div className="usage-controls">
           <label>
             Período{' '}
-            <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
+            <select
+              {...workspaceAutofill}
+              value={days}
+              onChange={(event) => setDays(Number(event.target.value))}
+            >
               <option value={1}>Hoje / últimas 24 horas</option>
               <option value={7}>Últimos 7 dias</option>
               <option value={30}>Últimos 30 dias</option>
