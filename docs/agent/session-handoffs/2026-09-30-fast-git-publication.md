@@ -43,7 +43,16 @@ an advertised bundle ref. A disposable repository with an export ref fixed the
 measurement without adding temporary refs to production.
 
 ## Remaining boundaries
-Deployment and a live no-restart capture check follow implementation validation.
+Release `7d5c2dcb3b70f77a69c07a39e66bb77ae4d4f261` was pushed to the existing
+PR #16 branch and deployed with `STUDIO_REF=unlocked-light-deploy make
+collab-deploy-light` in 14.7 seconds. Backup: `20260930T120356-e0190a`.
+Read-only SSH checks confirmed the exact revision, matching host/ops SHA-256
+hashes, healthy container and cleared maintenance request.
+
+Automatic approval review rejected the optional live `host.collect` smoke check,
+interpreting its commit capability as unauthorized for verification. It was not
+retried or bypassed. Read-only deployed-file/health checks were used instead;
+no-restart and no-publication capture behavior is verified in isolated fixtures.
 Full end-to-end GitHub publication is not rerun just to benchmark private research.
 A first partial-cache fill and GitHub fetch/push/PR calls remain network-dependent.
 Active repairs must finish before capture. Delta bundles need their recorded

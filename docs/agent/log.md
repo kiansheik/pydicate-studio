@@ -1,3 +1,14 @@
+## 2026-09-30 — Remove publication maintenance freezes
+
+Publication now captures saved source bytes immediately with a private index;
+concurrent capture changes fail promptly, later edits remain live, and sparse
+checkout flags and executable-mode review guards are preserved. Removed the
+stalled production export's exact maintenance request without stopping research
+jobs. Added browser maintenance cooldown and lease renewal fixes. 30 operation
+tests and eight bridge/idle tests pass; deployment pending. The earlier rollout's
+health/file checks and mocked maintenance fixtures missed the live freeze. See the
+[handoff](session-handoffs/2026-09-30-instant-git-capture.md).
+
 ## 2026-09-30 — Fast Git publication without restarts
 
 Replaced two stopped-server collection passes per repository with one short

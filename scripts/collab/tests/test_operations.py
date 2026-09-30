@@ -26,9 +26,7 @@ class OperationsTests(unittest.TestCase):
     @contextlib.contextmanager
     def offline_publication(self,host):
         """Publish without contacting the real origin, which the fixtures cannot reach."""
-        @contextlib.contextmanager
-        def stopped(*args,**kwargs):yield
-        with patch('light.drained',stopped),patch.object(host,'stopped',side_effect=AssertionError('Publication must not stop Studio')),patch.object(host,'merge_upstream',side_effect=AssertionError('No upstream merge in live workspace')):yield
+        with patch('light.drained',side_effect=AssertionError('Publication must not acquire maintenance')),patch.object(host,'stopped',side_effect=AssertionError('Publication must not stop Studio')),patch.object(host,'merge_upstream',side_effect=AssertionError('No upstream merge in live workspace')):yield
     def test_collect_then_publish_preserves_source_and_produces_verifiable_git_bundle(self):
         host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('changed\n')
         with self.offline_publication(host):
@@ -113,31 +111,99 @@ class OperationsTests(unittest.TestCase):
         self.assertLess(sum(file.stat().st_size for file in objects),len(asset)//2)
         self.assertEqual((repo/'media/large.bin').read_bytes(),asset)
 
-    def test_bundle_is_built_after_releasing_the_app_and_later_edits_stay_local(self):
+    def test_edits_saved_after_capture_stay_local_and_do_not_enter_commit(self):
+        from host import run
         host,repo,g=self.fixture();source=repo/'historic/test.tu.py'
         source.write_text('snapshot\n')
-        @contextlib.contextmanager
-        def lease(_host,**kwargs):
-            yield
-            source.write_text('later edit\n')
-        with patch('light.drained',lease),patch.object(host,'compose',side_effect=AssertionError('No Docker command')):
+        def write_later(args,**kwargs):
+            if 'hash-object' in args:source.write_text('later edit\n')
+            return run(args,**kwargs)
+        with self.offline_publication(host),patch('host.run',side_effect=write_later):
             dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
         self.assertEqual(source.read_text(),'later edit\n')
         self.assertEqual(g('show','HEAD:historic/test.tu.py'),'snapshot')
+        self.assertIn('M historic/test.tu.py',g('status','--porcelain'))
         self.assertEqual(json.loads((dest/'manifest.json').read_text())['publishedHead'],g('rev-parse','HEAD'))
 
-    def test_busy_application_does_not_commit_or_stop(self):
-        host,repo,g=self.fixture();before=g('rev-parse','HEAD')
-        (repo/'historic/test.tu.py').write_text('active repair\n')
-        @contextlib.contextmanager
-        def busy(_host,**kwargs):
-            raise RuntimeError('still busy')
-            yield
-        with patch('light.drained',busy),patch.object(host,'compose',side_effect=AssertionError('No Docker command')):
-            with self.assertRaisesRegex(RuntimeError,'still busy'):
+    def test_busy_application_does_not_delay_saved_work_capture(self):
+        host,repo,g=self.fixture()
+        (repo/'historic/test.tu.py').write_text('active repair saved bytes\n')
+        with self.offline_publication(host),patch.object(host,'compose',side_effect=AssertionError('No Docker command')):
+            host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('show','HEAD:historic/test.tu.py'),'active repair saved bytes')
+        self.assertFalse((host.data/'operations/maintenance.json').exists())
+
+    def test_change_during_capture_fails_promptly_without_staging_or_committing(self):
+        host,repo,g=self.fixture();before=g('rev-parse','HEAD');changes=host.changes
+        source=repo/'historic/test.tu.py';source.write_text('first\n')
+        calls=0
+        def moving(name):
+            nonlocal calls
+            result=changes(name);calls+=1
+            if calls==1:source.write_text('newer save\n')
+            return result
+        with self.offline_publication(host),patch.object(host,'changes',side_effect=moving):
+            with self.assertRaisesRegex(ValueError,'changed during capture'):
                 host.collect('oldtupicorpus',host.root/'export',publish_current=True)
         self.assertEqual(g('rev-parse','HEAD'),before)
-        self.assertEqual((repo/'historic/test.tu.py').read_text(),'active repair\n')
+        self.assertEqual(g('diff','--cached','--name-only'),'')
+        self.assertEqual(source.read_text(),'newer save\n')
+
+    def test_sparse_index_flags_survive_publication(self):
+        host,repo,g=self.fixture()
+        (repo/'ground_truth').mkdir();(repo/'ground_truth/omitted.txt').write_text('keep sparse file\n')
+        g('add','.');g('commit','-m','sparse baseline');g('update-ref','refs/remotes/origin/main','HEAD')
+        g('sparse-checkout','set','--no-cone','/historic/')
+        self.assertFalse((repo/'ground_truth/omitted.txt').exists())
+        (repo/'historic/test.tu.py').write_text('snapshot\n')
+        with self.offline_publication(host):host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('status','--porcelain'),'')
+        self.assertEqual(g('ls-files','-t','ground_truth/omitted.txt'),'S ground_truth/omitted.txt')
+        self.assertEqual(g('show','HEAD:ground_truth/omitted.txt'),'keep sparse file')
+
+    def test_existing_git_lock_is_not_removed_and_failed_ref_update_keeps_index(self):
+        from host import git
+        for locked in (True,False):
+            with self.subTest(locked=locked):
+                host,repo,g=self.fixture();before=g('rev-parse','HEAD')
+                index=(repo/'.git/index').read_bytes()
+                (repo/'historic/test.tu.py').write_text('snapshot\n')
+                lock=repo/'.git/index.lock'
+                if locked:lock.write_text('other git operation')
+                def fail_ref(repo,*args):
+                    if args[0]=='update-ref':raise RuntimeError('simulated ref conflict')
+                    return git(repo,*args)
+                with self.offline_publication(host),patch('host.git',side_effect=fail_ref):
+                    with self.assertRaises((FileExistsError,RuntimeError)):
+                        host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+                self.assertEqual((repo/'.git/index').read_bytes(),index)
+                self.assertEqual(g('rev-parse','HEAD'),before)
+                if locked:self.assertEqual(lock.read_text(),'other git operation')
+                else:self.assertFalse(lock.exists())
+
+    def test_index_install_failure_rolls_back_head_and_preserves_working_edits(self):
+        host,repo,g=self.fixture();before=g('rev-parse','HEAD')
+        index=(repo/'.git/index').read_bytes();replace=pathlib.Path.replace
+        (repo/'historic/test.tu.py').write_text('snapshot\n')
+        def fail_install(path,target):
+            if path==repo/'.git/index.lock':raise OSError('simulated index install failure')
+            return replace(path,target)
+        with self.offline_publication(host),patch.object(pathlib.Path,'replace',fail_install):
+            with self.assertRaisesRegex(OSError,'index install failure'):
+                host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('rev-parse','HEAD'),before)
+        self.assertEqual((repo/'.git/index').read_bytes(),index)
+        self.assertEqual((repo/'historic/test.tu.py').read_text(),'snapshot\n')
+        self.assertFalse((repo/'.git/index.lock').exists())
+
+    def test_review_hash_covers_executable_mode(self):
+        host,repo,g=self.fixture();source=repo/'historic/test.tu.py'
+        source.write_text('reviewed\n');first=host.changes('oldtupicorpus')
+        source.chmod(0o755)
+        self.assertNotEqual(first['reviewSha'],host.changes('oldtupicorpus')['reviewSha'])
+        with self.offline_publication(host):
+            with self.assertRaisesRegex(ValueError,'differ from the reviewed'):
+                host.collect('oldtupicorpus',host.root/'export',first['reviewSha'])
 
     def test_automatic_publication_collects_only_once(self):
         from ops import publish_repository

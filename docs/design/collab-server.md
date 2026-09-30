@@ -196,22 +196,27 @@ these are not a security audit, real-mail-deliverability guarantee or linguistic
 
 ### Fast Git contribution export
 
-`make collab-publish-all` captures each repository once, waiting for the existing
-maintenance acknowledgment so active edits/repairs finish. It does not stop or
-restart Studio. Only allowlisted source files are committed; excluded notes stay
-in the live workspace. Explicit `collab-changes` / `collab-publish REVIEW_SHA=...`
-still reject changed review snapshots.
+`make collab-publish-all` captures each repository's saved source bytes without
+maintenance, a restart or waiting for active repairs. This snapshot does not
+certify that an ongoing repair has finished. Only allowlisted files are committed;
+excluded notes stay in the workspace. Explicit `collab-changes` / `collab-publish
+REVIEW_SHA=...` reject changed review snapshots, including executable-mode changes.
 
-The short lease covers diff capture and the local Git commit. Bundle creation,
-transfer, upstream fetch/merge, push and PR creation happen after its release.
-Upstream reconciliation occurs in the private laptop checkout, never in the
-live engine. The bundle excludes objects reachable from the captured upstream
+Capture verifies the saved bytes against its manifest and fails promptly if they
+move. A private index preserves the live sparse-checkout flags and commits exactly
+the captured bytes; subsequent working edits are retained. Competing Git writes
+fail immediately. The ref update checks the expected old commit, with rollback
+and a private recovery receipt for index-installation failures. No checkout or
+reset touches live source. Deployment still uses its separate drain lease.
+
+Upstream reconciliation occurs in the private laptop checkout. The bundle excludes
+objects reachable from the captured upstream
 base. A private partial Git cache under `backups/publication-cache/` holds base
 commit/tree metadata; sparse grammar checkouts lazily fetch needed files and
 avoid historical scans/assets. Keep that cache while using exported checkouts,
 which borrow its objects. Delta bundles require their recorded upstream base;
 they are contributions, not standalone full-repository backups.
 
-A first cache fill and GitHub operations still depend on network latency. Busy
-repairs can delay snapshot capture without being interrupted. The separate
-post-merge `collab-sync`/idle updater retains its existing synchronization rules.
+A first cache fill and GitHub operations still depend on network latency. Active
+repairs continue during capture; a concurrent save can require rerunning capture.
+The separate post-merge `collab-sync`/idle updater retains its synchronization rules.

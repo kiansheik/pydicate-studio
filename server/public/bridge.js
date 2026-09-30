@@ -20,7 +20,7 @@
     if(!response.ok){
       let error;try{error=(await response.json()).error;}catch{error={message:'Resposta inválida do servidor.'};}
       if(response.status===401)notify({type:'session-expired'});
-      const failure=new Error(`[STUDIO:${error.code||'HTTP_ERROR'}] ${error.message}`);failure.code=error.code;failure.status=response.status;failure.retryAfterMs=Math.max(1000,Number(response.headers.get('retry-after'))*1000||(error.code==='ENGINE_BUSY'?2000:60000));throw failure;
+      const failure=new Error(`[STUDIO:${error.code||'HTTP_ERROR'}] ${error.message}`);failure.code=error.code;failure.status=response.status;failure.retryAfterMs=Math.max(1000,Number(response.headers.get('retry-after'))*1000||(error.code==='ENGINE_BUSY'?2000:error.code==='UPSTREAM_UPDATING'?15000:60000));throw failure;
     }
     return response.headers.get('content-type')?.startsWith('application/pdf')?response.arrayBuffer():response.json();
   }
@@ -36,7 +36,7 @@
     while(activeInvokes<3&&invokeQueue.length){
       const task=invokeQueue.shift();activeInvokes++;
       request('/api/invoke',task.input).then(task.resolve,error=>{
-        if(error.status===429)cooldownUntil=Math.max(cooldownUntil,Date.now()+error.retryAfterMs);
+        if(error.status===429||(error.status===503&&error.code==='UPSTREAM_UPDATING'))cooldownUntil=Math.max(cooldownUntil,Date.now()+error.retryAfterMs);
         task.reject(error);
       }).finally(()=>{activeInvokes--;pumpInvokes();});
     }

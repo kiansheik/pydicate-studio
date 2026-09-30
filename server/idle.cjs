@@ -36,7 +36,10 @@ function createIdle({ directory, now = Date.now, idleMs = IDLE_MS, hasWork = () 
       const valid = request?.version === 1 && /^[a-f0-9-]{36}$/.test(request.id || '') &&
         Number.isFinite(request.expiresAt) && request.expiresAt > current && request.expiresAt <= current + 120_000;
       draining = valid && request.mode === 'deploy' ? request : null;
-      if (!valid || (lease && request.id !== lease.id)) lease = null;
+      if (!valid || (lease && (request.id !== lease.id || lease.expiresAt <= current))) lease = null;
+      // The host renews long-running maintenance requests. Keep an acknowledged
+      // lease current too, and recheck drained work if its previous lease expired.
+      if (lease) lease.expiresAt = request.expiresAt;
       if (valid && !lease && !hasWork() && busy === 0 && (request.mode === 'deploy' || current - lastActivityAt >= idleMs)) lease = { id: request.id, expiresAt: request.expiresAt };
       const temporary = path.join(root, '.idle-' + instance + '.json');
       await fs.writeFile(temporary, JSON.stringify(state()) + '\n', { mode: 0o600 });

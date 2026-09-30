@@ -400,7 +400,8 @@ class Host:
             if not file.startswith(ALLOW[name]):skipped.append({'path':file,'reason':'outside the publish allowlist'});continue
             if any(part.startswith('.') for part in pathlib.PurePosixPath(file).parts):skipped.append({'path':file,'reason':'hidden path'});continue
             if target.exists() and target.stat().st_size>2*1024*1024:skipped.append({'path':file,'reason':'larger than 2 MiB'});continue
-            rows.append({'path':file,'sha256':sha(target) if target.exists() else None})
+            rows.append({'path':file,'sha256':sha(target) if target.exists() else None,
+                         'mode':('100755' if target.stat().st_mode & 0o100 else '100644') if target.exists() else None})
         manifest={'repo':name,'origin':REPOS[name],'base':base,'head':git(repo,'rev-parse','HEAD'),'files':rows,'skipped':skipped}
         digest=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest();manifest['reviewSha']=digest
         return manifest
@@ -443,42 +444,8 @@ class Host:
         print('[server] Upstream conflicts resolved in favour of the server copy: '+', '.join(conflicts),flush=True)
         return {'mergedUpstream':True,'conflictsResolvedFromServer':conflicts,'upstreamMergeBlocked':False}
     def collect(self,name,dest,review_sha='',publish_current=False):
-        from light import drained
-        dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
-        # No network, bundle compression or working-tree merge under this lease.
-        # Active repairs finish before the app acknowledges the short write freeze.
-        with drained(self, purpose='capturing Git changes'):
-            manifest=self.changes(name);repo=self.workspace/name
-            if publish_current and manifest['files']:review_sha=manifest['reviewSha']
-            publishable=[row['path'] for row in manifest['files']]
-            # The review artefacts describe exactly what publication would commit, so
-            # skipped paths stay out of both the diff and the copied source bytes.
-            with open(dest/'review.diff','wb') as out:
-                if publishable:run(['git','-c','safe.directory='+str(repo),'-C',repo,'diff','--binary','origin/main','--',*publishable],stdout=out)
-            # Include untracked source bytes in the review directory; do not silently omit them.
-            new=[f for f in git(repo,'ls-files','--others','--exclude-standard').splitlines() if f in set(publishable)]
-            for file in new:
-                target=dest/'new-files'/file;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(repo/file,target)
-            if review_sha:
-                if manifest['reviewSha']!=review_sha:raise ValueError('Server changes differ from the reviewed snapshot. Collect and review again.')
-                if git(repo,'branch','--show-current')!='server/work':raise ValueError('Publication requires the dedicated server/work branch.')
-                if git(repo,'diff','--cached','--name-only'):raise ValueError('An existing staged change must be handled before publication.')
-                if not publishable:raise ValueError('No publishable files')
-                try:
-                    run(['git','-c','safe.directory='+str(repo),'-C',repo,'add','--',*publishable])
-                    if git(repo,'diff','--cached','--name-only'):
-                        run(['git','-c','safe.directory='+str(repo),'-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com','-C',repo,'commit','-m','Reviewed server contribution\n\nStudio-Review-SHA: '+review_sha])
-                    manifest['publishedHead']=git(repo,'rev-parse','HEAD')
-                finally:
-                    # Publication only changes Git metadata, never source ownership.
-                    self.application_ownership(repo/'.git')
-        if review_sha:
-            # Transfer only the contribution, not the entire repository history.
-            run(['git','-c','safe.directory='+str(repo),'-C',repo,'bundle','create',dest/'repository.bundle','server/work','^'+manifest['base']])
-            manifest['bundleBase']=manifest['base']
-            manifest['bundleSha256']=sha(dest/'repository.bundle')
-        write_json(dest/'manifest.json',manifest)
-        return dest
+        from publication import collect
+        return collect(self,name,dest,review_sha,publish_current)
     def sync(self,name):
         if name not in ALLOW:raise ValueError('Unknown repository')
         self.checkpoint(self.root/'backups'/('presync-'+stamp()),provenance=False)

@@ -19,8 +19,8 @@ function setup() {
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/bridge.js'), 'utf8'), sandbox);
   const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
-  const respond = (index, status = 200, code = '') => requests[index].resolve({
-    ok: status === 200, status, headers: { get: () => null },
+  const respond = (index, status = 200, code = '', retryAfter = null) => requests[index].resolve({
+    ok: status === 200, status, headers: { get: name => name === 'retry-after' ? retryAfter : null },
     json: async () => status === 200 ? { value: index } : { error: { code, message: 'busy' } },
   });
   return { invoke: window.studio.invoke, requests, respond, flush,
@@ -49,4 +49,24 @@ test('429 pauses queued calls; writes stay distinct and are never replayed', asy
   await f.advance(1); assert.equal(f.requests.length, 5);
   f.respond(3); f.respond(4); await Promise.all(work);
   assert.equal(f.requests.length, 5);
+});
+
+test('maintenance 503 pauses polling for Retry-After without replaying writes', async () => {
+  const f = setup();
+  const write = f.invoke('analysis_composer', { text: 'once' }).catch(e => e.code);
+  const poll = f.invoke('analysis_list', { projectId: 'p' }).catch(e => e.code);
+  await f.flush();
+  f.respond(0, 503, 'UPSTREAM_UPDATING', '15');
+  f.respond(1, 503, 'UPSTREAM_UPDATING', '15');
+  await f.flush();
+  assert.equal(await write, 'UPSTREAM_UPDATING');
+  assert.equal(await poll, 'UPSTREAM_UPDATING');
+  const reads = Array.from({ length: 30 }, () => f.invoke('analysis_list', { projectId: 'p' }));
+  await f.flush();
+  assert.equal(f.requests.length, 2, 'repeated UI polls stay queued throughout maintenance cooldown');
+  await f.advance(14999);assert.equal(f.requests.length, 2);
+  await f.advance(1);assert.equal(f.requests.length, 3);
+  assert.equal(f.requests[2].input.method, 'analysis_list');
+  f.respond(2);await Promise.all(reads);
+  assert.equal(f.requests.filter(r => r.input.method === 'analysis_composer').length, 1);
 });

@@ -1,12 +1,20 @@
 # Current state
 
-## Fast contribution publication
+## Instant contribution capture (implemented; deployment pending)
 
-`collab-publish-all` captures each repository once without restarting Studio.
-Delta bundles replace full history; upstream reconciliation runs in a private
-partial/sparse laptop checkout. Existing review hashes and allowlists remain.
-Exact recent exports measured 6,113 / 6,567 bytes, versus 2.6 MB / 4.9 GB before.
-See [handoff](session-handoffs/2026-09-30-fast-git-publication.md).
+`collab-publish-all` now captures saved source bytes without a maintenance lease,
+restart or wait for AI jobs. A change during capture fails promptly; changes saved
+after capture remain working edits. The private Git index preserves sparse flags;
+review hashes bind content and executable mode. Incremental bundles and laptop
+upstream reconciliation remain. 30 operation tests and eight bridge/idle tests pass.
+
+The previous `7d5c2dc` release still froze browser calls while waiting for work;
+its deployed-file/health checks missed this. The stalled export was cancelled and
+its exact maintenance request removed, without cancelling research jobs. Subsequent
+idle state reported no work. Maintenance 503 polling now honors Retry-After, and
+long maintenance leases renew correctly. See the
+[handoff](session-handoffs/2026-09-30-instant-git-capture.md) for the verification
+gap and pending deployment evidence.
 
 ## Submission feedback and checked batch review (live)
 

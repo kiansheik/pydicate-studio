@@ -8,9 +8,13 @@
 
 ## Hosted collaboration and deployment
 
-- `scripts/collab/host.py`, `ops.py`: maintenance-leased Git snapshot, incremental
-  contribution bundle, private partial object cache, sparse review checkout and
-  laptop-only upstream merge. Publishing never restarts Studio.
+- `scripts/collab/publication.py`, `host.py`, `ops.py`: immediate saved-byte Git
+  snapshot without maintenance; content/mode review guards, private index retaining
+  sparse flags, preserved later edits, incremental bundle, private partial cache
+  and laptop-only upstream merge. Capture fails promptly on concurrent changes.
+- `server/public/bridge.js`, `server/idle.cjs`: invoke polling honors maintenance
+  503 Retry-After as well as 429; writes never replay. Deployment leases renew
+  acknowledged expiry and recheck drained work after a lapse.
 
 - `server/submission-review.cjs`, `src/components/SubmissionReviewQueue.tsx`,
   `SubmissionPdf.tsx`: explicit admin PDF/result review with checked row receipts,
