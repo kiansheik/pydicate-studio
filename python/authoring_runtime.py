@@ -895,6 +895,14 @@ def main():
             elif payload.get('action') == 'node_definition':
                 from node_definitions import define_node
                 result = define_node({**payload, 'action': payload.get('definitionAction', 'set')}, corpus)
+            elif payload.get('action') == 'lexicon_tree_evaluate':
+                from shared_definition import evaluate
+                result = evaluate(payload, corpus)
+            elif payload.get('action') == 'lexicon_tree_inspect':
+                from shared_definition import declaration_namespace
+                namespace=declaration_namespace(corpus,payload['declarationSourceId'],payload['declarationLine'])
+                result=lexicon_result({'action':'lexicon_inspect','name':payload['name'],'line':payload['declarationLine']},
+                    corpus,corpus/'historic'/(payload['declarationSourceId']+'.tu.py'),namespace)
             elif payload.get('action') == 'prepare_lexical_publication':
                 from lexical_publication import prepare_lexical_publication
                 result = prepare_lexical_publication(payload, corpus)

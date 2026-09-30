@@ -21,6 +21,7 @@ import '../tree-scope-editor.css';
 import { LexicalInput } from './LexicalInput';
 import { OperationPreview } from './OperationPreview';
 import { definitionBody } from '../domain/expression-tree';
+import type { SharedDefinitionTarget } from '../domain/shared-definition';
 
 export interface TreeScopeEditorProps {
   revealOperation?: boolean;
@@ -31,6 +32,7 @@ export interface TreeScopeEditorProps {
   passageId?: string;
   sourceId?: string;
   engineFingerprint?: string;
+  sharedDefinition?: SharedDefinitionTarget;
   onChangeRaw?: (raw: string) => void;
   onSelectScope: (id: string) => void;
   selectedScopeId?: string;
@@ -49,6 +51,7 @@ export function TreeScopeEditor({
   passageId,
   sourceId,
   engineFingerprint,
+  sharedDefinition,
   onChangeRaw,
   onSelectScope,
   selectedScopeId,
@@ -129,6 +132,7 @@ export function TreeScopeEditor({
           <small className="runtime-edit-hint">Forma da peça inteira após esta alteração.</small>
         )}
         <OperationPreview
+          sharedDefinition={sharedDefinition}
           raw={proposedRaw}
           passageId={passageId}
           sourceId={sourceId}

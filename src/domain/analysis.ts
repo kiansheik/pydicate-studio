@@ -92,6 +92,19 @@ export interface AnalysisJob {
     intendedSurface?: string;
     matches?: boolean;
     error?: string;
+    regressionsHealthy?: boolean;
+    parent?: {
+      expression: string;
+      surface?: string;
+      evaluationStatus?: string;
+      regressed?: boolean;
+    };
+    passage?: {
+      expression: string;
+      surface?: string;
+      evaluationStatus?: string;
+      regressed?: boolean;
+    };
     comparison?: ReturnType<typeof import('./grammar-regression').compareGrammarSnapshots>;
   };
   grammarEdits?: { id: string; path: string; oldText: string; newText: string }[];

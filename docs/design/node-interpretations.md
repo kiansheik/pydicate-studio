@@ -56,6 +56,39 @@ An anonymous construction has reusable
 notebook notes, but no invented shared declaration. Expanded dependencies must
 first be copied into the visible tree before a local definition edit.
 
+## Shared tree editing
+
+The reference inspector exposes `treeEdit` only for a named, simple assignment
+in a corpus `.tu.py` file. It carries the original RHS, source fingerprint,
+declaration identity, source ID and line. Helpers, multiple assignment targets
+and engine-owned definitions explain why this editor is unavailable.
+
+`lexicon_tree_evaluate` evaluates an unsaved replacement in the namespace before
+that exact declaration, returning the ordinary rendered tree and an independent
+parsed `authoring` tree. A well-formed incomplete tree can return partial results
+for further editing or a targeted grammar repair. The request retains `name`,
+`expectedExpression`, `sourceFingerprint`, `declarationId`,
+`declarationSourceId` and `declarationLine`; the prefixed coordinates are distinct
+from the containing passage's source context. Nested `lexicon_inspect` requests
+carry that descriptor as `definitionContext`, so a later passage-local binding
+cannot silently replace the meaning of a referenced piece.
+
+`lexicon_tree_preview` validates the expression through the bounded interpreter,
+replaces only the selected assignment's RHS, preserves comments and subsequent
+meaning overrides, and runs the existing complete corpus regression in a
+disposable copy. It rejects incomplete trees and any changed output or annotation
+in an unchanged saved passage. A successful preview is still read-only. Applying
+the ordinary reviewed `source_apply` transaction checks exact source bytes and
+the regression fingerprint, retains a recovery journal, and refreshes all
+references without rewriting their variable names or approving references.
+
+Grammar correction can target a selected subtree or an unsaved replacement
+definition while preserving the containing passage as context. Each grammar edit
+re-evaluates the identical saved target, its containing tree and the corpus;
+publishing the replacement definition remains a separate explicit review.
+See `python/tests/test_shared_definition.py` for actual-engine declaration scope,
+cross-source regressions, stale guards and protected source bytes.
+
 ## Notebook identity and AI context
 
 Meaning, grammar and other notes retain separate general and occurrence scopes

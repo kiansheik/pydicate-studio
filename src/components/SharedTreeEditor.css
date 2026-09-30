@@ -1,0 +1,28 @@
+.shared-tree-editor {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+.shared-tree-editor > header,
+.shared-tree-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+.shared-tree-editor > header h3 {
+  margin: 0;
+}
+.shared-tree-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.shared-tree-editor > .expression-canvas .canvas-viewport {
+  height: clamp(300px, 48vh, 600px);
+}
+.shared-tree-editor p,
+.shared-tree-editor code {
+  overflow-wrap: anywhere;
+}

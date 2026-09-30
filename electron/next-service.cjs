@@ -27,6 +27,8 @@ const METHODS = new Set([
   'lexicon_inspect',
   'lexicon_create',
   'lexicon_update',
+  'lexicon_tree_evaluate',
+  'lexicon_tree_preview',
   'dictionary_search',
   'dictionary_lookup',
   'dictionary_entry_get',

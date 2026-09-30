@@ -1,6 +1,29 @@
 # Current state
 
-## Instant contribution capture (implemented; deployment pending)
+## Shared definition trees and scoped grammar repair
+
+Imported source variables expose **Editar árvore compartilhada**. A separate
+canvas edits the declaration while retaining its name in every parent passage;
+source review evaluates the entire corpus before guarded application. The exact
+declaration namespace excludes later names and passage shadows. Helpers and
+ambiguous assignments explain why they cannot be edited directly.
+
+**Corrigir gramática** can target an existing subtree or an unsaved replacement
+definition. Each grammar edit checks that target, its enclosing tree, the saved
+passage where applicable, and the corpus. New execution errors roll back; unexpected
+output/reference/coverage changes prevent a clean completion. Definition publication
+remains a separate explicit source review. Draft definitions stay in tab storage.
+
+Actual-engine, focused repair, browser and build checks pass; production rollout
+pending. See [handoff](session-handoffs/2026-09-30-shared-tree-editing.md).
+
+## Instant contribution capture (live)
+
+Release `6258328650bab1224f91d0600b8cf314205aa2f3` deployed in 14.6 seconds.
+The actual `make collab-publish-all` completed in 12.68 seconds, including first
+partial-cache fill and creation of nhe-enga PR #20; corpus had no changes. Live
+diff captures took 0.155 / 0.330 seconds alongside 25 browser invokes with no
+HTTP errors. Container start time remained the deployment time.
 
 `collab-publish-all` now captures saved source bytes without a maintenance lease,
 restart or wait for AI jobs. A change during capture fails promptly; changes saved
@@ -14,7 +37,7 @@ its exact maintenance request removed, without cancelling research jobs. Subsequ
 idle state reported no work. Maintenance 503 polling now honors Retry-After, and
 long maintenance leases renew correctly. See the
 [handoff](session-handoffs/2026-09-30-instant-git-capture.md) for the verification
-gap and pending deployment evidence.
+gap and completed deployment evidence.
 
 ## Submission feedback and checked batch review (live)
 

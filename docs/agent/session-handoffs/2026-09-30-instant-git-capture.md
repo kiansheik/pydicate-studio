@@ -55,15 +55,34 @@ maintenance path, allowing the busy-server defect to escape. New fixtures reject
 any drain call instead of making it appear successful. Independent review also
 caught sparse-index metadata loss and ref/index failure recovery before release.
 
+## Deployment and live verification
+
+- Pushed `6258328650bab1224f91d0600b8cf314205aa2f3` to the existing Studio PR #16
+  branch; `STUDIO_REF=unlocked-light-deploy make collab-deploy-light` completed
+  in 14.6 seconds. Backup: `20260930T121943-ce3285`.
+- Ran the explicit read-only `host.py changes` CLI action for both live repos:
+  0.155 seconds corpus (no files), 0.330 seconds grammar (seven files). Both
+  HEADs unchanged, no maintenance request, no container restart.
+- Concurrent authenticated browser read-only smoke: 25 invoke responses,
+  zero HTTP errors. Its route guard prohibited editing/inviting/AI starts.
+- Resumed the user's interrupted `make collab-publish-all`: successful in
+  12.68 seconds (log creation to final summary), including first filtered cache
+  fill and GitHub PR creation. Corpus had no changes. Grammar exported 6,572
+  bytes and opened https://github.com/kiansheik/nhe-enga/pull/20 without merging.
+  The two excluded agent-note paths remained on the server.
+- After publication: healthy container still started at
+  `2026-09-30T12:19:44.792408933Z` (the rollout); maintenance absent, Git staged
+  diff empty. Temporary verification artifacts were removed; real publication
+  archives remain in private ignored `backups/`.
+
 ## Remaining questions
 
-Deployment and live capture verification are pending. Root will append exact
-release/timing evidence. A saved-work snapshot may contain an unfinished repair;
+A saved-work snapshot may contain an unfinished repair;
 capture is not editorial approval or a corpus-health assertion. Initial object
 cache fill and GitHub requests remain network-dependent. Post-merge sync retains
 its separate existing protections.
 
 ## Suggested next prompt
 
-Deploy the tested capture fix, verify it on the live server without interrupting
-research, and record capture timing separately from GitHub/cache/network time.
+Review nhe-enga PR #20 normally. If another publication is slow, identify its
+printed stage and separate capture time from network/cache/GitHub operations.

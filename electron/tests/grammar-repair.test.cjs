@@ -66,6 +66,10 @@ async function fixture(t, extraOptions = {}) {
   const requests = [];
   const request = async (method, params) => {
     requests.push({ method, params });
+    if (extraOptions.interceptRequest) {
+      const result = await extraOptions.interceptRequest(method, params, surface());
+      if (result !== undefined) return result;
+    }
     if (method === 'grammar_regression')
       return {
         engineFingerprint: project.engineFingerprint,
@@ -83,13 +87,39 @@ async function fixture(t, extraOptions = {}) {
           },
         },
       };
-    if (method === 'evaluate_expression')
+    if (method === 'parse_expression')
+      return {
+        root: {
+          id: 'root',
+          kind: 'operator',
+          code: params.raw,
+          start: 0,
+          end: params.raw.length,
+          children: [
+            {
+              slot: 'left',
+              node: {
+                id: 'left',
+                kind: 'reference',
+                code: params.raw.split(' * ')[0],
+                start: 0,
+                end: params.raw.indexOf(' * '),
+                children: [],
+              },
+            },
+          ],
+        },
+      };
+    if (method === 'evaluate_expression' || method === 'lexicon_tree_evaluate')
       return {
         expression: params.raw,
         revisionId: params.revisionId,
         engineFingerprint: project.engineFingerprint,
         surface: surface(),
         evaluationStatus: 'complete',
+        ...(method === 'lexicon_tree_evaluate'
+          ? { definitionContext: { namespace: 'declaration' } }
+          : {}),
         tree: {
           id: 'root',
           kind: 'reference',
@@ -208,6 +238,212 @@ test('capture uses the selected grammar and saved expression, preserves the inte
   );
   assert.equal(follow.grammarRepair.intendedSurface, 'morerobiare');
   assert.deepEqual(follow.grammarRepair.baseline, job.input.grammarRepair.baseline);
+});
+
+test('selected subtree repair validates saved spans, retains its parent and checks both after every edit', async (t) => {
+  const f = await fixture(t);
+  const selectedNode = { id: 'left', start: 0, end: 11, code: 'moro.var(1)' };
+  selectedNode.end = selectedNode.code.length;
+  const params = { ...f.params, grammarRepair: { ...f.params.grammarRepair, selectedNode } };
+  const input = await f.repair.capture(params);
+  assert.equal(input.scope, 'constituent');
+  assert.equal(input.raw, selectedNode.code);
+  assert.equal(input.grammarRepair.contextRaw, f.params.grammarRepair.raw);
+  assert.deepEqual(input.grammarRepair.selectedNode, selectedNode);
+  assert.equal(input.diagnostic.evidence.expression, selectedNode.code);
+  assert.equal(input.diagnostic.evidence.contextExpression, f.params.grammarRepair.raw);
+  for (const changed of [{ code: 'another' }, { end: 99 }, { start: 1 }, { id: 'missing' }])
+    await assert.rejects(
+      f.repair.capture({
+        ...params,
+        grammarRepair: {
+          ...params.grammarRepair,
+          selectedNode: { ...selectedNode, ...changed },
+        },
+      }),
+      { code: 'STALE_NODE' },
+    );
+  const job = { id: 'job:selected', projectId: f.project.id, passageId: f.params.passageId, input };
+  const file = await f.repair.call(job, 'grammar_read', { path: 'tupi/tupi/verb.py' });
+  const first = f.requests.length;
+  const result = await f.repair.call(job, 'grammar_edit', {
+    path: file.path,
+    expectedHash: file.hash,
+    oldText: 'mororerobiare',
+    newText: 'morerobiare',
+  });
+  assert.equal(result.verification.expression, selectedNode.code);
+  assert.equal(result.verification.parent.expression, f.params.grammarRepair.raw);
+  assert.deepEqual(
+    f.requests
+      .slice(first)
+      .filter((r) => r.method === 'evaluate_expression')
+      .map((r) => r.params.raw),
+    [selectedNode.code, f.params.grammarRepair.raw],
+  );
+  assert.equal(f.requests.at(-1).method, 'grammar_regression');
+  const follow = await f.repair.capture({ ...params, description: 'Continue esta parte.' }, job);
+  assert.equal(follow.raw, selectedNode.code);
+  assert.deepEqual(follow.grammarRepair.selectedNode, selectedNode);
+  assert.equal(
+    (await f.draftStore.load(f.project.id)).drafts[f.params.passageId].raw,
+    f.params.grammarRepair.raw,
+  );
+});
+
+test('a selected subtree cannot leave its containing tree with a new execution failure', async (t) => {
+  const f = await fixture(t, {
+    interceptRequest(method, params, surface) {
+      if (
+        method === 'evaluate_expression' &&
+        params.raw.includes(' * ') &&
+        surface === 'morerobiare'
+      )
+        return {
+          evaluationStatus: 'partial',
+          failures: [{ nodeId: 'root', message: 'Broken parent' }],
+        };
+    },
+  });
+  const params = {
+    ...f.params,
+    grammarRepair: {
+      ...f.params.grammarRepair,
+      selectedNode: { id: 'left', start: 0, end: 11, code: 'moro.var(1)' },
+    },
+  };
+  const job = {
+    id: 'job:parent',
+    projectId: f.project.id,
+    passageId: f.params.passageId,
+    input: await f.repair.capture(params),
+  };
+  const file = await f.repair.call(job, 'grammar_read', { path: 'tupi/tupi/verb.py' });
+  const result = await f.repair.call(job, 'grammar_edit', {
+    path: file.path,
+    expectedHash: file.hash,
+    oldText: 'mororerobiare',
+    newText: 'morerobiare',
+  });
+  assert.equal(result.rolledBack, true);
+  assert.equal(result.verificationError.code, 'GRAMMAR_REGRESSION');
+  assert.equal(await fs.readFile(path.join(f.engine, file.path), 'utf8'), file.content);
+});
+
+test('unsaved shared definition repairs use the guarded declaration evaluator for target and contrasts', async (t) => {
+  let stale = false;
+  const f = await fixture(t, {
+    projectInterpretations: async () => {
+      throw new Error('Passage meanings cannot bind a shared definition');
+    },
+    interceptRequest(method) {
+      if (stale && method === 'lexicon_tree_evaluate')
+        throw Object.assign(new Error('Definition changed'), { code: 'STALE_DEFINITION' });
+    },
+  });
+  const sharedDefinition = {
+    name: 'enosem',
+    expectedExpression: 'old_definition',
+    sourceFingerprint: 'source:definition',
+    declarationId: 'lexical:original',
+    declarationSourceId: 'lexicon',
+    declarationLine: 42,
+  };
+  const params = {
+    ...f.params,
+    grammarRepair: {
+      ...f.params.grammarRepair,
+      raw: 'new_root * new_suffix',
+      sharedDefinition,
+      selectedNode: { id: 'left', start: 0, end: 8, code: 'new_root' },
+    },
+  };
+  const input = await f.repair.capture(params);
+  assert.equal(input.raw, 'new_root');
+  assert.equal(input.grammarRepair.contextRaw, 'new_root * new_suffix');
+  assert.equal(input.grammarRepair.passageRaw, f.params.grammarRepair.raw);
+  assert.deepEqual(input.diagnostic.evidence.targetDefinitionContext, { namespace: 'declaration' });
+  const job = {
+    id: 'job:definition',
+    projectId: f.project.id,
+    passageId: f.params.passageId,
+    input,
+  };
+  await f.repair.check(job);
+  await f.repair.call(job, 'render_candidate', { raw: 'contrast' });
+  const evaluations = f.requests.filter((r) => r.method === 'lexicon_tree_evaluate');
+  assert.deepEqual(
+    evaluations.map((r) => r.params.raw),
+    ['new_root', 'new_root * new_suffix', 'new_root', 'new_root * new_suffix', 'contrast'],
+  );
+  for (const { params: request } of evaluations) {
+    assert.equal(request.name, sharedDefinition.name);
+    assert.equal(request.expectedExpression, sharedDefinition.expectedExpression);
+    assert.equal(request.sourceFingerprint, sharedDefinition.sourceFingerprint);
+    assert.equal(request.declarationId, sharedDefinition.declarationId);
+    assert.equal(request.declarationSourceId, sharedDefinition.declarationSourceId);
+    assert.equal(request.declarationLine, sharedDefinition.declarationLine);
+  }
+  const context = await f.repair.call(job, 'grammar_context', {});
+  assert.equal(context.context.raw, f.params.grammarRepair.raw);
+  assert.equal(context.contextScope, 'containing-passage');
+  assert.equal(input.interpretationContext, undefined);
+  const follow = await f.repair.capture({ ...params, description: 'Continue a definição.' }, job);
+  assert.deepEqual(follow.grammarRepair.sharedDefinition, sharedDefinition);
+  stale = true;
+  await assert.rejects(f.repair.check(job), { code: 'STALE_DEFINITION' });
+  assert.equal(
+    (await f.draftStore.load(f.project.id)).drafts[f.params.passageId].raw,
+    f.params.grammarRepair.raw,
+  );
+});
+
+test('pending passage repairs retain insertion scope through capture, checking and follow-up', async (t) => {
+  const f = await fixture(t);
+  const envelope = await f.draftStore.load(f.project.id);
+  const id = 'pending:00000000-0000-4000-8000-000000000001';
+  const draft = structuredClone(envelope.drafts[f.params.passageId]);
+  draft.passageId = id;
+  draft.pending = {
+    sourceId: 'araujo_catecismo_1686',
+    ordinal: 1,
+    beforePassageId: f.params.passageId,
+  };
+  envelope.drafts[id] = draft;
+  await f.draftStore.saveChecked(envelope);
+  const params = { ...f.params, passageId: id };
+  const input = await f.repair.capture(params);
+  const job = { id: 'job:pending', projectId: f.project.id, passageId: id, input };
+  await f.repair.check(job);
+  await f.repair.call(job, 'grammar_context', {});
+  const follow = await f.repair.capture({ ...params, description: 'Continue.' }, job);
+  assert.equal(follow.grammarRepair.insertion.beforePassageId, f.params.passageId);
+  for (const { method, params: request } of f.requests)
+    if (method === 'evaluate_expression' || method === 'assistant_context')
+      assert.equal(request.beforePassageId, f.params.passageId);
+});
+
+test('loose fragment selection is verified against the saved fragment instead of the passage', async (t) => {
+  const f = await fixture(t);
+  const envelope = await f.draftStore.load(f.project.id);
+  envelope.drafts[f.params.passageId].canvas = {
+    positions: {},
+    fragments: [{ id: 'loose', raw: 'piece * suffix', x: 0, y: 0 }],
+  };
+  await f.draftStore.saveChecked(envelope);
+  const input = await f.repair.capture({
+    ...f.params,
+    grammarRepair: {
+      ...f.params.grammarRepair,
+      fragmentId: 'loose',
+      raw: 'piece * suffix',
+      selectedNode: { id: 'left', start: 0, end: 5, code: 'piece' },
+    },
+  });
+  assert.equal(input.raw, 'piece');
+  assert.equal(input.grammarRepair.contextRaw, 'piece * suffix');
+  assert.equal(input.grammarRepair.passageRaw, f.params.grammarRepair.raw);
+  assert.equal(input.grammarRepair.targetPassage, null);
 });
 
 test('explicit engine repair receives frozen scoped grammatical interpretations in its input and read context without granting notes write authority', async (t) => {
@@ -452,8 +688,10 @@ test('repair jobs start a separate thread, keep other conversations running, ser
     projectId: f.project.id,
     jobId: first.id,
   });
-  assert.equal(firstDone.job.status, 'ready-for-review');
+  assert.equal(firstDone.job.status, 'needs-input');
   assert.equal(firstDone.job.grammarVerification.matches, true);
+  assert.equal(firstDone.job.grammarVerification.regressionsHealthy, false);
+  assert.match(firstDone.job.questions.at(-1).text, /regressão/);
   assert.equal(firstDone.job.grammarEdits.length, 1);
   assert.equal(
     (await service.invoke('analysis_get', { projectId: f.project.id, jobId: ordinary.id })).job
@@ -464,7 +702,7 @@ test('repair jobs start a separate thread, keep other conversations running, ser
   await waitFor(
     async () =>
       (await service.invoke('analysis_get', { projectId: f.project.id, jobId: second.id })).job
-        .status === 'ready-for-review',
+        .status === 'needs-input',
   );
   const follow = await service.invoke('analysis_submit', {
     ...f.params,
@@ -496,6 +734,138 @@ test('repair jobs start a separate thread, keep other conversations running, ser
       .conversation.composer,
     'Delayed text in the repair thread',
   );
+});
+
+test('matching targets become ready only with clean corpus coverage and execution checks', async (t) => {
+  for (const scenario of ['healthy', 'coverage', 'execution']) {
+    await t.test(scenario, async (t) => {
+      let snapshots = 0;
+      const f = await fixture(t, {
+        interceptRequest(method, params, surface) {
+          if (method !== 'grammar_regression' || ++snapshots === 1 || scenario === 'healthy')
+            return undefined;
+          return {
+            engineFingerprint: 'current',
+            sources: {
+              source: {
+                rows: [
+                  {
+                    ordinal: 1,
+                    codeFingerprint:
+                      scenario === 'coverage' ? 'changed-expression' : 'same-expression',
+                    surface,
+                    annotated: surface,
+                    reference: surface,
+                    ...(scenario === 'execution' ? { error: 'new failure' } : {}),
+                  },
+                ],
+              },
+            },
+          };
+        },
+      });
+      const service = f.service(async () => ({ text: 'Conferido.' }));
+      const job = await service.invoke('analysis_submit', {
+        ...f.params,
+        grammarRepair: { ...f.params.grammarRepair, intendedSurface: 'mororerobiare' },
+      });
+      const completed = await waitFor(async () => {
+        const detail = await service.invoke('analysis_get', {
+          projectId: f.project.id,
+          jobId: job.id,
+        });
+        return ['ready-for-review', 'needs-input'].includes(detail.job.status) && detail.job;
+      });
+      assert.equal(completed.grammarVerification.matches, true);
+      assert.equal(completed.grammarVerification.regressionsHealthy, scenario === 'healthy');
+      assert.equal(completed.status, scenario === 'healthy' ? 'ready-for-review' : 'needs-input');
+    });
+  }
+});
+
+test('unapproved example changes require review except the explicitly corrected saved passage', async (t) => {
+  for (const scenario of ['target', 'other', 'definition']) {
+    await t.test(scenario, async (t) => {
+      const f = await fixture(t, {
+        interceptRequest(method, params, surface) {
+          if (method !== 'grammar_regression') return undefined;
+          return {
+            engineFingerprint: 'current',
+            sources: {
+              araujo_catecismo_1686: {
+                rows: [
+                  {
+                    ordinal: 90,
+                    codeFingerprint: 'target-expression',
+                    surface: scenario === 'other' ? 'fixed' : surface,
+                  },
+                  {
+                    ordinal: 91,
+                    codeFingerprint: 'other-expression',
+                    surface: scenario === 'other' ? surface : 'fixed',
+                  },
+                ],
+              },
+            },
+          };
+        },
+      });
+      const params = {
+        ...f.params,
+        grammarRepair: {
+          ...f.params.grammarRepair,
+          ...(scenario === 'definition'
+            ? {
+                sharedDefinition: {
+                  name: 'piece',
+                  expectedExpression: 'old',
+                  sourceFingerprint: 'source:definition',
+                },
+              }
+            : {}),
+        },
+      };
+      const job = {
+        id: 'job:scope',
+        projectId: f.project.id,
+        passageId: f.params.passageId,
+        input: await f.repair.capture(params),
+      };
+      const file = await f.repair.call(job, 'grammar_read', { path: 'tupi/tupi/verb.py' });
+      const { verification, rolledBack } = await f.repair.call(job, 'grammar_edit', {
+        path: file.path,
+        expectedHash: file.hash,
+        oldText: 'mororerobiare',
+        newText: 'morerobiare',
+      });
+      assert.equal(rolledBack, undefined);
+      assert.equal(verification.matches, true);
+      assert.equal(verification.comparison.changed.length, 1);
+      assert.equal(verification.unexpectedChanges.length, scenario === 'target' ? 0 : 1);
+      assert.equal(verification.regressionsHealthy, scenario === 'target');
+    });
+  }
+});
+
+test('an identical preexisting source error remains visible without becoming a new coverage regression', async (t) => {
+  const f = await fixture(t, {
+    interceptRequest(method) {
+      if (method !== 'grammar_regression') return undefined;
+      return {
+        engineFingerprint: 'current',
+        sources: {
+          broken: { error: 'preexisting import failure' },
+          source: { rows: [{ ordinal: 1, codeFingerprint: 'same', surface: 'fixed' }] },
+        },
+      };
+    },
+  });
+  const job = await f.job();
+  const check = await f.repair.check(job);
+  assert.deepEqual(check.comparison.sourceChanges, ['broken']);
+  assert.deepEqual(check.coverageChanges, []);
+  assert.deepEqual(check.newEvaluationErrors, []);
+  assert.equal(check.regressionsHealthy, true);
 });
 
 test('failed repair is checked and resumes from compact receipts rather than replaying megabytes of tool history', async (t) => {

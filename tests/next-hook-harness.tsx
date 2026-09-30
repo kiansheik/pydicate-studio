@@ -45,6 +45,11 @@ interface NextControl {
 }
 declare global {
   interface Window {
+    __nextInitial?: {
+      raw?: string;
+      trees?: Record<string, AuthorNode | null>;
+      responses?: Record<string, unknown>;
+    };
     __nextStudio: Studio;
     __nextControl: NextControl;
     __nextInvoke: typeof invoke;
@@ -80,7 +85,7 @@ function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
   };
 }
 const listeners = new Set<(event: unknown) => void>();
-const project = makeProject();
+const project = makeProject('simulated:a', window.__nextInitial?.raw ?? 'alpha');
 if (new URLSearchParams(location.search).has('empty-next')) {
   project.passages[1].sourceExpression = '';
   project.passages[1].witness = {
@@ -112,8 +117,8 @@ const control: NextControl = {
   pending: [],
   holds: [],
   saved: {},
-  responses: {},
-  trees: {},
+  responses: window.__nextInitial?.responses ?? {},
+  trees: window.__nextInitial?.trees ?? {},
   evidence: {},
   setAnalysis(value) {
     analysisFixture = structuredClone(value);
@@ -486,6 +491,33 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       morphemes: [],
       origin: 'engine',
     };
+  if (method === 'lexicon_tree_evaluate') {
+    const raw = String(params.raw);
+    const tree: AuthorNode = structuredClone(control.trees[raw]) ?? {
+      id: 'root',
+      kind: 'reference',
+      label: raw,
+      code: raw,
+      start: 0,
+      end: raw.length,
+      children: [],
+    };
+    tree.evaluation = { status: 'ok', surface: `SIMULADO:${raw}` };
+    return {
+      expression: raw,
+      revisionId: params.revisionId,
+      engineFingerprint: params.engineFingerprint,
+      tree,
+      authoring: { raw, revisionId: params.revisionId, root: tree },
+      treeEdit: (control.responses.lexicon_inspect as { treeEdit?: unknown })?.treeEdit,
+      surface: `SIMULADO:${raw}`,
+      annotated: `SIMULADO:${raw}`,
+      morphemes: [],
+      failures: [],
+      evaluationStatus: 'complete',
+      origin: 'engine',
+    };
+  }
   if (publicationMode && (method === 'source_preview' || method === 'source_new_preview')) {
     const passage = control.project.passages.find((item) => item.id === params.passageId);
     const metadata = (params.metadata ?? {}) as Record<string, unknown>;

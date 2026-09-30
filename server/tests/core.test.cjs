@@ -133,6 +133,8 @@ test('hosted method policy denies new, paid, path and grammar operations', () =>
     for (const method of ['ai_submit', 'analysis_submit', 'parser_lab_prepare', 'source_recover', 'open_project', 'future_new_desktop_method'])
         assert.throws(() => authorizeMethod(method, 'admin'), { code: 'HOSTED_UNAVAILABLE' });
     authorizeMethod('evaluate_expression', 'contributor');
+    authorizeMethod('lexicon_tree_evaluate', 'contributor');
+    authorizeMethod('lexicon_tree_preview', 'contributor');
     authorizeMethod('source_apply', 'reviewer');
 });
 test('worker queue serializes operations and bounds per-user backlog', async () => {

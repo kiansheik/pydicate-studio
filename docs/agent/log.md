@@ -1,3 +1,13 @@
+## 2026-09-30 — Shared tree editing and subtree grammar repair
+
+Added an editable shared-definition canvas inside the imported-piece inspector,
+with exact declaration scope, preserved parent references and reviewed full-corpus
+publication. Grammar repair accepts a validated subtree or unsaved definition,
+checks enclosing/saved trees and corpus after each edit, and withholds readiness
+on unexpected output/reference/coverage changes. Focused real-engine, browser,
+repair and build checks pass; rollout pending. See the
+[handoff](session-handoffs/2026-09-30-shared-tree-editing.md).
+
 ## 2026-09-30 — Remove publication maintenance freezes
 
 Publication now captures saved source bytes immediately with a private index;
@@ -5,7 +15,8 @@ concurrent capture changes fail promptly, later edits remain live, and sparse
 checkout flags and executable-mode review guards are preserved. Removed the
 stalled production export's exact maintenance request without stopping research
 jobs. Added browser maintenance cooldown and lease renewal fixes. 30 operation
-tests and eight bridge/idle tests pass; deployment pending. The earlier rollout's
+tests and eight bridge/idle tests pass. Deployed as `6258328`; the real publication
+command completed in 12.68 seconds without restarting Studio. The earlier rollout's
 health/file checks and mocked maintenance fixtures missed the live freeze. See the
 [handoff](session-handoffs/2026-09-30-instant-git-capture.md).
 

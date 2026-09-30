@@ -67,6 +67,7 @@ import {
   treeOperations,
 } from '../domain/tree-operations';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
+import type { SharedDefinitionTarget } from '../domain/shared-definition';
 import type { RenderResult } from '../domain/types';
 import { track } from '../domain/usage';
 import { useAdvancedTools } from '../domain/preferences';
@@ -97,6 +98,7 @@ export interface ExpressionCanvasProps {
   sourceId?: string;
   revisionId?: string;
   engineFingerprint?: string;
+  sharedDefinition?: SharedDefinitionTarget;
   selectedSourceNodeId?: string;
   onSelectSourceNode?: (id: string) => void;
   onSurfaceHighlight?: (highlight: MorphemeSurfaceHighlight | null) => void;
@@ -170,7 +172,7 @@ export function ExpressionCanvas({
 }: ExpressionCanvasProps) {
   const saved = useMemo(() => canvas ?? emptyCanvas(), [canvas]);
   const orientation = saved.layout ?? 'bottom-up';
-  const evaluationContext = `${props.passageId}:${props.sourceId}:${props.engineFingerprint}`;
+  const evaluationContext = `${props.passageId}:${props.sourceId}:${props.engineFingerprint}:${JSON.stringify(props.sharedDefinition)}`;
   const [fragmentResults, setFragmentResults] = useState<Record<string, FragmentResult>>({});
   const cache = useRef(new Map<string, FragmentResult>());
   const generation = useRef(0);
@@ -222,13 +224,17 @@ export function ExpressionCanvas({
                 [fragment.id]: { ...result, pending: !!parsed.root },
               }));
             if (parsed.root) {
-              const realized = await invoke<RenderResult>('evaluate_expression', {
-                passageId: props.passageId,
-                sourceId: props.sourceId,
-                raw: fragment.raw,
-                revisionId: `piece:${fragment.id}:${ticket}`,
-                engineFingerprint: props.engineFingerprint,
-              });
+              const realized = await invoke<RenderResult>(
+                props.sharedDefinition ? 'lexicon_tree_evaluate' : 'evaluate_expression',
+                {
+                  ...props.sharedDefinition,
+                  passageId: props.passageId,
+                  sourceId: props.sourceId,
+                  raw: fragment.raw,
+                  revisionId: `piece:${fragment.id}:${ticket}`,
+                  engineFingerprint: props.engineFingerprint,
+                },
+              );
               result = { ...result, evaluatedRoot: realized.tree, failures: realized.failures };
             }
           } catch (reason) {
@@ -250,7 +256,13 @@ export function ExpressionCanvas({
       current = false;
       clearTimeout(timer);
     };
-  }, [fragmentSignature, props.passageId, props.sourceId, props.engineFingerprint]);
+  }, [
+    fragmentSignature,
+    props.passageId,
+    props.sourceId,
+    props.engineFingerprint,
+    JSON.stringify(props.sharedDefinition),
+  ]);
 
   const pieces = useMemo<Piece[]>(() => {
     const mainGraph = authoringRoot ? expressionGraph(authoringRoot, raw, evaluatedRoot) : null;
@@ -1703,6 +1715,7 @@ export function ExpressionCanvas({
       className="runtime-tree expression-tree expression-canvas"
       aria-label="Árvore de operações Pydicate"
       onKeyDown={(event) => {
+        if ((event.target as Element).closest('.expression-canvas') !== event.currentTarget) return;
         if (event.key === 'Escape') {
           event.preventDefault();
           if (
@@ -2367,6 +2380,7 @@ export function ExpressionCanvas({
                   : 'A prévia mostra a peça inteira com a alteração na parte selecionada.'}
             </p>
             <OperationPreview
+              sharedDefinition={props.sharedDefinition}
               raw={operationPreview.raw}
               pendingMessage={operationPreview.message}
               passageId={props.passageId}
@@ -2424,6 +2438,7 @@ export function ExpressionCanvas({
               </p>
             )}
             <OperationPreview
+              sharedDefinition={props.sharedDefinition}
               raw={removalPreview.raw}
               pendingMessage={removalPreview.message}
               passageId={props.passageId}
@@ -2511,6 +2526,7 @@ export function ExpressionCanvas({
               dela.
             </p>
             <OperationPreview
+              sharedDefinition={props.sharedDefinition}
               raw={combinationPreview.raw}
               pendingMessage={combinationPreview.message}
               passageId={props.passageId}
@@ -2640,6 +2656,8 @@ export function ExpressionCanvas({
                 revisionId={props.revisionId}
                 engineFingerprint={props.engineFingerprint}
                 onPreview={props.onLexicalPreview}
+                onPrepareDiagnostic={props.onPrepareDiagnostic}
+                definitionContext={props.sharedDefinition}
                 onCopy={(replacement) =>
                   commit({
                     type: 'replace',
@@ -2682,6 +2700,7 @@ export function ExpressionCanvas({
           {advanced &&
             (selectedRoot && selectedScope ? (
               <TreeScopeEditor
+                sharedDefinition={props.sharedDefinition}
                 revealOperation
                 node={selectedNode}
                 authoringRoot={selectedRoot}

@@ -6,12 +6,12 @@ const { fault, identifier } = require('./store.cjs');
 // Deliberately NOT the entire desktop bridge. New desktop methods stay denied.
 const READ = new Set(`corpus_health render learning_library parse_expression evaluate_expression predicate_catalog
 predicate_create composition_define node_definition source_preview source_new_preview source_create
-lexicon_search structure_prepare structure_search structure_resolve lexicon_inspect lexicon_create lexicon_update
+lexicon_search structure_prepare structure_search structure_resolve lexicon_inspect lexicon_create lexicon_update lexicon_tree_evaluate lexicon_tree_preview
 dictionary_search dictionary_lookup dictionary_entry_get dictionary_predicate assistant_context
 reference_verify reference_status passage_lexicon evidence_status evidence_bytes evidence_save
 lexical_notes_list lexical_notes_save lexical_notes_export`.split(/\s+/));
 const REVIEW = new Set(['source_apply', 'reference_approve', 'contribution_prepare']);
-const PREVIEW = new Set(['source_preview', 'source_new_preview', 'lexicon_create', 'lexicon_update', 'composition_define']);
+const PREVIEW = new Set(['source_preview', 'source_new_preview', 'lexicon_create', 'lexicon_update', 'lexicon_tree_preview', 'composition_define']);
 function authorizeMethod(method, role, aiEnabled = false) {
     if (aiEnabled && AI.has(method)) return;
     if (!READ.has(method) && !REVIEW.has(method))

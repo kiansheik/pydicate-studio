@@ -59,7 +59,8 @@ import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayou
 import { PassageLexicon } from './components/PassageLexicon';
 import { PassageSolver } from './components/PassageSolver';
 import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
-import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
+import { diagnosticTarget, type CanvasDiagnostic } from './domain/grammar-diagnostic';
+import { aiSelection } from './domain/ai';
 import { DraftArchive } from './components/DraftArchive';
 import { track } from './domain/usage';
 import './workbench.css';
@@ -2240,13 +2241,20 @@ export default function App() {
       {projectDialog && <ProjectDialog studio={studio} close={() => setProjectDialog(false)} />}
       {grammarReport && (
         <GrammarDiagnosticDialog
-          key={`${project.id}:${passage.id}:${grammarReport.revisionId}:${grammarReport.fragmentId ?? 'main'}`}
+          key={`${project.id}:${passage.id}:${grammarReport.revisionId}:${grammarReport.fragmentId ?? 'main'}:${grammarReport.selectedNodeId}:${grammarReport.sharedDefinition?.name ?? ''}`}
           project={project}
           passage={passage}
           report={grammarReport}
           onClose={() => setGrammarReport(null)}
           onRefresh={studio.refresh}
           onSubmit={async (request) => {
+            const target = diagnosticTarget(grammarReport);
+            const selectedNode =
+              target.id !== grammarReport.root.id
+                ? (aiSelection(target, grammarReport.raw) ?? undefined)
+                : undefined;
+            if (target.id !== grammarReport.root.id && !selectedNode)
+              throw new Error('O trecho selecionado mudou. Reabra a correção nesta árvore.');
             await flushLexicalNotes(project.id);
             const notebook = await invoke<{ records: LexicalNote[] }>('lexical_notes_list', {
               projectId: project.id,
@@ -2263,7 +2271,7 @@ export default function App() {
               revisionId: grammarReport.revisionId,
               operationId: `${request.operationId}:${noteSnapshot}`,
               task: request.mode === 'engine' ? 'grammar-repair' : 'analyze',
-              scope: 'passage',
+              scope: selectedNode || grammarReport.sharedDefinition ? 'constituent' : 'passage',
               newConversation: true,
               ...(request.mode === 'engine'
                 ? {
@@ -2272,9 +2280,12 @@ export default function App() {
                       raw: grammarReport.raw,
                       revisionId: grammarReport.revisionId,
                       fragmentId: grammarReport.fragmentId,
+                      selectedNode,
+                      sharedDefinition: grammarReport.sharedDefinition,
                     },
                   }
                 : {
+                    selectedNode,
                     description: `Forma pretendida: ${request.intendedSurface}\n\n${request.explanation}\n\nInvestigue como completar ou ajustar a árvore atual para essa análise.`,
                   }),
             });

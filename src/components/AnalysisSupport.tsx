@@ -1584,7 +1584,8 @@ export function AnalysisSupport({
               {job.grammarVerification && (
                 <section className="grammar-verification" aria-label="Verificação da correção">
                   <strong>
-                    {job.grammarVerification.matches
+                    {job.grammarVerification.matches &&
+                    job.grammarVerification.regressionsHealthy !== false
                       ? 'Forma pretendida obtida'
                       : 'Resultado da verificação'}
                   </strong>
@@ -1593,6 +1594,20 @@ export function AnalysisSupport({
                   ) : (
                     <>
                       <p lang="tpw">{job.grammarVerification.surface || 'Sem resultado'}</p>
+                      {job.grammarVerification.regressionsHealthy === false && (
+                        <p role="alert">
+                          A correção ainda precisa de revisão: a árvore completa ou outras passagens
+                          apresentaram novas diferenças.
+                        </p>
+                      )}
+                      {job.grammarVerification.parent && (
+                        <p>
+                          Árvore completa:{' '}
+                          <strong lang="tpw">
+                            {job.grammarVerification.parent.surface || 'Sem resultado completo'}
+                          </strong>
+                        </p>
+                      )}
                       {!job.grammarVerification.matches && (
                         <p>Forma pretendida: {job.grammarVerification.intendedSurface}</p>
                       )}
@@ -1602,7 +1617,8 @@ export function AnalysisSupport({
                             {job.grammarVerification.comparison.checked} expressões verificadas ·{' '}
                             {job.grammarVerification.comparison.changed.length} alteradas ·{' '}
                             {job.grammarVerification.comparison.baselineIssues} divergências
-                            anteriores
+                            anteriores · {job.grammarVerification.comparison.newReferenceIssues}{' '}
+                            novas divergências em referências
                           </p>
                           {!!job.grammarVerification.comparison.sourceChanges.length && (
                             <p role="alert">

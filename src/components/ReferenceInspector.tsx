@@ -4,6 +4,9 @@ import { invoke, type SourcePreview } from '../domain/authoring';
 import type { RuntimeGraph } from '../domain/runtime-tree';
 import { RuntimeTree } from './RuntimeTree';
 import { OperationPreview } from './OperationPreview';
+import { SharedTreeEditor } from './SharedTreeEditor';
+import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
+import type { SharedDefinitionTarget, SharedTreeTarget } from '../domain/shared-definition';
 
 interface ReferenceInfo {
   name: string;
@@ -12,6 +15,7 @@ interface ReferenceInfo {
   sourcePath: string;
   line: number;
   runtimeTree?: RuntimeGraph;
+  treeEdit?: SharedTreeTarget;
   safeOccurrenceExpansion?: string | null;
   projectUses?: {
     uses: {
@@ -36,6 +40,8 @@ export function ReferenceInspector(props: {
   onCopy: (raw: string) => void;
   onDefinition: (definition: string) => Promise<void>;
   onPreview?: (preview: SourcePreview) => void;
+  onPrepareDiagnostic?: (report: CanvasDiagnostic) => void;
+  definitionContext?: SharedDefinitionTarget;
 }) {
   const identity = JSON.stringify([
     props.name,
@@ -43,6 +49,7 @@ export function ReferenceInspector(props: {
     props.sourceId,
     props.revisionId,
     props.engineFingerprint,
+    props.definitionContext,
   ]);
   const [state, setState] = useState<{ identity: string; info?: ReferenceInfo; error?: string }>({
     identity,
@@ -51,6 +58,7 @@ export function ReferenceInspector(props: {
   const [scope, setScope] = useState('occurrence');
   const [busy, setBusy] = useState(false);
   const [copy, setCopy] = useState(false);
+  const [editingTree, setEditingTree] = useState(false);
   const activeIdentity = useRef<string | null>(identity);
   activeIdentity.current = identity;
   useEffect(() => {
@@ -66,6 +74,7 @@ export function ReferenceInspector(props: {
       sourceId: props.sourceId,
       revisionId: props.revisionId,
       engineFingerprint: props.engineFingerprint,
+      definitionContext: props.definitionContext,
     })
       .then((info) => {
         if (active) {
@@ -92,7 +101,24 @@ export function ReferenceInspector(props: {
       {info && (
         <>
           <p>{info.definition || 'Significado não informado.'}</p>
-          {info.runtimeTree && (
+          {props.onPreview && info.treeEdit?.editable && !editingTree && (
+            <button onClick={() => setEditingTree(true)}>Editar árvore compartilhada</button>
+          )}
+          {info.treeEdit && !info.treeEdit.editable && <p>{info.treeEdit.reason}</p>}
+          {editingTree && info.treeEdit?.editable && props.onPreview && (
+            <SharedTreeEditor
+              target={info.treeEdit}
+              sourcePath={info.sourcePath}
+              passageId={props.passageId}
+              sourceId={props.sourceId}
+              revisionId={props.revisionId}
+              engineFingerprint={props.engineFingerprint}
+              onPreview={props.onPreview}
+              onPrepareDiagnostic={props.onPrepareDiagnostic}
+              onClose={() => setEditingTree(false)}
+            />
+          )}
+          {!editingTree && info.runtimeTree && (
             <RuntimeTree
               graph={info.runtimeTree}
               status="Estrutura do objeto compartilhado · consulta"
@@ -145,6 +171,7 @@ export function ReferenceInspector(props: {
                 os nomes dos constituintes continuam ligados às respectivas entradas do léxico.
               </p>
               <OperationPreview
+                sharedDefinition={props.definitionContext}
                 raw={info.safeOccurrenceExpansion}
                 passageId={props.passageId}
                 sourceId={props.sourceId}

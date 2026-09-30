@@ -126,6 +126,13 @@
 - `src/components/ReferenceInspector.tsx`: selected-reference runtime tree, source and project usage list, verified occurrence copy and local/shared meanings through the existing review callback.
 - `python/reference_expansion.py`: bounded nested compound/alias copies verified against current runtime shape, including explicit meaning-only overrides.
 - `python/reference_uses.py`: read-only AST dependency candidates across historic sources, preserving declaration identity through aliases and later name rebinding.
+- `python/shared_definition.py`, `authoring_service.py`: named declaration tree
+  inspection, bounded unsaved evaluation in the original declaration namespace,
+  nested reference context and exact-source guarded RHS previews. Shared edits
+  use the complete disposable-corpus regression and existing reviewed apply;
+  `python/tests/test_shared_definition.py` covers real-engine cross-source and
+  shadowed-name behavior. Desktop and hosted allowlists expose
+  `lexicon_tree_evaluate` / `lexicon_tree_preview` without a separate write path.
 
 - `python/passage_insertion.py`: source-local insertion, stable identity pinning, inherited locator preservation and reference relocation.
 - `python/passage_references.py`: merged sparse approvals, contiguous legacy JSONL projection, portable companion and verification. `reviewed_files.py` includes creation/rollback of new companion files.

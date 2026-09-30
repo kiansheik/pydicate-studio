@@ -979,7 +979,7 @@ function createAnalysisService({
           value.summary = String(result.text ?? result.summary ?? '');
           value.usage = result.usage ?? {};
           value.status = value.input.grammarRepair
-            ? value.grammarVerification?.matches
+            ? value.grammarVerification?.matches && value.grammarVerification?.regressionsHealthy
               ? 'ready-for-review'
               : 'needs-input'
             : value.candidateIds.some((id) => state.candidates[id]?.status === 'proposed')
@@ -994,7 +994,9 @@ function createAnalysisService({
           if (value.status === 'needs-input' && !value.questions.length)
             value.questions.push({
               text: value.input.grammarRepair
-                ? 'A forma ainda precisa de revisão. Confira o resultado e acrescente uma orientação para continuar.'
+                ? value.grammarVerification?.matches
+                  ? 'A forma pretendida foi obtida, mas a regressão ainda precisa de revisão. Confira as linhas alteradas e acrescente uma orientação para continuar.'
+                  : 'A forma ainda precisa de revisão. Confira o resultado e acrescente uma orientação para continuar.'
                 : 'A tentativa não produziu uma proposta avaliada. Revise a resposta e acrescente uma orientação para continuar.',
             });
           value.phase = value.status;
