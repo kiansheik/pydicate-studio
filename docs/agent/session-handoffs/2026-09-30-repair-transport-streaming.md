@@ -85,8 +85,20 @@ tool results remain rejected.
   and correct rollback activity. Its read-only harness blocked an automatic
   scroll-position preference save; no research/provider operation ran. The first
   harness's blanket no-write assertion flagged that expected preference attempt;
-  it now distinguishes only that exact scroll-only payload. Final follow-up and
-  health results remain to record.
+  it now distinguishes only that exact scroll-only payload, including the bridge's
+  pending-passage `beforePassageId` routing metadata.
+  The corrected final browser check passes with no page errors and only that
+  intentionally blocked preference write; the screenshot was visually inspected.
+- Final paragraph follow-up `771344f629326e44bd3f1db3d0a9e40b91a6a49b` deployed
+  in 52.5s; checkpoint `20260930T231209-840e45`. Exact research/evidence hash parity
+  passes again. Inside the deployed Linux container the synthetic interrupted-write
+  repro produces 65,537 invalid bytes with old `print()` and 2,097,214 valid bytes
+  with the fixed writer. No corpus data enters that stress test.
+- Final read-only health: three sources, 154 lines, zero divergences/failures,
+  seven pending drafts, 321 morphemes, no active repairs; 2.788 seconds.
+  Runtime image/health independently checked. Deployment space came from removing
+  four explicitly named, unused older app images; current/recent rollback images,
+  all research volumes and backups were retained.
 
 ## What worked / what failed
 

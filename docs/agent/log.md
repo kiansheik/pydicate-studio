@@ -11,6 +11,12 @@ The reported pluriform patch passes in a disposable copy with all 154 corpus
 outputs/annotations unchanged; production grammar and provider jobs are untouched.
 See [handoff](session-handoffs/2026-09-30-repair-transport-streaming.md).
 
+Final release `771344f` is live (52.5s follow-up after the 52.7s main rollout).
+It also preserves paragraph boundaries between separate assistant blocks.
+The deployed synthetic signal test reproduces truncation with the old writer
+and complete output with the fix. All 145 research files and six evidence files
+retain exact hashes; live health passes 154 lines, zero divergences/failures.
+
 ## 2026-09-30 — Autosave PDF regions
 
 Remove the manual region-save button; debounce completed edits and keep queued

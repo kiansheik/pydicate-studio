@@ -1,6 +1,6 @@
 # Current state
 
-## Grammar repair transport, streaming and repeated work
+## Grammar repair transport, streaming and repeated work (live)
 
 The reported pluriform repair repeatedly rolled back with malformed Python JSON
 during `open_project`. Unbuffered Python output can legally write only a prefix;
@@ -22,8 +22,11 @@ check under the same lease while rejecting late tool results.
 The exact proposed `pûera * eo` correction was tested only in disposable live-code
 copies: `te'õmbûera`, full tree `te'õmbûeratyma`, both possessive orders unchanged,
 154 corpus expressions unchanged. No shared linguistic correction or new provider
-attempt was applied. Main release `d9f75a8` is live with exact research/evidence
-hash parity; paragraph-boundary follow-up deployment remains pending. See
+attempt was applied. Final release `771344f629326e44bd3f1db3d0a9e40b91a6a49b`
+is live (52.5s follow-up), with exact parity for 145 research files and all six
+evidence manifests/PDFs. The real interrupted-write reproduction also passes
+inside the deployed container. Fresh health: 154 lines, zero divergences/failures,
+seven pending, 321 morphemes, no active repairs. See
 [handoff](session-handoffs/2026-09-30-repair-transport-streaming.md).
 
 ## Automatic region saves (live)
