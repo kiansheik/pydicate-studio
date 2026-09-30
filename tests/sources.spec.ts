@@ -64,9 +64,7 @@ test('create a source, write its first reading, reload, switch sources and appen
   );
   await page.locator('.add-next-passage').click();
   await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0002');
-  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
-    'Minha primeira leitura',
-  );
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('');
   await page
     .getByRole('combobox', { name: 'Fonte', exact: true })
     .selectOption('araujo_catecismo_1686');
@@ -77,6 +75,7 @@ test('create a source, write its first reading, reload, switch sources and appen
     .getByRole('combobox', { name: 'Fonte', exact: true })
     .selectOption('manuscrito_de_sao_luis');
   await expect(page.locator('.passage-item')).toHaveCount(2);
+  await expect(page.locator('.breadcrumbs strong')).toHaveText('Passagem 0001');
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue(
     'Minha primeira leitura',
   );
