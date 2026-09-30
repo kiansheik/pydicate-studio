@@ -1,3 +1,14 @@
+## 2026-09-30 — Revision identity race and admin reservations
+
+Confirmed a successful source publication followed by another browser's
+canonical autosave before client-side pending cleanup. One UUID appeared twice
+at positions 115 and 119; both trees realize identical text and annotations.
+Move publication finalization to the server, preserve visible order and editing
+metadata, adopt receipts in clients, reject retired-ID resurrection, and allow
+admins to take over reservations. Exact-version recovery retains history and
+refuses conflicting canonical edits. See
+[handoff](session-handoffs/2026-09-30-revision-identity-race.md).
+
 ## 2026-09-30 — Reuse definitions and navigate sections
 
 Persistent bordered tree tabs; complete shared-definition search and dependency

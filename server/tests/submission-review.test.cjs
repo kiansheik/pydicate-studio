@@ -8,7 +8,8 @@ const { randomUUID } = require('node:crypto');
 const { createTestStore } = require('./helpers.cjs');
 const { Submissions } = require('../submissions.cjs');
 const { createSubmissionReview } = require('../submission-review.cjs');
-async function setup(t) {
+const { capturePublication, finalizePublication } = require('../publication-finalization.cjs');
+async function setup(t, hostedFinalization = false) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-review-'));
   const store = await createTestStore(dir, { passageClaims: false });
   t.after(async () => {
@@ -80,19 +81,27 @@ async function setup(t) {
     if (method === 'evidence_status') return structuredClone(evidence);
     if (method === 'source_preview' || method === 'source_new_preview') {
       const previewId = randomUUID();
-      previews.set(previewId, params.newPassageId || params.passageId);
+      previews.set(previewId, {
+        id: params.newPassageId || params.passageId,
+        publication: hostedFinalization && method === 'source_new_preview'
+          ? await capturePublication(store, project, params) : null,
+      });
       return { previewId, diff: '+new', sourceFingerprint: 'file', raw: 'new' };
     }
     if (method === 'source_apply') {
-      const id = previews.get(params.previewId);
-      state.applied.push(id);
-      let target = project.passages.find((p) => p.id === id);
-      if (!target) {
-        target = { id, sourceId: 'source', sourceExpression: 'new', sourceFingerprint: 'new' };
-        project.passages.push(target);
-      }
-      Object.assign(target, { sourceExpression: 'new', sourceFingerprint: 'new' });
-      return project;
+      const { id, publication } = previews.get(params.previewId);
+      const apply = async () => {
+        state.applied.push(id);
+        let target = project.passages.find((p) => p.id === id);
+        if (!target) {
+          target = { id, sourceId: 'source', sourceExpression: 'new', sourceFingerprint: 'new' };
+          project.passages.push(target);
+        }
+        Object.assign(target, { sourceExpression: 'new', sourceFingerprint: 'new' });
+        return project;
+      };
+      return publication ? finalizePublication({ store, project, receipt: publication,
+        publishedRaw: 'new', apply, user: admin, clientId: 'admin-tab' }) : apply();
     }
     if (method === 'reference_approve') {
       if (state.approvalError) throw new Error('reference failed');
@@ -184,8 +193,8 @@ test('a chosen physical page can be reviewed without inventing saved crop eviden
   assert.equal(f.evidence.passage, null);
 });
 
-test('publishing a pending passage adopts its canonical identity and preserves sibling insertion links', async (t) => {
-  const f = await setup(t),
+for (const hostedFinalization of [false, true]) test(`publishing a pending passage adopts its canonical identity and preserves sibling insertion links (hosted finalizer: ${hostedFinalization})`, async (t) => {
+  const f = await setup(t, hostedFinalization),
     id = 'pending:' + randomUUID(),
     sibling = 'pending:' + randomUUID();
   const base = (await f.store.snapshot(f.project.id)).envelope.drafts['passage:a'];
@@ -225,5 +234,8 @@ test('publishing a pending passage adopts its canonical identity and preserves s
   const canonical = id.replace('pending:', 'passage:');
   assert.equal(result.envelope.drafts[id], undefined);
   assert.equal(result.envelope.drafts[canonical].pending, undefined);
+  assert.equal(result.envelope.drafts[canonical].revisionId, draft.revisionId);
+  assert.equal(result.envelope.drafts[canonical].workflow.stage, 'complete');
   assert.equal(result.envelope.drafts[sibling].pending.previousPassageId, canonical);
+  if (hostedFinalization) assert.equal(result.envelope.drafts[canonical].organization.position, 2);
 });

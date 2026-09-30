@@ -1,5 +1,23 @@
 # Current state
 
+## Revision publication identity and ordering
+
+The reported `oîkotebẽba'emoapysyka` duplicate is one UUID left under both
+pending and canonical identities after publication raced another browser's
+autosave. Both expressions have identical complete surfaces and annotations;
+the corpus contains only one source record. Fresh inspection: 154 source lines,
+zero divergences/failures. Reservations were already disabled in production.
+
+Hosted publication now migrates draft identity and retains the visible order
+inside the server write transaction before sending source-change events.
+Clients adopt returned versions instead of attempting a second migration;
+retired pending identities cannot be revived by stale tabs. Admins override
+reservations using their current database role, with attributed history.
+Real stale-version guards remain. Focused PostgreSQL, HTTP and browser checks
+cover the publication/autosave race and exact-version legacy recovery.
+Deployment and recovery verification are in progress; see
+[handoff](session-handoffs/2026-09-30-revision-identity-race.md).
+
 ## Definition reuse, persistent tabs and passage accordions (live)
 
 Release `3aee95d10afacec596179d28039885a910fbd79c` is live from PR #16.

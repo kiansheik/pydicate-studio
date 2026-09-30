@@ -63,6 +63,19 @@ export interface StudioSource {
   passageCount?: number;
 }
 export interface StudioProject {
+  /** A hosted publication commits draft identity before notifying other clients. */
+  draftPublication?: {
+    receiptId?: string;
+    projectId: string;
+    storageRevision: number;
+    changes: {
+      id: string;
+      version: number;
+      draft: Draft | null;
+      expectedRevisionId?: string | null;
+      expectedDraft?: Draft | null;
+    }[];
+  };
   id: string;
   name: string;
   mode: 'example' | 'local';
@@ -187,6 +200,7 @@ export interface StudioBridge {
   onEvent?(listener: (event: any) => void): () => void;
   openProject(): Promise<StudioProject | null>;
   refreshProject(): Promise<StudioProject>;
+  acknowledgeDraftPublication?(receiptId: string, ids: string[]): string[];
   render(request: RenderRequest): Promise<RenderResult>;
   loadDrafts(projectId: string): Promise<DraftEnvelope | null>;
   saveDrafts(envelope: DraftEnvelope): Promise<void | { storageRevision: number }>;

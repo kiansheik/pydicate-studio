@@ -111,6 +111,19 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     assert.equal((await store.db.prepare("SELECT user_id FROM revisions").get()).user_id, 'contributor');
     const stale = await post('/api/drafts', { projectId: project.id, changes: [{ id: 'passage:a', version: 1, draft }] }, user);
     assert.equal(stale.status, 409);
+    // The administrator can save over an active reservation, including one from
+    // their own other tab. Actual stale content remains a separate conflict.
+    const adminDraft = { ...draft, raw: 'admin correction' };
+    const adminSave = await post('/api/drafts', { projectId: project.id,
+        changes: [{ id: 'passage:a', version: 2, draft: adminDraft }] }, admin, { 'X-Studio-Client': 'admin-first-tab' });
+    assert.equal(adminSave.status, 200);
+    const adminOtherTab = await post('/api/drafts', { projectId: project.id,
+        changes: [{ id: 'passage:a', version: 3, draft: { ...adminDraft, raw: 'next admin correction' } }] }, admin, { 'X-Studio-Client': 'admin-second-tab' });
+    assert.equal(adminOtherTab.status, 200);
+    const adminStale = await post('/api/drafts', { projectId: project.id,
+        changes: [{ id: 'passage:a', version: 2, draft: adminDraft }] }, admin);
+    assert.equal(adminStale.status, 409);
+    assert.equal((await adminStale.json()).error.code, 'DRAFT_CONFLICT');
     await post('/api/usage', { event: 'editor.batch', passageId: 'passage:a', userId: 'admin', details: { password: 'never store this', text: 'private text' } }, user);
     const telemetry = await store.db.prepare("SELECT * FROM audit WHERE origin='browser'").get();
     assert.equal(telemetry.user_id, 'contributor');

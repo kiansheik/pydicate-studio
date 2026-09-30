@@ -45,6 +45,52 @@ test('claims isolate users and tabs, expire and can be released only by their ow
     await store.assertClaim('passage:a', b, 'second-tab', true);
     assert.equal((await store.claimList())[0].userId, 'b');
 });
+test('administrators take over reservations across users and tabs while draft versions stay guarded', async (t) => {
+    const { store, user } = await fixture(t), contributor = await user('writer'), admin = await user('owner', 'admin');
+    await store.assertClaim('pending:a', contributor, 'writer-tab', true);
+    const original = await store.snapshot('project:test');
+    await store.patch('project:test', [changed(original, 'passage:a', 'admin correction')], admin, 'admin-tab-one');
+    assert.equal((await store.claimList())[0].userId, admin.id);
+    await assert.rejects(store.patch('project:test', [changed(original, 'passage:a', 'stale admin correction')], admin, 'admin-tab-two'), { code: 'DRAFT_CONFLICT' });
+    assert.equal((await store.claimList())[0].clientId, 'admin-tab-one');
+    const current = await store.snapshot('project:test');
+    await store.patch('project:test', [changed(current, 'passage:a', 'new admin correction')], admin, 'admin-tab-two');
+    assert.equal((await store.claimList())[0].clientId, 'admin-tab-two');
+    assert.equal((await store.snapshot('project:test')).envelope.drafts['passage:a'].raw, 'new admin correction');
+    await assert.rejects(store.assertClaim('passage:a', contributor, 'writer-tab', true), { code: 'PASSAGE_BUSY' });
+    const overrides = (await store.db.query("SELECT user_id,passage_id,metadata FROM audit WHERE event='passage.claim.override' ORDER BY id")).rows;
+    assert.equal(overrides.length, 2);
+    assert.equal(overrides[0].user_id, admin.id);
+    assert.equal(overrides[0].passage_id, 'passage:a');
+    assert.equal(overrides[0].metadata.previousUserId, contributor.id);
+    assert.equal(overrides[1].metadata.previousClientId, 'admin-tab-one');
+    assert.equal((await store.db.query('SELECT id FROM revisions')).rows.length, 2);
+});
+test('administrator reservation override uses current authenticated database role, never caller claims', async (t) => {
+    const { store, user } = await fixture(t), writer = await user('writer'), actor = await user('actor');
+    await store.assertClaim('passage:a', writer, 'writer-tab', true);
+    await assert.rejects(store.assertClaim('passage:a', { ...actor, role: 'admin' }, 'actor-tab', true), { code: 'PASSAGE_BUSY' });
+    await store.db.query("UPDATE users SET role='admin' WHERE id=$1", [actor.id]);
+    await store.assertClaim('passage:a', actor, 'actor-tab', true);
+    await store.release('passage:a', actor, 'actor-tab');
+    await store.assertClaim('passage:a', writer, 'writer-tab', true);
+    await store.db.query("UPDATE users SET role='reviewer' WHERE id=$1", [actor.id]);
+    await assert.rejects(store.assertClaim('passage:a', { ...actor, role: 'admin' }, 'actor-tab', true), { code: 'PASSAGE_BUSY' });
+    await store.db.query("UPDATE users SET role='admin',disabled=1 WHERE id=$1", [actor.id]);
+    await assert.rejects(store.assertClaim('passage:a', { ...actor, role: 'admin' }, 'actor-tab', true), { code: 'SESSION_EXPIRED' });
+    assert.equal((await store.claimList())[0].userId, writer.id);
+});
+test('failed administrator patch rolls back reservation takeover and its audit atomically', async (t) => {
+    const { store, user } = await fixture(t), writer = await user('writer'), admin = await user('owner', 'admin');
+    await store.assertClaim('passage:a', writer, 'writer-tab', true);
+    const original = await store.snapshot('project:test');
+    await assert.rejects(store.patch('project:test', [changed(original, 'passage:a', 'first'),
+        { ...changed(original, 'passage:b', 'second'), version: 99 }], admin, 'admin-tab'), { code: 'DRAFT_CONFLICT' });
+    assert.equal((await store.claimList())[0].userId, writer.id);
+    assert.equal((await store.snapshot('project:test')).envelope.drafts['passage:a'].raw, 'amen');
+    assert.equal((await store.db.query("SELECT id FROM audit WHERE event='passage.claim.override'")).rows.length, 0);
+    assert.equal((await store.db.query('SELECT id FROM revisions')).rows.length, 0);
+});
 test('atomic patches roll back every passage and strip forged AI receipts', async (t) => {
     const { store, user } = await fixture(t), a = await user('a'), base = await store.snapshot('project:test');
     const edit = changed(base, 'passage:a', 'valid');

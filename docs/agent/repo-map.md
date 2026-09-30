@@ -8,6 +8,11 @@
 
 ## Hosted collaboration and deployment
 
+- `server/publication-finalization.cjs`: binds pending publication to the saved
+  version/content, migrates to canonical identity with visible order preserved
+  before notifications, and provides explicit hash-bound administrative recovery.
+  `bridge.js` and `useStudio` adopt only acknowledged publication/refresh versions;
+  dirty sibling drafts retain concurrency guards.
 - `scripts/collab/publication.py`, `host.py`, `ops.py`: immediate saved-byte Git
   snapshot without maintenance; content/mode review guards, private index retaining
   sparse flags, preserved later edits, incremental bundle, private partial cache

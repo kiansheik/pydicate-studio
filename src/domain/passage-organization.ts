@@ -1,16 +1,23 @@
 import type { DraftEnvelope, Passage } from './types';
 
-/** Apply shared list order, then insert new unranked drafts at their stable anchors. */
+/** Apply shared list order, then insert unranked pending rows at their anchors. */
 export function organizePassages(passages: Passage[], envelope: DraftEnvelope): Passage[] {
   const result: Passage[] = [];
   for (const sourceId of new Set(passages.map((p) => p.sourceId))) {
     const source = passages.filter((p) => p.sourceId === sourceId);
-    const organization = (p: Passage) => envelope.drafts[p.id]?.organization;
+    const organization = (p: Passage) =>
+      envelope.drafts[p.id]?.organization ??
+      envelope.drafts[p.id.replace(/^passage:/, 'pending:')]?.organization;
     if (!source.some((p) => organization(p))) {
       result.push(...source);
       continue;
     }
-    const pending = source.filter((p) => p.id.startsWith('pending:') && !organization(p));
+    const pendingDraft = (p: Passage) =>
+      envelope.drafts[p.id]?.pending ??
+      envelope.drafts[p.id.replace(/^passage:/, 'pending:')]?.pending;
+    const pending = source.filter(
+      (p) => !organization(p) && (p.id.startsWith('pending:') || pendingDraft(p)),
+    );
     const ordered = source
       .filter((p) => !pending.includes(p))
       .sort(
@@ -21,7 +28,11 @@ export function organizePassages(passages: Passage[], envelope: DraftEnvelope): 
     const waiting = [...pending];
     for (let attempts = 0; waiting.length && attempts <= waiting.length; attempts++) {
       const item = waiting.shift()!;
-      const before = envelope.drafts[item.id]?.pending?.beforePassageId;
+      const anchor = pendingDraft(item)?.beforePassageId;
+      const before =
+        anchor && !source.some((p) => p.id === anchor)
+          ? anchor.replace(/^pending:/, 'passage:')
+          : anchor;
       if (before && waiting.some((p) => p.id === before) && attempts < waiting.length) {
         waiting.push(item);
         continue;

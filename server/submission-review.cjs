@@ -240,8 +240,13 @@ function createSubmissionReview({ store, getProject, invoke }) {
             'PUBLISHED_PASSAGE_MISSING',
             'A fonte mudou, mas a passagem não foi localizada. Recarregue antes de continuar.',
           );
+        // Hosted publication already migrates the UUID and anchors while holding
+        // this transaction's write lock. Do not repeat that migration using the
+        // pre-publication versions; only record the subsequent review outcome.
+        const finalized = !!project.draftPublication;
+        const saved = finalized ? await store.snapshot(project.id) : item.saved;
         const updated = {
-          ...item.draft,
+          ...(finalized ? saved.envelope.drafts[target.id] : item.draft),
           passageId: target.id,
           raw: target.sourceExpression,
           sourceFingerprint: target.sourceFingerprint,
@@ -266,9 +271,9 @@ function createSubmissionReview({ store, getProject, invoke }) {
           error = reason.message;
         }
         const changes = [
-          { id: target.id, version: item.saved.versions[target.id] || 0, draft: updated },
+          { id: target.id, version: saved.versions[target.id] || 0, draft: updated },
         ];
-        if (item.key !== target.id) {
+        if (!finalized && item.key !== target.id) {
           changes.unshift({ id: item.key, version: item.saved.versions[item.key], draft: null });
           for (const [id, draft] of Object.entries(item.saved.envelope.drafts)) {
             if (id === item.key || !draft.pending) continue;

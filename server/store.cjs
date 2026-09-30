@@ -28,6 +28,19 @@ function stable(value) {
 const same = (a, b) => stable(a) === stable(b);
 const CLAIM_MS = 120000;
 const passageKey = id => identifier(id).replace(/^pending:/, 'passage:');
+function sourceDraft(passage, now = Date.now()) {
+    return {
+        passageId: passage.id, revisionId: randomUUID(), sourceFingerprint: passage.sourceFingerprint,
+        raw: passage.sourceExpression, diplomatic: passage.diplomatic, normalized: passage.normalized,
+        translation: passage.translation, notes: passage.notes, analysis: passage.analysis ?? null,
+        updatedAt: new Date(now).toISOString(),
+        locators: { printedPage: passage.witness.printedPage ?? '', folio: passage.witness.folio ?? '',
+            line: passage.witness.textualLine == null ? '' : String(passage.witness.textualLine),
+            section: passage.witness.section ?? '', subsection: passage.witness.subsection ?? '',
+            ...(passage.witness.prayerName != null ? { prayerName: passage.witness.prayerName } : {}) },
+        ...(passage.translations ? { translations: passage.translations } : {}),
+    };
+}
 class Store {
     static async open(directory, options = {}) {
         const store = new Store(directory, options);
@@ -57,17 +70,7 @@ class Store {
             await this.db.prepare("INSERT INTO projects(id) VALUES($1) ON CONFLICT DO NOTHING").run(project.id);
             const put = this.db.prepare("INSERT INTO drafts VALUES($1,$2,1,$3) ON CONFLICT DO NOTHING");
             for (const passage of project.passages) {
-                const draft = {
-                    passageId: passage.id, revisionId: randomUUID(), sourceFingerprint: passage.sourceFingerprint,
-                    raw: passage.sourceExpression, diplomatic: passage.diplomatic, normalized: passage.normalized,
-                    translation: passage.translation, notes: passage.notes, analysis: passage.analysis ?? null,
-                    updatedAt: new Date(this.now()).toISOString(),
-                    locators: { printedPage: passage.witness.printedPage ?? '', folio: passage.witness.folio ?? '',
-                        line: passage.witness.textualLine == null ? '' : String(passage.witness.textualLine),
-                        section: passage.witness.section ?? '', subsection: passage.witness.subsection ?? '',
-                        ...(passage.witness.prayerName != null ? { prayerName: passage.witness.prayerName } : {}) },
-                    ...(passage.translations ? { translations: passage.translations } : {}),
-                };
+                const draft = sourceDraft(passage, this.now());
                 await put.run(project.id, passage.id, JSON.stringify(draft));
             }
             this.validateEnvelope?.((await this.snapshot(project.id)).envelope);
@@ -99,17 +102,23 @@ class Store {
         return this.transaction(() => this._assertClaim(passageId, user, clientId, acquire));
     }
     async _assertClaim(passageId, user, clientId, acquire = false) {
-        await this.assertUser(user);
+        const currentUser = await this.assertUser(user);
         passageId = passageKey(passageId);
         identifier(clientId);
         if (!this.passageClaims) return;
         const row = await this.db.prepare("SELECT * FROM claims WHERE passage_id=$1 AND expires_at>$2").get(passageId, this.now());
-        if (row && (row.user_id !== user.id || row.client_id !== clientId)) {
+        const takeover = row && (row.user_id !== user.id || row.client_id !== clientId);
+        if (takeover && currentUser.role !== 'admin') {
             throw fault(409, 'PASSAGE_BUSY', 'Outra pessoa ou aba está trabalhando nesta passagem. Seu rascunho local foi preservado.');
         }
-        if (acquire)
+        if (acquire) {
             await this.db.prepare("INSERT INTO claims VALUES($1,$2,$3,$4) ON CONFLICT(passage_id)\n      DO UPDATE SET user_id=excluded.user_id,client_id=excluded.client_id,expires_at=excluded.expires_at")
                 .run(passageId, user.id, clientId, this.now() + CLAIM_MS);
+            if (takeover)
+                await this.audit(currentUser.id, 'passage.claim.override', passageId, 'succeeded', null, 'server', {
+                    previousUserId: row.user_id, previousClientId: row.client_id, clientId,
+                });
+        }
     }
     async release(passageId, user, clientId) {
         passageId = passageKey(passageId);
@@ -158,6 +167,9 @@ class Store {
                 else {
                     if (!change.draft || change.draft.passageId !== id)
                         throw fault(400, 'INVALID_DRAFT', 'Passagem divergente.');
+                    if (id.startsWith('pending:') && !current.envelope.drafts[id] &&
+                        (current.versions[id] ?? 0) > 0 && current.envelope.drafts[passageKey(id)])
+                        throw fault(409, 'PASSAGE_PUBLISHED', 'Esta passagem já foi publicada. Recarregue para continuar na entrada publicada; seu rascunho local foi preservado.');
                     const draft = structuredClone(change.draft);
                     if (!trustedAcceptance) delete draft.aiAcceptances;
                     const old = current.envelope.drafts[id] ?? current.envelope.drafts[id.replace(/^passage:/, 'pending:')];
@@ -251,4 +263,4 @@ class Store {
     }
     async close() { await this.db.close(); }
 }
-module.exports = { Store, fault, text, identifier, same, stable, CLAIM_MS, passageKey };
+module.exports = { Store, fault, text, identifier, same, stable, CLAIM_MS, passageKey, sourceDraft };

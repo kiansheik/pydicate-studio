@@ -31,6 +31,7 @@ import { registerProjectRecovery } from './domain/project-recovery';
 import { approvalState, type ReferenceStatus } from './domain/ground-truth';
 import { emptySourcePassage, projectSources } from './domain/sources';
 import { latestSourcePassage } from './domain/passage-navigation';
+import { matchesPublicationBaseline } from './domain/draft-publication';
 
 export interface SourceApplyOutcome {
   sourceApplied: boolean;
@@ -778,7 +779,19 @@ export function useStudio() {
         : targetId
           ? current.envelope.drafts[targetId]
           : null;
-      if (savedPassage && previousDraft) {
+      if (next.draftPublication?.projectId === next.id) {
+        const drafts = { ...current.envelope.drafts };
+        for (const change of next.draftPublication.changes) {
+          if (change.draft === null) delete drafts[change.id];
+          else drafts[change.id] = change.draft;
+        }
+        storageRevisions.current[next.id] = next.draftPublication.storageRevision;
+        replaceEnvelope({
+          ...current.envelope,
+          drafts,
+          storageRevision: next.draftPublication.storageRevision,
+        });
+      } else if (savedPassage && previousDraft) {
         const drafts = { ...current.envelope.drafts };
         if (preview.pendingDraftId) {
           delete drafts[preview.pendingDraftId];
@@ -787,6 +800,12 @@ export function useStudio() {
             (p) => p.sourceId === savedPassage.sourceId,
           );
           for (const [index, item] of ordered.entries()) {
+            const id = item.id === preview.pendingDraftId ? savedPassage.id : item.id;
+            if (id !== savedPassage.id && drafts[id])
+              drafts[id] = {
+                ...drafts[id],
+                organization: { sourceId: savedPassage.sourceId, position: index, deleted: false },
+              };
             const pending = drafts[item.id]?.pending;
             if (!pending) continue;
             const nextId = ordered[index + 1]?.id;
@@ -809,6 +828,17 @@ export function useStudio() {
           passageId: savedPassage.id,
           sourceFingerprint: savedPassage.sourceFingerprint,
           raw: savedPassage.sourceExpression,
+          ...(preview.pendingDraftId
+            ? {
+                organization: {
+                  sourceId: savedPassage.sourceId,
+                  position: current.project.passages
+                    .filter((p) => p.sourceId === savedPassage.sourceId)
+                    .findIndex((p) => p.id === preview.pendingDraftId),
+                  deleted: false,
+                },
+              }
+            : {}),
         };
         delete drafts[savedPassage.id].pending;
         replaceEnvelope({ ...current.envelope, drafts });
@@ -1136,6 +1166,46 @@ export function useStudio() {
   }
 
   function changeProject(next: StudioProject) {
+    const publication = next.draftPublication;
+    if (publication?.receiptId && publication.projectId === latest.current.envelope.projectId) {
+      const drafts = { ...latest.current.envelope.drafts };
+      const clean = publication.changes.filter((change) =>
+        matchesPublicationBaseline(drafts[change.id], change),
+      );
+      if (
+        publication.changes.some(
+          (change) =>
+            change.draft === null &&
+            change.id.startsWith('pending:') &&
+            drafts[change.id] &&
+            !clean.includes(change),
+        )
+      )
+        throw new Error(
+          'A passagem foi publicada enquanto você editava. Seu rascunho local foi preservado; compare-o antes de recarregar.',
+        );
+      const acknowledged = window.studio?.acknowledgeDraftPublication?.(
+        publication.receiptId,
+        clean.map((change) => change.id),
+      );
+      for (const change of clean) {
+        if (acknowledged && !acknowledged.includes(change.id)) continue;
+        if (change.draft === null) delete drafts[change.id];
+        else drafts[change.id] = change.draft;
+      }
+      storageRevisions.current[next.id] = publication.storageRevision;
+      replaceEnvelope({
+        ...latest.current.envelope,
+        drafts,
+        storageRevision: publication.storageRevision,
+      });
+    }
+    // Receipts are one-shot transport acknowledgements, never project state.
+    // A later no-diff review may reuse this project without a new source_apply.
+    if (next.draftPublication) {
+      next = { ...next };
+      delete next.draftPublication;
+    }
     sourceProjectRef.current = next;
     const sameProject = next.id === latest.current.project.id;
     if (sameProject && latest.current.ready) {
@@ -1148,9 +1218,12 @@ export function useStudio() {
       if (sameProject) setLoadAttempt((attempt) => attempt + 1);
     }
     const projected = projectWithPending(next, latest.current.envelope);
+    const canonicalSelected = latest.current.selectedId.replace(/^pending:/, 'passage:');
     const selected = projected.passages.some((p) => p.id === latest.current.selectedId)
       ? latest.current.selectedId
-      : (projected.passages.find((p) => p.analysis)?.id ?? projected.passages[0]?.id ?? '');
+      : projected.passages.some((p) => p.id === canonicalSelected)
+        ? canonicalSelected
+        : (projected.passages.find((p) => p.analysis)?.id ?? projected.passages[0]?.id ?? '');
     latest.current.project = projected;
     latest.current.selectedId = selected;
     setProject(next);
@@ -1516,7 +1589,10 @@ export function useStudio() {
     createSource,
     editPendingDraft,
     pendingDrafts: Object.values(envelope.drafts).filter(
-      (item) => !item.organization?.deleted && item.passageId.startsWith('pending:'),
+      (item) =>
+        !item.organization?.deleted &&
+        item.passageId.startsWith('pending:') &&
+        passageIds.has(item.passageId),
     ),
     renderError,
     pending,

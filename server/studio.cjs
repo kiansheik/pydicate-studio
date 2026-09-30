@@ -3,6 +3,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { METHODS: AI, createHostedAI } = require('./ai.cjs');
 const { fault, identifier } = require('./store.cjs');
+const { capturePublication, finalizePublication } = require('./publication-finalization.cjs');
 // Deliberately NOT the entire desktop bridge. New desktop methods stay denied.
 const READ = new Set(`corpus_health render learning_library parse_expression evaluate_expression predicate_catalog
 predicate_create composition_define node_definition source_preview source_new_preview source_create
@@ -38,6 +39,11 @@ async function createStudio(config, store, emit = () => { }) {
     const validate = require('../electron/validation.cjs');
     let project, worker, pickedFile = null, service;
     const queue = new Queue(), previews = new Map();
+    let deferSourceChange = false, deferredSourceChange = false;
+    function sourceChanged() {
+        if (deferSourceChange) { deferredSourceChange = true; return; }
+        emit({ type: 'source-change', projectId: project.id, engineFingerprint: project.engineFingerprint });
+    }
     // Each contributor's Claude Code sign-in lives in their own private home.
     // The provider resolves it from the request in flight, so a job always runs
     // under the account of the person who asked for it.
@@ -171,7 +177,7 @@ async function createStudio(config, store, emit = () => { }) {
                     throw fault(400, 'PATH_FORBIDDEN', 'Caminhos locais não são aceitos.');
             }
             params.projectId = project.id;
-            let target = params.passageId;
+            let target = params.passageId, publicationPreview;
             if (target) {
                 if (method.startsWith('evidence_')) target = await evidenceContext(params);
                 else await passage(target, true);
@@ -181,6 +187,7 @@ async function createStudio(config, store, emit = () => { }) {
                 if (!preview || preview.userId !== user.id || preview.clientId !== context.clientId || preview.expires < store.now())
                     throw fault(409, 'PREVIEW_REQUIRED', 'Gere e revise uma nova prévia nesta sessão.');
                 target = preview.passageId;
+                publicationPreview = preview;
             }
             if (['evidence_save', 'reference_approve', 'source_apply'].includes(method) && target)
                 await store.assertClaim(target, user, context.clientId, true);
@@ -193,20 +200,29 @@ async function createStudio(config, store, emit = () => { }) {
             }
             const started = performance.now();
             try {
-                const result = method === 'render'
+                // Capture the exact saved draft before evaluating the preview;
+                // later autosaves invalidate this receipt instead of being lost.
+                const publication = method === 'source_new_preview'
+                    ? await capturePublication(store, project, params) : null;
+                const result = method === 'source_apply' && publicationPreview?.publication
+                    ? await finalizePublication({ store, project, receipt: publicationPreview.publication,
+                        publishedRaw: publicationPreview.publishedRaw, apply: () => service.invoke(method, params),
+                        user, clientId: context.clientId })
+                    : method === 'render'
                     ? validate.renderResult(await worker.request('render', validate.renderRequest(input)))
                     : AI.has(method) ? await hostedAI.run(method, params, { ...context, user }, service.invoke)
                     : await service.invoke(method, params);
                 if (PREVIEW.has(method) && result?.previewId) {
                     if (previews.size > 256)
                         previews.delete(previews.keys().next().value);
-                    previews.set(result.previewId, { userId: user.id, clientId: context.clientId, passageId: target, expires: store.now() + 15 * 60000 });
+                    previews.set(result.previewId, { userId: user.id, clientId: context.clientId, passageId: target,
+                        ...(publication ? { publication, publishedRaw: result.raw } : {}), expires: store.now() + 15 * 60000 });
                 }
                 if (method === 'source_apply')
                     previews.delete(params.previewId);
                 await store.audit(user.id, 'operation.' + method, target ?? null, 'succeeded', Math.round(performance.now() - started));
                 if (['source_apply', 'source_create', 'reference_approve'].includes(method))
-                    emit({ type: 'source-change', projectId: project.id, engineFingerprint: project.engineFingerprint });
+                    sourceChanged();
                 return result;
             }
             catch (error) {
@@ -224,7 +240,14 @@ async function createStudio(config, store, emit = () => { }) {
     return {
         reviewSubmission: (action, input, context) => queue.run(context.user.id, async () => {
             if (service.hasWork()) throw fault(409, 'ANALYSIS_ACTIVE', 'Aguarde a conclusão das análises antes de revisar o lote.');
-            return submissionReview[action](input, context);
+            // Batch review owns an outer metadata transaction. Its nested source
+            // and reference operations must not notify browsers before it ends.
+            deferSourceChange = true;
+            try { return await submissionReview[action](input, context); }
+            finally {
+                deferSourceChange = false;
+                if (deferredSourceChange) { deferredSourceChange = false; sourceChanged(); }
+            }
         }),
         get project() { return project; }, hasWork: () => service.hasWork(), dictionary, hasPassage, passage, validateChanges, invoke,
         // PDF bytes do not use the serialized grammar worker queue. Each range

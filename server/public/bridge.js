@@ -1,7 +1,7 @@
 /* Optional browser transport. Loaded before the unchanged React entry point. */
 (() => {
   'use strict';
-  const clientId=crypto.randomUUID(),listeners=new Set(),snapshots=new Map();
+  const clientId=crypto.randomUUID(),listeners=new Set(),snapshots=new Map(),refreshReceipts=new Map();
   let identity,identityPromise,selected=null,projectId=null,failed=false,inflight=0,lastInput=Date.now(),latestEnvelope=null;
   const notify=event=>{for(const listener of listeners)listener(event);window.dispatchEvent(new CustomEvent('collab-status',{detail:event}));};
   async function me(){
@@ -79,6 +79,36 @@
     }catch(error){failed=true;notify({type:'save-failed',message:error.message});throw error;}
     finally{inflight--;notify({type:'saving',value:inflight>0});}
   }
+  async function refreshProject(retried=false){
+    const project=await request('/api/refresh',{}),base=snapshots.get(project.id);
+    if(!base)return project;
+    const loaded=structuredClone(base);
+    const saved=await request('/api/drafts/load',{projectId:project.id});
+    if(!saved.envelope||saved.envelope.projectId!==project.id)return project;
+    // The two reads may straddle publication. Never retire a local shell using
+    // newer draft metadata while its canonical source row is still absent.
+    const passageIds=new Set(project.passages.map(p=>p.id));
+    const ahead=Object.keys(loaded.envelope.drafts).some(id=>id.startsWith('pending:')&&
+      !saved.envelope.drafts[id]&&saved.envelope.drafts[id.replace(/^pending:/,'passage:')]&&
+      !passageIds.has(id.replace(/^pending:/,'passage:')));
+    if(ahead){
+      if(!retried)return refreshProject(true);
+      throw new Error('A publicação mudou durante a atualização. Seu rascunho local foi preservado; tente atualizar novamente.');
+    }
+    const changes=[];
+    for(const id of new Set([...Object.keys(loaded.envelope.drafts),...Object.keys(saved.envelope.drafts)])){
+      const before=loaded.envelope.drafts[id]??null,draft=saved.envelope.drafts[id]??null;
+      if((base.versions[id]??0)!==(loaded.versions[id]??0)||stable(base.envelope.drafts[id]??null)!==stable(before))continue;
+      if(stable(before)!==stable(draft))changes.push({id,draft,version:saved.versions[id]??0,
+        expectedRevisionId:before?.revisionId??null,expectedDraft:before,expectedVersion:loaded.versions[id]??0});
+    }
+    if(!changes.length)return project;
+    const receiptId=crypto.randomUUID(),publication={receiptId,projectId:project.id,
+      storageRevision:saved.envelope.storageRevision,changes};
+    refreshReceipts.set(receiptId,publication);
+    if(refreshReceipts.size>16)refreshReceipts.delete(refreshReceipts.keys().next().value);
+    return {...project,draftPublication:publication};
+  }
   async function upload(params){
     const input=document.createElement('input');input.type='file';input.accept='application/pdf';
     const file=await new Promise(resolve=>{input.onchange=()=>resolve(input.files?.[0]??null);input.oncancel=()=>resolve(null);input.click();});
@@ -109,6 +139,17 @@
         return upload(params);
       }
       const value=await invokeRequest(method,params);
+      if(method==='source_apply' && value.draftPublication){
+        const publication=value.draftPublication,base=snapshots.get(publication.projectId);
+        if(base&&publication.projectId===value.id){
+          for(const change of publication.changes){
+            base.versions[change.id]=change.version;
+            if(change.draft===null)delete base.envelope.drafts[change.id];
+            else base.envelope.drafts[change.id]=structuredClone(change.draft);
+          }
+          base.envelope.storageRevision=publication.storageRevision;
+        }
+      }
       if(method==='session_restore'){projectId=value.project?.id??null;selected=value.selectedPassageId??value.project?.passages[0]?.id??null;notify({type:'selection',passageId:selected});}
       if(method==='analysis_accept' && value.envelope && value.versions) snapshots.set(value.envelope.projectId,structuredClone({envelope:value.envelope,versions:value.versions}));
       if(method==='session_select'){selected=params.passageId;projectId=params.projectId;notify({type:'selection',passageId:selected});void heartbeat();}
@@ -124,8 +165,25 @@
       return value;
     },
     saveDrafts,
-    refreshProject:()=>request('/api/refresh',{}),
-    openProject:()=>request('/api/refresh',{}),
+    refreshProject,
+    acknowledgeDraftPublication:(receiptId,ids)=>{
+      const publication=refreshReceipts.get(receiptId),base=publication&&snapshots.get(publication.projectId);
+      if(!base)return [];
+      const accepted=new Set(ids),merged=[];
+      for(const change of publication.changes){
+        if(!accepted.has(change.id))continue;
+        if((base.versions[change.id]??0)!==change.expectedVersion||
+          stable(base.envelope.drafts[change.id]??null)!==stable(change.expectedDraft))continue;
+        base.versions[change.id]=change.version;
+        if(change.draft===null)delete base.envelope.drafts[change.id];
+        else base.envelope.drafts[change.id]=structuredClone(change.draft);
+        merged.push(change.id);
+      }
+      base.envelope.storageRevision=publication.storageRevision;
+      refreshReceipts.delete(receiptId);
+      return merged;
+    },
+    openProject:refreshProject,
     setupProject:()=>Promise.reject(new Error('O projeto é configurado pela administração do servidor.')),
     render:params=>invokeRequest('render',params),
     onEvent:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},
