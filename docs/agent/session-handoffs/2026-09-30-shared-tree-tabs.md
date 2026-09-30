@@ -70,8 +70,26 @@ use the actual local engine in disposable corpus copies. Their limits differ.
 
 ## Deployment and live verification
 
-Pending authorized light deployment and authenticated, read-only verification of
-the actual published compound, its variant input and tab switching.
+- Committed/pushed and light-deployed
+  `e5852d84fb0f0256a4548f02fab844942af9a77c` on existing PR #16.
+  `STUDIO_REF=unlocked-light-deploy make collab-deploy-light` completed healthy
+  in 54.6 seconds; six rollout checks passed. Backup: `20260930T141439-3903b1`.
+- Read-only SSH checks confirm current release, healthy running image, bundled
+  tab label and exact-declaration refresh backend. Disk: 4.0GB available, 95% used;
+  no production cleanup performed. Check capacity before another image build.
+- `.local/vps-qa/shared-tree-tabs-live.cjs` (private/ignored) passed with hard
+  assertions and explicit source/draft/reference/AI-write blocking. It opened
+  Araújo ordinal 112, selected `enosem_26169d1f` and opened its main workspace tab.
+  Authored `.copy()` and `.var(1)` nodes were present; the inline variant editor
+  contained `1` and was canceled with Escape. Switching to the passage/back and
+  closing/reopening retained the exact expression; grammar repair was enabled.
+- Fresh corpus health: three sources, 153 lines, zero divergences/failures,
+  six pending drafts, 319 observed morpheme forms; 2.573 seconds, no active repairs.
+  Thirty-six authenticated invokes had zero HTTP, invoke or page errors and zero
+  blocked mutation attempts. Original session selection restored and verified.
+- Screenshot `.local/vps-qa/shared-tree-tabs-live.png` inspected: authored
+  copy → var(1) → ero * sem visible in the ordinary editor. Research was not
+  edited and no real AI repair was invoked by this smoke.
 
 ## Remaining questions
 

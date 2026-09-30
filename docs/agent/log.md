@@ -8,6 +8,11 @@ scope; stale reviews and changed loose pieces stay guarded. Browser checks cover
 800×600 sticky tabs and the actual published expression. See
 [handoff](session-handoffs/2026-09-30-shared-tree-tabs.md).
 
+Release `e5852d84` deployed in 54.6 seconds. Authenticated live checks opened the
+actual compound, reached its variant input and switched/closed/reopened tabs.
+153 corpus lines, zero divergences/failures; 36 invokes without browser/API errors
+or attempted research writes. Original session selection restored.
+
 ## 2026-09-30 — Shared tree editing and subtree grammar repair
 
 Added an editable shared-definition canvas inside the imported-piece inspector,

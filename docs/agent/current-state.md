@@ -1,6 +1,10 @@
 # Current state
 
-## Shared pieces in main tree tabs (locally verified; rollout pending)
+## Shared pieces in main tree tabs (live)
+
+Release `e5852d84fb0f0256a4548f02fab844942af9a77c` is live from PR #16;
+the light rollout completed in 54.6 seconds. Running image, bundled tab UI and
+exact-declaration refresh backend were independently checked.
 
 The actual `imomiaûsupyrarenosema` passage (Araújo ordinal 112) references
 `enosem_26169d1f`, whose saved expression is `(((ero) * (sem)).var(1)).copy()`.
@@ -17,8 +21,11 @@ Inactive tabs pause reads. Shared morphology uses the declaration namespace.
 Reviewed saves refresh the exact declaration with stale-source guards intact.
 Unique definitions retain draft identity when earlier source lines shift;
 ambiguous bindings stay separate. A changed proposal or loose piece invalidates
-an in-flight review. Focused actual-engine, browser, domain and build checks pass;
-see [handoff](session-handoffs/2026-09-30-shared-tree-tabs.md).
+an in-flight review. Focused actual-engine, browser, domain and build checks pass.
+Authenticated live verification opened the exact published piece, canceled an
+inline variant edit, switched tabs and closed/reopened it with no research writes
+or browser/API errors. Fresh health: 153 lines, zero divergences/failures, 2.573s.
+See [handoff](session-handoffs/2026-09-30-shared-tree-tabs.md).
 
 ## Shared definition trees and scoped grammar repair (live)
 
