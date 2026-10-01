@@ -143,8 +143,26 @@
       const disabled=element('input',undefined,row);disabled.type='checkbox';disabled.checked=user.disabled;disabled.setAttribute('aria-label','Desativar '+user.name);
       button('Salvar conta',async()=>{if(!confirm('Alterar esta conta e encerrar suas sessões?'))return;await api.request('/api/admin/user',{id:user.id,role:select.value,disabled:disabled.checked});await loadUsers();},row);}}
     button('Listar contas',loadUsers,section);
-    const report=element('pre',undefined,section);
-    button('Relatório de atividade — 7 dias',async()=>{const data=await api.request('/api/admin/report?days=7');report.textContent=JSON.stringify(data,null,2);},section);
+    const report=element('div',undefined,section);
+    async function showReport(days) {
+      const data=await api.request('/api/admin/report?days='+days);report.replaceChildren();
+      element('h3',days===0?'Tempo ativo e contribuições — todo o histórico':'Tempo ativo e contribuições — 7 dias',report);
+      const active=new Map((data.activeTime?.users??[]).map(user=>[user.userId,user]));
+      const credited=new Map((data.contributions??[]).map(user=>[user.userId,user]));
+      const table=element('table',undefined,report),head=element('tr',undefined,element('thead',undefined,table));
+      for(const text of ['Pessoa','Tempo ativo no Studio','Passagens com contribuição','Revisões salvas'])element('th',text,head);
+      const body=element('tbody',undefined,table);
+      for(const id of new Set([...credited.keys(),...active.keys()])) {
+        const credit=credited.get(id),time=active.get(id),row=element('tr',undefined,body);
+        const seconds=Math.floor((time?.activeMs??0)/1000),hours=Math.floor(seconds/3600),minutes=Math.floor(seconds%3600/60);
+        for(const text of [credit?.name??time?.name??id,time?`${hours} h ${minutes} min ${seconds%60} s`:'Ainda não medido',String(credit?.passages??0),String(credit?.checkpoints??0)])element('td',text,row);
+      }
+      element('p',data.activeTime?.trackingSince?`Tempo registrado desde ${new Date(data.activeTime.trackingSince).toLocaleString('pt-BR')}.`:'O registro de tempo começa nesta versão; ainda não há intervalos recebidos.',report);
+      element('p',data.activeTime?.measurement??'',report);element('p',data.note,report);
+      const details=element('details',undefined,report);element('summary','Detalhes por passagem e operação',details);element('pre',JSON.stringify(data,null,2),details);
+    }
+    button('Relatório de atividade — 7 dias',async()=>showReport(7),section);
+    button('Tempo e créditos — todo o histórico',async()=>showReport(0),section);
     button('Exportar relatório — todo o histórico',async()=>api.download(await api.request('/api/admin/report?days=0'),'studio-usage-report.json'),section);
   }
   element('p','Todos os rascunhos e comentários deste espaço são compartilhados. A telemetria contém categorias e tempos, não o texto. Os dados de pesquisa e cada revisão salva são preservados sem expiração automática. Presença e contagens não calculam pagamentos nem certificam revisão.',panel).className='collab-disclosure';

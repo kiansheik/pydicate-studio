@@ -3,26 +3,55 @@
   'use strict';
   const clientId=crypto.randomUUID(),listeners=new Set(),snapshots=new Map(),refreshReceipts=new Map();
   let identity,identityPromise,selected=null,projectId=null,failed=false,inflight=0,lastInput=Date.now(),latestEnvelope=null;
+  let activityClockOffset=0,serverMonotonicOffset=null;
   const notify=event=>{for(const listener of listeners)listener(event);window.dispatchEvent(new CustomEvent('collab-status',{detail:event}));};
   async function me(){
     if(identity)return identity;
-    identityPromise??=fetch('/api/me',{credentials:'same-origin'}).then(async response=>{
+    identityPromise??=(async()=>{
+      const startedAt=Date.now(),started=performance.now();
+      const response=await fetch('/api/me',{credentials:'same-origin'});
       if(!response.ok)throw new Error('Entre novamente para usar o servidor.');
-      identity=await response.json();return identity;
-    }).catch(error=>{identityPromise=null;throw error;});
+      const value=await response.json(),elapsed=performance.now()-started;
+      if(Number.isFinite(value.serverTime)) {
+        activityClockOffset=value.serverTime-(startedAt+elapsed/2);
+        serverMonotonicOffset=value.serverTime-(started+elapsed/2);
+      }
+      identity=value;return identity;
+    })().catch(error=>{identityPromise=null;throw error;});
     return identityPromise;
   }
   async function request(url,input,options={}){
     const who=await me();
     const response=await fetch(url,{method:input===undefined?'GET':'POST',credentials:'same-origin',
+      ...(options.keepalive?{keepalive:true}:{}),
       headers:{...(input===undefined?{}:{'Content-Type':'application/json'}),'X-CSRF-Token':who.csrf,'X-Studio-Client':clientId,...options.headers},
       ...(input===undefined?{}:{body:options.binary?input:JSON.stringify(input)})});
     if(!response.ok){
       let error;try{error=(await response.json()).error;}catch{error={message:'Resposta inválida do servidor.'};}
       if(response.status===401)notify({type:'session-expired'});
-      const failure=new Error(`[STUDIO:${error.code||'HTTP_ERROR'}] ${error.message}`);failure.code=error.code;failure.status=response.status;failure.retryAfterMs=Math.max(1000,Number(response.headers.get('retry-after'))*1000||(error.code==='ENGINE_BUSY'?2000:error.code==='UPSTREAM_UPDATING'?15000:60000));throw failure;
+      const failure=new Error(`[STUDIO:${error.code||'HTTP_ERROR'}] ${error.message}`);failure.code=error.code;failure.status=response.status;failure.retryAfterExplicit=response.headers.has('retry-after');failure.retryAfterMs=Math.max(1000,Number(response.headers.get('retry-after'))*1000||(error.code==='ENGINE_BUSY'?2000:error.code==='UPSTREAM_UPDATING'?15000:60000));throw failure;
     }
     return response.headers.get('content-type')?.startsWith('application/pdf')?response.arrayBuffer():response.json();
+  }
+  async function recordUsage(event) {
+    try {
+      if(event.event!=='activity.active')return await request('/api/usage',event);
+      await me();
+      // Copy once: retries retain this exact receipt, never recalibrate its
+      // timestamps twice or modify the caller's original local-clock event.
+      const calibrated={...event,
+        intervalStartMs:Math.round(event.intervalStartMs+activityClockOffset),
+        intervalEndMs:Math.round(event.intervalEndMs+activityClockOffset)};
+      try { return await request('/api/usage',calibrated,{keepalive:true}); }
+      catch(error) {
+        const transient=!error.status||error.status===429||error.status>=500;
+        const delay=error.retryAfterExplicit?error.retryAfterMs:1000;
+        const now=serverMonotonicOffset===null?Date.now():performance.now()+serverMonotonicOffset;
+        if(!transient||delay>5000||now+delay-calibrated.intervalEndMs>=90000)return;
+        await new Promise(resolve=>setTimeout(resolve,delay));
+        return await request('/api/usage',calibrated,{keepalive:true});
+      }
+    } catch { /* A missed interval is never extrapolated into later activity. */ }
   }
   // Share identical reads and bound browser pressure on the serialized engine.
   // Writes remain distinct and are never retried automatically.
@@ -188,7 +217,7 @@
     render:params=>invokeRequest('render',params),
     onEvent:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},
     copyText:text=>navigator.clipboard.writeText(text),
-    recordUsage:event=>request('/api/usage',event).catch(()=>{}),
+    recordUsage,
   });
   function download(value,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);}
   function exportLocal(){

@@ -4,6 +4,8 @@ import {
   inheritEvidence,
   validWorkingEvidence,
   reconcileEvidenceCache,
+  currentEvidenceGuide,
+  evidencePredecessors,
   type WorkingEvidence,
 } from './evidence';
 
@@ -44,6 +46,62 @@ describe('cached evidence precedence', () => {
     expect(reconcileEvidenceCache(working, corrected)).toBe(working);
     const guided = { ...cached, guide: { assetId: working.assetId, fromPassageId: 'previous' } };
     expect(reconcileEvidenceCache(guided, corrected)).toBe(guided);
+    expect(reconcileEvidenceCache(guided, corrected, true).regions).toEqual([]);
+  });
+});
+describe('visible predecessor evidence', () => {
+  const row = (id: string, sourceId = 'book') => ({ id, sourceId });
+  it('uses visible same-source order and stable aliases without visiting a later or excluded row', () => {
+    expect(
+      evidencePredecessors(
+        [row('passage:b'), row('pending:a'), row('passage:other', 'other'), row('passage:c')],
+        'passage:c',
+        'book',
+      ),
+    ).toEqual([
+      { id: 'passage:a', ordinal: 2 },
+      { id: 'passage:b', ordinal: 1 },
+    ]);
+    expect(evidencePredecessors([row('passage:b'), row('passage:c')], 'passage:b', 'book')).toEqual(
+      [],
+    );
+    expect(evidencePredecessors([row('passage:b')], 'missing', 'book')).toEqual([]);
+  });
+  it('ignores stored guide chains and stale caches but preserves current local crops/deletions', () => {
+    const sources = [
+      { id: 'b', ordinal: 2, passageFingerprint: 'b-current', view: working.view },
+      {
+        id: 'a',
+        ordinal: 1,
+        passageFingerprint: 'a-current',
+        view: working.view,
+        region: working.regions[0],
+      },
+    ];
+    const stale = {
+      ...working,
+      passageFingerprint: 'old',
+      guide: { assetId: 'pdf-a', fromPassageId: 'deleted', region: working.regions[0] },
+    };
+    expect(currentEvidenceGuide('pdf-a', sources, () => stale).guide?.fromPassageId).toBe('a');
+    const local = { ...working, passageFingerprint: 'b-current' };
+    expect(
+      currentEvidenceGuide('pdf-a', sources, (id) => (id === 'b' ? local : null)).guide
+        ?.fromPassageId,
+    ).toBe('b');
+    const empty = { ...local, regions: [], guide: stale.guide };
+    expect(
+      currentEvidenceGuide('pdf-a', sources, (id) => (id === 'b' ? empty : null)).guide
+        ?.fromPassageId,
+    ).toBe('a');
+    expect(currentEvidenceGuide('pdf-a', [sources[0]], () => empty).guide).toBeUndefined();
+    expect(
+      currentEvidenceGuide(
+        'other-pdf',
+        sources.map((item) => ({ ...item, region: undefined })),
+        () => local,
+      ).guide,
+    ).toBeUndefined();
   });
 });
 describe('PDF location inheritance', () => {

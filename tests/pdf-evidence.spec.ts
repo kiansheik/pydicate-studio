@@ -1143,6 +1143,170 @@ test('returning to an untouched existing next passage inherits the newly marked 
   }
 });
 
+test('visible-order guides refresh saved and cached passages after edits, reordering and exclusion', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-visible-guide-'));
+  try {
+    const writes: Record<string, unknown>[] = [];
+    const { fixture, assetId, revision } = await guideFixture(page, directory, (method, input) => {
+      if (method === 'evidence_save') writes.push(input);
+    });
+    const regionA = { id: 'a', assetId, pageIndex: 0, rect: [100, 300, 260, 400] };
+    const regionB = { id: 'b', assetId, pageIndex: 0, rect: [40, 100, 160, 150] };
+    const regionC = { id: 'c', assetId, pageIndex: 0, rect: [30, 40, 100, 75] };
+    const save = async (
+      passageId: string,
+      regions: unknown[],
+      expectedRevision: number,
+      guide?: unknown,
+    ) =>
+      fixture.service.invoke('evidence_save', {
+        ...params,
+        passageId,
+        assetId,
+        expectedRevision,
+        regions,
+        view: { pageIndex: 0, zoom: 0.5, rotation: 0 },
+        ...(guide ? { guide } : {}),
+      }) as Promise<EvidenceStatus>;
+    const a = await save('passage:a', [regionA], revision);
+    const b = await save('passage:b', [regionB], a.revision);
+    const c = await save('passage:c', [regionC], b.revision, {
+      assetId,
+      fromPassageId: 'passage:a',
+      region: regionA,
+    });
+    await page.goto('/tests/pdf-harness.html?guide&ordered');
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    const ghost = page.getByTestId('pdf-guide-region');
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:b');
+    await expect(ghost).toHaveAttribute('data-pdf-rect', regionB.rect.join(','));
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute(
+      'data-pdf-rect',
+      regionC.rect.join(','),
+    );
+    await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
+    await ready(page);
+    const changedA = await moveRegion(page, 24, 12);
+    await expect
+      .poll(
+        async () =>
+          ((await fixture.service.invoke('evidence_status', params)) as EvidenceStatus).passage
+            ?.regions[0].rect,
+      )
+      .toEqual(changedA);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:b');
+    await page.getByRole('button', { name: 'Ordem B A C', exact: true }).click();
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:a');
+    await expect(ghost).toHaveAttribute('data-pdf-rect', changedA.join(','));
+    await page.getByRole('button', { name: 'Excluir A da lista', exact: true }).click();
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:b');
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(ghost).toHaveCount(0); // Neither last-visited C nor excluded A may supply it.
+    await page.getByRole('button', { name: 'Ordem A B C', exact: true }).click();
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:a');
+    await expect(ghost).toHaveAttribute('data-pdf-rect', changedA.join(','));
+    await page.waitForTimeout(500);
+    expect(writes).toHaveLength(1);
+    expect(
+      (
+        (await fixture.service.invoke('evidence_status', {
+          ...params,
+          passageId: 'passage:c',
+        })) as EvidenceStatus
+      ).passage,
+    ).toEqual(c.passage);
+    expect(
+      await ghost.locator(':scope > rect').evaluate((element) => getComputedStyle(element).fill),
+    ).toBe('rgba(76, 83, 93, 0.17)');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a current unsaved predecessor crop is the guide through forward/back navigation and late autosave', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-guide-late-'));
+  let release: (() => void) | undefined;
+  try {
+    let held = false;
+    const { fixture } = await guideFixture(page, directory, async (method, input) => {
+      if (method === 'evidence_save' && input.passageId === 'passage:b' && !held) {
+        held = true;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+    });
+    await page.goto('/tests/pdf-harness.html?guide&ordered');
+    await ready(page);
+    await page.getByLabel('Zoom do PDF').selectOption('0.5');
+    await draw(page, [0.12, 0.2], [0.38, 0.32]);
+    await expect(page.locator('#evidence-pointers')).toHaveText('1');
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await draw(page, [0.42, 0.44], [0.69, 0.56]);
+    const rectB = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute(
+      'data-source-passage',
+      'passage:b',
+    );
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute('data-pdf-rect', rectB!);
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+    await expect.poll(() => !!release).toBe(true);
+    release!();
+    await expect
+      .poll(async () =>
+        (
+          (await fixture.service.invoke('evidence_status', {
+            ...params,
+            passageId: 'passage:b',
+          })) as EvidenceStatus
+        ).passage?.regions[0].rect.join(','),
+      )
+      .toBe(rectB);
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute('data-pdf-rect', rectB!);
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await page.getByRole('button', { name: 'Remover região', exact: true }).click();
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute(
+      'data-source-passage',
+      'passage:a',
+    );
+    await page.getByRole('button', { name: 'Excluir A da lista', exact: true }).click();
+    await expect(page.getByTestId('pdf-guide-region')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(page.getByLabel('Zoom do PDF')).toHaveValue('0.5');
+    await page.waitForTimeout(600);
+    expect(
+      (
+        (await fixture.service.invoke('evidence_status', {
+          ...params,
+          passageId: 'passage:c',
+        })) as EvidenceStatus
+      ).passage,
+    ).toBeNull();
+  } finally {
+    release?.();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('an autosaved predecessor and repeated empty pending passages preserve a guide without promoting its box', async ({
   page,
 }) => {

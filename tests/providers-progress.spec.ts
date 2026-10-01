@@ -1,5 +1,39 @@
 import { expect, test } from '@playwright/test';
 
+test('translation displays its Luna medium profile and starts without changing grammar configuration', async ({
+  page,
+}) => {
+  await page.goto('/tests/providers-harness.html?translation&separate-profiles');
+  await expect(page.locator('.assistant-translation-model')).toContainText(
+    'gpt-5.6-luna · raciocínio médio',
+  );
+  await page.locator('.assistant-provider-settings > summary').click();
+  await expect(page.getByLabel('Modelo de IA', { exact: true })).toHaveValue('gpt-5.6-luna');
+  await expect(page.getByLabel('Modelo de IA', { exact: true })).toHaveJSProperty('readOnly', true);
+  await expect(page.getByRole('combobox', { name: 'Esforço de raciocínio' })).toHaveValue('medium');
+  await expect(page.getByRole('combobox', { name: 'Esforço de raciocínio' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Traduzir', exact: true }).click();
+  await expect(page.getByText('Lendo o contexto local…', { exact: false })).toBeVisible();
+  const requests = await page.evaluate(() => window.__providerHarness.requests);
+  expect(requests.filter((request) => request.method === 'ai_configure')).toEqual([]);
+  expect(requests.filter((request) => request.method === 'ai_start')).toHaveLength(1);
+  expect(requests.find((request) => request.method === 'ai_start')?.params).toMatchObject({
+    action: 'translate',
+    provider: 'codex',
+  });
+  const status = (await page.evaluate(() =>
+    window.studio!.invoke!('ai_status', {}),
+  )) as import('../src/domain/ai').AIStatus;
+  expect(status.config).toMatchObject({
+    models: { codex: 'grammar-model-kept' },
+    reasoningEffort: 'high',
+  });
+  expect(status.translation).toMatchObject({
+    models: { codex: 'gpt-5.6-luna' },
+    reasoningEffort: 'medium',
+  });
+});
+
 test('AI UI distinguishes context, accepted request and reasoning, cancels and never auto-retries', async ({
   page,
 }) => {

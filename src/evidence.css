@@ -132,8 +132,8 @@
   cursor: default;
 }
 .evidence-overlay .evidence-guide-region > rect {
-  fill: #4c535d14;
-  stroke: #5c64757a;
+  fill: #4c535d2b;
+  stroke: #5c6475ad;
   stroke-width: 1.5;
   stroke-dasharray: 5 4;
 }

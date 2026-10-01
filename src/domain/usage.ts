@@ -1,7 +1,14 @@
+import { ActiveTime } from './active-time';
+
 type Context = { projectId?: string; passageId?: string; revisionId?: string };
 let context: Context = {};
 let batch: { context: Context; count: number; start: number; fields: Set<string> } | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let activeTime: ActiveTime | undefined;
+/** Called only after validating a trusted embedded surface's activity message. */
+export function markUsageActivity() {
+  activeTime?.input();
+}
 export function track(
   event: string,
   details: Record<string, unknown> = {},
@@ -10,7 +17,10 @@ export function track(
   void window.studio?.recordUsage?.({ event, ...context, details, ...extra }).catch(() => {});
 }
 export function setUsageContext(next: Context) {
-  if (context.passageId !== next.passageId || context.projectId !== next.projectId) flushEdits();
+  if (context.passageId !== next.passageId || context.projectId !== next.projectId) {
+    activeTime?.flush();
+    flushEdits();
+  }
   context = next;
 }
 export function trackEdit(fields: string[]) {
@@ -36,7 +46,32 @@ export function flushEdits() {
   batch = null;
 }
 export function installUsageReporting() {
-  window.addEventListener('pagehide', flushEdits);
+  if (activeTime) return;
+  const foreground = () => document.visibilityState === 'visible' && document.hasFocus();
+  activeTime = new ActiveTime(
+    () => performance.now(),
+    Date.now() - performance.now(),
+    foreground(),
+    (interval) => track('activity.active', {}, { ...interval, eventId: crypto.randomUUID() }),
+  );
+  for (const type of ['pointerdown', 'keydown', 'input', 'scroll', 'wheel'])
+    window.addEventListener(
+      type,
+      (event) => {
+        if (event.isTrusted) activeTime?.input();
+      },
+      { passive: true, capture: true },
+    );
+  const updateForeground = () => activeTime?.setForeground(foreground());
+  document.addEventListener('visibilitychange', updateForeground);
+  window.addEventListener('focus', updateForeground);
+  window.addEventListener('blur', updateForeground);
+  setInterval(() => activeTime?.flush(), 30_000);
+  window.addEventListener('pagehide', () => {
+    activeTime?.setForeground(false);
+    flushEdits();
+  });
+  window.addEventListener('pageshow', updateForeground);
   window.addEventListener('error', () =>
     track('ui.error', { errorCode: 'RENDERER_ERROR' }, { outcome: 'failed' }),
   );

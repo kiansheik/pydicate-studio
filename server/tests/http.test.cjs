@@ -134,6 +134,14 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     const telemetry = await store.db.prepare("SELECT * FROM audit WHERE origin='browser'").get();
     assert.equal(telemetry.user_id, 'contributor');
     assert.equal(JSON.stringify(telemetry).includes('private text'), false);
+    const intervalEndMs=Date.now(),activity={event:'activity.active',eventId:require('node:crypto').randomUUID(),
+        intervalStartMs:intervalEndMs-10000,intervalEndMs,durationMs:10000,passageId:'passage:a',userId:'admin'};
+    const active=await post('/api/usage',activity,user);
+    assert.equal(active.status,200);assert.equal((await active.json()).acceptedMs,10000);
+    assert.equal((await (await post('/api/usage',activity,user)).json()).duplicate,true);
+    const credited=await store.db.prepare("SELECT * FROM audit WHERE event='activity.active'").get();
+    assert.equal(credited.user_id,'contributor');assert.equal(credited.passage_id,'passage:a');
+    assert.equal((await post('/api/usage',{...activity,eventId:'bad'},user)).status,400);
     assert.equal((await post('/api/usage', { event: 'auth.password-reset' }, user)).status, 400);
     await post('/api/comment', { passageId: 'passage:a', body: 'A minha dúvida', authorId: 'admin' }, user);
     const comments = await (await fetch(settings.origin + '/api/comments?passageId=passage:a', { headers: { Cookie: admin.cookie } })).json();

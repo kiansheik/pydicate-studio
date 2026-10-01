@@ -774,7 +774,6 @@ def lexical_entries(corpus, source_path, namespace, source_line=None):
 
 
 def lexicon_result(payload, corpus, path, namespace):
-    import unicodedata
     entries=lexical_entries(corpus,path,namespace,payload.get('line'))
     if payload['action']=='lexicon_context':
         return {'results':[entry for entry in entries if entry['name'] in payload.get('names',[])]}
@@ -808,10 +807,8 @@ def lexicon_result(payload, corpus, path, namespace):
         from reference_uses import reference_uses
         usage = reference_uses(corpus, entry['name'], entry['sourcePath'], entry['line']) if entry.get('sourcePath') and entry.get('line') else {'uses':[], 'diagnostics':['Declaração de origem indisponível.']}
         return {**entry, 'expandedStructure':shape(value), 'runtimeTree':runtime_graph(value), 'authoring':expression_tree(entry['expression']), 'namedReference':expression_tree(entry['name']), 'editScopes':['occurrence','source','shared'], 'affectedUses':entry['uses'], 'projectUses':usage, 'safeOccurrenceExpansion':safe_expansion}
-    def fold(value): return ''.join(c for c in unicodedata.normalize('NFKD',value.casefold()) if not unicodedata.combining(c))
-    query=fold(payload.get('query',''))
-    from rendered_structures import normalize
-    rendered_query = normalize(payload.get('query', ''))
+    from lexical_search import Document, Query
+    query = Query(payload.get('query', ''))
     matches = []
     for entry in entries:
         try:
@@ -820,9 +817,12 @@ def lexicon_result(payload, corpus, path, namespace):
                 entry['surface'] = str(evaluation_snapshot(value).eval())
         except Exception:
             pass
-        if query in fold(entry['name'] + ' ' + str(entry['definition'])) or (rendered_query and rendered_query in normalize(entry.get('surface', ''))):
-            matches.append(entry)
-    return {'query':payload.get('query',''),'total':len(matches),'results':matches[:payload.get('limit',40)]}
+        match = query.match(Document(name=entry['name'],
+            forms=[('name', entry['name']), ('surface', entry.get('surface'))], definition=entry['definition']))
+        if match or query.empty:
+            matches.append((match.rank if match else (0, 0, 0), entry))
+    matches.sort(key=lambda row: (row[0], row[1]['name']))
+    return {'query':payload.get('query',''),'total':len(matches),'results':[entry for _,entry in matches[:payload.get('limit',40)]]}
 
 def approve_authoritatively(payload, corpus):
     """Approve only the selected passage; gaps contain no synthesized references."""

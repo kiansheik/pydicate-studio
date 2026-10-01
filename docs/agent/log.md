@@ -1,3 +1,12 @@
+## 2026-10-01 — Editing feedback and contributor credits
+
+Added an always-visible orientation toggle, consistent explicit completion,
+current-order PDF guides and Navarro-style lexical discovery. Translation uses
+its own Luna/medium profile and a scoped annotation guide without changing
+grammar settings. Hosted credit reports distinguish saved contributions from
+visits and record bounded active time per user/passage with overlap deduplication.
+See [handoff](session-handoffs/2026-10-01-workflow-feedback-and-credits.md).
+
 ## 2026-09-30 — Reliable grammar repair transport and readable streaming
 
 Reproduced interrupted unbuffered Python writes truncating JSON; finish every

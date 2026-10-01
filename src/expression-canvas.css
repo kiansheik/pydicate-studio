@@ -15,6 +15,12 @@
   gap: 7px;
   margin-bottom: 10px;
 }
+.canvas-view-options .canvas-orientation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
 .canvas-piece-search {
   position: relative;
   z-index: 20;

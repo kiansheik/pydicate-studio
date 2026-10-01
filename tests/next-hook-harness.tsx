@@ -780,6 +780,13 @@ window.studio = {
   },
 };
 
+if (Object.hasOwn(control.responses, 'submissions_list')) {
+  window.studio.listSubmissions = async () =>
+    structuredClone(
+      control.responses.submissions_list,
+    ) as import('../src/domain/submissions').SubmissionSummary[];
+}
+
 if (new URLSearchParams(location.search).has('passage-admin')) {
   project.passages[0].acceptedReference = 'Referência antiga';
   window.studio.capabilities = { passageManagement: true };

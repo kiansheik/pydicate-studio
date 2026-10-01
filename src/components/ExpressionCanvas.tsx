@@ -3,6 +3,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
+  ArrowUp,
+  ArrowRight,
   Copy,
   Expand,
   Maximize2,
@@ -75,7 +77,6 @@ import type {
 } from '../domain/shared-definition';
 import type { RenderResult } from '../domain/types';
 import { track } from '../domain/usage';
-import { useAdvancedTools } from '../domain/preferences';
 import { PredicatePalette } from './PredicatePalette';
 import { PieceSearch, type PieceSearchHandle } from './PieceSearch';
 import { canvasEdgePath, layoutCanvasTree } from '../domain/canvas-layout';
@@ -382,9 +383,6 @@ export function ExpressionCanvas({
   const [operation, setOperation] = useState('*');
   const [operationSide, setOperationSide] = useState<'left' | 'right'>('right');
   const [advanced, setAdvanced] = useState(false);
-  // Reading direction was never switched in a month of recorded work; it keeps its place
-  // under the secondary tools instead of two wide buttons beside the search field.
-  const advancedTools = useAdvancedTools();
   const [staged, setStaged] = useState<{
     address: CanvasAddress;
     session: string;
@@ -1943,22 +1941,20 @@ export function ExpressionCanvas({
           {query && <small>{matches.size}</small>}
           <button disabled={!matches.size}>Ir</button>
         </form>
-        {advancedTools && (
-          <>
-            <button
-              aria-pressed={orientation === 'bottom-up'}
-              onClick={() => changeLayout('bottom-up')}
-            >
-              De baixo para cima
-            </button>
-            <button
-              aria-pressed={orientation === 'horizontal'}
-              onClick={() => changeLayout('horizontal')}
-            >
-              Da esquerda para a direita
-            </button>
-          </>
-        )}
+        <button
+          className="canvas-orientation-toggle"
+          aria-label="Árvore da esquerda para a direita"
+          aria-pressed={orientation === 'horizontal'}
+          title={
+            orientation === 'horizontal'
+              ? 'Usar disposição de baixo para cima'
+              : 'Usar disposição da esquerda para a direita'
+          }
+          onClick={() => changeLayout(orientation === 'horizontal' ? 'bottom-up' : 'horizontal')}
+        >
+          {orientation === 'horizontal' ? <ArrowRight size={15} /> : <ArrowUp size={15} />}
+          {orientation === 'horizontal' ? 'Esquerda → direita' : 'Baixo → cima'}
+        </button>
         <button
           title="Expandir todos os ramos e restaurar a disposição automática da árvore"
           onClick={() => {

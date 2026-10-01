@@ -1,4 +1,5 @@
 import type { NodeEvaluation } from './authoring';
+import { compareLexicalRanks, lexicalQuery } from './lexical-search';
 
 export interface LexicalOccurrence {
   id: string;
@@ -61,26 +62,30 @@ export interface PassageLexiconInventory {
 }
 export function lexicalOccurrenceRows(inventory: PassageLexiconInventory | null, query = '') {
   const entries = new Map(inventory?.entries.map((entry) => [entry.id, entry]));
-  const needle = foldLexical(query);
-  return (inventory?.occurrences ?? []).flatMap((occurrence) => {
-    const entry = entries.get(occurrence.lexicalId);
-    if (!entry) return [];
-    const searchable = [
-      entry.name,
-      entry.headword,
-      entry.category,
-      entry.definition,
-      occurrence.surface,
-      occurrence.expression,
-      occurrence.label,
-      occurrence.baseDefinition,
-      occurrence.compositeDefinition,
-      occurrence.inheritedDefinition,
-    ]
-      .filter(Boolean)
-      .join(' ');
-    return foldLexical(searchable).includes(needle) ? [{ entry, occurrence }] : [];
-  });
+  const match = lexicalQuery(query);
+  return (inventory?.occurrences ?? [])
+    .flatMap((occurrence) => {
+      const entry = entries.get(occurrence.lexicalId);
+      if (!entry) return [];
+      const forms = [
+        entry.name,
+        entry.headword,
+        entry.category,
+        occurrence.surface,
+        occurrence.expression,
+        occurrence.label,
+      ].filter((value): value is string => Boolean(value));
+      const definitions = [
+        entry.definition,
+        occurrence.baseDefinition,
+        occurrence.compositeDefinition,
+        occurrence.inheritedDefinition,
+      ].filter((value): value is string => Boolean(value));
+      const rank = match(entry.name, forms, definitions);
+      return rank ? [{ entry, occurrence, rank }] : [];
+    })
+    .sort((left, right) => compareLexicalRanks(left.rank, right.rank))
+    .map(({ entry, occurrence }) => ({ entry, occurrence }));
 }
 
 export function occurrenceDefinition(entry: ActiveLexicalEntry, occurrence: LexicalOccurrence) {
@@ -143,6 +148,7 @@ export function foldLexical(value: string) {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’ʼ‘ʔ']/g, '')
     .toLocaleLowerCase();
 }
 export function lexicalNoteSummary(records: LexicalNote[]) {

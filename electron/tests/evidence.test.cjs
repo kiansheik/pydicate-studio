@@ -78,6 +78,41 @@ test('managed bytes and native-point regions survive restart, original relocatio
   assert.deepEqual(relocated.passage.regions, [f.region]);
 });
 
+test('save receipts distinguish actual region edits from viewport and guide-only saves', async (t) => {
+  const f = await fixture(t);
+  const viewport = await f.api.invoke('evidence_save', {
+    ...f.save,
+    regions: [],
+    regionsChanged: true,
+  });
+  assert.equal(viewport.regionsChanged, false);
+  const added = await f.api.invoke('evidence_save', {
+    ...f.save,
+    expectedRevision: viewport.revision,
+    regionsChanged: false,
+  });
+  assert.equal(added.regionsChanged, true);
+  const zoom = await f.api.invoke('evidence_save', {
+    ...f.save,
+    expectedRevision: added.revision,
+    view: { ...f.save.view, zoom: 2 },
+  });
+  assert.equal(zoom.regionsChanged, false);
+  const moved = await f.api.invoke('evidence_save', {
+    ...f.save,
+    expectedRevision: zoom.revision,
+    regions: [{ ...f.region, rect: [101, 300, 260, 400] }],
+  });
+  assert.equal(moved.regionsChanged, true);
+  const removed = await f.api.invoke('evidence_save', {
+    ...f.save,
+    expectedRevision: moved.revision,
+    regions: [],
+  });
+  assert.equal(removed.regionsChanged, true);
+  assert.equal((await f.api.invoke('evidence_status', f.params)).regionsChanged, undefined);
+});
+
 test('unset passage inherits prior same-PDF geometry without saving evidence; explicit empty locations win', async (t) => {
   const f = await fixture(t);
   await f.api.invoke('evidence_save', { ...f.save, view: { ...f.save.view, pageIndex: 1 } });
@@ -470,6 +505,76 @@ test('inserting before the first passage never borrows a later PDF region as its
   });
   assert.deepEqual(inserted.guideCandidates, []);
   assert.equal(inserted.guideSeed, null);
+});
+
+test('visible predecessor snapshots follow current own crops even for saved passages and exclude stale guide chains', async (t) => {
+  const f = await fixture(t);
+  const first = await f.api.invoke('evidence_save', f.save);
+  const second = await f.api.invoke('evidence_save', {
+    ...f.save,
+    passageId: 'passage:b',
+    expectedRevision: first.revision,
+    regions: [{ ...f.region, id: 'b', rect: [20, 30, 70, 90] }],
+  });
+  const selected = await f.api.invoke('evidence_save', {
+    ...f.save,
+    passageId: 'passage:c',
+    expectedRevision: second.revision,
+    regions: [],
+    guide: { assetId: f.attached.asset.id, fromPassageId: f.params.passageId, region: f.region },
+  });
+  const request = {
+    ...f.params,
+    passageId: 'passage:c',
+    lastVisitedPassageId: f.params.passageId,
+    visiblePreviousPassages: [
+      { id: 'passage:b', ordinal: 2 },
+      { id: f.params.passageId, ordinal: 1 },
+    ],
+  };
+  const before = await f.api.invoke('evidence_status', request);
+  assert.deepEqual(
+    before.guideSources.map((item) => item.id),
+    ['passage:b', f.params.passageId],
+  );
+  assert.equal(before.guideSources[0].region.id, 'b');
+  assert.deepEqual(before.passage, selected.passage);
+  const changed = await f.api.invoke('evidence_save', {
+    ...f.save,
+    passageId: 'passage:b',
+    expectedRevision: selected.revision,
+    regions: [],
+  });
+  const after = await f.api.invoke('evidence_status', request);
+  assert.equal(after.guideSources[0].region, undefined);
+  assert.notEqual(
+    after.guideSources[0].passageFingerprint,
+    before.guideSources[0].passageFingerprint,
+  );
+  assert.equal(after.guideSources[1].region.id, f.region.id);
+  assert.equal(
+    after.revision,
+    changed.revision,
+    'resolving current guides never rewrites evidence',
+  );
+  assert.deepEqual(
+    after.passage,
+    selected.passage,
+    'old snapshots remain preserved in stored records',
+  );
+  const firstVisible = await f.api.invoke('evidence_status', {
+    ...request,
+    visiblePreviousPassages: [],
+  });
+  assert.deepEqual(firstVisible.guideSources, []);
+  const reordered = await f.api.invoke('evidence_status', {
+    ...request,
+    visiblePreviousPassages: [
+      { id: f.params.passageId, ordinal: 2 },
+      { id: 'passage:b', ordinal: 1 },
+    ],
+  });
+  assert.equal(reordered.guideSources[0].id, f.params.passageId);
 });
 
 test('streamed PDF access retains source binding and invalidates integrity cache after file changes', async (t) => {

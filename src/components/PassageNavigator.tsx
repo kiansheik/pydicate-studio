@@ -5,16 +5,8 @@ import { sourceLabel } from '../domain/sources';
 import { analysisLabels, type AnalysisJob } from '../domain/analysis';
 import { submissionKey, submissionLabels, type SubmissionSummary } from '../domain/submissions';
 import type { Draft, Passage, StudioSource } from '../domain/types';
+import { passageStage, passageStatusLabels, passageSubmission } from '../domain/passage-status';
 import './PassageNavigator.css';
-
-const statusLabels = {
-  untranscribed: 'Por transcrever',
-  analysis: 'Em análise',
-  review: 'Precisa de revisão',
-  approved: 'Aprovado',
-  changed: 'Resultado mudou',
-  complete: 'Concluída',
-};
 
 export function PassageNavigator({
   projectId,
@@ -96,13 +88,15 @@ export function PassageNavigator({
   function row(passage: Passage) {
     const draft = drafts[passage.id];
     const job = jobs.find((item) => item.passageId === passage.id);
-    const submission = submissions[submissionKey(passage.id)];
-    const stage = draft?.workflow?.stage ?? passage.status;
+    const submission = passageSubmission(passage, draft, submissions[submissionKey(passage.id)]);
+    const stage = passageStage(passage, draft, submission);
+    const showJob =
+      job && (stage !== 'complete' || ['queued', 'running', 'cancelling'].includes(job.status));
     return (
       <button
         key={passage.id}
         ref={selectedId === passage.id ? selected : undefined}
-        className={`passage-item ${selectedId === passage.id ? 'active' : ''}`}
+        className={`passage-item ${selectedId === passage.id ? 'active' : ''} ${stage === 'complete' ? 'is-complete' : ''}`}
         onClick={() => onSelect(passage.id)}
         aria-current={selectedId === passage.id ? 'page' : undefined}
       >
@@ -115,8 +109,8 @@ export function PassageNavigator({
         </span>
         <span className="passage-status">
           <span className={`status-dot ${stage}`} />
-          {submission ? submissionLabels[submission.status] : statusLabels[stage]}
-          {job && <span className="analysis-nav-badge">IA · {analysisLabels[job.status]}</span>}
+          {submission ? submissionLabels[submission.status] : passageStatusLabels[stage]}
+          {showJob && <span className="analysis-nav-badge">IA · {analysisLabels[job.status]}</span>}
         </span>
       </button>
     );

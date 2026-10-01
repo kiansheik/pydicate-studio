@@ -1,5 +1,6 @@
 import { SubmissionReviewQueue } from './components/SubmissionReviewQueue';
 import { useSubmissions, submissionKey, submissionLabels } from './domain/submissions';
+import { passageStage, passageStatusLabels, passageSubmission } from './domain/passage-status';
 import { workspaceAutofill } from './domain/workspace-autofill';
 import { CorpusHealth } from './CorpusHealth';
 import { PassageManager } from './PassageManager';
@@ -103,14 +104,6 @@ type Tab = (typeof tabs)[number];
 // Additional projections remain available through the advanced-tools preference.
 const coreTabs: readonly Tab[] = ['Árvore', 'Sugerir', 'Tradução'];
 const coreModes = ['analysis', 'lexicon', 'dictionary'] as const;
-const statusLabels = {
-  untranscribed: 'Por transcrever',
-  analysis: 'Em análise',
-  review: 'Precisa de revisão',
-  approved: 'Aprovado',
-  changed: 'Resultado mudou',
-  complete: 'Concluída',
-};
 
 function exportContribution(studio: Studio) {
   const payload = {
@@ -608,7 +601,7 @@ export default function App() {
     error: submissionError,
     ready: submissionsReady,
   } = useSubmissions(project.id);
-  const submitted = submissions[submissionKey(passage.id)];
+  const submitted = passageSubmission(passage, draft, submissions[submissionKey(passage.id)]);
   const currentSubmission = submitted?.revisionId === draft?.revisionId ? submitted : undefined;
   const waitingSubmission = submitted && ['submitted', 'ready'].includes(submitted.status);
   const [query, setQuery] = useState('');
@@ -807,12 +800,20 @@ export default function App() {
     surfaceHighlight.surface === result.surface
       ? surfaceHighlight.ranges
       : [];
-  const stage = draft?.workflow?.stage ?? (passage.status === 'review' ? 'review' : 'analysis');
+  const passageStatus = passageStage(passage, draft, submitted);
+  const stage =
+    passageStatus === 'complete'
+      ? 'complete'
+      : ['review', 'changed'].includes(passageStatus)
+        ? 'review'
+        : 'analysis';
   const sources = projectSources(project);
   const selectedSource = sources.find((source) => source.id === passage.sourceId);
   const sourcePassages = project.passages.filter((p) => p.sourceId === passage.sourceId);
   const completed = sourcePassages.filter(
-    (p) => studio.envelope.drafts[p.id]?.workflow?.stage === 'complete',
+    (p) =>
+      passageStage(p, studio.envelope.drafts[p.id], submissions[submissionKey(p.id)]) ===
+      'complete',
   ).length;
   function changeMode(next: typeof mode) {
     track('navigation.mode', { from: mode, to: next });
@@ -845,24 +846,30 @@ export default function App() {
   }, [query]);
   const reviewingSubmissions = ['submitted', 'ready', 'changes_requested'].includes(filter);
   const listedPassages = reviewingSubmissions ? project.passages : sourcePassages;
-  const passages = listedPassages.filter(
-    (p) =>
+  const passages = listedPassages.filter((p) => {
+    const stage = passageStage(p, studio.envelope.drafts[p.id], submissions[submissionKey(p.id)]);
+    const submission = passageSubmission(
+      p,
+      studio.envelope.drafts[p.id],
+      submissions[submissionKey(p.id)],
+    );
+    return (
       (filter !== 'submitted' ||
-        ['submitted', 'ready'].includes(submissions[submissionKey(p.id)]?.status)) &&
-      (filter !== 'ready' || submissions[submissionKey(p.id)]?.status === 'ready') &&
-      (filter !== 'changes_requested' ||
-        submissions[submissionKey(p.id)]?.status === 'changes_requested') &&
+        (submission && ['submitted', 'ready'].includes(submission.status))) &&
+      (filter !== 'ready' || submission?.status === 'ready') &&
+      (filter !== 'changes_requested' || submission?.status === 'changes_requested') &&
       (filter !== 'editable' || project.mode === 'local' || p.analysis) &&
-      (filter !== 'complete' || studio.envelope.drafts[p.id]?.workflow?.stage === 'complete') &&
+      (filter !== 'complete' || stage === 'complete') &&
       (filter !== 'open' ||
-        (studio.envelope.drafts[p.id]?.workflow?.stage !== 'complete' &&
-          !['submitted', 'ready'].includes(submissions[submissionKey(p.id)]?.status))) &&
+        (stage !== 'complete' &&
+          !(submission && ['submitted', 'ready'].includes(submission.status)))) &&
       `${p.title} ${p.ordinal} ${p.acceptedReference ?? ''}`
         .normalize('NFD')
         .replace(/\p{M}/gu, '')
         .toLowerCase()
-        .includes(query.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()),
-  );
+        .includes(query.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase())
+    );
+  });
   const selectedIndex = sourcePassages.findIndex((p) => p.id === passage.id);
   const orphaned = studio.orphanDrafts.length;
   const changePassage = (id: string) => {
@@ -1208,7 +1215,7 @@ export default function App() {
               )}
             </div>
             <div className="workspace-title">
-              <div className="workflow-control">
+              <div className={`workflow-control${stage === 'complete' ? ' is-complete' : ''}`}>
                 {submitted && (
                   <p role="status">
                     Revisão: <strong>{submissionLabels[submitted.status]}</strong>
@@ -1314,13 +1321,19 @@ export default function App() {
                   )}
                 </p>
                 <span className="surface-caption">
-                  {result?.origin === 'engine'
-                    ? `${collaborative ? 'Motor do servidor' : 'Motor local'} · revisão atual`
-                    : result
-                      ? 'Resultado previamente avaliado'
-                      : !draft?.raw?.trim()
-                        ? 'Sua próxima leitura começa aqui'
-                        : 'Aguardando análise válida e avaliação'}
+                  {studio.pending
+                    ? 'Avaliando a estrutura atual…'
+                    : studio.renderError
+                      ? 'A avaliação atual precisa de atenção'
+                      : result?.origin === 'engine'
+                        ? `${collaborative ? 'Motor do servidor' : 'Motor local'} · revisão atual`
+                        : result
+                          ? 'Resultado previamente avaliado'
+                          : !draft?.raw?.trim()
+                            ? 'Sua próxima leitura começa aqui'
+                            : stage === 'complete'
+                              ? 'Passagem concluída · resultado em atualização'
+                              : 'Aguardando análise válida e avaliação'}
                 </span>
                 {project.mode === 'local' && canAnalyze && (
                   <div className="surface-repair-action">
@@ -1388,8 +1401,9 @@ export default function App() {
                       : 'Sem comparação'}
               </span>
               <span className="agreement-separator" />
-              <span>
-                Minha etapa <strong>{statusLabels[stage].toLowerCase()}</strong>
+              <span className={stage === 'complete' ? 'workflow-complete' : undefined}>
+                {stage === 'complete' && <Check size={13} />}
+                Minha etapa <strong>{passageStatusLabels[stage].toLowerCase()}</strong>
               </span>
               <span className="agreement-separator" />
               <span>

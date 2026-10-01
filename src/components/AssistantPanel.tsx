@@ -321,7 +321,8 @@ export function AssistantPanel(props: AssistantProps) {
     const snapshot = { ...current.current };
     try {
       await flushLexicalNotes(projectId);
-      await bridge.invoke('ai_configure', { provider, model, reasoningEffort });
+      if (action !== 'translate')
+        await bridge.invoke('ai_configure', { provider, model, reasoningEffort });
       if (
         current.current.projectId !== snapshot.projectId ||
         current.current.passageId !== snapshot.passageId ||
@@ -402,6 +403,7 @@ export function AssistantPanel(props: AssistantProps) {
     ? configuredModel.supportedReasoningEfforts
     : ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
   const active = records.filter((item) => item.status === 'streaming');
+  const translating = action === 'translate' && !props.configurationOnly;
   if (!window.studio?.invoke)
     return (
       <div className="assistant-panel">
@@ -458,7 +460,8 @@ export function AssistantPanel(props: AssistantProps) {
             <input
               {...workspaceAutofill}
               aria-label="Modelo de IA"
-              value={model}
+              value={translating ? (status?.translation?.models[provider] ?? model) : model}
+              readOnly={translating}
               list="assistant-models"
               placeholder={
                 provider === 'codex'
@@ -484,7 +487,10 @@ export function AssistantPanel(props: AssistantProps) {
             <select
               {...workspaceAutofill}
               aria-label="Esforço de raciocínio"
-              value={reasoningEffort}
+              value={
+                translating ? (status?.translation?.reasoningEffort ?? 'medium') : reasoningEffort
+              }
+              disabled={translating}
               onChange={(event) => setReasoningEffort(event.target.value)}
             >
               {Array.from(new Set([...efforts, reasoningEffort])).map((effort) => (
@@ -549,6 +555,13 @@ export function AssistantPanel(props: AssistantProps) {
       </details>
       {!props.configurationOnly && (
         <>
+          {translating && (
+            <p className="assistant-translation-model">
+              Tradução: {status?.translation?.models[provider] || model || 'modelo padrão'}
+              {provider === 'codex' && ' · raciocínio médio'}. A correção de gramática usa sua
+              configuração própria.
+            </p>
+          )}
           {!props.translationOnly && (
             <label>
               Tarefa

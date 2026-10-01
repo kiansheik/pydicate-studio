@@ -998,7 +998,7 @@ test('Request progress and explicit Studio reasoning selection survive restart',
     model: 'chosen-model',
     reasoningEffort: 'low',
   });
-  await f.service.handle('ai_start', { ...request(), provider: 'codex' });
+  await f.service.handle('ai_start', { ...request(), provider: 'codex', action: 'explain' });
   const done = await terminal(f);
   assert.equal(configuredEffort, 'low');
   assert.equal(done.reasoningEffort, 'low');
@@ -1009,6 +1009,50 @@ test('Request progress and explicit Studio reasoning selection survive restart',
   const restored = (await reopened.handle('ai_history', request()))[0];
   assert.deepEqual(restored.progress, done.progress);
   assert.equal(restored.reasoningEffort, 'low');
+});
+
+test('Translation uses Luna medium independently of the saved grammar profile, including after restart', async (t) => {
+  const calls = [];
+  const f = await fixture(async ({ model, reasoningEffort, onDelta }) => {
+    calls.push({ model, reasoningEffort });
+    onDelta('finished');
+    return { model };
+  });
+  t.after(() => f.service.close());
+  await f.service.handle('ai_configure', {
+    provider: 'codex',
+    model: 'gpt-6-astra',
+    reasoningEffort: 'high',
+  });
+  const before = await f.service.getConfig();
+  await f.service.handle('ai_start', { ...request(), provider: 'codex' });
+  const done = await terminal(f);
+  assert.equal(done.model, 'gpt-5.6-luna');
+  assert.equal(done.reasoningEffort, 'medium');
+  assert.deepEqual(calls, [{ model: 'gpt-5.6-luna', reasoningEffort: 'medium' }]);
+  assert.deepEqual(await f.service.getConfig(), before);
+  const reopened = createProviderService({ stateDirectory: f.directory });
+  t.after(() => reopened.close());
+  assert.deepEqual(await reopened.getConfig(), before);
+  const restored = (await reopened.handle('ai_history', request()))[0];
+  assert.equal(restored.model, 'gpt-5.6-luna');
+  assert.equal(restored.reasoningEffort, 'medium');
+});
+
+test('Translation legend explains only current tags without inventing participants or unknown codes', () => {
+  const { translationGuide } = require('../translation-guide.cjs');
+  const guide = translationGuide(
+    'xe[OBJECT:1ps]r[PLURIFORM_PREFIX:R]ob[ROOT] îe[SUBJECT:refl] foo[UNKNOWN:RARE] xe[OBJECT:1ps]',
+  );
+  assert.equal(guide.annotations.filter((entry) => entry.tag === 'OBJECT:1ps').length, 1);
+  assert.match(guide.annotations[0].fields[0].meaning, /possuidor/);
+  assert.equal(guide.annotations[0].fields[1].meaning, 'primeira pessoa do singular');
+  assert.deepEqual(guide.annotations.at(-1).fields, [
+    { code: 'UNKNOWN', meaning: null },
+    { code: 'RARE', meaning: null },
+  ]);
+  assert.match(guide.instruction, /não contam participantes/);
+  assert.deepEqual(translationGuide('').annotations, []);
 });
 
 test('Codex records reasoning activity and authoritative completed text without text deltas', async () => {

@@ -19,6 +19,59 @@ export interface EvidenceGuide {
   fromOrdinal?: number;
   region?: EvidenceRegion;
 }
+export interface EvidencePredecessor {
+  id: string;
+  ordinal: number;
+}
+export function evidencePredecessors(
+  passages: { id: string; sourceId: string }[],
+  passageId: string,
+  sourceId: string,
+): EvidencePredecessor[] {
+  const source = passages.filter((item) => item.sourceId === sourceId);
+  const index = source.findIndex((item) => item.id === passageId);
+  return source
+    .slice(0, Math.max(0, index))
+    .map((item, index) => ({ id: item.id.replace(/^pending:/, 'passage:'), ordinal: index + 1 }))
+    .reverse();
+}
+export interface EvidenceGuideSource extends EvidencePredecessor {
+  passageFingerprint: string;
+  view?: EvidenceView;
+  region?: EvidenceRegion;
+}
+
+/** Resolve only actual earlier crops, never another passage's old guide snapshot. */
+export function currentEvidenceGuide(
+  assetId: string,
+  sources: EvidenceGuideSource[],
+  cached: (id: string) => unknown,
+): { guide?: EvidenceGuide; view?: EvidenceView } {
+  let view: EvidenceView | undefined;
+  for (const source of sources) {
+    const candidate = cached(source.id);
+    const currentCache =
+      validWorkingEvidence(candidate, assetId) &&
+      candidate.passageFingerprint === source.passageFingerprint;
+    const donorView = currentCache ? candidate.view : source.view;
+    view ??= donorView;
+    const region = currentCache
+      ? (candidate.regions.filter((item) => item.pageIndex === candidate.view.pageIndex).at(-1) ??
+        candidate.regions.at(-1))
+      : source.region;
+    if (region)
+      return {
+        view,
+        guide: {
+          assetId,
+          fromPassageId: source.id,
+          fromOrdinal: source.ordinal,
+          region: structuredClone(region),
+        },
+      };
+  }
+  return { view };
+}
 export interface WorkingEvidence {
   assetId: string;
   revision: number;
@@ -28,11 +81,14 @@ export interface WorkingEvidence {
   baseline?: string;
   inheritedFrom?: { passageId: string; ordinal: number };
   guide?: EvidenceGuide;
+  /** Cache-only viewport inherited for consultation; a real edit clears this. */
+  guideOnly?: boolean;
 }
 /** A cached view of saved rectangles must not resurrect superseded evidence. */
 export function reconcileEvidenceCache(
   cached: WorkingEvidence,
   saved: WorkingEvidence,
+  derivedGuide = false,
 ): WorkingEvidence {
   if (cached.baseline === undefined || cached.assetId !== saved.assetId) return cached;
   try {
@@ -45,7 +101,8 @@ export function reconcileEvidenceCache(
     );
     if (
       JSON.stringify(geometry(cached.regions)) !== JSON.stringify(geometry(previous)) ||
-      JSON.stringify(cached.guide ?? null) !== JSON.stringify(baseline?.guide ?? null)
+      (!derivedGuide &&
+        JSON.stringify(cached.guide ?? null) !== JSON.stringify(baseline?.guide ?? null))
     )
       return cached;
     return { ...saved, view: { ...cached.view } };
@@ -166,6 +223,8 @@ export interface EvidenceStatus {
   version: 1;
   revision: number;
   passageFingerprint?: string;
+  /** Nearest-first visible predecessors with current own evidence, including empty rows. */
+  guideSources?: EvidenceGuideSource[];
   projectId: string;
   sourceId: string;
   asset: null | {

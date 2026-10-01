@@ -7,6 +7,13 @@ const { authoringContext } = require('./provider-context.cjs');
 
 const ACTIONS = new Set(['translate', 'explain', 'propose', 'investigate']);
 const { INTERPRETATION_GUIDE } = require('./interpretation-context.cjs');
+const { translationGuide } = require('./translation-guide.cjs');
+// Translation is a bounded reading task. Grammar repair retains the separately
+// configured model and effort; translating must never overwrite that profile.
+const translationProfile = (config) => ({
+  models: { ...config.models, codex: 'gpt-5.6-luna' },
+  reasoningEffort: 'medium',
+});
 // One list, so a new provider cannot be half-registered: every validation,
 // status sweep and stored-config check reads from here.
 const PROVIDERS = ['codex', 'claude', 'claude-code'];
@@ -239,6 +246,7 @@ function translationPrompt(request, context) {
     };
   const evidence = {
     targetLanguage: language,
+    annotationGuide: translationGuide(evaluation?.annotated),
     analysisTarget: target && {
       ...target,
       evaluation: evaluation && {
@@ -289,6 +297,7 @@ evaluationScope=standalone-constituent identifica a avaliação isolada do trech
 
 EVIDÊNCIA E SIGNIFICADO
 Use a superfície e as anotações finais do motor. Diferencie SUBJECT e OBJECT por seus tags, pessoa e número; confira os papéis no mesmo escopo. Não infira papéis pela ordem superficial, por um operador isolado ou por um resultado intermediário. Grafias diferentes entre pronome e alomorfe não provam contradição: compare seus tags completos.
+annotationGuide explica os códigos presentes nessa realização. Preserve os tags originais e seus escopos; essa legenda não adiciona relações nem resolve ambiguidades. OBJECT em uma construção nominal pode representar possuidor, e não objeto direto da oração. Relacione cada definição ao seu nó antes de produzir a frase no idioma de destino.
 Percorra analysisTarget.definitionContext em toda a profundidade. baseDefinition pertence à peça lexical; compositeDefinition pertence somente ao conjunto naquele nó. Preserve sentidos intermediários e lexicalizados, mesmo quando diferirem da soma literal das peças. Nunca substitua a definição de um filho pela de seu pai.
 ${INTERPRETATION_GUIDE}
 Uma decomposição ligada ao dicionário por coincidência de forma continua sendo hipótese, não prova de etimologia ou equivalência de todas as flexões. Não invente definições para raízes hipotéticas. Conserve a dúvida quando a forma admitir leituras distintas; apresente alternativas breves na explicação se mudarem a tradução.
@@ -824,7 +833,11 @@ function createProviderService({
             }
           }),
         );
-        return { config: clone(config), providers: states };
+        return {
+          config: clone(config),
+          translation: translationProfile(config),
+          providers: states,
+        };
       }
       if (method === 'ai_configure') {
         if (!PROVIDERS.includes(params.provider) || !providers[params.provider])
@@ -899,9 +912,15 @@ function createProviderService({
           passageId: params.passageId,
           revisionId: params.revisionId,
           provider: params.provider,
-          model: config.models[params.provider],
+          model: (params.action === 'translate' ? translationProfile(config) : config).models[
+            params.provider
+          ],
           action: params.action,
-          reasoningEffort: params.provider === 'codex' ? config.reasoningEffort : null,
+          reasoningEffort:
+            params.provider === 'codex'
+              ? (params.action === 'translate' ? translationProfile(config) : config)
+                  .reasoningEffort
+              : null,
           context: {
             ...clone(params.context),
             ...(params.action === 'translate'

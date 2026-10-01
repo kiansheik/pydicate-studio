@@ -652,6 +652,70 @@ for (const kind of [
   });
 }
 
+test('one compact orientation toggle stays available without advanced tools and preserves the expression', async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  const raw = 'abá * kunhã';
+  const requests = await openCanvas(
+    page,
+    raw,
+    {
+      layout: 'bottom-up',
+      fragments: [],
+      positions: {},
+    },
+    false,
+    async () => {
+      await page.addInitScript(() =>
+        localStorage.setItem(
+          'pydicate-studio:tools:v1',
+          JSON.stringify({ version: 1, advanced: false }),
+        ),
+      );
+    },
+    { fit: false },
+  );
+  const toggle = page.getByRole('button', {
+    name: 'Árvore da esquerda para a direita',
+    exact: true,
+  });
+  await expect(toggle).toHaveCount(1);
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveText('Baixo → cima');
+  const rootBefore = await center(node(page, 'main:root'));
+  expect(rootBefore.y).toBeLessThan((await center(node(page, 'main:root/left'))).y);
+  const evaluations = requests.filter((request) => request.method === 'evaluate_expression').length;
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveText('Esquerda → direita');
+  await expect
+    .poll(
+      async () =>
+        (await center(node(page, 'main:root'))).x < (await center(node(page, 'main:root/left'))).x,
+    )
+    .toBe(true);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  expect(requests.filter((request) => request.method === 'evaluate_expression')).toHaveLength(
+    evaluations,
+  );
+  await page.reload();
+  await ready(page, false);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect
+    .poll(
+      async () =>
+        (await center(node(page, 'main:root'))).y < (await center(node(page, 'main:root/left'))).y,
+    )
+    .toBe(true);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('orientation-toggle-800x600.png') });
+});
+
 test('visible create action creates a real predicate in an empty canvas and persists its orientation', async ({
   page,
 }) => {
@@ -699,7 +763,9 @@ test('visible create action creates a real predicate in an empty canvas and pers
   const childCenter = await center(node(page, `main:${parsed.children[0].node.id}`));
   expect(rootCenter.y).toBeLessThan(childCenter.y);
   const before = requests.filter((request) => request.method === 'evaluate_expression').length;
-  await page.getByRole('button', { name: 'Da esquerda para a direita', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true })
+    .click();
   await expect
     .poll(() => page.evaluate(() => window.canvasSnapshot.canvas.layout))
     .toBe('horizontal');
@@ -709,7 +775,7 @@ test('visible create action creates a real predicate in an empty canvas and pers
   await page.reload();
   await ready(page);
   await expect(
-    page.getByRole('button', { name: 'Da esquerda para a direita', exact: true }),
+    page.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#canvas-raw')).toHaveText(raw);
 });

@@ -7,6 +7,23 @@
   const results = document.getElementById('results');
   if (!results) return;
 
+  let lastActivity = -Infinity;
+  function relayActivity(event) {
+    if (!event.isTrusted) return;
+    const now = performance.now();
+    if (now - lastActivity < 5000) return;
+    lastActivity = now;
+    window.parent.postMessage(
+      { type: 'studio-dictionary-activity', version: 1, datasetFingerprint },
+      parentOrigin,
+    );
+  }
+  function observeActivity(target) {
+    for (const type of ['pointerdown', 'keydown', 'input', 'scroll', 'wheel'])
+      target.addEventListener(type, relayActivity, { passive: true, capture: true });
+  }
+  observeActivity(window);
+
   const note = document.createElement('p');
   note.className = 'studio-dictionary-note';
   note.textContent = 'Clique no verbete ou em + Árvore para adicionar essa entrada à passagem.';
@@ -143,6 +160,7 @@
       // Keep the original scan viewer, while its optional remote transcription
       // links cannot navigate away from the local authoring workspace.
       const doc = frame.contentDocument;
+      if (doc) observeActivity(doc);
       doc?.addEventListener(
         'click',
         (event) => {

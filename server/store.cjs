@@ -247,11 +247,13 @@ class Store {
     }
     async report(days = 7) {
         const cutoff = days === 0 ? 0 : this.now() - days * 86400000;
+        const { creditReport, activeReport } = require('./activity.cjs');
         return {
             days,
             operations: await this.db.prepare("SELECT a.user_id AS \"userId\",u.name,a.event,a.origin,a.outcome,\n        count(*) AS count,round(avg(a.duration_ms)) AS \"meanDurationMs\" FROM audit a LEFT JOIN users u ON u.id=a.user_id\n        WHERE a.at>=$1 GROUP BY a.user_id,u.name,a.event,a.origin,a.outcome ORDER BY count DESC LIMIT 1000").all(cutoff),
-            contributions: await this.db.prepare("SELECT r.user_id AS \"userId\",u.name,count(*) AS checkpoints,\n        count(DISTINCT CASE WHEN r.passage_id LIKE 'pending:%' THEN 'passage:' || substr(r.passage_id,9) ELSE r.passage_id END) AS passages FROM revisions r LEFT JOIN users u ON u.id=r.user_id\n        WHERE r.at>=$1 GROUP BY r.user_id,u.name ORDER BY checkpoints DESC").all(cutoff),
-            note: 'Presença e eventos de interface não comprovam horas trabalhadas, aprovação linguística ou direito a pagamento.',
+            ...await creditReport(this, cutoff),
+            activeTime: await activeReport(this, cutoff),
+            note: 'Créditos contam passagens distintas com conteúdo salvo, comentários, regiões alteradas, notas lexicais ou publicação confirmada. Visualizações, posição da câmera, rascunhos iniciais copiados da fonte e pedidos de IA não contam. Salvamentos antigos de PDF sem distinção entre região e zoom são listados separadamente, sem crédito confirmado. Edições de gramática sem revisão de passagem/publicação atribuível continuam apenas nos recibos da análise. Tempo registrado não certifica aprovação linguística nem calcula pagamento.',
         };
     }
     async cleanup() {

@@ -22,9 +22,11 @@ import {
   pdfRect,
   viewportRect,
   guideEvidence,
+  currentEvidenceGuide,
   validWorkingEvidence,
   reconcileEvidenceCache,
   type EvidencePointer,
+  type EvidencePredecessor,
   type EvidenceStatus,
   type EvidenceView,
   type PdfRect,
@@ -42,6 +44,8 @@ interface Props {
   previousPassageId?: string;
   insertionBeforePassageId?: string | null;
   newPassageGuide?: boolean;
+  /** Current displayed order, nearest earlier passage first; never visit history. */
+  visiblePreviousPassages?: EvidencePredecessor[];
   disabled?: boolean;
   initialPage?: number | null;
   printedPage?: string | null;
@@ -93,6 +97,7 @@ export function PdfEvidence({
   previousPassageId,
   insertionBeforePassageId,
   newPassageGuide,
+  visiblePreviousPassages,
   disabled,
   initialPage,
   printedPage,
@@ -102,6 +107,7 @@ export function PdfEvidence({
   preparationRef,
 }: Props) {
   const key = JSON.stringify([projectId, sourceId, passageId]);
+  const guideOrderKey = JSON.stringify(visiblePreviousPassages ?? null);
   const cacheKey = `pydicate-studio:evidence-draft:v1:${key}`;
   const lastVisitedKey = `pydicate-studio:evidence-last-passage:v1:${JSON.stringify([projectId, sourceId])}`;
   const activeKey = useRef(key);
@@ -139,6 +145,7 @@ export function PdfEvidence({
     previousPassageId,
     insertionBeforePassageId,
     newPassageGuide,
+    visiblePreviousPassages,
   };
   const view = working?.view || emptyView(initialPage ?? 1);
   const regions = working?.regions || [];
@@ -330,6 +337,7 @@ export function PdfEvidence({
       : null;
     let restored = false;
     let seededGuide = false;
+    let restoredGuideOnly = false;
     if (restoreDraft && nextWorking) {
       try {
         const cachedText = localStorage.getItem(cacheKey);
@@ -342,7 +350,15 @@ export function PdfEvidence({
           cached.baseline === JSON.stringify(next.passage) &&
           JSON.stringify(cached.view) === JSON.stringify(savedView);
         if (validCache) {
-          nextWorking = reconcileEvidenceCache(cached, nextWorking);
+          restoredGuideOnly =
+            !next.passage &&
+            !cached.regions.length &&
+            (cached.guideOnly === true || (cached.guideOnly === undefined && !!cached.guide));
+          nextWorking = reconcileEvidenceCache(
+            cached,
+            nextWorking,
+            next.guideSources !== undefined,
+          );
           restored = true;
           if (nextWorking.baseline === JSON.stringify(next.passage)) {
             nextWorking.revision = next.revision;
@@ -354,7 +370,12 @@ export function PdfEvidence({
             );
           }
         }
-        if ((!cachedText || untouchedCache) && !next.passage && next.asset?.managedState === 'ok') {
+        if (
+          next.guideSources === undefined &&
+          (!cachedText || untouchedCache) &&
+          !next.passage &&
+          next.asset?.managedState === 'ok'
+        ) {
           // Prefer the last visited earlier passage, then source order. Both saved and
           // unsaved locations remain bound to this project's exact PDF fingerprint.
           for (const previous of (newPassageGuide ? next.guideCandidates : next.previousPassages) ||
@@ -411,6 +432,37 @@ export function PdfEvidence({
         setError(
           'O rascunho local de regiões não pôde ser lido; a evidência salva foi preservada.',
         );
+      }
+    }
+    if (nextWorking && next.guideSources !== undefined && next.asset?.managedState === 'ok') {
+      const resolved = currentEvidenceGuide(nextWorking.assetId, next.guideSources, (id) => {
+        try {
+          return JSON.parse(
+            localStorage.getItem(
+              `pydicate-studio:evidence-draft:v1:${JSON.stringify([projectId, sourceId, id])}`,
+            ) || 'null',
+          );
+        } catch {
+          return null;
+        }
+      });
+      // Guides are derived on every visit/order change. They do not alter owned
+      // crops or a reader's saved viewport, and never trigger a write by themselves.
+      const guideOnly =
+        !next.passage && !nextWorking.regions.length && (!restored || restoredGuideOnly);
+      nextWorking = {
+        ...nextWorking,
+        guide: resolved.guide,
+        guideOnly,
+        ...(!restored && !next.passage && resolved.view ? { view: { ...resolved.view } } : {}),
+      };
+      seededGuide = guideOnly;
+      if (!invalidCache.current && !conflictingCache.current) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(nextWorking));
+        } catch {
+          /* The existing status/error path preserves saved evidence. */
+        }
       }
     }
     const initialRegion = restoreDraft
@@ -488,7 +540,7 @@ export function PdfEvidence({
     };
     // Restore this passage first; new lines use earlier geometry only as a separate visual guide.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, sourceId, passageId, previousPassageId, newPassageGuide]);
+  }, [projectId, sourceId, passageId, previousPassageId, newPassageGuide, guideOrderKey]);
 
   useEffect(() => {
     if (!scroller.current) return;
@@ -740,6 +792,7 @@ export function PdfEvidence({
     // concurrency baseline while applying the user's geometry/view change.
     next = {
       ...next,
+      guideOnly: false,
       revision: previous.revision,
       passageFingerprint: previous.passageFingerprint,
       baseline: previous.baseline,

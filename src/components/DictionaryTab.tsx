@@ -3,6 +3,7 @@ import { invoke } from '../domain/authoring';
 import { DictionaryEntryCreation, type DictionarySelection } from './DictionaryEntryCreation';
 import '../dictionary-tab.css';
 import type { AnalysisEvidence } from '../domain/analysis';
+import { markUsageActivity } from '../domain/usage';
 
 interface DictionaryStatus {
   available: boolean;
@@ -211,9 +212,18 @@ export function DictionaryTab(props: Props) {
       )
         return;
       const data =
-        event.data && typeof event.data === 'object'
+        event.data && typeof event.data === 'object' && !Array.isArray(event.data)
           ? (event.data as Record<string, unknown>)
           : null;
+      if (
+        data?.type === 'studio-dictionary-activity' &&
+        data.version === 1 &&
+        data.datasetFingerprint === status.datasetFingerprint &&
+        Object.keys(data).length === 3
+      ) {
+        markUsageActivity();
+        return;
+      }
       if (
         data?.type === 'studio-dictionary-ready' &&
         data.version === 1 &&

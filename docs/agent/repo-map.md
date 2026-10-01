@@ -208,6 +208,10 @@
 - `src/components/DictionaryMeaningPicker.tsx` and its CSS: shared form/meaning consultation for existing Canvas compositions and Léxico definition editors, exact sense selection, contextual excerpts and cancelled/stale query invalidation. It supplies meanings without replacing constructors or subtrees.
 - `src/components/PieceSearch.tsx`, `PredicatePalette.tsx`, `LexicalInput.tsx`: shared natural search, direct inline canvas insertion, reuse-first ordering, Navarro fallback, retained queries, stale-choice invalidation and visible **Criar peça** constructor/code entry, including unmatched searches. `useStudio.insertPiece` preserves the main tree and provides one-step undo for inserted loose pieces.
 - `src/components/UsagePanel.tsx`, `src/domain/usage.ts`: local activity report/export and categorical renderer event/edit-batch recording. Hosted `/api/usage` uses `server/research.cjs` sanitization; tab destinations and search outcomes require explicit allowlists. See [contributor feedback review](../research/2026-09-29-contributor-feedback.md) for read-only aggregates and their limits.
+- `src/domain/active-time.ts`, `server/activity.cjs`: focused/visible recent-activity intervals, durable overlap/retry deduplication, distinct saved-contribution and per-user/per-passage credit reports. Hosted administration provides summaries and all-time JSON export; prior hours are unknown.
+- `src/domain/passage-status.ts`: explicit completion takes precedence over older submissions across list, panel and filters; newer review submissions reopen review.
+- `python/lexical_search.py`, `src/domain/lexical-search.ts`: query-only Navarro-style lexical ranking and diacritic/glottal fallback; never canonicalize saved lexical identities.
+- `electron/translation-guide.cjs`, `provider-service.cjs`: scoped annotation legend and independent Luna/medium Codex translation profile; translation cannot overwrite the grammar profile.
 
 ## Desktop and Python
 

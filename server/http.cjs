@@ -9,7 +9,7 @@ const { RateLimiter } = require('./auth.cjs');
 const { safeReturnTo } = require('./return-to.cjs');
 const UI_EVENTS = new Set(`navigation.passage navigation.mode navigation.projection navigation.search editor.batch
 editor.selection editor.operation editor.undo editor.redo draft.save source.preview source.apply source.conflict
-review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export`.split(/\s+/));
+review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export activity.active`.split(/\s+/));
 // PDF.js decodes JBIG2, JPEG 2000 and ICC colour in WebAssembly; without
 // 'wasm-unsafe-eval' a scanned witness renders as blank pages.
 const POLICY = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
@@ -201,7 +201,7 @@ function createHttp({ config, store, auth, runtime }) {
                 return json(res,200,{id:row.id,authorId:row.author_id,snapshotSha256:row.snapshot_sha256,snapshot:JSON.parse(row.snapshot)});
             }
             if (route === '/api/me' && req.method === 'GET')
-                return json(res, 200, { user: session.user, csrf: session.csrf, projectId: runtime.project.id, telemetryDays: config.telemetryDays, aiEnabled: config.aiEnabled === true });
+                return json(res, 200, { user: session.user, csrf: session.csrf, serverTime: store.now(), projectId: runtime.project.id, telemetryDays: config.telemetryDays, aiEnabled: config.aiEnabled === true });
             if (route === '/api/events' && req.method === 'GET') {
                 if (streams.size >= 100 || [...streams].filter(s => s.userId === session.user.id).length >= 8)
                     throw fault(429, 'STREAM_LIMIT', 'Feche outras abas antes de continuar.');
@@ -400,6 +400,8 @@ function createHttp({ config, store, auth, runtime }) {
                         throw fault(400, 'EVENT_DENIED', 'Evento inválido.');
                     if (input.event !== 'ui.error') idle.activity();
                     const id = input.passageId && await runtime.hasPassage(input.passageId) ? input.passageId : null;
+                    if (input.event === 'activity.active')
+                        return json(res, 200, await require('./activity.cjs').recordActivity(store, session.user, input, id ? passageKey(id) : null));
                     const duration = Number.isFinite(input.durationMs) ? Math.round(Math.max(0, Math.min(input.durationMs, 3600000))) : null;
                     // No client-provided names, details, text, error messages, or authorship.
                     await store.audit(session.user.id, input.event, id, ['succeeded','failed','started','changed','cancelled','ignored'].includes(input.outcome)?input.outcome:'changed', duration, 'browser', require('./research.cjs').categoricalDetails(input));

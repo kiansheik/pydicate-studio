@@ -73,6 +73,24 @@ class DictionaryLookupScopeTests(unittest.TestCase):
                 dictionary_lookup(self.engine, {'query': 'aba', 'matchField': value})
         self.assertEqual(self.dataset.read_bytes(), self.original)
 
+    def test_accent_free_headword_precedes_prefix_and_token_meaning_precedes_substring(self):
+        rows = [
+            {'f': 'abacaxi', 'd': 'fruta', 't': 1},
+            {'f': 'abá', 'd': 'pessoa', 't': 1},
+            {'f': 'outro', 'd': 'acabamento', 't': 1},
+            {'f': 'palavra', 'd': 'abá; pessoa', 't': 1},
+            {'f': "'ú", 'd': 'comer', 't': 1},
+            {'f': 'u', 'd': 'outra entrada', 't': 1},
+        ]
+        before = gzip.compress(json.dumps(rows, ensure_ascii=False).encode(), mtime=0)
+        self.dataset.write_bytes(before)
+        result = dictionary_lookup(self.engine, {'query': 'aba'})
+        self.assertEqual([row['entryIndex'] for row in result['results']], [1, 3, 0, 2])
+        glottal = dictionary_lookup(self.engine, {'query': 'u', 'matchField': 'headword'})['results']
+        self.assertEqual([row['entryIndex'] for row in glottal[:2]], [5, 4])
+        self.assertEqual(glottal[1]['headword'], "'ú")
+        self.assertEqual(self.dataset.read_bytes(), before)
+
     def service(self):
         corpus = self.engine.parent/'oldtupicorpus'
         (corpus/'historic').mkdir(parents=True, exist_ok=True)

@@ -2,7 +2,7 @@ import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useId, useRef, useState, type Ref } from 'react';
 import { BookOpen, FileImage, Minus, Plus, ScanLine, X } from 'lucide-react';
 import { PdfEvidence, type EvidencePreparation } from './PdfEvidence';
-import type { EvidencePointer } from '../domain/evidence';
+import { evidencePredecessors, type EvidencePointer } from '../domain/evidence';
 import type { Studio } from '../useStudio';
 
 export function SourcePane({
@@ -16,6 +16,11 @@ export function SourcePane({
 }) {
   const { passage, draft, edit, ready } = studio;
   const isNewPassage = passage.id.startsWith('pending:');
+  const visiblePreviousPassages = evidencePredecessors(
+    studio.project.passages,
+    passage.id,
+    passage.sourceId,
+  );
   const locationId = useId();
   const locators = draft?.locators;
   const sections = [
@@ -147,6 +152,7 @@ export function SourcePane({
           previousPassageId={draft?.pending?.previousPassageId?.replace(/^pending:/, 'passage:')}
           insertionBeforePassageId={draft?.pending?.beforePassageId}
           newPassageGuide={isNewPassage}
+          visiblePreviousPassages={visiblePreviousPassages}
           disabled={!ready}
           initialPage={passage.witness.pdfPage}
           folio={locators?.folio ?? passage.witness.folio ?? undefined}

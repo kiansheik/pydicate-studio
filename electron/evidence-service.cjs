@@ -269,6 +269,48 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
           )
           .slice(0, 5000)
       : [];
+    // The displayed list includes pending rows, administrator ordering and
+    // exclusions. It is a read-only guide context, distinct from source ordinals.
+    let guideSources;
+    if (Array.isArray(params.visiblePreviousPassages)) {
+      const seen = new Set([params.passageId]);
+      guideSources = [];
+      for (const candidate of params.visiblePreviousPassages.slice(0, 5000)) {
+        if (
+          !candidate ||
+          typeof candidate.id !== 'string' ||
+          !candidate.id ||
+          candidate.id.length > 300 ||
+          /[\u0000-\u001f]/u.test(candidate.id) ||
+          !Number.isInteger(candidate.ordinal) ||
+          candidate.ordinal < 1 ||
+          seen.has(candidate.id)
+        )
+          continue;
+        seen.add(candidate.id);
+        const entry = Object.hasOwn(document.passages, candidate.id)
+          ? document.passages[candidate.id]
+          : null;
+        const ownRegions = selected
+          ? (entry?.regions ?? []).filter((region) => region.assetId === selected.id)
+          : [];
+        const viewMatches =
+          entry &&
+          selected &&
+          (entry.viewAssetId === selected.id ||
+            (entry.viewAssetId === undefined && ownRegions.length));
+        const region =
+          ownRegions.filter((item) => item.pageIndex === entry?.view.pageIndex).at(-1) ??
+          ownRegions.at(-1);
+        guideSources.push({
+          id: candidate.id,
+          ordinal: candidate.ordinal,
+          passageFingerprint: passageFingerprint(document, candidate.id),
+          ...(viewMatches ? { view: { ...entry.view } } : {}),
+          ...(region ? { region: { ...region, rect: [...region.rect] } } : {}),
+        });
+      }
+    }
     let inherited = null;
     const guideCandidates = [];
     if (params.newPassageGuide === true) {
@@ -359,6 +401,7 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
       revision: document.revision,
       // The baseline belongs to this passage, never its predecessor's guide.
       passageFingerprint: passageFingerprint(document, params.passageId),
+      ...(guideSources ? { guideSources } : {}),
       projectId: document.projectId,
       sourceId: document.sourceId,
       asset: selected
@@ -401,6 +444,7 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
   async function mutate(method, params) {
     const document = await read(params);
     staleCheck(method, params, document);
+    let regionsChanged;
     if (method === 'evidence_save') {
       const assetId = fingerprint(params.assetId);
       if (assetId !== document.selectedAssetId)
@@ -423,6 +467,7 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
             ? { guide: previous.guide }
             : {}),
       };
+      regionsChanged = JSON.stringify(previous?.regions ?? []) !== JSON.stringify(saved.regions);
       // Assignment through defineProperty also safely supports arbitrary legacy IDs.
       Object.defineProperty(document.passages, params.passageId, {
         value: saved,
@@ -469,7 +514,10 @@ function createEvidenceService({ stateDirectory, chooseFile }) {
     }
     document.revision += 1;
     await write(params, document);
-    return status(params, document);
+    return {
+      ...(await status(params, document)),
+      ...(regionsChanged !== undefined ? { regionsChanged } : {}),
+    };
   }
   return {
     // Internal server API: the caller owns this handle and must close it. It is

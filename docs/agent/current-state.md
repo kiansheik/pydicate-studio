@@ -1,5 +1,28 @@
 # Current state
 
+## Editing feedback, translation cost and contributor credits
+
+The tree toolbar has one always-visible orientation toggle. Explicit completion
+now wins over older review submissions in the navigator, panel and filters;
+submitting a newer revision reopens review. Completion is never inferred merely
+from matching generated text. The PDF guide follows current visible predecessors,
+including reordered/pending passages and region edits still saving, without
+turning inherited guides into owned evidence. Gray guides are more opaque.
+
+Lexical discovery uses Navarro-style complete-form/whole-meaning ranking with
+accent/glottal omission fallback; identifiers and saved definitions remain exact.
+Codex translation uses GPT-5.6 Luna at medium, verified in the live model catalog;
+grammar repair retains its own configuration. A scoped readable annotation
+legend supplements exact tree definitions and original tags. Tests use simulated
+providers and real local context; model-side translation quality remains untested.
+
+Hosted credit reporting separates confirmed contributions from checkpoints
+and visits, with distinct canonical passage IDs per user and an all-time export.
+Foreground activity intervals provide platform/per-passage time going forward,
+pause after inactivity, and deduplicate overlapping tabs on the server. Historical
+saved contributions remain reportable; historical hours are not reconstructed.
+See [handoff](session-handoffs/2026-10-01-workflow-feedback-and-credits.md).
+
 ## Insertion past unrelated unresolved references (live)
 
 The live insertion error came from Araújo reference records 55/60 retaining older

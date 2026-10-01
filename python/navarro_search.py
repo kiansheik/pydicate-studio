@@ -62,7 +62,7 @@ def _site_data(engine_path):
     fingerprint='sha256:'+hashlib.sha256(data).hexdigest()
     key=(str(dataset),fingerprint)
     if key not in _SITE_CACHE:
-        from rendered_structures import normalize
+        from lexical_search import Document
         rows=json.loads(gzip.decompress(data))
         if not isinstance(rows,list):raise ValueError('O dicionário local não contém uma lista de verbetes.')
         index=[]
@@ -71,7 +71,7 @@ def _site_data(engine_path):
                 continue
             if row.get('t') not in (1,True):continue
             descriptor=_site_descriptor(row,offset,fingerprint)
-            index.append((normalize(row['f']),normalize(row['f'],True),normalize(row['d']),normalize(row['d'],True),descriptor))
+            index.append((Document(forms=[('headword', row['f'])], definition=row['d']), descriptor))
         _SITE_CACHE.clear();_SITE_CACHE[key]=(rows,index)
     return fingerprint,_SITE_CACHE[key]
 
@@ -87,7 +87,7 @@ def _site_descriptor(row,offset,fingerprint):
             **({'suggestedConstructor':choices[0]} if len(choices)==1 else {})}
 
 
-def _matched_excerpt(value, query, relaxed=False):
+def _matched_excerpt(value, query, relaxed=False, omit_apostrophes=False):
     """Keep bounded original spelling around a normalized match, not just the header."""
     from rendered_structures import normalize
     pieces, locations = [], []
@@ -97,10 +97,12 @@ def _matched_excerpt(value, query, relaxed=False):
         while end < len(value) and unicodedata.combining(value[end]):
             end += 1
         part = normalize(value[start:end], relaxed)
+        if omit_apostrophes: part = part.replace("'", '')
         pieces.append(part)
         locations.extend([(start, end)] * len(part))
         start = end
     needle = normalize(query, relaxed)
+    if omit_apostrophes: needle = needle.replace("'", '')
     found = ''.join(pieces).find(needle) if needle else -1
     beginning = locations[found][0] if found >= 0 and locations else 0
     start = max(0, beginning - 70)
@@ -109,7 +111,7 @@ def _matched_excerpt(value, query, relaxed=False):
 
 
 def dictionary_lookup(engine_path,params):
-    from rendered_structures import normalize
+    from lexical_search import Query
     query=params.get('query','');limit=params.get('limit',20);offset=params.get('offset',0)
     if not isinstance(query,str) or not 1<=len(query.strip())<=200:
         raise ValueError('Digite uma palavra tupi ou uma definição em português (até 200 caracteres).')
@@ -118,26 +120,15 @@ def dictionary_lookup(engine_path,params):
     field=params.get('matchField')
     if field not in (None,'headword','definition'):raise ValueError('Escolha busca por verbete ou por definição.')
     fingerprint,(_,index)=_site_data(engine_path)
-    key=normalize(query);relaxed=normalize(query,True);ranked=[]
-    labels=['exact','prefix','contains','definition','relaxed']
-    for word,word_relaxed,definition,definition_relaxed,entry in index:
-        score=None;matched_field=None
-        if field!='definition':
-            score=0 if word==key else 1 if word.startswith(key) else 2 if key in word else None
-            if score is not None:matched_field='headword'
-        if score is None and field!='headword' and key in definition:
-            score=3;matched_field='definition'
-        if score is None and relaxed:
-            if field!='definition' and relaxed in word_relaxed:
-                score=4;matched_field='headword'
-            elif field!='headword' and relaxed in definition_relaxed:
-                score=4;matched_field='definition'
-        if score is not None:ranked.append((score,word,entry['entryIndex'],entry,matched_field))
+    lookup=Query(query);ranked=[]
+    for document,entry in index:
+        match=lookup.match(document, field=field)
+        if match is not None:ranked.append((match.rank,entry['headword'],entry['entryIndex'],entry,match))
     ranked.sort(key=lambda row:row[:3])
     return {'query':query,**({'matchField':field} if field else {}),
-            'results':[{**entry,'match':labels[score],'matchedField':matched_field,
-                        'matchedExcerpt':_matched_excerpt(entry[matched_field],query,score==4)}
-                       for score,_,_,entry,matched_field in ranked[offset:offset+limit]],
+            'results':[{**entry,'match':match.label,'matchedField':match.field,
+                        'matchedExcerpt':_matched_excerpt(entry[match.field],query,match.spelling>0,match.spelling==2)}
+                       for _,_,_,entry,match in ranked[offset:offset+limit]],
             'total':len(ranked),'datasetFingerprint':fingerprint,'offset':offset,
             'nextOffset':offset+limit if offset+limit<len(ranked) else None}
 

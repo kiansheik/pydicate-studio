@@ -195,6 +195,7 @@ async function createStudio(config, store, emit = () => { }) {
                 if (params.note?.passageId) {
                     await passage(params.note.passageId, true);
                     await store.assertClaim(params.note.passageId, user, context.clientId, true);
+                    target = params.note.passageId;
                 }
                 params.note = { ...params.note, provenance: { ...params.note?.provenance, collaboration: { userId: user.id, name: user.name } } };
             }
@@ -220,7 +221,8 @@ async function createStudio(config, store, emit = () => { }) {
                 }
                 if (method === 'source_apply')
                     previews.delete(params.previewId);
-                await store.audit(user.id, 'operation.' + method, target ?? null, 'succeeded', Math.round(performance.now() - started));
+                await store.audit(user.id, 'operation.' + method, target ?? null, 'succeeded', Math.round(performance.now() - started), 'server',
+                    method === 'evidence_save' ? { regionsChanged: result?.regionsChanged === true } : {});
                 if (['source_apply', 'source_create', 'reference_approve'].includes(method))
                     sourceChanged();
                 return result;
