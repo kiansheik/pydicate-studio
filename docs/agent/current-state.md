@@ -2,6 +2,9 @@
 
 ## Steering a running grammar correction (rollout pending)
 
+Grammar repair now has a 15-minute agent deadline per attempt. Steering does not
+reset it; timeout stops inference, drains atomic edits/checks and preserves a
+resumable partial response without automatically calling the provider again.
 Replies in an active Codex grammar conversation now use `analysis_steer` and
 native `turn/steer` on the existing turn, preserving its tools, edits and corpus
 checks. Instructions are saved before delivery, with waiting/delivered/undelivered

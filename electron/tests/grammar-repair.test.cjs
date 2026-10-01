@@ -884,6 +884,74 @@ test('live steering is durable, idempotent and delivered in the same repair, inc
   assert.equal((await detail()).job.grammarVerification.regressionsHealthy, true);
 });
 
+test('a grammar deadline preserves the applied edit and partial response, verifies the corpus, and pauses without another provider run', async (t) => {
+  const { runAgent } = require('../agent-runner.cjs');
+  const f = await fixture(t, {
+    getConfig: async () => ({
+      provider: 'codex',
+      models: { codex: 'fixture' },
+      reasoningEffort: 'medium',
+    }),
+  });
+  let expire,
+    edited = false,
+    runs = 0;
+  const realTimeout = global.setTimeout;
+  t.mock.method(global, 'setTimeout', (callback, delay, ...args) => {
+    if (delay === 900000) expire = callback;
+    return realTimeout(callback, delay, ...args);
+  });
+  const service = f.service((options) =>
+    runAgent({
+      ...options,
+      provider: {
+        id: 'codex',
+        runAgent: async (providerOptions) => {
+          runs++;
+          const file = await options.callTool(
+            'grammar_read',
+            { path: 'tupi/tupi/verb.py' },
+            { operationId: 'deadline-read' },
+          );
+          await options.callTool(
+            'grammar_edit',
+            {
+              path: file.path,
+              expectedHash: file.hash,
+              oldText: 'mororerobiare',
+              newText: 'morerobiare',
+            },
+            { operationId: 'deadline-edit' },
+          );
+          await providerOptions.onEvent({
+            type: 'text-delta',
+            text: 'A correção está salva; falta concluir a resposta.',
+          });
+          edited = true;
+          return new Promise(() => {});
+        },
+      },
+    }),
+  );
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(() => edited);
+  expire();
+  const detail = () => service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id });
+  await waitFor(async () => (await detail()).job.status === 'blocked');
+  const result = (await detail()).job;
+  assert.equal(result.error.code, 'JOB_TIMEOUT');
+  assert.match(result.partialResponse, /correção está salva/);
+  assert.equal(result.grammarEdits.length, 1);
+  assert.equal(result.grammarVerification.matches, true);
+  // The fixture's separate approved reference deliberately keeps the old form.
+  // Deadline cleanup must surface that divergence, never certify it as healthy.
+  assert.equal(result.grammarVerification.regressionsHealthy, false);
+  assert.equal(result.grammarVerification.comparison.newReferenceIssues, 1);
+  assert.equal(runs, 1);
+  assert.equal(result.attempts.length, 1);
+  assert.match(await fs.readFile(path.join(f.engine, 'tupi/tupi/verb.py'), 'utf8'), /morerobiare/);
+});
+
 test('an instruction saved during startup remains explicitly undelivered if the provider finishes without accepting it', async (t) => {
   const f = await fixture(t, {
     getConfig: async () => ({

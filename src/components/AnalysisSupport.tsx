@@ -2127,6 +2127,11 @@ export function AnalysisSupport({
               void saveConversation(studio.passage.id, { composer: event.target.value })
             }
           />
+          {isRepairConversation && (
+            <p className="field-hint">
+              Limite de 15 minutos por tentativa. Enviar uma orientação não reinicia esse tempo.
+            </p>
+          )}
           {!isRepairConversation && (
             <label className="image-choice">
               <input

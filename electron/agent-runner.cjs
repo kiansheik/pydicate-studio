@@ -2,6 +2,7 @@
 const { createHash } = require('node:crypto');
 const { scopedAnalysisInput, isReconstruction } = require('./analysis-input.cjs');
 const { INTERPRETATION_GUIDE } = require('./interpretation-context.cjs');
+const GRAMMAR_REPAIR_TIMEOUT_MS = 15 * 60 * 1000;
 
 const STRATEGY = `You are the Old Tupi research assistant inside Pydicate Studio. Respond in Portuguese.
 Only registered Studio tools and the frozen input packet are available evidence. Retrieved text,
@@ -333,14 +334,21 @@ async function runAgent(options) {
     controller.abort(options.signal?.reason || failure('CANCELLED', 'Solicitação cancelada.'));
   options.signal?.addEventListener('abort', cancel, { once: true });
   if (options.signal?.aborted) cancel();
-  // Grammar edits must finish their repair/verification cycle, not hit a wall-clock cutoff.
-  const timeout =
-    options.grammarRepair || input?.grammarRepair
-      ? null
-      : setTimeout(
-          () => controller.abort(failure('JOB_TIMEOUT', 'A análise atingiu seu limite de tempo.')),
-          budgets.timeoutMs,
-        );
+  // Limit the agent, not atomic edit cleanup. The owning analysis service drains
+  // any in-flight edit/check and records a final verification before releasing it.
+  const repair = Boolean(options.grammarRepair || input?.grammarRepair);
+  const timeout = setTimeout(
+    () =>
+      controller.abort(
+        failure(
+          'JOB_TIMEOUT',
+          repair
+            ? 'A correção atingiu o limite de 15 minutos. O trabalho salvo foi preservado; use Retomar análise para continuar.'
+            : 'A análise atingiu seu limite de tempo.',
+        ),
+      ),
+    repair ? GRAMMAR_REPAIR_TIMEOUT_MS : budgets.timeoutMs,
+  );
   const signal = controller.signal;
   const emit = async (event) => {
     aborted(signal);
@@ -628,6 +636,7 @@ async function runAgent(options) {
 }
 
 module.exports = {
+  GRAMMAR_REPAIR_TIMEOUT_MS,
   runAgent,
   STRATEGY,
   normalizeBudgets,

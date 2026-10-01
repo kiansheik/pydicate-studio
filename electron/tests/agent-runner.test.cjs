@@ -942,3 +942,37 @@ test('grammar repair can finish beyond the ordinary deadline but still obeys exp
   controller.abort(Object.assign(new Error('cancel'), { code: 'CANCELLED' }));
   await assert.rejects(result, { code: 'CANCELLED' });
 });
+
+test('grammar repair stops at fifteen minutes even if the provider ignores abort and steering does not reset its deadline', async (t) => {
+  const { GRAMMAR_REPAIR_TIMEOUT_MS } = require('../agent-runner.cjs');
+  assert.equal(GRAMMAR_REPAIR_TIMEOUT_MS, 900000);
+  const timers = [];
+  const realTimeout = global.setTimeout;
+  t.mock.method(global, 'setTimeout', (callback, delay, ...args) => {
+    timers.push(delay);
+    return realTimeout(callback, delay === 900000 ? 50 : delay, ...args);
+  });
+  let signal, steer;
+  const pending = runAgent({
+    provider: {
+      id: 'codex',
+      runAgent: async (options) => {
+        signal = options.signal;
+        options.registerSteer(async () => ({ turnId: 'same-turn' }));
+        return new Promise(() => {});
+      },
+    },
+    input: { ...input, task: 'grammar-repair', grammarRepair: { raw: 'mo * pyta' } },
+    grammarRepair: true,
+    budgets: { timeoutMs: 1800000 },
+    registerSteer: (send) => {
+      steer = send;
+    },
+  });
+  while (!steer) await new Promise((resolve) => setImmediate(resolve));
+  await steer('Generalize the rule');
+  await assert.rejects(pending, { code: 'JOB_TIMEOUT' });
+  assert.equal(signal.aborted, true);
+  assert.match(signal.reason.message, /15 minutos/);
+  assert.deepEqual(timers, [900000]);
+});

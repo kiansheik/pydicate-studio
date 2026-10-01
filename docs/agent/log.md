@@ -1,6 +1,8 @@
 ## 2026-10-01 — Steer active grammar corrections
 
 Added durable same-turn Codex steering instead of a second queued analysis.
+At the user's follow-up request, cancelled the old run and added a 15-minute
+agent deadline, retaining checked edits and partial output for explicit resume.
 Delivery receipts distinguish saved, acknowledged and uncertain instructions;
 completed-parent context and running-response visibility preserve older queues.
 Mock-provider, durability, browser and hosted authorization checks pass.

@@ -74,3 +74,30 @@ input, not proof that the resulting linguistic generalization is correct; every
 repair still runs the existing corpus checks. The next real correction should
 confirm that a changed instruction affects its subsequent work. Tests exercised
 native protocol fixtures without spending inference usage.
+
+## User-requested cancellation and deadline
+
+The user then explicitly requested killing the slow run and a10–15minute cap.
+Cancelled only jobf0ef824e through `analysis_cancel`: terminal cancelled at
+13:12:53UTC, target matched and final regressions healthy; no active jobs remain.
+A15-minute agent timeout now applies to each grammar attempt for all supported
+providers. Steering cannot reset it. The existing owner still drains an atomic
+edit/check before releasing grammar ownership; partial text and verified edits
+remain saved, with explicit resume required. Ordinary analysis budgets remain
+unchanged. The composer explains this limit.
+
+33 runner checks pass, including a shortened real timer proving the900000ms
+limit aborts an unresponsive provider and steering never resets it. A service
+integration check applies a real fixture edit, triggers that timer and verifies
+blocked/JOB_TIMEOUT, retained text/edit, the actual divergence against the
+fixture's approved old form, and only one run. The first assertion incorrectly
+expected that intentionally changed fixture reference to remain healthy; corrected
+it to require the reported regression.
+Typecheck passes.
+
+The first deployment was deliberately stopped during its maintenance wait,
+because the old wait mode blocks browser requests while a repair is active.
+SIGINT affected only the waiting coordinator, ran its cleanup and restored API
+access; the writer/container were untouched. The user subsequently authorized
+cancelling the correction as above. The steering-only image was built but never
+made live; the combined steering/deadline release is deployed next.
