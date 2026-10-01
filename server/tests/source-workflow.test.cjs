@@ -56,18 +56,36 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   auth.origin = config.origin;
   browser = await chromium.launch({ headless: true, ...(process.env.COLLAB_CHROMIUM ? { executablePath: process.env.COLLAB_CHROMIUM } : {}) });
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
-  const errors = [], blocked = [], decoding = [];
+  const errors = [], blocked = [], decoding = [], supersededEvaluations = [];
+  let initialEvaluation;
   page.on('pageerror', error => errors.push(error.message));
   // A scan is one image per page, and PDF.js skips a picture whose decoder it
   // cannot load: the page then arrives white with nothing else reported.
   page.on('console', entry => { if (/Unable to decode image|failed to initialize|wasm/i.test(entry.text())) decoding.push(entry.text()); });
-  page.on('response', async response => { if (response.url().includes('/api/') && response.status() >= 400) { const body=await response.json().catch(()=>({})); blocked.push(`${response.status()} ${response.url()} ${response.request().postDataJSON()?.method || ''} ${body.error?.code || ''} ${body.error?.message || ''}`); } });
+  page.on('response', async response => {
+    if (!response.url().includes('/api/') || response.status() < 400) return;
+    const body = await response.json().catch(() => ({}));
+    const input = response.request().postDataJSON();
+    // Creating a source changes the engine while the initial passage's read
+    // may still be queued. Only that superseded evaluation may be rejected;
+    // evaluations of the new draft and every other endpoint must succeed.
+    if (response.status() === 422 && body.error?.code === 'STALE_ENGINE' &&
+        input?.method === 'evaluate_expression' && initialEvaluation &&
+        input.params?.passageId === initialEvaluation.passageId &&
+        input.params?.engineFingerprint === initialEvaluation.engineFingerprint) {
+      supersededEvaluations.push(input.params);
+      return;
+    }
+    blocked.push(`${response.status()} ${response.url()} ${input?.method || ''} ${body.error?.code || ''} ${body.error?.message || ''}`);
+  });
   await page.goto(config.origin + '/login');
   await page.locator('#email').fill('contributor@example.org');
   await page.locator('#password').fill(password);
   await page.locator('#submit').click();
   await page.waitForURL(config.origin + '/');
-  await page.getByRole('button', { name: 'Nova fonte', exact: true }).click({ timeout: 60000 });
+  await expect(page.getByRole('button', { name: 'Nova fonte', exact: true })).toBeVisible({ timeout: 60000 });
+  initialEvaluation = { passageId: await page.evaluate(() => window.collab.state().selected), engineFingerprint: runtime.project.engineFingerprint };
+  await page.getByRole('button', { name: 'Nova fonte', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Nova fonte', exact: true });
   await dialog.getByLabel('Título da fonte').fill('Manuscrito do colaborador');
   await dialog.getByLabel('Ano (opcional)').fill('1750');
@@ -132,5 +150,9 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   assert.equal(fs.existsSync(path.join(corpus, 'ground_truth/records/historic/manuscrito_do_colaborador.jsonl')), false);
   assert.deepEqual(errors, []);
   assert.deepEqual(decoding, []);
+  for (const evaluation of supersededEvaluations) {
+    assert.notEqual(evaluation.passageId, id, 'Only the previous passage evaluation may be superseded');
+    assert.notEqual(evaluation.engineFingerprint, runtime.project.engineFingerprint, 'The rejected evaluation belongs to the engine before source creation');
+  }
   assert.deepEqual(blocked, [], 'Normal contributor source workflow must not request unsupported endpoints');
 });

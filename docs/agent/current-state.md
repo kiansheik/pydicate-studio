@@ -12,6 +12,9 @@ and follow the current orientation toggle, retained tabs and PDF autosave UI.
 The fixes were prepared in an isolated checkout; original checkout and live data
 are unchanged. Publishing a follow-up branch/draft PR is separately authorized;
 merge and deployment remain outside this work.
+The first hosted CI run exposed a queued evaluation of the previous passage
+after source creation. The workflow permits only that stale engine/passage pair;
+the new draft must still render, submit and retain its evidence without failures.
 See [review handoff](session-handoffs/2026-10-01-pr16-local-ci-repair.md) for checks,
 patch scope and separate optional corpus-test limitations.
 

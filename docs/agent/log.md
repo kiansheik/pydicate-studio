@@ -6,6 +6,10 @@ updated browser API mocks, deferred reply-composer focus, and repaired obsolete
 browser fixture assumptions without reverting current startup/navigation behavior.
 Prepared locally first; the user then authorized a separate branch/draft PR for
 review. Merge/deployment remain excluded; original checkout remains untouched.
+Published draft PR #17. The first hosted CI run reached all browser gates but
+rejected a safely superseded initial evaluation. Narrowed the source-workflow
+assertion to its captured previous passage and engine; all four hosted editor
+gates pass locally. The push-triggered full Checks run at `ede219e` passed.
 See [handoff](session-handoffs/2026-10-01-pr16-local-ci-repair.md) for final validation
 and optional real-corpus findings.
 
