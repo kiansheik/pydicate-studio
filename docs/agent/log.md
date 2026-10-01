@@ -8,8 +8,10 @@ Prepared locally first; the user then authorized a separate branch/draft PR for
 review. Merge/deployment remain excluded; original checkout remains untouched.
 Published draft PR #17. The first hosted CI run reached all browser gates but
 rejected a safely superseded initial evaluation. Narrowed the source-workflow
-assertion to its captured previous passage and engine; all four hosted editor
-gates pass locally. The push-triggered full Checks run at `ede219e` passed.
+assertion to its captured previous engine and actual request, rather than the
+asynchronously selected startup passage. A deterministic browser route now holds
+the old read until creation and requires its rejection. The source regression
+and all four hosted editor gates pass locally. Full Checks at `ede219e` passed.
 See [handoff](session-handoffs/2026-10-01-pr16-local-ci-repair.md) for final validation
 and optional real-corpus findings.
 

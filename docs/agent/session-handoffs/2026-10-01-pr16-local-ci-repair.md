@@ -44,8 +44,11 @@ targets `unlocked-light-deploy` from `fix/pr16-ci-telemetry-browser-fixtures`.
 Push-triggered Checks at `ede219e` passed. Hosted CI passed authentication,
 transport and real adapter gates, then source-workflow observed an initial
 passage evaluation queued across source creation and correctly rejected with
-STALE_ENGINE. The test now permits only the captured previous passage/fingerprint
-and asserts both differ from the successfully rendered/submitted new draft and
+STALE_ENGINE. A first refinement captured the asynchronous startup selection and
+was still timing-sensitive in CI. The test now holds an actual original-passage
+evaluation at the browser boundary until source creation, requires its rejection,
+permits only that captured request, and asserts its passage/fingerprint differ
+from the successfully rendered/submitted new draft and
 current engine; every other HTTP failure remains fatal. Four hosted editor gates
 passed locally after this refinement (zero skips).
 Review the follow-up branch/draft PR; merge and deployment require separate authorization. Optional corpus/engine findings need separate bounded investigation with chosen fixture revisions. Suggested prompt: “Review the local PR #16 CI patch; keep merge/deployment separate from review.”

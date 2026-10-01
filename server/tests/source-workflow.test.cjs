@@ -57,22 +57,43 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   browser = await chromium.launch({ headless: true, ...(process.env.COLLAB_CHROMIUM ? { executablePath: process.env.COLLAB_CHROMIUM } : {}) });
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   const errors = [], blocked = [], decoding = [], supersededEvaluations = [];
-  let initialEvaluation;
+  const initialEngine = runtime.project.engineFingerprint;
+  const initialPassages = new Set(runtime.project.passages.map(passage => passage.id));
+  const initialEvaluations = new Set();
+  let sourceCreated = false;
+  let releaseInitialEvaluation, initialEvaluationQueued;
+  const sourceCreation = new Promise(resolve => { releaseInitialEvaluation = resolve; });
+  const queuedEvaluation = new Promise(resolve => { initialEvaluationQueued = resolve; });
+  // Exercise the race deterministically: hold an initial read at the browser
+  // boundary until source creation has invalidated its engine fingerprint.
+  await page.route('**/api/invoke', async route => {
+    const input = route.request().postDataJSON();
+    if (!sourceCreated && input?.method === 'evaluate_expression' &&
+        initialPassages.has(input.params?.passageId) && input.params?.engineFingerprint === initialEngine) {
+      initialEvaluations.add(route.request());
+      initialEvaluationQueued();
+      await sourceCreation;
+    }
+    await route.continue();
+  });
+  t.after(() => releaseInitialEvaluation());
   page.on('pageerror', error => errors.push(error.message));
   // A scan is one image per page, and PDF.js skips a picture whose decoder it
   // cannot load: the page then arrives white with nothing else reported.
   page.on('console', entry => { if (/Unable to decode image|failed to initialize|wasm/i.test(entry.text())) decoding.push(entry.text()); });
   page.on('response', async response => {
+    const input = response.url().endsWith('/api/invoke') ? response.request().postDataJSON() : null;
+    if (response.url().endsWith('/api/invoke') && input?.method === 'source_create' && response.ok()) {
+      sourceCreated = true;
+      releaseInitialEvaluation();
+    }
     if (!response.url().includes('/api/') || response.status() < 400) return;
     const body = await response.json().catch(() => ({}));
-    const input = response.request().postDataJSON();
     // Creating a source changes the engine while the initial passage's read
     // may still be queued. Only that superseded evaluation may be rejected;
     // evaluations of the new draft and every other endpoint must succeed.
     if (response.status() === 422 && body.error?.code === 'STALE_ENGINE' &&
-        input?.method === 'evaluate_expression' && initialEvaluation &&
-        input.params?.passageId === initialEvaluation.passageId &&
-        input.params?.engineFingerprint === initialEvaluation.engineFingerprint) {
+        initialEvaluations.has(response.request())) {
       supersededEvaluations.push(input.params);
       return;
     }
@@ -84,7 +105,7 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   await page.locator('#submit').click();
   await page.waitForURL(config.origin + '/');
   await expect(page.getByRole('button', { name: 'Nova fonte', exact: true })).toBeVisible({ timeout: 60000 });
-  initialEvaluation = { passageId: await page.evaluate(() => window.collab.state().selected), engineFingerprint: runtime.project.engineFingerprint };
+  await queuedEvaluation;
   await page.getByRole('button', { name: 'Nova fonte', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Nova fonte', exact: true });
   await dialog.getByLabel('Título da fonte').fill('Manuscrito do colaborador');
@@ -150,6 +171,7 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   assert.equal(fs.existsSync(path.join(corpus, 'ground_truth/records/historic/manuscrito_do_colaborador.jsonl')), false);
   assert.deepEqual(errors, []);
   assert.deepEqual(decoding, []);
+  assert.ok(supersededEvaluations.length > 0, 'The held initial evaluation must be rejected after source creation');
   for (const evaluation of supersededEvaluations) {
     assert.notEqual(evaluation.passageId, id, 'Only the previous passage evaluation may be superseded');
     assert.notEqual(evaluation.engineFingerprint, runtime.project.engineFingerprint, 'The rejected evaluation belongs to the engine before source creation');
