@@ -9,7 +9,7 @@ function setup() {
   const window = { addEventListener() {}, dispatchEvent() {} };
   const sandbox = { window, crypto: { randomUUID: () => 'client' }, structuredClone,
     document: {}, navigator: {}, CustomEvent: class {}, EventSource: class {},
-    Date: { now: () => now }, setInterval() {},
+    Date: { now: () => now }, performance: { now: () => now }, setInterval() {},
     setTimeout(fn, ms) { const id = ++timer; timers.set(id, { fn, at: now + ms }); return id; },
     clearTimeout(id) { timers.delete(id); },
     fetch: async (url, options) => {
@@ -20,7 +20,7 @@ function setup() {
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/bridge.js'), 'utf8'), sandbox);
   const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
   const respond = (index, status = 200, code = '', retryAfter = null) => requests[index].resolve({
-    ok: status === 200, status, headers: { get: name => name === 'retry-after' ? retryAfter : null },
+    ok: status === 200, status, headers: new Headers(retryAfter === null ? {} : { 'retry-after': retryAfter }),
     json: async () => status === 200 ? { value: index } : { error: { code, message: 'busy' } },
   });
   return { invoke: window.studio.invoke, requests, respond, flush,

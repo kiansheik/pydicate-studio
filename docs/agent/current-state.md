@@ -1,5 +1,20 @@
 # Current state
 
+## PR #16 CI repairs (follow-up review branch)
+
+At head `4d0a60c099e9f8d562f7c694181cc801de292156`, renderer activity was
+missing from the desktop telemetry allowlist. Bridge-pressure tests also lacked
+the browser clock and real response Headers API. These failures reproduce before
+and pass after scoped fixes. Replying to a proposal now focuses the composer after
+its preview/task render. Browser fixtures explicitly select their intended passage,
+retain dedicated latest-startup coverage, preserve source identities on reload,
+and follow the current orientation toggle, retained tabs and PDF autosave UI.
+The fixes were prepared in an isolated checkout; original checkout and live data
+are unchanged. Publishing a follow-up branch/draft PR is separately authorized;
+merge and deployment remain outside this work.
+See [review handoff](session-handoffs/2026-10-01-pr16-local-ci-repair.md) for checks,
+patch scope and separate optional corpus-test limitations.
+
 ## Steering and bounded grammar corrections (live)
 
 Grammar repair now has a 15-minute agent deadline per attempt. Steering does not

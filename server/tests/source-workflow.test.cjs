@@ -91,7 +91,7 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   const box = await canvas.boundingBox();
   assert.ok(box && box.width > 0 && box.height > 0, 'Rendered PDF has drawable dimensions');
   // Never again a PDF that loads, reports itself ready and shows white pages.
-  assert.ok(await inkedFraction(canvas) > 0.4, 'The uploaded scan is drawn in the same session, without a reload');
+  await expect.poll(() => inkedFraction(canvas), { timeout: 60000, message: 'The uploaded scan is drawn in the same session, without a reload' }).toBeGreaterThan(0.4);
   assert.deepEqual(decoding, [], 'Every image decoder the scan needs is available to the hosted page');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.mouse.move(box.x + box.width * .2, box.y + box.height * .3);
@@ -99,8 +99,7 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   await page.mouse.move(box.x + box.width * .7, box.y + box.height * .4, { steps: 6 });
   await page.mouse.up();
   await expect(page.getByTestId('pdf-region')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
   await expect(page.getByText('Evidência salva no servidor.', { exact: false })).toBeVisible();
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura do manuscrito');
   await page.getByRole('button', { name: 'Mais ferramentas', exact: true }).click();
@@ -115,7 +114,8 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   await expect(page.getByTestId('pdf-canvas')).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Renderizando' })).toHaveCount(0);
-  assert.ok(await inkedFraction(canvas) > 0.4, 'The saved scan is drawn again after reopening the source');
+  // A visible canvas can precede the asynchronous PDF render after reload.
+  await expect.poll(() => inkedFraction(canvas), { timeout: 60000, message: 'The saved scan is drawn again after reopening the source' }).toBeGreaterThan(0.4);
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('Leitura do manuscrito');
   await expect(page.getByTestId('generated-surface')).toHaveText('abá', { timeout: 60000 });
   await expect(page.getByRole('button', { name: 'Salvar como referência', exact: true })).toHaveCount(0);

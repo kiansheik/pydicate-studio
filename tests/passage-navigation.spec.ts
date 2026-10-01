@@ -42,7 +42,7 @@ test('startup goes to the final passage only once and later explicit navigation 
   await page.addInitScript(() =>
     localStorage.setItem('simulated-selection:simulated:a', 'passage-a'),
   );
-  await page.goto('/tests/next-hook-harness.html');
+  await page.goto('/tests/next-hook-harness.html?startup');
   await expect(page.getByTestId('ready')).toHaveText('true');
   await expect(page.getByTestId('passage')).toHaveText('passage-b');
   await page.evaluate(() => window.__nextStudio.setSelectedId('passage-a'));
@@ -54,7 +54,7 @@ test('startup goes to the final passage only once and later explicit navigation 
 test('startup follows shared list ordering and includes its final unpublished passage', async ({
   page,
 }) => {
-  await page.goto('/tests/next-hook-harness.html');
+  await page.goto('/tests/next-hook-harness.html?startup');
   await expect(page.getByTestId('passage')).toHaveText('passage-b');
   await page.evaluate(() => {
     const studio = window.__nextStudio;

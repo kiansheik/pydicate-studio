@@ -409,7 +409,7 @@ test('an old pending-passage link resolves its published identity without adding
         },
       };
   });
-  await page.goto(base);
+  await page.goto(`${base}&startup`);
   await ready(page, 'beta');
   await expect
     .poll(() => page.evaluate(() => !!window.__nextControl.saved['simulated:a']))

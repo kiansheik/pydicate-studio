@@ -1,3 +1,14 @@
+## 2026-10-01 — PR #16 CI repairs
+
+Reproduced the usage allowlist and three bridge-pressure failures at `4d0a60c`.
+Added renderer activity acceptance with a privileged-event regression guard;
+updated browser API mocks, deferred reply-composer focus, and repaired obsolete
+browser fixture assumptions without reverting current startup/navigation behavior.
+Prepared locally first; the user then authorized a separate branch/draft PR for
+review. Merge/deployment remain excluded; original checkout remains untouched.
+See [handoff](session-handoffs/2026-10-01-pr16-local-ci-repair.md) for final validation
+and optional real-corpus findings.
+
 ## 2026-10-01 — Steer active grammar corrections
 
 Added durable same-turn Codex steering instead of a second queued analysis.

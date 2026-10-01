@@ -1161,7 +1161,8 @@ export function AnalysisSupport({
       setReplyJobId(job.id);
       setScope('passage');
       if (candidate) onPreview();
-      composer.current?.focus();
+      // The preview and reply task can replace the composer during this render.
+      requestAnimationFrame(() => composer.current?.focus());
     });
   }
   async function accept(candidate: AnalysisCandidate) {
