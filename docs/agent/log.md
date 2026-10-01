@@ -977,3 +977,13 @@ URL navigation rollout: release `335de372a78c57d48f3a0623aff482fdb3c5e670`,
 52.9-second light deploy, actual production login/history/refresh/dictionary
 checks passed without research writes; 145 research and six evidence files
 unchanged, fresh corpus health 154 lines with zero divergences/failures.
+
+
+## 2026-09-30 — Unblock insertion after older unresolved references
+
+Moved insertion identity validation after the unchanged-reference fast path.
+Actual live source/reference identities reproduce the failure at targets72/113;
+the candidate passes without rewriting references55/60. Seven focused tests and
+one real-engine duplicate insertion/approval regression pass. Full live preview
+verification and rollout are recorded in the
+[handoff](session-handoffs/2026-09-30-insertion-unrelated-references.md).

@@ -1,5 +1,16 @@
 # Current state
 
+## Insertion past unrelated unresolved references
+
+The live insertion error came from Araújo reference records 55/60 retaining older
+UUIDs than their unpinned source rows. The insertion guard checked even reference
+rows before the new passage, although those rows never move. It now preserves
+those records unchanged and checks identity only for relocated rows. It does not
+reassociate or approve either older reference. Live in-memory reproductions at
+both actual insertion targets (72/113) fail under old code and pass with the fix,
+with exact reference bytes preserved. See
+[handoff](session-handoffs/2026-09-30-insertion-unrelated-references.md).
+
 ## URL navigation and shareable locations (live)
 
 Root query parameters now identify passages/sources, views/projections, selected
