@@ -1,6 +1,6 @@
 # Current state
 
-## Insertion past unrelated unresolved references
+## Insertion past unrelated unresolved references (live)
 
 The live insertion error came from Araújo reference records 55/60 retaining older
 UUIDs than their unpinned source rows. The insertion guard checked even reference
@@ -10,6 +10,14 @@ reassociate or approve either older reference. Live in-memory reproductions at
 both actual insertion targets (72/113) fail under old code and pass with the fix,
 with exact reference bytes preserved. See
 [handoff](session-handoffs/2026-09-30-insertion-unrelated-references.md).
+Release `0c67322f489f15cff0841b7157d68d42e93111eb` is live. Full source-new
+previews of both actual saved drafts passed: 155 expressions checked, 153
+references retained, zero failures, one proposed new row each; nothing applied.
+The rollout hit a full disk and stalled its heartbeat; six explicitly named unused
+old Studio images were removed (current/rollback images and all data retained),
+restoring 2.6 GB free. Verify space before another image build. All 145 research
+files and six evidence/PDF files retain exact before/after parity.
+
 
 ## URL navigation and shareable locations (live)
 

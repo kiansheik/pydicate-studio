@@ -982,8 +982,14 @@ unchanged, fresh corpus health 154 lines with zero divergences/failures.
 ## 2026-09-30 — Unblock insertion after older unresolved references
 
 Moved insertion identity validation after the unchanged-reference fast path.
-Actual live source/reference identities reproduce the failure at targets72/113;
+Actual live source/reference identities reproduce the failure at targets 72/113;
 the candidate passes without rewriting references55/60. Seven focused tests and
 one real-engine duplicate insertion/approval regression pass. Full live preview
 verification and rollout are recorded in the
 [handoff](session-handoffs/2026-09-30-insertion-unrelated-references.md).
+
+Insertion fix deployed as `0c67322f489f15cff0841b7157d68d42e93111eb`. Both real
+pending-draft previews pass all 155 expression checks with zero failures; no source
+apply or approval. Exact 145 research/six evidence-file parity. Deployment took
+141.3s after full-disk heartbeat stall; removing six unused old build images
+restored 2.6 GB. No research/data/backup deletion.
