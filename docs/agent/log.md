@@ -6,6 +6,10 @@ its own Luna/medium profile and a scoped annotation guide without changing
 grammar settings. Hosted credit reports distinguish saved contributions from
 visits and record bounded active time per user/passage with overlap deduplication.
 See [handoff](session-handoffs/2026-10-01-workflow-feedback-and-credits.md).
+Deployed `c1167671f31fcc31afb8e1fad499a8085e786487` in 52.5 seconds.
+Production health checks 158 lines with zero divergences/failures; exact parity
+for 145 research and six PDF/evidence files.
+
 
 ## 2026-09-30 — Reliable grammar repair transport and readable streaming
 

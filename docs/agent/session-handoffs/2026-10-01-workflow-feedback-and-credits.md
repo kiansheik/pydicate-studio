@@ -70,3 +70,24 @@ tests made no paid generation. For publication, export the all-time administrati
 credit report and review saved contribution categories alongside editorial approval.
 Review grammar-only receipts separately if they should contribute to publication
 acknowledgments beyond the passage counts.
+
+## Production rollout
+
+Committed/pushed `c1167671f31fcc31afb8e1fad499a8085e786487` on
+`unlocked-light-deploy`; ran `STUDIO_REF=unlocked-light-deploy make collab-deploy-light`.
+Healthy in 52.5 seconds; PostgreSQL stayed running, no migrations or research
+imports. Database checkpoint: `20261001T114920-c6b720`. Fresh corpus health:
+158 lines, zero divergences/failures, three pending, 327 morphemes, no active
+repairs (2.928 seconds). Exact pre/post SHA256 parity for all 145 tracked research
+files and six PDF/evidence files. The model profile, provider-free actual-tree
+translation prompt and administrative report were also verified through live APIs.
+
+Real production Chrome verification also passed: visible orientation control,
+current-order evidence guide metadata, fourteen visible completed rows without
+stale waiting labels, Luna/medium translation setup, administrative credit table,
+and three browser activity receipts. No API/page errors or attempted research
+mutations in the final read-only run. Screenshot retained privately under
+`.local/vps-qa/workflow-polish.png`; no generation was requested. Earlier smoke
+harness attempts clicked the layout toggle (correctly blocked its draft save),
+assumed the translation tab opened AI setup, and mishandled the empty selection
+cleanup response. Those harness errors were corrected; product code was unchanged.

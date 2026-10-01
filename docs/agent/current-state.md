@@ -1,6 +1,6 @@
 # Current state
 
-## Editing feedback, translation cost and contributor credits
+## Editing feedback, translation cost and contributor credits (live)
 
 The tree toolbar has one always-visible orientation toggle. Explicit completion
 now wins over older review submissions in the navigator, panel and filters;
@@ -22,6 +22,14 @@ Foreground activity intervals provide platform/per-passage time going forward,
 pause after inactivity, and deduplicate overlapping tabs on the server. Historical
 saved contributions remain reportable; historical hours are not reconstructed.
 See [handoff](session-handoffs/2026-10-01-workflow-feedback-and-credits.md).
+Release `c1167671f31fcc31afb8e1fad499a8085e786487` is live after a 52.5-second
+light deployment. Fresh health: 158 lines, zero divergences/failures, three
+pending, 327 morphemes, no active repairs. All 145 research files and six
+evidence/PDF files retain exact parity. Live model profile, read-only prompt
+construction and administrative report endpoints are verified. Actual Chrome
+checks also passed the completion labels, visible toggle, translation setup and
+credit table with no API/page errors or research mutations.
+
 
 ## Insertion past unrelated unresolved references (live)
 
