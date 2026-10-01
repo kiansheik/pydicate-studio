@@ -1,5 +1,17 @@
 # Current state
 
+## Steering a running grammar correction (rollout pending)
+
+Replies in an active Codex grammar conversation now use `analysis_steer` and
+native `turn/steer` on the existing turn, preserving its tools, edits and corpus
+checks. Instructions are saved before delivery, with waiting/delivered/undelivered
+or unconfirmed receipts; duplicate operations cannot send twice. Completion,
+transport failure and restart do not silently launch another provider run.
+Claude providers still require a completed turn; their composer text is retained
+with an explicit unsupported-steering message. Completed follow-ups receive the
+actual parent results at dispatch. Running work stays visible alongside legacy
+queued replies. See [handoff](session-handoffs/2026-10-01-live-repair-steering.md).
+
 ## Editing feedback, translation cost and contributor credits (live)
 
 The tree toolbar has one always-visible orientation toggle. Explicit completion

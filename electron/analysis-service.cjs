@@ -145,6 +145,7 @@ function createAnalysisService({
                   const cancelling = job.status === 'cancelling';
                   job.status = cancelling ? 'cancelled' : 'blocked';
                   job.phase = 'interrupted';
+                  finishSteering(job);
                   job.updatedAt = now();
                   job.error = {
                     code: 'INTERRUPTED',
@@ -800,6 +801,122 @@ function createAnalysisService({
     kick();
     return job;
   }
+  function finishSteering(job) {
+    for (const item of job.steering ?? []) {
+      if (item.status === 'waiting') item.status = 'not-delivered';
+      else if (item.status === 'sending') item.status = 'unconfirmed';
+    }
+  }
+  function flushSteering(jobId, handle) {
+    // Serialize delivery independently of the tool/event queue: a long regression
+    // must not prevent the user from changing the running agent's direction.
+    handle.steeringDelivery = (handle.steeringDelivery ?? Promise.resolve())
+      .then(async () => {
+        while (handle.steer && !handle.controller.signal.aborted) {
+          const job = await jobById(jobId);
+          const item = job.steering?.find(
+            (entry) => entry.status === 'waiting' && entry.attemptId === handle.attemptId,
+          );
+          if (!item || job.status !== 'running') return;
+          const send = handle.steer;
+          if (!send) return;
+          await mutateJob(
+            jobId,
+            (value) => {
+              value.steering.find((entry) => entry.id === item.id).status = 'sending';
+            },
+            { attemptId: handle.attemptId },
+          );
+          let receipt, deliveryError;
+          try {
+            receipt = await send(item.text);
+          } catch (reason) {
+            deliveryError = reason;
+          }
+          await mutateJob(jobId, (value) => {
+            const saved = value.steering.find((entry) => entry.id === item.id);
+            // A transport failure may follow acceptance. Never retry automatically.
+            saved.status = receipt
+              ? 'delivered'
+              : deliveryError?.code === 'STEER_CLOSED'
+                ? 'not-delivered'
+                : 'unconfirmed';
+            saved.updatedAt = now();
+            if (receipt) saved.receipt = receipt;
+            if (deliveryError)
+              saved.error = String(deliveryError.message ?? deliveryError).slice(0, 1000);
+          });
+        }
+      })
+      .catch(() => {});
+  }
+  async function steer(params) {
+    requireId(params.operationId, 'operação');
+    requireId(params.jobId, 'análise');
+    const text = typeof params.description === 'string' ? params.description.trim() : '';
+    if (!text || text.length > 20000)
+      throw error('INVALID_FEEDBACK', 'Escreva uma orientação de até 20.000 caracteres.');
+    const key = 'steer:' + params.operationId;
+    const signature = digest({ jobId: params.jobId, text });
+    const result = await mutateJob(params.jobId, (job, state) => {
+      if (
+        job.projectId !== params.projectId ||
+        (params.passageId && !samePassage(job.passageId, params.passageId))
+      )
+        throw error('PASSAGE_MISMATCH', 'A análise pertence a outra passagem.');
+      const prior = own(state.operations, key);
+      if (prior) {
+        if (prior.digest !== signature)
+          throw error('OPERATION_CONFLICT', 'Esta orientação já pertence a outro envio.');
+        return job;
+      }
+      const handle = active.get(job.id);
+      if (
+        job.status !== 'running' ||
+        !handle ||
+        handle.steeringClosed ||
+        handle.controller.signal.aborted
+      )
+        throw error(
+          'STEER_CLOSED',
+          'A resposta já terminou ou está sendo verificada. Sua orientação continua no campo; envie novamente para continuar.',
+        );
+      if (!job.input.grammarRepair || job.input.provider !== 'codex')
+        throw error(
+          'STEER_UNAVAILABLE',
+          'Este provedor ainda não recebe orientações durante a execução. Sua mensagem foi preservada no campo.',
+        );
+      assertFresh(job);
+      if ((job.steering?.length ?? 0) >= 100)
+        throw error('QUEUE_LIMIT', 'Limite de orientações desta correção atingido.');
+      const item = {
+        id: randomUUID(),
+        text,
+        status: 'waiting',
+        attemptId: handle.attemptId,
+        createdAt: now(),
+      };
+      (job.steering ??= []).push(item);
+      handle.hasSteering = true;
+      state.operations[key] = { digest: signature, jobId: job.id, steeringId: item.id };
+      const thread = Object.values(state.conversations).find(
+        (entry) => entry.id === job.conversationId,
+      );
+      thread.turns.push({
+        id: item.id,
+        role: 'user',
+        text,
+        jobId: job.id,
+        steeringId: item.id,
+        at: item.createdAt,
+      });
+      thread.revision++;
+      return job;
+    });
+    const handle = active.get(result.id);
+    if (handle) flushSteering(result.id, handle);
+    return result;
+  }
   async function execute(jobId) {
     const controller = new AbortController(),
       attemptId = 'attempt:' + randomUUID();
@@ -814,7 +931,7 @@ function createAnalysisService({
     active.set(jobId, handle);
     let job;
     try {
-      job = await mutateJob(jobId, (value) => {
+      job = await mutateJob(jobId, (value, state) => {
         if (value.status !== 'queued') throw error('STALE_ATTEMPT', 'A análise saiu da fila.');
         assertFresh(value);
         value.status = 'running';
@@ -829,6 +946,9 @@ function createAnalysisService({
           steps: 0,
           ...(value.resumption
             ? { resumedFrom: value.resumption.attemptId, instruction: value.resumption.instruction }
+            : {}),
+          ...(value.input.grammarRepair && value.parentJobId
+            ? { followUpContext: repairFollowUpContext(value, state) }
             : {}),
         });
       });
@@ -849,6 +969,7 @@ function createAnalysisService({
         untilClosed: Boolean(job.input.grammarRepair),
       });
       const previousAttempt = job.attempts.at(-2);
+      const followUpContext = job.attempts.at(-1)?.followUpContext;
       // Resume only observable work. A pending tool is recovered from a durable
       // receipt or reported as interrupted; changing attempts must not replay it.
       const priorWork =
@@ -883,6 +1004,7 @@ function createAnalysisService({
                       }),
                     ),
                     grammarVerification: job.grammarVerification,
+                    steering: job.steering ?? [],
                     recovery:
                       'Read the current files and verify first. Completed edits are already saved; do not replay old replacements. Full receipts remain in Studio.',
                   }
@@ -926,8 +1048,15 @@ function createAnalysisService({
         externalBaseline,
         ...(checkpoint && priorWork
           ? { checkpoint, continuation: { context: priorWork, toolReceipts } }
-          : priorWork
-            ? { messages: [{ role: 'user', content: JSON.stringify(priorWork) }] }
+          : priorWork || followUpContext
+            ? {
+                messages: [
+                  ...(followUpContext
+                    ? [{ role: 'user', content: JSON.stringify(followUpContext) }]
+                    : []),
+                  ...(priorWork ? [{ role: 'user', content: JSON.stringify(priorWork) }] : []),
+                ],
+              }
             : {}),
         images: await Promise.all(job.input.evidence.images.map((image) => images.read(image))),
         tools: job.input.grammarRepair ? REPAIR_TOOLS : scratch.tools,
@@ -935,6 +1064,11 @@ function createAnalysisService({
         mcp: handle.scope,
         signal: controller.signal,
         budgets: job.input.budgets,
+        registerSteer: (send) => {
+          handle.steer = send;
+          handle.steeringClosed = !send;
+          if (send) flushSteering(jobId, handle);
+        },
         onEvent: async (event) => {
           await mutateJob(
             jobId,
@@ -955,6 +1089,11 @@ function createAnalysisService({
           );
         },
       });
+      handle.steeringClosed = true;
+      handle.steer = null;
+      await handle.steeringDelivery;
+      if (handle.hasSteering) await mutateJob(jobId, finishSteering);
+      handle.steeringFinished = true;
       if (controller.signal.aborted) throw controller.signal.reason;
       if (job.input.grammarRepair) {
         await handle.scope?.revoke();
@@ -1096,6 +1235,11 @@ function createAnalysisService({
           }
         });
     } finally {
+      handle.steeringClosed = true;
+      handle.steer = null;
+      await handle.steeringDelivery;
+      if (job && handle.hasSteering && !handle.steeringFinished)
+        await mutateJob(jobId, finishSteering);
       await handle.scope?.close();
       active.delete(jobId);
       kick();
@@ -1103,6 +1247,46 @@ function createAnalysisService({
   }
   function kick() {
     if (autoRun && !closed) queueMicrotask(() => schedule().catch(() => {}));
+  }
+  function repairFollowUpContext(job, state) {
+    const ancestors = [],
+      seen = new Set([job.id]);
+    let parent = own(state.jobs, job.parentJobId);
+    while (
+      parent &&
+      !seen.has(parent.id) &&
+      ancestors.length < 12 &&
+      parent.conversationId === job.conversationId &&
+      parent.input.grammarRepair
+    ) {
+      seen.add(parent.id);
+      ancestors.unshift(parent);
+      parent = parent.parentJobId ? own(state.jobs, parent.parentJobId) : null;
+    }
+    const ids = new Set(ancestors.map((item) => item.id));
+    const thread = Object.values(state.conversations).find(
+      (item) => item.id === job.conversationId,
+    );
+    return {
+      kind: 'completed-repair-context',
+      instruction:
+        'This follow-up may have been submitted while its predecessor was running. This dispatch-time context contains the subsequently saved work. Read current files and verify before editing; do not replay completed replacements. Apply the current user guidance, retaining the original regression baseline. Later queued messages are not part of this turn.',
+      turns: (thread?.turns ?? []).filter((turn) => ids.has(turn.jobId)).slice(-24),
+      repairs: ancestors.map((item) => ({
+        jobId: item.id,
+        status: item.status,
+        summary: item.summary ?? item.partialResponse,
+        error: item.error,
+        edits: (item.grammarEdits ?? []).map(({ id, path, beforeHash, afterHash, rolledBack }) => ({
+          id,
+          path,
+          beforeHash,
+          afterHash,
+          rolledBack,
+        })),
+        verification: item.grammarVerification,
+      })),
+    };
   }
   async function schedule() {
     if (closed || !autoRun) return;
@@ -1150,6 +1334,7 @@ function createAnalysisService({
     currentProject(params.projectId);
     await initialize(params.projectId);
     if (method === 'analysis_submit') return present(await submit(params));
+    if (method === 'analysis_steer') return present(await steer(params));
     if (method === 'analysis_external_start') {
       const draft = (await draftStore.load(params.projectId))?.drafts[params.passageId];
       if (!draft)

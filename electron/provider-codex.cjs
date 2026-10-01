@@ -403,6 +403,7 @@ class CodexProvider {
     budgets,
     onEvent,
     onCheckpoint,
+    registerSteer,
   }) {
     const { failure, aborted, validateSchema } = require('./agent-runner.cjs');
     aborted(signal);
@@ -754,8 +755,30 @@ class CodexProvider {
         signal,
       );
       turnId = started.turn.id;
+      registerSteer?.(async (instruction) => {
+        if (settled || signal.aborted)
+          throw failure('STEER_CLOSED', 'A correção já encerrou a resposta.');
+        const receipt = await rpc.request(
+          'turn/steer',
+          {
+            threadId,
+            expectedTurnId: turnId,
+            input: [{ type: 'text', text: instruction }],
+          },
+          30000,
+          signal,
+        );
+        if (receipt.turnId !== turnId)
+          throw failure(
+            'STEER_UNCONFIRMED',
+            'O provedor não confirmou a orientação nesta correção.',
+          );
+        history.push({ role: 'user', content: instruction });
+        return { turnId };
+      });
       return await completion;
     } finally {
+      registerSteer?.(null);
       signal.removeEventListener('abort', abort);
       rpc.listeners.delete(listener);
       rpc.close();

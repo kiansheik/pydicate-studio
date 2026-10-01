@@ -1,3 +1,11 @@
+## 2026-10-01 — Steer active grammar corrections
+
+Added durable same-turn Codex steering instead of a second queued analysis.
+Delivery receipts distinguish saved, acknowledged and uncertain instructions;
+completed-parent context and running-response visibility preserve older queues.
+Mock-provider, durability, browser and hosted authorization checks pass.
+See [handoff](session-handoffs/2026-10-01-live-repair-steering.md).
+
 ## 2026-10-01 — Editing feedback and contributor credits
 
 Added an always-visible orientation toggle, consistent explicit completion,

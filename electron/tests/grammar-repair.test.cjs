@@ -810,6 +810,190 @@ test('a broken edit is rolled back with its receipt before the next attempt', as
   assert.equal(fixed.verification.matches, true);
 });
 
+test('live steering is durable, idempotent and delivered in the same repair, including provider startup', async (t) => {
+  const f = await fixture(t, {
+    getConfig: async () => ({
+      provider: 'codex',
+      models: { codex: 'fixture' },
+      reasoningEffort: 'medium',
+    }),
+  });
+  let options,
+    finish,
+    runs = 0;
+  const service = f.service(
+    (value) =>
+      new Promise((resolve) => {
+        runs++;
+        options = value;
+        finish = resolve;
+        value.signal.addEventListener('abort', () => resolve({ text: 'cancelled' }), {
+          once: true,
+        });
+      }),
+  );
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(() => options);
+  const inputDigest = job.input.digest;
+  const params = {
+    projectId: f.project.id,
+    passageId: job.passageId,
+    jobId: job.id,
+    operationId: 'steer-one',
+    description: 'Generalize ikó compounds, preserving existing references.',
+  };
+  const saved = await service.invoke('analysis_steer', params);
+  assert.equal(saved.steering[0].status, 'waiting');
+  const sent = [];
+  options.registerSteer(async (text) => {
+    sent.push(text);
+    return { turnId: 'original-turn' };
+  });
+  await Promise.all([
+    service.invoke('analysis_steer', params),
+    service.invoke('analysis_steer', params),
+  ]);
+  const detail = () => service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id });
+  await waitFor(async () => (await detail()).job.steering[0].status === 'delivered');
+  assert.deepEqual(sent, [params.description]);
+  assert.equal((await detail()).conversation.turns.filter((turn) => turn.steeringId).length, 1);
+  assert.equal((await detail()).job.input.digest, inputDigest);
+  await assert.rejects(service.invoke('analysis_steer', { ...params, description: 'changed' }), {
+    code: 'OPERATION_CONFLICT',
+  });
+  await assert.rejects(
+    service.invoke('analysis_steer', { ...params, passageId: 'passage:other' }),
+    { code: 'PASSAGE_MISMATCH' },
+  );
+  options.registerSteer(async () => {
+    throw new Error('connection lost after possible delivery');
+  });
+  const uncertain = { ...params, operationId: 'steer-two', description: 'Also check annotations.' };
+  await service.invoke('analysis_steer', uncertain);
+  await waitFor(async () => (await detail()).job.steering[1].status === 'unconfirmed');
+  await service.invoke('analysis_steer', uncertain);
+  assert.equal((await detail()).job.steering.length, 2);
+  options.registerSteer(null);
+  await assert.rejects(service.invoke('analysis_steer', { ...params, operationId: 'too-late' }), {
+    code: 'STEER_CLOSED',
+  });
+  finish({ text: 'Generalized and verified.' });
+  await waitFor(async () => (await detail()).job.status !== 'running');
+  assert.equal(runs, 1);
+  assert.equal((await detail()).job.steering[0].status, 'delivered');
+  assert.equal((await detail()).job.grammarVerification.regressionsHealthy, true);
+});
+
+test('an instruction saved during startup remains explicitly undelivered if the provider finishes without accepting it', async (t) => {
+  const f = await fixture(t, {
+    getConfig: async () => ({
+      provider: 'codex',
+      models: { codex: 'fixture' },
+      reasoningEffort: 'medium',
+    }),
+  });
+  let finish;
+  const service = f.service(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(() => finish);
+  const params = {
+    projectId: f.project.id,
+    passageId: job.passageId,
+    jobId: job.id,
+    operationId: 'startup-guidance',
+    description: 'Generalize the rule.',
+  };
+  await service.invoke('analysis_steer', params);
+  finish({ text: 'Provider finished before accepting guidance.' });
+  await waitFor(
+    async () => (await service.invoke('analysis_get', params)).job.status !== 'running',
+  );
+  const replay = await service.invoke('analysis_steer', params);
+  assert.equal(replay.steering[0].status, 'not-delivered');
+  assert.equal(replay.steering[0].text, params.description);
+  assert.equal(replay.attempts.length, 1);
+});
+
+test('a follow-up queued during repair receives the completed work at dispatch without mutating its frozen input', async (t) => {
+  const f = await fixture(t),
+    running = [];
+  const service = f.service(
+    (options) =>
+      new Promise((resolve) => {
+        running.push({ options, resolve });
+        options.signal.addEventListener('abort', () => resolve({ text: 'cancelled' }), {
+          once: true,
+        });
+      }),
+  );
+  const first = await service.invoke('analysis_submit', f.params);
+  await waitFor(async () => {
+    const detail = await service.invoke('analysis_get', {
+      projectId: f.project.id,
+      jobId: first.id,
+    });
+    if (detail.job.error) throw new Error(JSON.stringify(detail.job.error));
+    return running.length === 1;
+  });
+  const follow = await service.invoke('analysis_submit', {
+    ...f.params,
+    operationId: 'live-guidance',
+    parentJobId: first.id,
+    description: 'Generalize the rule to the entire compound family.',
+  });
+  const frozenInput = JSON.parse(JSON.stringify(follow.input));
+  assert.equal(follow.status, 'queued');
+  assert.equal(running.length, 1);
+  await service.invoke('analysis_submit', {
+    ...f.params,
+    operationId: 'later-guidance',
+    parentJobId: follow.id,
+    description: 'FUTURE MESSAGE FOR A SEPARATE TURN',
+  });
+  const read = await running[0].options.callTool(
+    'grammar_read',
+    { path: 'tupi/tupi/verb.py' },
+    { operationId: 'read' },
+  );
+  await running[0].options.callTool(
+    'grammar_edit',
+    {
+      path: read.path,
+      expectedHash: read.hash,
+      oldText: 'mororerobiare',
+      newText: 'morerobiare',
+    },
+    { operationId: 'edit' },
+  );
+  running[0].resolve({
+    text: 'Completed initial correction; the saved file now contains morerobiare.',
+  });
+  await waitFor(() => running.length === 2);
+  const dispatched = await service.invoke('analysis_get', {
+    projectId: f.project.id,
+    jobId: follow.id,
+  });
+  assert.deepEqual(dispatched.job.input, frozenInput);
+  const context = JSON.parse(running[1].options.messages[0].content);
+  assert.match(context.repairs[0].summary, /Completed initial correction/);
+  assert.equal(context.repairs[0].edits.length, 1);
+  assert.equal(context.repairs[0].verification.matches, true);
+  assert(
+    context.turns.some((turn) => turn.role === 'assistant' && /Completed initial/.test(turn.text)),
+  );
+  assert(!JSON.stringify(context).includes('FUTURE MESSAGE'));
+  assert.deepEqual(dispatched.job.attempts[0].followUpContext, context);
+  assert.equal(
+    running[1].options.input.description,
+    'Generalize the rule to the entire compound family.',
+  );
+});
+
 test('repair jobs start a separate thread, keep other conversations running, serialize one engine and preserve follow-up context', async (t) => {
   const f = await fixture(t),
     running = [];

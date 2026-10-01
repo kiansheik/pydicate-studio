@@ -86,6 +86,92 @@ test('incomplete streaming markup retains its text until the closing marker arri
   await expect(answer.locator('code')).toHaveText('mo.var(2)');
 });
 
+test('a reply steers the running correction without creating a queued job and survives refresh', async ({
+  page,
+}) => {
+  await startFixture(page);
+  await stream(page, 'Estou verificando a regra.', 5);
+  await page.evaluate(() => {
+    delete window.__nextControl.responses.analysis_list;
+    delete window.__nextControl.responses.analysis_get;
+  });
+  await page.getByLabel('Mensagem para a IA').fill('Generalize a regra para os compostos de ikó.');
+  await page.getByRole('button', { name: 'Orientar correção em andamento' }).click();
+  await expect(page.locator('.analysis-steering')).toContainText(
+    'Orientação enviada à IA nesta correção.',
+  );
+  await expect(page.getByLabel('Mensagem para a IA')).toHaveValue('');
+  await expect(page.locator('.analysis-job')).toHaveCount(1);
+  const requests = await page.evaluate(() =>
+    window.__nextControl.requests.filter((request) =>
+      ['analysis_steer', 'analysis_submit'].includes(request.method),
+    ),
+  );
+  expect(requests.filter((request) => request.method === 'analysis_submit')).toHaveLength(1);
+  expect(requests.filter((request) => request.method === 'analysis_steer')).toHaveLength(1);
+  expect(requests.at(-1)?.params.description).toBe('Generalize a regra para os compostos de ikó.');
+  await page.reload();
+  await expect(page.locator('.analysis-job')).toHaveCount(1);
+  await expect(page.locator('.analysis-steering')).toContainText(
+    'Generalize a regra para os compostos de ikó.',
+  );
+});
+
+test('a queued follow-up keeps the running repair and its complete response visible', async ({
+  page,
+}) => {
+  await startFixture(page);
+  const response =
+    'A correção inicial continua em execução. ' + 'Texto da resposta preservado. '.repeat(30);
+  await stream(page, response, 5);
+  await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('simulated-analysis')!);
+    const parent = state.jobs[0];
+    const child = {
+      ...parent,
+      id: 'queued-follow-up',
+      parentJobId: parent.id,
+      status: 'queued',
+      phase: 'queued',
+      input: { ...parent.input, description: 'Generalize a regra para todos os compostos.' },
+      events: [],
+      createdAt: '2026-10-01T10:00:00.000Z',
+      updatedAt: '2026-10-01T10:00:00.000Z',
+      currentAttemptId: undefined,
+      summary: undefined,
+    };
+    state.jobs = [child, parent];
+    window.__nextControl.responses.analysis_list = {
+      ...state,
+      jobs: [child, { ...parent, events: parent.events.slice(-20) }],
+      conversations: state.conversations.map((thread: Record<string, unknown>) => ({
+        ...thread,
+        turns: [],
+      })),
+    };
+    // The harness resolves full job details by ID from the saved fixture.
+    delete window.__nextControl.responses.analysis_get;
+    window.__nextControl.setAnalysis(state);
+  });
+  await expect(page.locator('.analysis-job')).toHaveCount(2);
+  await expect(page.locator('.analysis-answer p')).toHaveText(response);
+  await expect(
+    page.getByText('Generalize a regra para todos os compostos.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.analysis-waiting')).toContainText(
+    'Esta mensagem ainda não foi enviada à IA',
+  );
+  const details = await page.evaluate(() =>
+    window.__nextControl.requests
+      .filter((request) => request.method === 'analysis_get')
+      .map((request) => request.params.jobId),
+  );
+  expect(details).toContain('job:1');
+  await page.reload();
+  await expect(page.locator('.analysis-job')).toHaveCount(2);
+  await expect(page.locator('.analysis-answer p')).toHaveText(response);
+});
+
 test('grammar edit history labels reverted attempts without presenting their proposed code as applied', async ({
   page,
 }) => {

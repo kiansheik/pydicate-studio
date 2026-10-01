@@ -261,6 +261,20 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       conversation: analysisFixture.conversations.find((item) => item.id === job.conversationId),
     };
   }
+  if (method === 'analysis_steer') {
+    const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
+    if (job.status !== 'running') throw new Error('SIMULATED correction finished');
+    (job.steering ??= []).push({
+      id: String(params.operationId),
+      text: String(params.description),
+      status: 'delivered',
+      createdAt: new Date().toISOString(),
+    });
+    job.updatedAt = new Date().toISOString();
+    saveAnalysisFixture();
+    control.emit({ type: 'analysis', projectId: project.id });
+    return structuredClone(job);
+  }
   if (method === 'analysis_accept') {
     const envelope = structuredClone(control.saved[String(params.projectId)]);
     const candidate = analysisFixture.candidates.find((item) => item.id === params.candidateId)!;

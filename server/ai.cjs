@@ -4,7 +4,7 @@ const { DraftStore } = require('../electron/draft-store.cjs');
 const { fault } = require('./store.cjs');
 const READ = new Set(['ai_status','ai_history','ai_prompt_preview','analysis_list','analysis_get']);
 const WRITE = new Set(['ai_configure','ai_start','ai_cancel','ai_accept','analysis_submit','analysis_submit_batch',
-  'analysis_accept','analysis_cancel','analysis_retry','analysis_resume','analysis_new_conversation',
+  'analysis_accept','analysis_cancel','analysis_retry','analysis_resume','analysis_steer','analysis_new_conversation',
   'analysis_select_conversation','analysis_composer']);
 const METHODS = new Set([...READ,...WRITE]);
 // Claude API (a server-wide key) stays unavailable here; Claude Code runs under

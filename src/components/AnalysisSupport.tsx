@@ -119,7 +119,16 @@ export function useAnalysisWorkspace(studio: Studio) {
         const selectedJob = data.jobs.find(
           (job) => selectedId && job.candidateIds.includes(selectedId),
         );
-        for (const job of [newest, selectedJob].filter(
+        const activeJobs = data.jobs.filter(
+          (job) =>
+            job.passageId === passageId &&
+            (!activeThread || job.conversationId === activeThread.id) &&
+            ['running', 'cancelling'].includes(job.status),
+        );
+        const predecessor = newest?.parentJobId
+          ? data.jobs.find((job) => job.id === newest.parentJobId)
+          : undefined;
+        for (const job of [newest, selectedJob, predecessor, ...activeJobs].filter(
           (value, index, values) =>
             value && values.findIndex((item) => item?.id === value.id) === index,
         )) {
@@ -666,8 +675,16 @@ export function AnalysisSupport({
   const isRepairConversation = currentJobs[0]?.input.task === 'grammar-repair';
   const visibleJobs = historyJob
     ? jobs.filter((job) => job.id === historyJob)
-    : currentJobs.slice(0, 1);
-  const historicJobs = jobs.filter((job) => job.id !== currentJobs[0]?.id);
+    : currentJobs
+        .filter(
+          (job, index) =>
+            index === 0 ||
+            job.id === currentJobs[0]?.parentJobId ||
+            ['queued', 'running', 'cancelling'].includes(job.status),
+        )
+        .slice()
+        .reverse();
+  const historicJobs = jobs.filter((job) => !visibleJobs.some((visible) => visible.id === job.id));
   const candidates = listing.candidates.filter(
     (candidate) => candidate.passageId === studio.passage.id,
   );
@@ -805,6 +822,47 @@ export function AnalysisSupport({
         jobs.find((job) => job.id === (replyJobId ?? historyJob)) ?? currentJobs[0];
       if (repairParent?.input.task === 'grammar-repair') {
         if (!description.trim()) throw new Error('Escreva sua orientação para continuar.');
+        const runningRepair = jobs.find(
+          (job) =>
+            job.conversationId === repairParent.conversationId &&
+            job.status === 'running' &&
+            job.input.task === 'grammar-repair',
+        );
+        if (runningRepair) {
+          const submission = { projectId, passageId, jobId: runningRepair.id, description };
+          await invoke('analysis_steer', {
+            ...submission,
+            operationId: submissionOperation(
+              {
+                submission: {
+                  ...submission,
+                  revisionId: runningRepair.input.baseRevisionId,
+                  task: 'steer',
+                  scope: 'passage',
+                },
+                provider: runningRepair.input.provider,
+                engine: runningRepair.currentAttemptId ?? runningRepair.id,
+                conversation: runningRepair.conversationId,
+                noteSnapshot: '',
+              },
+              [],
+            ),
+          });
+          await saveConversation(
+            passageId,
+            { composer: '' },
+            projectId,
+            runningRepair.conversationId,
+          );
+          await analysis.openSubmittedConversation(runningRepair.conversationId);
+          setNotice(
+            'Orientação salva para a correção em andamento. A confirmação de envio aparece na conversa.',
+          );
+          setHistoryJob(null);
+          setShowHistory(false);
+          layout.support('ai');
+          return;
+        }
         await studio.persist();
         const submission = {
           projectId,
@@ -831,6 +889,11 @@ export function AnalysisSupport({
           ),
         });
         await analysis.openSubmittedConversation(repairParent.conversationId);
+        setNotice(
+          ['queued', 'running', 'cancelling'].includes(repairParent.status)
+            ? 'Orientação salva na fila. Ela será enviada após a correção atual terminar; a resposta em andamento continua abaixo.'
+            : 'Orientação salva. A continuação usará o trabalho já concluído.',
+        );
         setHistoryJob(null);
         setShowHistory(false);
         layout.support('ai');
@@ -1526,10 +1589,34 @@ export function AnalysisSupport({
                 <strong>Você</strong>
                 <p>{job.input.description || analysisTasks[job.input.task]}</p>
               </div>
+              {job.steering?.map((instruction) => (
+                <div className="analysis-turn is-user analysis-steering" key={instruction.id}>
+                  <strong>Você · orientação durante a correção</strong>
+                  <p>{instruction.text}</p>
+                  <small role="status">
+                    {instruction.status === 'delivered'
+                      ? 'Orientação enviada à IA nesta correção.'
+                      : instruction.status === 'waiting' || instruction.status === 'sending'
+                        ? 'Orientação salva; aguardando confirmação de envio à IA.'
+                        : instruction.status === 'not-delivered'
+                          ? 'A correção terminou antes do envio. Use Responder para continuar com esta orientação.'
+                          : 'Não foi possível confirmar o envio. A orientação está salva; confira a resposta antes de reenviar.'}
+                  </small>
+                </div>
+              ))}
               <header>
                 <strong>{analysisTasks[job.input.task]}</strong>
                 <span className={`analysis-status is-${job.status}`}>{analysisProgress(job)}</span>
               </header>
+              {job.status === 'queued' && job.input.task === 'grammar-repair' && (
+                <p className="analysis-waiting" role="status">
+                  {currentJobs.some(
+                    (item) => item.id !== job.id && ['running', 'cancelling'].includes(item.status),
+                  )
+                    ? 'Orientação salva. Aguardando a correção em andamento terminar, incluindo a verificação das outras passagens. Esta mensagem ainda não foi enviada à IA.'
+                    : 'Correção salva na fila. O Studio executa uma correção de gramática por vez; ela começa quando a anterior libera a gramática.'}
+                </p>
+              )}
               <small>
                 {job.input.scope === 'constituent'
                   ? 'Constituinte selecionado'
@@ -2032,6 +2119,7 @@ export function AnalysisSupport({
             {...workspaceAutofill}
             ref={composer}
             aria-label="Mensagem para a IA"
+            disabled={busy}
             placeholder="Uma dúvida, uma acepção diferente, um papel gramatical…"
             rows={3}
             value={current.composer ?? ''}
@@ -2062,7 +2150,11 @@ export function AnalysisSupport({
                 (!studio.result || studio.result.evaluationStatus === 'partial'))
             }
           >
-            {busy ? 'Salvando…' : 'Salvar e enviar'}
+            {busy
+              ? 'Salvando…'
+              : isRepairConversation && currentJobs.some((job) => job.status === 'running')
+                ? 'Orientar correção em andamento'
+                : 'Salvar e enviar'}
           </button>
           {task === 'revise' && !selectedCandidate && !replyJobId && (
             <p className="field-hint">Escolha “Questionar / refinar” em uma proposta.</p>

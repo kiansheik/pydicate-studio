@@ -62,10 +62,17 @@ export interface AnalysisInput {
   raw?: string;
 }
 export interface AnalysisJob {
+  steering?: {
+    id: string;
+    text: string;
+    status: 'waiting' | 'sending' | 'delivered' | 'not-delivered' | 'unconfirmed';
+    createdAt: string;
+  }[];
   id: string;
   projectId: string;
   passageId: string;
   conversationId: string;
+  parentJobId?: string;
   input: AnalysisInput;
   status: AnalysisStatus;
   phase?: string;

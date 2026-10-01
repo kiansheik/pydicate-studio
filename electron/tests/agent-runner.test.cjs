@@ -526,6 +526,42 @@ function runCodex(rpc, options = {}) {
     ...options,
   });
 }
+test('Codex steers the existing turn without another start or interruption and closes the steering handle', async () => {
+  const rpc = new CodexRpc();
+  const original = rpc.request.bind(rpc);
+  rpc.request = async (method, params) => {
+    if (method === 'turn/steer') {
+      rpc.calls.push({ method, params });
+      return { turnId: 'turn' };
+    }
+    return original(method, params);
+  };
+  let send, ready;
+  const registered = new Promise((resolve) => {
+    ready = resolve;
+  });
+  const pending = runCodex(rpc, {
+    registerSteer(value) {
+      send = value;
+      if (value) ready();
+    },
+  });
+  await registered;
+  const staleSend = send;
+  assert.deepEqual(await send('Generalize the compound rule.'), { turnId: 'turn' });
+  assert.deepEqual(rpc.calls.find((call) => call.method === 'turn/steer').params, {
+    threadId: 'thread',
+    expectedTurnId: 'turn',
+    input: [{ type: 'text', text: 'Generalize the compound rule.' }],
+  });
+  codexTool(rpc, 'continued-tool', 'dictionary_search', { query: 'test' });
+  codexFinish(rpc);
+  await pending;
+  assert.equal(send, null);
+  await assert.rejects(staleSend('Too late'), { code: 'STEER_CLOSED' });
+  assert.equal(rpc.calls.filter((call) => call.method === 'turn/start').length, 1);
+  assert.equal(rpc.calls.filter((call) => call.method === 'turn/interrupt').length, 0);
+});
 test('Codex separates assistant blocks while preserving streamed fragments and completion tails', async () => {
   const rpc = new CodexRpc((r) => {
     r.emit('item/reasoning/textDelta', { delta: 'PRIVATE NOT STORED' });
