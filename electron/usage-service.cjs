@@ -3,6 +3,7 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 
 const UI_EVENTS = new Set([
+  'activity.active',
   'navigation.passage',
   'navigation.mode',
   'navigation.projection',

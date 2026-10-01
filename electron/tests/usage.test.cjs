@@ -348,3 +348,9 @@ test('renderer tracking calls use accepted event names, including ground truth a
   );
   assert.deepEqual(event.details, { action: 'approve', source: 'source-review' });
 });
+
+// Foreground activity uses the same renderer boundary as other UI telemetry.
+test('renderer activity is accepted without allowing privileged lifecycle events', () => {
+  assert.equal(cleanEvent({ event: 'activity.active' }, true).origin, 'renderer');
+  assert.throws(() => cleanEvent({ event: 'session.start' }, true));
+});

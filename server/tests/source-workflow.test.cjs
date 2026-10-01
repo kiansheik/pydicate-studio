@@ -56,18 +56,57 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   auth.origin = config.origin;
   browser = await chromium.launch({ headless: true, ...(process.env.COLLAB_CHROMIUM ? { executablePath: process.env.COLLAB_CHROMIUM } : {}) });
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
-  const errors = [], blocked = [], decoding = [];
+  const errors = [], blocked = [], decoding = [], supersededEvaluations = [];
+  const initialEngine = runtime.project.engineFingerprint;
+  const initialPassages = new Set(runtime.project.passages.map(passage => passage.id));
+  const initialEvaluations = new Set();
+  let sourceCreated = false;
+  let releaseInitialEvaluation, initialEvaluationQueued;
+  const sourceCreation = new Promise(resolve => { releaseInitialEvaluation = resolve; });
+  const queuedEvaluation = new Promise(resolve => { initialEvaluationQueued = resolve; });
+  // Exercise the race deterministically: hold an initial read at the browser
+  // boundary until source creation has invalidated its engine fingerprint.
+  await page.route('**/api/invoke', async route => {
+    const input = route.request().postDataJSON();
+    if (!sourceCreated && input?.method === 'evaluate_expression' &&
+        initialPassages.has(input.params?.passageId) && input.params?.engineFingerprint === initialEngine) {
+      initialEvaluations.add(route.request());
+      initialEvaluationQueued();
+      await sourceCreation;
+    }
+    await route.continue();
+  });
+  t.after(() => releaseInitialEvaluation());
   page.on('pageerror', error => errors.push(error.message));
   // A scan is one image per page, and PDF.js skips a picture whose decoder it
   // cannot load: the page then arrives white with nothing else reported.
   page.on('console', entry => { if (/Unable to decode image|failed to initialize|wasm/i.test(entry.text())) decoding.push(entry.text()); });
-  page.on('response', async response => { if (response.url().includes('/api/') && response.status() >= 400) { const body=await response.json().catch(()=>({})); blocked.push(`${response.status()} ${response.url()} ${response.request().postDataJSON()?.method || ''} ${body.error?.code || ''} ${body.error?.message || ''}`); } });
+  page.on('response', async response => {
+    const input = response.url().endsWith('/api/invoke') ? response.request().postDataJSON() : null;
+    if (response.url().endsWith('/api/invoke') && input?.method === 'source_create' && response.ok()) {
+      sourceCreated = true;
+      releaseInitialEvaluation();
+    }
+    if (!response.url().includes('/api/') || response.status() < 400) return;
+    const body = await response.json().catch(() => ({}));
+    // Creating a source changes the engine while the initial passage's read
+    // may still be queued. Only that superseded evaluation may be rejected;
+    // evaluations of the new draft and every other endpoint must succeed.
+    if (response.status() === 422 && body.error?.code === 'STALE_ENGINE' &&
+        initialEvaluations.has(response.request())) {
+      supersededEvaluations.push(input.params);
+      return;
+    }
+    blocked.push(`${response.status()} ${response.url()} ${input?.method || ''} ${body.error?.code || ''} ${body.error?.message || ''}`);
+  });
   await page.goto(config.origin + '/login');
   await page.locator('#email').fill('contributor@example.org');
   await page.locator('#password').fill(password);
   await page.locator('#submit').click();
   await page.waitForURL(config.origin + '/');
-  await page.getByRole('button', { name: 'Nova fonte', exact: true }).click({ timeout: 60000 });
+  await expect(page.getByRole('button', { name: 'Nova fonte', exact: true })).toBeVisible({ timeout: 60000 });
+  await queuedEvaluation;
+  await page.getByRole('button', { name: 'Nova fonte', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Nova fonte', exact: true });
   await dialog.getByLabel('Título da fonte').fill('Manuscrito do colaborador');
   await dialog.getByLabel('Ano (opcional)').fill('1750');
@@ -91,7 +130,7 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   const box = await canvas.boundingBox();
   assert.ok(box && box.width > 0 && box.height > 0, 'Rendered PDF has drawable dimensions');
   // Never again a PDF that loads, reports itself ready and shows white pages.
-  assert.ok(await inkedFraction(canvas) > 0.4, 'The uploaded scan is drawn in the same session, without a reload');
+  await expect.poll(() => inkedFraction(canvas), { timeout: 60000, message: 'The uploaded scan is drawn in the same session, without a reload' }).toBeGreaterThan(0.4);
   assert.deepEqual(decoding, [], 'Every image decoder the scan needs is available to the hosted page');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.mouse.move(box.x + box.width * .2, box.y + box.height * .3);
@@ -99,8 +138,7 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   await page.mouse.move(box.x + box.width * .7, box.y + box.height * .4, { steps: 6 });
   await page.mouse.up();
   await expect(page.getByTestId('pdf-region')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
   await expect(page.getByText('Evidência salva no servidor.', { exact: false })).toBeVisible();
   await page.getByLabel('Transcrição diplomática', { exact: true }).fill('Leitura do manuscrito');
   await page.getByRole('button', { name: 'Mais ferramentas', exact: true }).click();
@@ -115,7 +153,8 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   await expect(page.getByTestId('pdf-canvas')).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('button', { name: 'Região 1 · PDF 1', exact: true })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Renderizando' })).toHaveCount(0);
-  assert.ok(await inkedFraction(canvas) > 0.4, 'The saved scan is drawn again after reopening the source');
+  // A visible canvas can precede the asynchronous PDF render after reload.
+  await expect.poll(() => inkedFraction(canvas), { timeout: 60000, message: 'The saved scan is drawn again after reopening the source' }).toBeGreaterThan(0.4);
   await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toHaveValue('Leitura do manuscrito');
   await expect(page.getByTestId('generated-surface')).toHaveText('abá', { timeout: 60000 });
   await expect(page.getByRole('button', { name: 'Salvar como referência', exact: true })).toHaveCount(0);
@@ -132,5 +171,10 @@ test('contributor creates a source, uploads a scanned PDF that renders without a
   assert.equal(fs.existsSync(path.join(corpus, 'ground_truth/records/historic/manuscrito_do_colaborador.jsonl')), false);
   assert.deepEqual(errors, []);
   assert.deepEqual(decoding, []);
+  assert.ok(supersededEvaluations.length > 0, 'The held initial evaluation must be rejected after source creation');
+  for (const evaluation of supersededEvaluations) {
+    assert.notEqual(evaluation.passageId, id, 'Only the previous passage evaluation may be superseded');
+    assert.notEqual(evaluation.engineFingerprint, runtime.project.engineFingerprint, 'The rejected evaluation belongs to the engine before source creation');
+  }
   assert.deepEqual(blocked, [], 'Normal contributor source workflow must not request unsupported endpoints');
 });

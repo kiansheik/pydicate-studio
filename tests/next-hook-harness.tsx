@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStudio, type Studio } from '../src/useStudio';
 import { createExampleProject } from '../src/domain/example';
 import type { DraftEnvelope, StudioProject } from '../src/domain/types';
@@ -58,7 +58,11 @@ declare global {
 
 function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
   const fixture = createExampleProject();
-  const sourceId = new URLSearchParams(location.search).get('source') ?? 'araujo_catecismo_1686';
+  const search = new URLSearchParams(location.search);
+  // Source-switching URLs must not move the fixture's existing corpus rows.
+  const sourceId = search.has('sources')
+    ? 'araujo_catecismo_1686'
+    : (search.get('source') ?? 'araujo_catecismo_1686');
   return {
     ...fixture,
     id,
@@ -838,8 +842,18 @@ if (new URLSearchParams(location.search).has('passage-admin')) {
   };
 }
 
+// Most race contracts operate on passage A. Startup ordering has dedicated cases
+// using ?startup; other fixtures explicitly select their intended initial passage.
+const fixtureSelection = localStorage.getItem('simulated-selection:simulated:a') ?? 'passage-a';
 function Harness() {
   const studio = useStudio();
+  const selectedFixture = useRef(false);
+  useEffect(() => {
+    if (!studio.navigationReady || selectedFixture.current) return;
+    selectedFixture.current = true;
+    if (!new URLSearchParams(location.search).has('startup'))
+      studio.setSelectedId(fixtureSelection);
+  }, [studio.navigationReady]);
   const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);
   window.__nextStudio = studio;
   return (
@@ -908,6 +922,11 @@ function Harness() {
   );
 }
 if (new URLSearchParams(location.search).has('workspace')) {
+  const fixtureUrl = new URL(location.href);
+  if (!fixtureUrl.searchParams.has('passage') && !fixtureUrl.searchParams.has('startup')) {
+    fixtureUrl.searchParams.set('passage', fixtureSelection);
+    history.replaceState(null, '', fixtureUrl);
+  }
   void (async () => {
     for (const href of ['/src/styles.css', '/src/authoring.css', '/src/theme.css']) {
       const style = document.createElement('link');
