@@ -101,3 +101,25 @@ SIGINT affected only the waiting coordinator, ran its cleanup and restored API
 access; the writer/container were untouched. The user subsequently authorized
 cancelling the correction as above. The steering-only image was built but never
 made live; the combined steering/deadline release is deployed next.
+
+## Completed production rollout
+
+Committed/pushed steering570c42a and deadline85ddedd on unlocked-light-deploy.
+`STUDIO_REF=unlocked-light-deploy make collab-deploy-light` deployed the combined
+release85ddedd97d48b61294d66ad2de8cae7c00a5a35d in51.9seconds, with database
+checkpoint20261001T131635-a6a47a. PostgreSQL remained running; no migration.
+
+Fresh live corpus_health:3 sources,158 lines, zero divergences/failures,4pending,
+327morphemes, zero active repairs (2990ms). The cancellation's verified edits
+remain saved. SHA256 comparison after cancellation and across deployment is
+identical for145 research files and all6PDF/evidence files.
+
+Actual deployed Codex0.153.4 offline protocol schema confirms required
+threadId/expectedTurnId/input and a turnId acknowledgement. Actual authenticated
+production analysis_steer on the completed predecessor returns STEER_CLOSED and
+leaves the full saved job identical; no inference or new instruction was created.
+Chrome shows both retained replies and the15-minute notice, survives refresh,
+and reports zero page errors or attempted research mutations. Screenshot:
+`.local/vps-qa/steering-live.png` (private). Real steering inference remains for
+the next user-requested correction; protocol and timeout behavior were exercised
+with mock providers, not billed model calls.

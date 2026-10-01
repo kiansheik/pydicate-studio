@@ -6,6 +6,10 @@ agent deadline, retaining checked edits and partial output for explicit resume.
 Delivery receipts distinguish saved, acknowledged and uncertain instructions;
 completed-parent context and running-response visibility preserve older queues.
 Mock-provider, durability, browser and hosted authorization checks pass.
+Deployed `85ddedd97d48b61294d66ad2de8cae7c00a5a35d` in51.9seconds; live
+health checks158 lines with zero divergences/failures and no active repairs.
+Exact145 research/six PDF/evidence-file parity; Chrome reload and the real
+closed-turn steering guard pass without inference.
 See [handoff](session-handoffs/2026-10-01-live-repair-steering.md).
 
 ## 2026-10-01 — Editing feedback and contributor credits

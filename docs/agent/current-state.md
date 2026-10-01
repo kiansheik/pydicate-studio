@@ -1,6 +1,6 @@
 # Current state
 
-## Steering a running grammar correction (rollout pending)
+## Steering and bounded grammar corrections (live)
 
 Grammar repair now has a 15-minute agent deadline per attempt. Steering does not
 reset it; timeout stops inference, drains atomic edits/checks and preserves a
@@ -13,7 +13,13 @@ transport failure and restart do not silently launch another provider run.
 Claude providers still require a completed turn; their composer text is retained
 with an explicit unsupported-steering message. Completed follow-ups receive the
 actual parent results at dispatch. Running work stays visible alongside legacy
-queued replies. See [handoff](session-handoffs/2026-10-01-live-repair-steering.md).
+queued replies. Release `85ddedd97d48b61294d66ad2de8cae7c00a5a35d` is live
+(51.9-second light deployment). Production verification:158 lines, zero
+divergences/failures, four pending,327 morphemes and no active repairs. All145
+research files and six PDF/evidence files retain exact pre/post hashes. Live
+Chrome confirms refresh, retained responses and deadline guidance; a closed-turn
+steering request rejects without modifying the job or starting inference.
+See [handoff](session-handoffs/2026-10-01-live-repair-steering.md).
 
 ## Editing feedback, translation cost and contributor credits (live)
 
