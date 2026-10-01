@@ -11,13 +11,7 @@ import {
   updateDraft,
   writeBrowserDrafts,
 } from './domain/model';
-import type {
-  Draft,
-  DraftEnvelope,
-  InstallationStatus,
-  RenderResult,
-  StudioProject,
-} from './domain/types';
+import type { Draft, DraftEnvelope, RenderResult, StudioProject } from './domain/types';
 import { flushEdits, setUsageContext, track, trackEdit } from './domain/usage';
 import { registerStructureContext, structureDrafts } from './domain/structure-drafts';
 import { editCanvas, emptyCanvas } from './domain/canvas';
@@ -42,13 +36,8 @@ export interface SourceApplyOutcome {
 }
 
 export function useStudio() {
-  const [installation, setInstallation] = useState<InstallationStatus | null>(null);
-  const [starting, setStarting] = useState(!!window.studio?.installationStatus);
+  const [starting, setStarting] = useState(!!window.studio?.invoke);
   const [sessionReady, setSessionReady] = useState(!window.studio?.invoke);
-  const [setupRequired, setSetupRequired] = useState(false);
-  const [setupProgress, setSetupProgress] = useState<
-    InstallationStatus['workspace']['progress'] | null
-  >(null);
   const [sourceProject, setProject] = useState(createExampleProject);
   const sourceProjectRef = useRef(sourceProject);
   const [selectedId, setSelectedId] = useState(
@@ -278,7 +267,7 @@ export function useStudio() {
     if (!ready) return;
     let cancelled = false;
     setSaveState('Salvando…');
-    // Queue each edit immediately; desktop writes are serialized and atomic.
+    // Queue each edit immediately; server writes retain version guards.
     persist()
       .then(() => {
         if (cancelled) return;
@@ -386,7 +375,7 @@ export function useStudio() {
         } else {
           setResult(null);
           setRenderError(
-            'A edição geral exige o projeto local no aplicativo desktop. Seu código continua salvo.',
+            'A edição geral exige o corpus aberto no servidor. Seu código continua salvo.',
           );
         }
       } catch (reason) {
@@ -417,7 +406,6 @@ export function useStudio() {
       project: StudioProject | null;
       selectedPassageId?: string;
       error?: string;
-      setupRequired?: boolean;
     }>('session_restore')
       .then((saved) => {
         if (saved.project) {
@@ -431,37 +419,12 @@ export function useStudio() {
             setSelectedId(saved.selectedPassageId);
         }
         if (saved.error) setError(saved.error);
-        setSetupRequired(saved.setupRequired === true);
       })
       .catch((reason) => setError(String(reason.message ?? reason)))
       .finally(() => {
         setStarting(false);
         setSessionReady(true);
-        void window.studio
-          ?.installationStatus?.()
-          .then(setInstallation)
-          .catch(() => {});
       });
-  }, []);
-
-  useEffect(() => {
-    if (!window.studio?.installationStatus) return;
-    // Subscribe before fetching the snapshot so startup progress is visible even
-    // while the session_restore request waits for an installer to finish.
-    const unsubscribe = window.studio.onEvent?.((event) => {
-      if (event.type === 'application-update')
-        setInstallation((value) => (value ? { ...value, update: event } : value));
-      if (event.type === 'managed-project') setSetupProgress(event);
-      if (event.type === 'installation-warnings')
-        setInstallation((value) => (value ? { ...value, warnings: event.warnings } : value));
-    });
-    void window.studio
-      .installationStatus()
-      .then(setInstallation)
-      .catch((reason) => {
-        setError(String(reason.message ?? reason));
-      });
-    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -1255,30 +1218,6 @@ export function useStudio() {
     }
   }
 
-  async function setupProject() {
-    if (!window.studio?.setupProject || operation.current) return false;
-    operation.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      await persist();
-      const next = await window.studio.setupProject();
-      changeProject(next);
-      setSetupRequired(false);
-      return true;
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return false;
-    } finally {
-      operation.current = false;
-      setBusy(false);
-      void window.studio
-        ?.installationStatus?.()
-        .then(setInstallation)
-        .catch(() => {});
-    }
-  }
-
   async function openExample() {
     if (operation.current) return;
     operation.current = true;
@@ -1605,11 +1544,7 @@ export function useStudio() {
     verify,
     approveGroundTruth,
     openProject,
-    setupProject,
     starting,
-    installation,
-    setupProgress,
-    setupRequired,
     openExample,
     persist,
     acceptCandidate,

@@ -972,7 +972,7 @@ export function PdfEvidence({
       </div>
       {!available && (
         <p className="field-hint">
-          O PDF persistente está disponível no aplicativo desktop, após abrir o projeto local.
+          O PDF persistente está disponível no servidor colaborativo, após abrir o projeto local.
         </p>
       )}
       {status?.asset && (

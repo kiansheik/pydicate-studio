@@ -210,7 +210,7 @@ export function PassageSolver({
       </div>
       {!local && (
         <p className="lab-boundary" role="status">
-          Abra o corpus local no aplicativo desktop para usar o motor selecionado.
+          Abra o corpus local no servidor colaborativo para usar o motor selecionado.
         </p>
       )}
       {local && !ready && (

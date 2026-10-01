@@ -6,16 +6,16 @@ import { createRequire } from 'node:module';
 import type { EvidenceStatus } from '../src/domain/evidence';
 
 const require = createRequire(import.meta.url);
-const { createEvidenceService } = require('../electron/evidence-service.cjs') as {
+const { createEvidenceService } = require('../runtime/evidence-service.cjs') as {
   createEvidenceService: (options: {
     stateDirectory: string;
     chooseFile: () => Promise<string>;
   }) => { invoke(method: string, params: Record<string, unknown>): Promise<unknown> };
 };
-const { makePdfFixture } = require('../electron/tests/pdf-fixture.cjs') as {
+const { makePdfFixture } = require('../runtime/tests/pdf-fixture.cjs') as {
   makePdfFixture: (options?: { paddingBytes?: number }) => Buffer;
 };
-const { makeScanPdfFixture } = require('../electron/tests/pdf-scan-fixture.cjs') as {
+const { makeScanPdfFixture } = require('../runtime/tests/pdf-scan-fixture.cjs') as {
   makeScanPdfFixture: () => Buffer;
 };
 const params = { projectId: 'project:pdf-test', sourceId: 'araujo', passageId: 'passage:a' };

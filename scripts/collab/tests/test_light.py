@@ -13,7 +13,7 @@ class LightTests(unittest.TestCase):
     def test_frontend_changes_cannot_reuse_old_frontend(self):
         self.assertTrue(server_only(['server/store.cjs', 'scripts/collab/light.py', 'docs/agent/log.md']))
         self.assertFalse(server_only(['src/App.tsx', 'server/store.cjs']))
-        self.assertFalse(server_only(['electron/python-worker.cjs']))
+        self.assertFalse(server_only(['runtime/python-worker.cjs']))
 
     def test_installation_changes_require_full_deploy(self):
         with self.assertRaisesRegex(ValueError, 'full collab-deploy'):

@@ -149,7 +149,7 @@ Reopening the same note shares the pending version and newest fields, so moving
 from Léxico to Traduzir cannot omit the last edit. Note edits during asynchronous
 translation acceptance also prevent applying the older reading into the draft.
 
-`electron/interpretation-context.cjs` projects only currently bound notes into
+`runtime/interpretation-context.cjs` projects only currently bound notes into
 translation, ordinary analysis, candidate evaluation and explicit grammar repair.
 Constituent requests filter by trusted source spans. Context retains note version,
 scope, original definition, explicit source definition and effective reading.
@@ -175,5 +175,5 @@ Neither notes nor matching engine forms establish historical attestation. The
 neighboring engine's standalone prompt API is unchanged.
 
 See `python/tests/test_{active_lexicon,node_definitions}.py`,
-`electron/tests/{interpretation-context,translation-context}.test.cjs` and
+`runtime/tests/{interpretation-context,translation-context}.test.cjs` and
 `tests/passage-lexicon.spec.ts` for the contracts and actual-engine sense test.

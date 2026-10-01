@@ -84,7 +84,7 @@ function validate(value, projectId) {
   }
   return value;
 }
-/** The desktop owner is the sole writer; external clients only call its commands. */
+/** The server owner is the sole writer; external clients only call its commands. */
 class AnalysisStore {
   constructor(directory) {
     this.directory = directory;

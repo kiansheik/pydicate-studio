@@ -56,7 +56,6 @@ import {
 } from './components/AnalysisSupport';
 import { type AnalysisEvidence } from './domain/analysis';
 import { PydicateTree } from './components/RuntimeTree';
-import { UsagePanel } from './components/UsagePanel';
 import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
 import { PassageLexicon } from './components/PassageLexicon';
 import { PassageNavigator } from './components/PassageNavigator';
@@ -476,47 +475,6 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
       </div>
       <h2>Ler, descrever, construir.</h2>
       <p>Comece pela passagem. A estrutura pode vir depois.</p>
-      {window.studio?.setupProject && (
-        <>
-          <button
-            className="project-option actionable"
-            disabled={studio.busy}
-            onClick={() => {
-              void studio.setupProject().then((opened) => {
-                if (opened) close();
-              });
-            }}
-          >
-            <div className="project-option-icon">
-              <ArrowDownToLine />
-            </div>
-            <div>
-              <strong>
-                {studio.installation?.workspace.ready
-                  ? 'Abrir meu espaço de trabalho'
-                  : 'Preparar meu espaço de trabalho'}
-              </strong>
-              <p>
-                Baixa o corpus e a gramática para este computador. O aplicativo já inclui Python e
-                Git.
-              </p>
-              {studio.installation && (
-                <small className="workspace-directory">
-                  {studio.installation.workspace.directory}
-                </small>
-              )}
-            </div>
-            <ChevronRight size={20} />
-          </button>
-          {studio.setupProgress && (
-            <div className="setup-progress" role="status" aria-live="polite">
-              {studio.setupProgress.message}
-              {studio.busy && <progress max={100} value={studio.setupProgress.percent} />}
-            </div>
-          )}
-          {studio.error && <p role="alert">{studio.error}</p>}
-        </>
-      )}
       <button
         className="project-option"
         disabled={studio.busy}
@@ -549,11 +507,11 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
           <FolderOpen />
         </div>
         <div>
-          <strong>Abrir projeto existente</strong>
+          <strong>Abrir espaço compartilhado</strong>
           <p>
             {window.studio
-              ? 'Escolha a pasta que contém oldtupicorpus e nhe-enga.'
-              : 'Disponível no aplicativo desktop. Execute npm run desktop para abrir seus repositórios.'}
+              ? 'Abra o corpus configurado neste servidor.'
+              : 'Entre no servidor colaborativo para trabalhar com o corpus.'}
           </p>
         </div>
         <ChevronRight size={20} />
@@ -561,33 +519,10 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
       <div className="dialog-footnote">
         <Leaf size={16} />
         <span>
-          Seus rascunhos ficam neste dispositivo. A fonte e as referências do corpus são
-          preservadas.
+          No servidor, seus rascunhos ficam no espaço compartilhado. O exemplo mantém apenas
+          rascunhos neste navegador. Fonte e referência exigem revisão.
         </span>
       </div>
-      {studio.installation && (
-        <div className="installation-status">
-          <p>
-            Studio {studio.installation.update.currentVersion} ·{' '}
-            {studio.installation.update.message}
-          </p>
-          {[
-            ...new Set([
-              ...studio.installation.warnings,
-              ...studio.installation.workspace.warnings,
-            ]),
-          ].map((warning) => (
-            <p key={warning}>{warning}</p>
-          ))}
-          <p>
-            Ao abrir, o Studio procura atualizações. Alterações locais no corpus e na gramática são
-            preservadas.
-          </p>
-          <button className="button small" onClick={() => void window.studio?.openReleasePage?.()}>
-            Página de versões
-          </button>
-        </div>
-      )}
     </dialog>
   );
 }
@@ -620,13 +555,10 @@ export default function App() {
   const collaborative = window.studio?.runtime === 'collaborative';
   const canReviewSource = window.studio?.capabilities?.sourceReview !== false;
   const [submitting, setSubmitting] = useState(false);
-  useEffect(() => {
-    if (studio.setupRequired) setProjectDialog(true);
-  }, [studio.setupRequired]);
+
   const advanced = useAdvancedTools();
   const [moreOpen, setMoreOpen] = useState(false);
   const [details, setDetails] = useState(false);
-  const [usageOpen, setUsageOpen] = useState(false);
   const [learningView, setLearningView] = useState<'lessons' | 'reference' | null>(null);
   const [labOpen, setLabOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -1970,14 +1902,9 @@ export default function App() {
         <img src="./mark.svg" alt="" width={56} height={56} />
         <h1>Pydicate Studio</h1>
         <p role="status" aria-live="polite">
-          {studio.setupProgress?.message ||
-            studio.installation?.update.message ||
-            'Abrindo seu espaço de trabalho…'}
+          Abrindo seu espaço de trabalho…
         </p>
-        <progress
-          max={100}
-          value={studio.setupProgress?.percent ?? studio.installation?.update.percent}
-        />
+        <progress />
       </main>
     );
   return (
@@ -2028,9 +1955,6 @@ export default function App() {
               </button>
               <button className="button small" onClick={() => setLearningView('reference')}>
                 Referência
-              </button>
-              <button className="button small" onClick={() => setUsageOpen(true)}>
-                Atividade
               </button>
               <button
                 className="button small"
@@ -2083,15 +2007,6 @@ export default function App() {
                         }}
                       >
                         Referência
-                      </button>
-                      <button
-                        role="menuitem"
-                        onClick={() => {
-                          setMoreOpen(false);
-                          setUsageOpen(true);
-                        }}
-                      >
-                        Atividade
                       </button>
                       <button
                         role="menuitem"
@@ -2227,7 +2142,6 @@ export default function App() {
           Português · Tupi antigo <span className="status-divider">/</span> Pydicate Studio
         </span>
       </footer>
-      {usageOpen && <UsagePanel onClose={() => setUsageOpen(false)} />}
       {archiveOpen && <DraftArchive studio={studio} onClose={() => setArchiveOpen(false)} />}
       {newSourceOpen && (
         <NewSourceDialog

@@ -3,7 +3,7 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const { createTestStore } = require('./helpers.cjs');
 const { managePassages } = require('../passage-management.cjs');
-const { envelope } = require('../../electron/validation.cjs');
+const { envelope } = require('../../runtime/validation.cjs');
 
 async function fixture(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-organize-'));

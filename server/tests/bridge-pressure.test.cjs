@@ -9,7 +9,7 @@ function setup() {
   const window = { addEventListener() {}, dispatchEvent() {} };
   const sandbox = { window, crypto: { randomUUID: () => 'client' }, structuredClone,
     document: {}, navigator: {}, CustomEvent: class {}, EventSource: class {},
-    Date: { now: () => now }, setInterval() {},
+    Date: { now: () => now }, performance: { now: () => now }, setInterval() {},
     setTimeout(fn, ms) { const id = ++timer; timers.set(id, { fn, at: now + ms }); return id; },
     clearTimeout(id) { timers.delete(id); },
     fetch: async (url, options) => {
@@ -20,7 +20,7 @@ function setup() {
   vm.runInNewContext(fs.readFileSync(require.resolve('../public/bridge.js'), 'utf8'), sandbox);
   const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
   const respond = (index, status = 200, code = '', retryAfter = null) => requests[index].resolve({
-    ok: status === 200, status, headers: { get: name => name === 'retry-after' ? retryAfter : null },
+    ok: status === 200, status, headers: new Headers(retryAfter === null ? {} : { 'retry-after': retryAfter }),
     json: async () => status === 200 ? { value: index } : { error: { code, message: 'busy' } },
   });
   return { invoke: window.studio.invoke, requests, respond, flush,
@@ -69,4 +69,18 @@ test('maintenance 503 pauses polling for Retry-After without replaying writes', 
   assert.equal(f.requests[2].input.method, 'analysis_list');
   f.respond(2);await Promise.all(reads);
   assert.equal(f.requests.filter(r => r.input.method === 'analysis_composer').length, 1);
+});
+
+test('server errors retain structured freshness codes without a native serialization marker', async () => {
+  const f = setup();
+  const rejected = assert.rejects(f.invoke('evaluate_expression', { raw: 'old' }), error => {
+    assert.equal(error.code, 'STALE_ENGINE');
+    assert.equal(error.status, 422);
+    assert.equal(error.message, 'busy');
+    return true;
+  });
+  await f.flush();
+  f.respond(0, 422, 'STALE_ENGINE');
+  await rejected;
+  assert.equal(f.requests.length, 1, 'a stale evaluation is never silently replayed');
 });

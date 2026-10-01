@@ -7,7 +7,7 @@ const { createHash, randomUUID } = require('node:crypto');
 const {
   createEvidenceService,
   validateEvidenceLocation,
-} = require('../electron/evidence-service.cjs');
+} = require('../runtime/evidence-service.cjs');
 const { same } = require('./store.cjs');
 const prefix = 'pydicate-studio:evidence-draft:v1:';
 const sha = (value) => createHash('sha256').update(value).digest('hex');

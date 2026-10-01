@@ -1,3 +1,7 @@
+> Historical product brief. The native desktop distribution described below is
+> retired. The supported implementation is the collaborative server/browser
+> editor; see [current scope](implementation-scope.md) and [local setup](../local-setup.md).
+
 # Pydicate Studio
 
 ## Design decision

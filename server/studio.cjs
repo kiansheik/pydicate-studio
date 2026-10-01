@@ -34,9 +34,9 @@ class Queue {
 }
 async function createStudio(config, store, emit = () => { }) {
     // Lazy imports allow HTTP/auth tests to run without Electron or corpus fixtures.
-    const { PythonWorker } = require('../electron/python-worker.cjs');
-    const { createNextService } = require('../electron/next-service.cjs');
-    const validate = require('../electron/validation.cjs');
+    const { PythonWorker } = require('../runtime/python-worker.cjs');
+    const { createNextService } = require('../runtime/next-service.cjs');
+    const validate = require('../runtime/validation.cjs');
     let project, worker, pickedFile = null, service;
     const queue = new Queue(), previews = new Map();
     let deferSourceChange = false, deferredSourceChange = false;
@@ -48,7 +48,7 @@ async function createStudio(config, store, emit = () => { }) {
     // The provider resolves it from the request in flight, so a job always runs
     // under the account of the person who asked for it.
     const { ClaudeAuth } = require('./claude-auth.cjs');
-    const { ClaudeCodeProvider } = require('../electron/provider-claude-code.cjs');
+    const { ClaudeCodeProvider } = require('../runtime/provider-claude-code.cjs');
     const claudeAuth = new ClaudeAuth({ directory: config.claudeHomeDirectory });
     const hostedAI = createHostedAI({ store, emit, claudeStatus: user => claudeAuth.status(user) });
     const claudeCode = new ClaudeCodeProvider({
@@ -98,7 +98,7 @@ async function createStudio(config, store, emit = () => { }) {
     function currentDictionary() {
         if (!dictionarySite || dictionaryOrigin !== config.origin) {
             dictionaryOrigin = config.origin;
-            dictionarySite = require('../electron/dictionary-site.cjs').createDictionarySite({
+            dictionarySite = require('../runtime/dictionary-site.cjs').createDictionarySite({
                 getProject: () => project, origin: config.origin, parentOrigin: config.origin,
             });
         }

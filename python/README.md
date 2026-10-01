@@ -1,10 +1,10 @@
 # Python authoring service
 
-Python 3.10+ and Git are required. The desktop worker runs the selected local `oldtupicorpus` and `nhe-enga` pair; language realization remains in that engine. No new Python packages are needed for the observed Araújo evaluation path. The actual dirty dependencies and Python runtime are recorded in [next-baseline.json](../docs/design/next-baseline.json), with the exact seven changed dependency files preserved by [binary patches](../docs/design/dependency-patches/) and a local relevant-file archive under `.local/dependencies/`.
+Python 3.10+ and Git are required. The server worker runs the selected local `oldtupicorpus` and `nhe-enga` pair; language realization remains in that engine. No new Python packages are needed for the observed Araújo evaluation path. The actual dirty dependencies and Python runtime are recorded in [next-baseline.json](../docs/design/next-baseline.json), with the exact seven changed dependency files preserved by [binary patches](../docs/design/dependency-patches/) and a local relevant-file archive under `.local/dependencies/`.
 
 Run the service with `python3 -B python/worker.py --state-dir /path/to/studio-state`. Test with `python3 -B -m unittest discover -s python/tests -v`. Re-run the read-only full source audit with `python3 -B python/audit_araujo.py --parent /path/containing/both/clones`; it discovers the expression count and writes `docs/coverage/araujo.json` and `araujo.md`.
 
-The protocol is one JSON object per line: `{ "id": 1, "method": "open_project", "params": { "parentPath": "/path/containing/both/clones" } }`; output is `{id,result}` or `{id,error:{message,code}}`. The desktop owns filesystem authorization and supplies the state directory. All following operations require an open project except syntax parsing.
+The protocol is one JSON object per line: `{ "id": 1, "method": "open_project", "params": { "parentPath": "/path/containing/both/clones" } }`; output is `{id,result}` or `{id,error:{message,code}}`. The server owns filesystem authorization and supplies the state directory. All following operations require an open project except syntax parsing.
 
 | Method | Parameters / behavior |
 |---|---|

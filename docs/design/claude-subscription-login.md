@@ -88,7 +88,7 @@ is the one that was built and reviewed, not one that rewrote itself later.
 Sign-in is only the credential half. Running translations and grammar
 corrections under a contributor's own login still needs the job runtime: the
 existing scoped `studio_authoring` MCP gateway
-(`electron/studio-mcp-gateway.cjs`) reached over stdio with
+(`runtime/studio-mcp-gateway.cjs`) reached over stdio with
 `--strict-mcp-config`, a tool allowlist that matches what Codex may do today,
 the hash-guarded grammar-edit grant, and the hosted queue in `server/ai.cjs`,
 which currently accepts `codex` only. Until that lands, signing in stores a

@@ -359,7 +359,7 @@ function createStudioMcpGateway({
       expiresAt: new Date(scope.expiresAt).toISOString(),
       command: process.execPath,
       args: [path.join(__dirname, 'studio-mcp-stdio.cjs')],
-      env: { STUDIO_MCP_SOCKET: socketPath, STUDIO_MCP_TOKEN: token, ELECTRON_RUN_AS_NODE: '1' },
+      env: { STUDIO_MCP_SOCKET: socketPath, STUDIO_MCP_TOKEN: token },
       toolNames: (await listTools(jobId)).map((tool) => tool.name),
       configPath,
     };

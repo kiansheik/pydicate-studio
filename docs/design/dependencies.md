@@ -42,16 +42,12 @@ git -C "$PYDICATE_PROJECT_PARENT/nhe-enga" apply "$PWD/docs/design/dependency-pa
 python3 -B scripts/check-project.py
 ```
 
-Use Python 3.14.4 for the exact baseline above. `PYDICATE_PYTHON` selects the executable used by Electron; the checker uses the Python executable that launches it. From the Studio root:
-
-```sh
-export PYDICATE_PYTHON=python3
-npm ci
-npm run build
-npm start
-```
-
-The selected project and passage are restored from Studio's saved session. On an existing profile, use **Abrir projeto** to select the newly prepared parent directory; `PYDICATE_PROJECT_PARENT` supplies the default when no previous selection exists. The initial startup also requires a supported Node release from `package.json`. PDF witness files and provider authentication are separate configuration; they are not embedded in this dependency baseline.
+Use Python 3.14.4 to reproduce this historical baseline. Current server runtime
+and dependency checkout setup is documented in [local setup](../local-setup.md).
+`PYDICATE_PYTHON` selects the server interpreter and `PYDICATE_PROJECT_PARENT`
+selects the directory containing the two clones. The hosted deployment's pinned
+revisions live in `deploy/collab/dependencies.json`; this recorded dirty baseline
+is historical evidence, not an instruction to overwrite current research.
 
 For audit/test commands, the same parent can be selected explicitly:
 

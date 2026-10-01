@@ -174,7 +174,7 @@ export interface DraftEnvelope {
   drafts: Record<string, Draft>;
 }
 export interface StudioBridge {
-  runtime?: 'desktop' | 'collaborative';
+  runtime?: 'collaborative';
   evidenceUrl?: (params: { projectId: string; sourceId: string; assetId: string }) => string;
   evidenceCacheScope?: () => string | null;
   capabilities?: { analysis?: boolean; sourceReview?: boolean; passageManagement?: boolean };
@@ -191,9 +191,6 @@ export interface StudioBridge {
   ): Promise<import('./submissions').SubmissionReview>;
   publishSubmission?(token: string): Promise<import('./submissions').SubmissionPublication>;
   listSubmissions?(projectId: string): Promise<import('./submissions').SubmissionSummary[]>;
-  setupProject?(): Promise<StudioProject>;
-  installationStatus?(): Promise<InstallationStatus>;
-  openReleasePage?(): Promise<void>;
   copyText?(text: string): Promise<void>;
   recordUsage?(event: Record<string, unknown>): Promise<void>;
   invoke?(method: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -204,24 +201,6 @@ export interface StudioBridge {
   render(request: RenderRequest): Promise<RenderResult>;
   loadDrafts(projectId: string): Promise<DraftEnvelope | null>;
   saveDrafts(envelope: DraftEnvelope): Promise<void | { storageRevision: number }>;
-}
-export interface InstallationStatus {
-  update: {
-    phase: string;
-    currentVersion: string;
-    version?: string;
-    percent?: number;
-    message?: string;
-    canContinue: boolean;
-  };
-  workspace: {
-    directory: string;
-    ready: boolean;
-    busy: boolean;
-    warnings: string[];
-    progress: { phase: string; message: string; percent?: number; repository?: string };
-  };
-  warnings: string[];
 }
 declare global {
   interface Window {

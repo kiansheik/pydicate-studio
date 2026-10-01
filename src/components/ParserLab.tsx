@@ -135,8 +135,8 @@ export function ParserLab({
       </nav>
       {!local && (
         <p className="lab-boundary" role="status">
-          Abra o corpus local no aplicativo desktop. O laboratório usa o motor selecionado; não há
-          análise no navegador.
+          Abra o corpus local no servidor colaborativo. O laboratório usa o motor selecionado; não
+          há análise no navegador.
         </p>
       )}
       {statusError && <p role="alert">{statusError}</p>}

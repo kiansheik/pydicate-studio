@@ -11,7 +11,7 @@ const {
   transformHtml,
   transformScript,
   transformStyles,
-} = require('../electron/dictionary/transform.cjs');
+} = require('../runtime/dictionary/transform.cjs');
 const root = path.resolve(process.env.PYDICATE_PROJECT_PARENT ?? '..', 'nhe-enga');
 test('real local dictionary retains senses, conjugations and citation browsing while emitting exact selected identity', async ({
   page,
@@ -45,7 +45,7 @@ test('real local dictionary retains senses, conjugations and citation browsing w
       ? url.pathname.slice('/__studio_dictionary/'.length)
       : url.pathname.slice('/nhe-enga/'.length);
     if (relative === '' || relative.endsWith('/')) relative += 'index.html';
-    const base = bridge ? path.resolve('electron/dictionary') : root;
+    const base = bridge ? path.resolve('runtime/dictionary') : root;
     const file = path.resolve(base, relative);
     if (!file.startsWith(base + path.sep) || !(await stat(file).catch(() => null))?.isFile())
       return route.fulfill({ status: 404, body: 'Missing local asset' });

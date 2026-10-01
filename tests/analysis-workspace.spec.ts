@@ -559,20 +559,22 @@ test('inspection immediately adopts the proposal in the vertical editor with wor
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:beta');
   const editor = page.locator('[data-pane="editor"] .expression-canvas');
   await expect(
-    editor.getByRole('button', { name: 'De baixo para cima', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true');
+    editor.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'false');
   expect(
     await page.evaluate(
       () => window.__nextControl.requests.filter((r) => r.method === 'analysis_accept').length,
     ),
   ).toBe(1);
-  await editor.getByRole('button', { name: 'Da esquerda para a direita', exact: true }).click();
+  await editor
+    .getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true })
+    .click();
   await expect(
-    editor.getByRole('button', { name: 'Da esquerda para a direita', exact: true }),
+    editor.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }).click();
   await expect(
-    editor.getByRole('button', { name: 'Da esquerda para a direita', exact: true }),
+    editor.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await editor.locator('.canvas-node').first().click({ button: 'right' });
   await editor.getByRole('menuitem', { name: /Duplicar trecho/ }).click();

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { registerProjectRecovery, serviceError, withProjectRecovery } from './project-recovery';
+import { registerProjectRecovery, withProjectRecovery } from './project-recovery';
 
 let unregister: (() => void) | undefined;
 afterEach(() => unregister?.());
@@ -21,15 +21,6 @@ function setup() {
 }
 
 describe('automatic read-only project recovery', () => {
-  it('recovers coded Electron errors without exposing the transport marker', () => {
-    expect(serviceError(new Error('[STUDIO:STALE_ENGINE] Changed'))).toMatchObject({
-      message: 'Changed',
-      code: 'STALE_ENGINE',
-    });
-    const other = new Error('A normal error');
-    expect(serviceError(other)).toBe(other);
-  });
-
   it.each(['dictionary_lookup', 'learning_library'])(
     'refreshes a stale %s once and retries with the current engine',
     async (method) => {

@@ -67,12 +67,13 @@ class Remote:
         # arbitrary local source changes never enter the application workspace.
         from evidence_sync import prepare_local_bundle
         from desktop_sync import prepare_local_bundle as prepare_research_bundle
-        known=self.inventory()
-        print('[deploy] Preparing local PDFs and source evidence…',flush=True)
+        legacy=os.getenv('COLLAB_IMPORT_LEGACY_DESKTOP') == '1'
+        known=self.inventory() if legacy else {}
+        print('[deploy] Preparing server release…',flush=True)
         with tempfile.TemporaryDirectory(prefix='studio-deploy-evidence-') as temporary:
-            bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar',known=known.get('evidence',()))
-            print('[deploy] Preparing saved desktop research and history…',flush=True)
-            desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar',known=known.get('research',()))
+            bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar',known=known.get('evidence',())) if legacy else None
+            if legacy: print('[deploy] Preparing explicitly requested legacy research migration…',flush=True)
+            desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar',known=known.get('research',())) if legacy else None
             sha=self.prepare_release(ref,bool(bundle),bool(desktop))
             from codex_auth import install
             install(self)

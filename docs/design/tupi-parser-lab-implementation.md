@@ -1,3 +1,7 @@
+> Historical implementation plan and measurements. Native Electron milestones
+> are retired; current validation uses shared runtime and hosted browser tests.
+> See [current scope](implementation-scope.md).
+
 # Tupi → Pydicate Lab: research and implementation prompt
 
 Research date: 2026-09-18. Branch: `codex/tupi-parser-lab`.
@@ -136,13 +140,13 @@ work. Persist job progress, results and useful failure messages.
 | --- | --- | --- |
 | Navigation and isolation | `src/App.tsx`, `src/components/LearningWorkspace.tsx` | Hidden lazy workspace; isolated lab editor state using the learning workspace's pattern |
 | Editable tree and gestures | `src/components/RuntimeTree.tsx` (`PydicateTree`), `ExpressionCanvas.tsx`, `src/domain/canvas.ts`, `tree-operations.ts`, `expression-tree.ts` | Host the same editor; avoid copying its implementation |
-| Headless builder operations | `electron/authoring/shared-entry.ts`, `electron/shared-authoring.cjs` | Use the same transforms for candidate edits and any MCP adapter |
+| Headless builder operations | `runtime/authoring/shared-entry.ts`, `runtime/shared-authoring.cjs` | Use the same transforms for candidate edits and any MCP adapter |
 | Source syntax and preservation | `python/studio_authoring.py` | Reuse typed source AST, spans, permitted operators/methods and transactional edits |
 | Evaluation and lexicon binding | `python/authoring_runtime.py`, `python/authoring_service.py` | Explicit lab lexicon context, bounded interpretation, isolated snapshots and current-engine validation |
 | Reverse lookup and normalization | `python/rendered_structures.py` | Reuse relaxed normalizer and verified structure resolver; extend with fragment indexes and bounded composition |
-| Worker boundary | `python/worker.py`, `electron/python-worker.cjs`, existing IPC/preload/type validation | Narrow lab commands; separate lifecycle for long batch work |
-| Durable jobs and provider ownership | `electron/analysis-service.cjs`, `analysis-store.cjs`, `agent-runner.cjs` | Reuse ownership/cancellation/event conventions; separate large artifact storage |
-| Tool-assisted analysis | `electron/scratch-service.cjs`, `studio-mcp-gateway.cjs`, current provider adapters | Explicit lab task context through the existing loop, with the same validated builder tools |
+| Worker boundary | `python/worker.py`, `runtime/python-worker.cjs`, existing IPC/preload/type validation | Narrow lab commands; separate lifecycle for long batch work |
+| Durable jobs and provider ownership | `runtime/analysis-service.cjs`, `analysis-store.cjs`, `agent-runner.cjs` | Reuse ownership/cancellation/event conventions; separate large artifact storage |
+| Tool-assisted analysis | `runtime/scratch-service.cjs`, `studio-mcp-gateway.cjs`, current provider adapters | Explicit lab task context through the existing loop, with the same validated builder tools |
 | Honest reconstruction evaluation | `scripts/build-authoring-eval.py`, existing evaluation exclusions | Extend split/leakage controls to normalized strings, synthetic families and lab retrieval |
 | Dependency diagnosis | `scripts/check-project.py`, `docs/design/dependencies.md`, `next-baseline.json` | Report selected versions/patches and artifact compatibility |
 | Synthetic data | Corpus `synthetic/`, `tokenizer/`, historical sources and approved JSONL | Read/adapt existing generation concepts; capture original expressions at generation time |

@@ -1,3 +1,16 @@
+## 2026-10-01 — Retire the desktop product, retain shared server services
+
+Prepared `refactor/server-only` from PR #16 at `4d0a60c`, targeting
+`unlocked-light-deploy` so the review diff excludes unrelated unmerged work.
+Moved shared Python/AI/MCP/PDF/storage services and tests to `runtime/`;
+removed native launch, packaging, updater, installer UI and desktop telemetry.
+Preserved server history/import readers, archives, schemas and source data.
+Routine deployment no longer discovers desktop profiles; legacy migration is
+explicit and requires an existing allowlisted browser-storage export.
+Carried applicable PR #17 server/browser regressions and corrected browser
+fixtures to assert structured error codes. No merge, deployment or live changes.
+See [handoff](session-handoffs/2026-10-01-server-only-cleanup.md).
+
 ## 2026-10-01 — Steer active grammar corrections
 
 Added durable same-turn Codex steering instead of a second queued analysis.

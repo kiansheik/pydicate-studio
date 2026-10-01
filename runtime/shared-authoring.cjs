@@ -3,12 +3,12 @@ const path = require('node:path');
 const Module = require('node:module');
 let shared;
 /** Compile checked-in source, never client-supplied code. Keeping one import graph
- * prevents the desktop canvas and service from becoming competing DSL generators.
+ * prevents the browser canvas and service from becoming competing DSL generators.
  * The developer distribution already requires esbuild through Vite. */
 function loadSharedAuthoring() {
   if (shared) return shared;
   const precompiled = path.join(__dirname, 'authoring', 'shared-bundle.cjs');
-  if (process.resourcesPath && !process.defaultApp && require('node:fs').existsSync(precompiled)) {
+  if (require('node:fs').existsSync(precompiled)) {
     shared = require(precompiled);
     return shared;
   }

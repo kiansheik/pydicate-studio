@@ -10,7 +10,7 @@ async function main() {
         throw new Error('Start through npm run collab (single-owner lock).');
     process.umask(0o077);
     const settings = config();
-    const validate = require('../electron/validation.cjs');
+    const validate = require('../runtime/validation.cjs');
     const store = await Store.open(settings.stateDirectory, { validateEnvelope: validate.envelope });
     if (require('node:fs').existsSync(require('node:path').join(settings.stateDirectory,'collab.sqlite')) &&
         !(await store.db.query('SELECT count(*) AS n FROM migration_receipts')).rows[0].n) {

@@ -9,13 +9,6 @@ interface Recovery {
 }
 let recovery: Recovery | undefined;
 
-/** Electron serializes Error.message across contextBridge, not custom fields. */
-export function serviceError(reason: unknown): unknown {
-  if (!(reason instanceof Error)) return reason;
-  const match = reason.message.match(/^\[STUDIO:([A-Z][A-Z0-9_]{0,63})\] ([\s\S]*)$/);
-  return match ? Object.assign(new Error(match[2]), { code: match[1] }) : reason;
-}
-
 export function registerProjectRecovery(value: Recovery) {
   recovery = value;
   return () => {

@@ -1,6 +1,6 @@
 'use strict';
 const { AsyncLocalStorage } = require('node:async_hooks');
-const { DraftStore } = require('../electron/draft-store.cjs');
+const { DraftStore } = require('../runtime/draft-store.cjs');
 const { fault } = require('./store.cjs');
 const READ = new Set(['ai_status','ai_history','ai_prompt_preview','analysis_list','analysis_get']);
 const WRITE = new Set(['ai_configure','ai_start','ai_cancel','ai_accept','analysis_submit','analysis_submit_batch',

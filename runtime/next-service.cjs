@@ -250,8 +250,6 @@ function createNextService(options) {
     if (method === 'session_restore') {
       await load();
       const parent = settings.parentPath ?? defaultParent;
-      if (!settings.parentPath && (await options.needsSetup?.(parent)))
-        return { project: null, setupRequired: true };
       try {
         const project = await openPath(parent);
         await save({ parentPath: parent });
@@ -261,7 +259,6 @@ function createNextService(options) {
         return {
           project: null,
           error: `Não foi possível restaurar oldtupicorpus: ${e.message}`,
-          ...(options.needsSetup ? { setupRequired: true } : {}),
         };
       }
     }

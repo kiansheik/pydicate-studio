@@ -132,7 +132,6 @@ function scopedAgentConfig(effective, mcp, tools, effort) {
     env: {
       STUDIO_MCP_SOCKET: mcp.env.STUDIO_MCP_SOCKET,
       STUDIO_MCP_TOKEN: mcp.env.STUDIO_MCP_TOKEN,
-      ELECTRON_RUN_AS_NODE: '1',
     },
     enabled: true,
     required: true,

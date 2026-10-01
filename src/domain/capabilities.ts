@@ -1,6 +1,6 @@
 import type { StudioBridge } from './types';
 
-/** Older desktop bridges predate capability flags and retain their existing tools. */
+/** Hosted capabilities are authoritative; test/example bridges may omit runtime. */
 export function analysisAvailable(bridge: StudioBridge | undefined = window.studio) {
   return bridge?.runtime === 'collaborative'
     ? bridge.capabilities?.analysis === true

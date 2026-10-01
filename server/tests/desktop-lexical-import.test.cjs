@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { createLexicalNotesService, identity } = require('../../electron/lexical-notes-service.cjs');
+const { createLexicalNotesService, identity } = require('../../runtime/lexical-notes-service.cjs');
 const { importDesktopLexicalNotes } = require('../desktop-lexical-import.cjs');
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 

@@ -1,8 +1,26 @@
+# Current server-only questions
+
+- Review the cleanup draft against `unlocked-light-deploy` after PR #16; PR #17 is
+  left open but its applicable server/browser repairs are included here.
+- Full deployment is required for the changed dependency/build layout. No rollout
+  is authorized by preparing this PR. Existing schema/state paths need no migration.
+- Old Chromium Local Storage needs an allowlisted JSON export from the previous
+  desktop release before optional profile migration. Already imported archives
+  and historical readers remain compatible; preserve original profiles separately.
+- Optional corpus-enabled Python tests previously reported 11 assertion failures
+  and 6 errors; two independently reproduced on untouched Python. Other fixture,
+  identity and lexicon/morphology differences need separate bounded investigation.
+
+## Historical questions and verification limits
+
+The following entries describe earlier design milestones and recorded limits;
+retired installer/native-workspace requests are no longer product goals.
+
 # Remaining questions and release boundaries
 
 1. Live linguistic usefulness remains unmeasured for the iterative authoring workflow. Claude model discovery was rechecked successfully (11 models), and installed Codex 0.153.4 initialization/scoped thread setup passed, both without generation. The historical Claude credit rejection remains unresolved by those checks. Run any live linguistic experiment only after an explicit separate budget; routine fixtures make no inference requests.
 2. Attach and assess the actual historical Araújo PDF. Native PDF geometry, persistence, rotation and original colors were verified with a vector fixture. Raster witnesses are now covered by a JPEG 2000/JPEG scan fixture, and the application ships and serves PDF.js's JBIG2, JPEG 2000, ICC, standard-font and CMap files, which were missing and made scanned pages render blank. Actual historical documents, their fonts and JBIG2 in particular, remain untested against real pages; a page whose image still cannot be decoded now reports itself rather than appearing empty.
-3. Version 0.2.10006 is published for Windows x64, Linux x64 and both Mac architectures. Native packaged-app startup, bundled Git workspace preparation and real engine evaluation passed on all four runners. Manual installer acceptance on users' own systems and a real published-version upgrade remain untested. Developer ID/notarization credentials are still needed for seamless Mac distribution and automatic updates; Windows signing is also absent. See [installation guide](../installing.md).
+3. Version 0.2.10006 is published for Windows x64, Linux x64 and both Mac architectures. Native packaged-app startup, bundled Git workspace preparation and real engine evaluation passed on all four runners. Manual installer acceptance on users' own systems and a real published-version upgrade remain untested. Developer ID/notarization credentials are still needed for seamless Mac distribution and automatic updates; Windows signing is also absent. See [installation guide](../local-setup.md).
 4. Decide a portable contribution archive for managed PDFs, local draft history and AI provenance. Source comments retain stable evidence pointers; current Git export shares source/reference patches, not private local application data.
 5. Unmarked identical insertion/reordering can be intrinsically ambiguous. Current code preserves stationary/unambiguous identities, uses explicit source IDs for durable edits, and keeps ambiguous orphan drafts for human reassociation. Avoid heuristic auto-migration of their PDF or AI evidence.
 6. New analysis jobs can supply real saved PDF crop pixels when selected; text-only remains supported. Pixel geometry is verified with asymmetric vector fixtures under rotation and nonzero page origins. The crop renderer now decodes raster imagery, verified on a JPEG 2000 fixture; before this it would have sent a blank white crop. The actual historical scan/font/codec coverage remains open. Explicit grammar-correction submissions now grant dedicated, hash-guarded grammar-edit tools for the selected directory. Ordinary analysis tools still cannot patch the engine. One explicitly requested hosted correction now passed live verification, including the exact target form and third-person subject; broader linguistic correction quality remains unmeasured. See the [repair handoff](session-handoffs/2026-09-28-hosted-grammar-repair.md).

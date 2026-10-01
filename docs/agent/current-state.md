@@ -1,5 +1,29 @@
 # Current state
 
+## Server-only product cleanup (review, not deployed)
+
+The cleanup branch starts from PR #16 at `4d0a60c` and targets
+`unlocked-light-deploy`, keeping its 35 unrelated unmerged commits out of the diff.
+PR #17 remains open and unchanged; its server/browser fixes are carried here,
+while its obsolete desktop telemetry repair is omitted.
+
+The server's shared Python bridge, authoring/AI/MCP, validation, PDF/dictionary
+and compatible storage services move from `electron/` to `runtime/`, with shared
+service tests retained. Native entrypoints, installer/updater, packaged toolchains,
+desktop launch tests/scripts and dependencies are removed. The browser installer
+UI and desktop usage panel are retired; hosted reports remain in the team panel.
+
+`npm run build` builds the browser and shared runtime; `npm start`/`collab` launch
+the locked Linux server. Setup/authentication/deployment guidance describes the
+server product. Normal deployment no longer discovers desktop profiles. Existing
+legacy archives, import/history readers and data formats remain compatible; old
+Chromium buffers require an existing allowlisted JSON export for explicit import.
+This dependency/build change requires a full deployment when separately approved.
+No live service, data, credentials, releases or sibling repositories are changed.
+
+Earlier entries below are historical verification checkpoints. Native paths and
+release results describe what was tested at the time, not supported current APIs.
+
 ## Steering and bounded grammar corrections (live)
 
 Grammar repair now has a 15-minute agent deadline per attempt. Steering does not
