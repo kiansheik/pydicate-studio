@@ -1,0 +1,381 @@
+{
+  "title": "Guia rápido de construção",
+  "intro": "Escolha o que quer montar. Confira a ordem, a categoria e o trecho selecionado; aplique somente depois de revisar a prévia.",
+  "topics": [
+    {
+      "id": "arguments",
+      "group": "Ligar peças",
+      "title": "Preencher um argumento",
+      "operation": "*",
+      "description": "Use * para vincular construções conforme seus tipos: pode ser argumento verbal, posse nominal ou complemento. Não significa somente objeto direto.",
+      "steps": [
+        "Escolha a construção e o argumento.",
+        "Confira Primeira peça e Segunda peça; a ordem não é a ordem garantida da fala.",
+        "Observe sujeito/objeto nas anotações e se ainda faltam argumentos."
+      ],
+      "examples": [
+        {
+          "expression": "oré * tuba",
+          "surface": "oré ruba",
+          "note": ""
+        },
+        {
+          "expression": "abé * ybaka * yby",
+          "surface": "ybaka yby abé",
+          "note": ""
+        }
+      ],
+      "tip": "A valência depende da peça. O verbo pode esperar sujeito e objeto; abé espera pelo menos dois membros. Uma etapa incompleta pode ainda não ter forma."
+    },
+    {
+      "id": "conjunction",
+      "group": "Ligar peças",
+      "title": "Reunir dois ou mais membros com abé",
+      "operation": "*",
+      "description": "A conjunção abé recebe os membros sucessivamente com *. A variante 1 realiza bé. O bé do léxico também pode ser uma posposição: confira a categoria.",
+      "steps": [
+        "Comece com abé.",
+        "Vincule o primeiro membro com * e depois o segundo.",
+        "Para mais membros, vincule outra peça ao conjunto."
+      ],
+      "examples": [
+        {
+          "expression": "abé * ybaka * yby * abá",
+          "surface": "ybaka yby abá abé",
+          "note": ""
+        },
+        {
+          "expression": "abé.var(1) * ybaka * yby",
+          "surface": "ybaka yby bé",
+          "note": ""
+        },
+        {
+          "expression": "Conjunction(\"bé\") * ybaka * yby",
+          "surface": "ybaka yby bé",
+          "note": "bé escolhido explicitamente como Conjunction, separado da posposição bé."
+        },
+        {
+          "expression": "Postposition(\"bé\") * (ybaka + yby)",
+          "surface": "ybaka yby bé",
+          "note": "A mesma superfície, mas uma posposição com um único complemento coordenado."
+        }
+      ],
+      "tip": "Conjunção: 2 ou mais argumentos. Posposição: 1 complemento. Formas iguais não tornam as duas árvores equivalentes."
+    },
+    {
+      "id": "composition",
+      "group": "Ligar peças",
+      "title": "Formar uma unidade lexical",
+      "operation": "/",
+      "description": "A composição / reúne a base à esquerda com o modificador à direita. Confira a forma do composto e o significado do conjunto.",
+      "steps": [
+        "Coloque a base como Primeira peça.",
+        "Coloque o modificador como Segunda peça.",
+        "Escolha Composição lexical e confira a prévia."
+      ],
+      "examples": [
+        {
+          "expression": "nhandy / karaiba",
+          "surface": "nhandykaraíba",
+          "note": ""
+        }
+      ],
+      "tip": "Compor uma base e preencher um argumento com * são decisões diferentes."
+    },
+    {
+      "id": "adjunct",
+      "group": "Ligar peças",
+      "title": "Acrescentar um advérbio ou adjunto",
+      "operation": "+",
+      "description": "Com + entre duas peças, a posição e o tipo importam. Um advérbio antes do verbo pode alterar também o modo, e não apenas a ordem das palavras.",
+      "steps": [
+        "Monte o verbo com seus argumentos.",
+        "Combine com o advérbio usando +.",
+        "Inverta os lados para comparar as duas prévias."
+      ],
+      "examples": [
+        {
+          "expression": "Adverb(\"marã\") + (ikó * ae)",
+          "surface": "marã sekóû",
+          "note": ""
+        },
+        {
+          "expression": "(ikó * ae) + Adverb(\"marã\")",
+          "surface": "oîkó a'e marã",
+          "note": ""
+        }
+      ],
+      "tip": "Aqui marã é criado explicitamente como Adverb. No léxico inspecionado, marã é Noun (trabalho): confira a categoria e o sentido da peça que você selecionou."
+    },
+    {
+      "id": "close-adjunct",
+      "group": "Ordem e escopo",
+      "title": "Ligar mais perto do verbo",
+      "operation": "<<",
+      "description": "Para um adjunto não verbal mais próximo do verbo, use verbo << adjunto depois, ou adjunto >> verbo antes. + reúne adjuntos periféricos. Estas operações também têm outros tratamentos quando ambos são verbos.",
+      "steps": [
+        "Monte o verbo e seus argumentos.",
+        "Escolha o adjunto e confira qual lado deve receber cada peça.",
+        "Compare a posição do adjunto próximo e dos elementos periféricos na prévia."
+      ],
+      "examples": [
+        {
+          "expression": "(Adverb(\"kori\") + (ikó * ae)) << Adverb(\"eté\")",
+          "surface": "kori sekóû eté",
+          "note": ""
+        },
+        {
+          "expression": "Adverb(\"eté\") >> ((ikó * ae) + Adverb(\"kori\"))",
+          "surface": "eté sekóû kori",
+          "note": ""
+        }
+      ],
+      "tip": "Neste par, << coloca eté depois do verbo, dentro de kori; >> coloca eté antes do verbo, dentro do kori final. Não troque os sinais sem conferir os lados."
+    },
+    {
+      "id": "postpositions",
+      "group": "Ligar peças",
+      "title": "Montar uma posposição antes de juntá-la",
+      "operation": "*",
+      "description": "Uma posposição recebe seu complemento com *. Depois, + pode acrescentar outra construção já completa. resé é uma realização da peça esé com este complemento.",
+      "steps": [
+        "Monte esé * abá.",
+        "Monte supé * nde separadamente.",
+        "Junte as duas construções completas com +."
+      ],
+      "examples": [
+        {
+          "expression": "(esé * abá) + (supé * nde)",
+          "surface": "abá resé endébo",
+          "note": ""
+        }
+      ],
+      "tip": "A receita esquemática (coisa + resé) + supé não preenche esses complementos. Use as peças e a valência reais; conferir uma saída não decide a análise histórica."
+    },
+    {
+      "id": "nominal",
+      "group": "Transformar seleção",
+      "title": "Obter uma base nominal",
+      "operation": "base_nominal",
+      "description": "Base nominal transforma a construção compatível em um nome. Use quando a etapa seguinte precisar de uma base nominal; não é um comando para simplesmente corrigir a grafia.",
+      "steps": [
+        "Monte ikó * ae.",
+        "Selecione o conjunto e escolha Obter base nominal; confira e aplique.",
+        "Monte esé * abá como peça completa e junte com +."
+      ],
+      "examples": [
+        {
+          "expression": "(ikó * ae).base_nominal() + (esé * abá)",
+          "surface": "sekó abá resé",
+          "note": ""
+        },
+        {
+          "expression": "((ikó * ae) + (esé * abá)).base_nominal()",
+          "surface": "sekó abá resé",
+          "note": "Neste exemplo, nominalizar depois do PP produz a mesma forma."
+        },
+        {
+          "expression": "n(ikó * ae)",
+          "surface": "sekó",
+          "note": "Helper do léxico, não um novo operador."
+        }
+      ],
+      "tip": "Base nominal antes de adicionar o PP é uma sequência clara para construir e conferir cada etapa. Não é uma exigência universal: ordem, categoria e escopo precisam ser testados no caso concreto. No léxico inspecionado, n(...) é um helper para .base_nominal(True); esse argumento conserva a via de realização anotada do motor e pode influir na normalização da grafia. Confira antes de substituir uma chamada por outra."
+    },
+    {
+      "id": "negation",
+      "group": "Transformar seleção",
+      "title": "Negar uma construção",
+      "operation": "negate",
+      "description": "Negação aplica - ao trecho selecionado. Selecione o conjunto que deve ficar negado; a realização muda conforme a categoria e o modo.",
+      "steps": [
+        "Selecione a ligação do conjunto.",
+        "Escolha Negar esta construção e confira o alcance da operação.",
+        "Para uma ordem negativa, confira também o modo imperativo."
+      ],
+      "examples": [
+        {
+          "expression": "-(ikó * ae)",
+          "surface": "noîkóî a'e",
+          "note": ""
+        },
+        {
+          "expression": "-(+nde * mondarõ).imp()",
+          "surface": "emondarõ umẽ",
+          "note": ""
+        }
+      ],
+      "tip": "Negação alterna o estado: aplicar - duas vezes restaura a construção afirmativa. Não é apagar uma palavra da saída."
+    },
+    {
+      "id": "omission",
+      "group": "Transformar seleção",
+      "title": "Omitir a fala de um pronome",
+      "operation": "hidden",
+      "description": "O + antes de uma única peça marca omissão na fala, mantendo a informação na análise. É diferente do + que liga duas peças.",
+      "steps": [
+        "Selecione só o pronome.",
+        "Escolha Omitir na fala.",
+        "Depois vincule esse pronome ao verbo."
+      ],
+      "examples": [
+        {
+          "expression": "+nde * mondarõ",
+          "surface": "eremondarõ",
+          "note": ""
+        }
+      ],
+      "tip": "O + unário sobre um verbo atua no primeiro argumento. Para escolher o pronome com precisão, faça a operação no próprio pronome."
+    },
+    {
+      "id": "imperative",
+      "group": "Transformar seleção",
+      "title": "Pedir ou ordenar uma ação",
+      "operation": "imp",
+      "description": "Imperativo solicita a realização imperativa do verbo. Os argumentos e a negação continuam fazendo parte da construção.",
+      "steps": [
+        "Prepare o verbo e seus argumentos.",
+        "Selecione o conjunto verbal.",
+        "Escolha Imperativo e confira a prévia antes de aplicar."
+      ],
+      "examples": [
+        {
+          "expression": "(+nde * mondarõ).imp()",
+          "surface": "emondarõ",
+          "note": ""
+        },
+        {
+          "expression": "-(+nde * mondarõ).imp()",
+          "surface": "emondarõ umẽ",
+          "note": ""
+        }
+      ],
+      "tip": "Uma prévia com forma não aprova a leitura do documento. Preserve o trecho original e as dúvidas de interpretação."
+    },
+    {
+      "id": "permissive",
+      "group": "Transformar seleção",
+      "title": "Usar o modo permissivo",
+      "operation": "perm",
+      "description": "Permissivo solicita esse modo do verbo selecionado. Não acrescenta manualmente uma partícula à palavra já escrita.",
+      "steps": [
+        "Prepare o conjunto verbal.",
+        "Escolha Permissivo.",
+        "Confira os argumentos e a realização resultante."
+      ],
+      "examples": [
+        {
+          "expression": "(ikó * ae).perm()",
+          "surface": "toîkó a'e",
+          "note": ""
+        }
+      ],
+      "tip": "Os modos disponíveis dependem da categoria; um nome não vira verbo ao receber esse método."
+    },
+    {
+      "id": "vocative",
+      "group": "Transformar seleção",
+      "title": "Chamar alguém pelo nome",
+      "operation": "voc",
+      "description": "Vocativo atua na construção nominal que nomeia quem é chamado.",
+      "steps": [
+        "Monte o nome ou a relação nominal.",
+        "Selecione o conjunto e escolha Vocativo.",
+        "Confira a forma de chamamento."
+      ],
+      "examples": [
+        {
+          "expression": "(oré * tuba).voc()",
+          "surface": "oré rub",
+          "note": ""
+        }
+      ],
+      "tip": "Selecione o conjunto nominal inteiro quando o possuidor também fizer parte do chamamento."
+    },
+    {
+      "id": "variant",
+      "group": "Transformar seleção",
+      "title": "Escolher uma variante existente",
+      "operation": "var",
+      "description": "Variante escolhe um número definido pelo motor para aquela peça. Não inventa uma variante nem garante uma grafia desejada.",
+      "steps": [
+        "Selecione a peça adequada.",
+        "Escolha Variante e informe o número.",
+        "Confira a diferença no resultado."
+      ],
+      "examples": [
+        {
+          "expression": "abé.var(1) * ybaka * yby",
+          "surface": "ybaka yby bé",
+          "note": ""
+        }
+      ],
+      "tip": "Aqui a variante 1 da conjunção abé realiza bé. O mesmo número em outra peça pode ter outro efeito ou não alterar a forma."
+    },
+    {
+      "id": "reduplication",
+      "group": "Transformar seleção",
+      "title": "Reduplicar um verbo",
+      "operation": "redup",
+      "description": "Reduplicação pede que o motor forme o verbo reduplicado, preservando a estrutura e os argumentos.",
+      "steps": [
+        "Selecione o verbo.",
+        "Escolha Reduplicação.",
+        "Confira o verbo no conjunto completo."
+      ],
+      "examples": [
+        {
+          "expression": "(nde * supé) + (+oré * sapukai.redup()).circ(False)",
+          "surface": "endébo orosapukapukaî",
+          "note": ""
+        }
+      ],
+      "tip": "Este exemplo do corpus reúne reduplicação e .circ(False), que força o indicativo. Não copie sílabas manualmente na saída."
+    },
+    {
+      "id": "circumstantial",
+      "group": "Transformar seleção",
+      "title": "Escolher o modo circunstancial ou indicativo",
+      "operation": "circ",
+      "description": "Modo circunstancial sem argumento equivale a True. O argumento False força o indicativo. Um adjunto anteposto pode disparar o circunstancial automaticamente.",
+      "steps": [
+        "Selecione o verbo.",
+        "Em Modo verbal, escolha Indicativo (False) para forçar o indicativo, ou Circunstancial para True.",
+        "Compare o conjunto com seus adjuntos."
+      ],
+      "examples": [
+        {
+          "expression": "(ikó * ae).circ(False)",
+          "surface": "oîkó a'e",
+          "note": ""
+        },
+        {
+          "expression": "Adverb(\"kori\") + (ikó * ae).circ(False)",
+          "surface": "kori oîkó a'e",
+          "note": "Com o adjunto antes do verbo, False conserva aqui o indicativo."
+        }
+      ],
+      "tip": "Escolher o modo é uma decisão gramatical; não use False só para fazer desaparecer um erro."
+    },
+    {
+      "id": "stative",
+      "group": "Transformar seleção",
+      "title": "Criar um verbo de 2ª classe",
+      "operation": "v",
+      "description": "A conversão v(...) parte de uma base nominal compatível. O editor usa a informação do motor para obter a base nominal quando necessário.",
+      "steps": [
+        "Selecione a base nominal.",
+        "Escolha Verbo de 2ª classe (estativo).",
+        "Confira a categoria e a realização no contexto."
+      ],
+      "examples": [
+        {
+          "expression": "v(angaipaba)",
+          "surface": "angaîpab",
+          "note": ""
+        }
+      ],
+      "tip": "Esta operação conserva a análise; não substitui automaticamente a construção por uma palavra com superfície parecida."
+    }
+  ]
+}

@@ -1,3 +1,15 @@
+## 2026-10-02 — Contextual Portuguese builder recipes and unary controls
+
+Inspected actual operators, corpus method usage and builder drag/scoped edit
+behavior from main in an isolated feature worktree. Implemented discoverable
+searchable guide, on-demand read-only example checks, base nominal/negation/
+omission shortcuts, grouped operation menu, labelled verbal mode choice, and
+portable documentation from shared recipe data. Validated representative outputs
+and structural contrasts locally and in the live container without mutation or
+providers. Preserved diplomatic line breaks and unresolved historical analyses.
+See [handoff](session-handoffs/2026-10-02-builder-cheatsheet.md). Remote deployment
+still needs the approved no-prune route; no archive cleanup or deployment done.
+
 ## 2026-10-02 — Surgical grammar feedback and bounded durable history
 
 Investigated the slow correction workflow from verified open PR #18 (`64632e2`)

@@ -247,3 +247,10 @@ Ao selecionar uma negação, variante ou outra operação com uma única base, o
 realce mostra só a parte acrescentada ou alterada. Uma operação sem efeito visível
 ou que apenas retira um trecho pode não ter nada para destacar. Correspondências
 ambíguas ficam sem destaque. A análise e o texto dos resultados permanecem intactos.
+
+## Receitas para montar uma leitura
+
+Abra **Guia rápido** no cabeçalho da árvore ou **Ver receita e exemplos** ao
+preparar uma operação. Há receitas para argumentos, composições, adjuntos,
+posposições, base nominal, negação e modos, com prévias sem alterar o rascunho.
+A [versão portátil](construction-cheatsheet.md) contém os mesmos exemplos.

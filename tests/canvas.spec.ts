@@ -3038,3 +3038,109 @@ test('operator editing is named in the context menu and opens the existing conne
   ).toBe('*');
   expect(await page.evaluate(() => window.canvasSnapshot.canvas.fragments)).toEqual([]);
 });
+
+test('the quick guide checks a recipe without editing the draft and restores keyboard focus', async ({
+  page,
+}) => {
+  const requests = await openCanvas(page, 'ikó * ae');
+  const initial = await page.evaluate(() => window.canvasSnapshot);
+  const before = requests.filter((request) => request.method === 'evaluate_expression').length;
+  const trigger = page.getByRole('button', { name: 'Guia rápido', exact: true });
+  await trigger.click();
+  const guide = page.getByRole('dialog', { name: 'Guia rápido de construção' });
+  await expect(guide).toBeVisible();
+  expect(requests.filter((request) => request.method === 'evaluate_expression')).toHaveLength(
+    before,
+  );
+  await guide
+    .getByRole('searchbox', { name: 'O que você quer fazer?' })
+    .fill('Negar uma construção');
+  await expect(guide.locator('details')).toHaveCount(1);
+  await guide.getByRole('button', { name: 'Conferir este exemplo no motor atual' }).first().click();
+  await expect(guide.getByLabel('Resultado no motor atual')).toContainText("noîkóî a'e");
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+  const request = requests.find((request) => request.params.raw === '-(ikó * ae)');
+  expect(request?.params).toMatchObject({
+    passageId: 'canvas-fixture',
+    engineFingerprint: 'canvas-fixture-engine',
+  });
+  await page.keyboard.press('Escape');
+  await expect(guide).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(guide.getByRole('searchbox')).toHaveValue('');
+  await expect(guide.getByLabel('Resultado no motor atual')).toHaveCount(0);
+  await guide.getByRole('button', { name: 'Fechar guia' }).click();
+});
+
+test('common unary shortcuts prepare a scoped preview, guide and undoable nominal operation', async ({
+  page,
+}) => {
+  await openCanvas(page, 'ikó * ae');
+  await menu(page, 'main:root', 'Obter base nominal…');
+  const operation = page.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  await expect(operation.getByRole('combobox', { name: 'Operação na peça' })).toHaveValue(
+    'base_nominal',
+  );
+  await expect(operation.getByLabel('Prévia do resultado')).toContainText('sekó');
+  await operation.getByRole('button', { name: 'Ver receita e exemplos' }).click();
+  const guide = page.getByRole('dialog', { name: 'Guia rápido de construção' });
+  const topic = guide
+    .locator('details')
+    .filter({ has: page.locator('summary', { hasText: 'Obter uma base nominal' }) });
+  await expect(topic).toHaveAttribute('open', '');
+  await topic.getByRole('button', { name: 'Preparar esta operação na seleção' }).click();
+  await expect(guide).not.toBeVisible();
+  await expect(operation).toBeVisible();
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * ae');
+  await operation.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('((ikó * ae).base_nominal())');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * ae');
+  await menu(page, 'main:root', 'Negar esta construção…');
+  await expect(operation.getByRole('combobox', { name: 'Operação na peça' })).toHaveValue('negate');
+  await operation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * ae');
+  await menu(page, 'main:root', 'Omitir na fala…');
+  await expect(operation.getByRole('combobox', { name: 'Operação na peça' })).toHaveValue('hidden');
+  await operation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+});
+
+test('the guide fits a narrow screen and discards a preview when its engine context changes', async ({
+  page,
+}) => {
+  await openCanvas(page, 'ikó * ae');
+  await page.setViewportSize({ width: 400, height: 850 });
+  await page.getByRole('button', { name: 'Guia rápido', exact: true }).click();
+  const guide = page.getByRole('dialog', { name: 'Guia rápido de construção' });
+  await guide.getByRole('searchbox').fill('Obter uma base nominal');
+  const bounds = await guide.boundingBox();
+  expect(bounds!.width).toBeLessThanOrEqual(400);
+  expect(await guide.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await guide.screenshot({ path: 'test-results/builder-guide-narrow.png' });
+  await guide.getByRole('button', { name: 'Conferir este exemplo no motor atual' }).first().click();
+  await expect(guide.getByLabel('Resultado no motor atual')).toContainText('sekó abá resé');
+  await page.evaluate(() => window.canvasSetEngineFingerprint('new-engine'));
+  await expect(guide).not.toBeVisible();
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * ae');
+});
+
+test('the mode control selects indicative without requiring boolean source code', async ({
+  page,
+}) => {
+  await openCanvas(page, 'ikó * ae');
+  await menu(page, 'main:root', 'Adicionar operação');
+  const operation = page.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  await operation.getByRole('combobox', { name: 'Operação na peça' }).selectOption('circ');
+  await operation.getByRole('combobox', { name: 'Modo verbal' }).selectOption('False');
+  await expect(operation.getByLabel('Prévia do resultado')).toContainText("oîkó a'e");
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * ae');
+  await operation.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('((ikó * ae).circ(False))');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * ae');
+});

@@ -60,7 +60,8 @@ import {
   type ViewSize,
   type WorldBox,
 } from '../domain/canvas-camera';
-import { operationTerm } from '../domain/operation-terms';
+import { operationTerm, treeOperationTerm } from '../domain/operation-terms';
+import { BuilderGuide } from './BuilderGuide';
 import {
   addTreeOperation,
   argumentTreeOperations,
@@ -352,6 +353,11 @@ export function ExpressionCanvas({
   const [combineOrder, setCombineOrder] = useState<'source-first' | 'target-first'>('target-first');
   const [operationArgument, setOperationArgument] = useState('1');
   const [operationOperand, setOperationOperand] = useState('');
+  const [guidePanel, setGuidePanel] = useState<{
+    operation?: string;
+    target?: CanvasAddress;
+    session: string;
+  } | null>(null);
   const [operationPanel, setOperationPanel] = useState<CanvasAddress | null>(null);
   const [removalPanel, setRemovalPanel] = useState<{
     address: CanvasAddress;
@@ -759,6 +765,7 @@ export function ExpressionCanvas({
     setStaged(null);
     setDragPreview(null);
     drag.current = null;
+    setGuidePanel(null);
   }, [session]);
   useEffect(() => {
     const dismissOutside = (event: PointerEvent) => {
@@ -766,7 +773,8 @@ export function ExpressionCanvas({
       if (!(target instanceof Node)) return;
       if (!pieceSearchElement.current?.contains(target)) pieceSearch.current?.dismiss();
       const panel =
-        target instanceof Element && target.closest('.canvas-floating-panel, .canvas-menu');
+        target instanceof Element &&
+        target.closest('.canvas-floating-panel, .canvas-menu, .builder-guide');
       if (panel && container.current?.contains(panel)) return;
       setMenu(null);
       setPalette(null);
@@ -1829,7 +1837,10 @@ export function ExpressionCanvas({
             {saved.fragments.length === 1 ? 'peça solta' : 'peças soltas'}
           </p>
         </div>
-        <button onClick={exportSvg}>SVG</button>
+        <div className="runtime-tools">
+          <button onClick={() => setGuidePanel({ session })}>Guia rápido</button>
+          <button onClick={exportSvg}>SVG</button>
+        </div>
       </div>
       <div className="runtime-toolbar canvas-toolbar">
         <div className="canvas-piece-search" ref={pieceSearchElement}>
@@ -2156,6 +2167,34 @@ export function ExpressionCanvas({
             >
               Adicionar operação
             </button>
+            {[
+              ['base_nominal', 'Obter base nominal…'],
+              ['negate', 'Negar esta construção…'],
+              ['hidden', 'Omitir na fala…'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                role="menuitem"
+                disabled={!menuPosition?.piece.root}
+                onClick={() => {
+                  setOperationPanel(menu.address);
+                  setOperation(value);
+                  setOperationOperand('');
+                  setMenu(null);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              role="menuitem"
+              onClick={() => {
+                setGuidePanel({ target: menu.address, session });
+                setMenu(null);
+              }}
+            >
+              Guia para construir com esta peça…
+            </button>
             <button
               role="menuitem"
               disabled={!menuPosition?.piece.root}
@@ -2345,12 +2384,42 @@ export function ExpressionCanvas({
                 setOperationOperand('');
               }}
             >
-              {treeOperations.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
+              {[
+                ['Ligar duas peças', [...binaryTreeOperations]],
+                [
+                  'Transformar a seleção',
+                  [
+                    'base_nominal',
+                    'negate',
+                    'hidden',
+                    'imp',
+                    'perm',
+                    'voc',
+                    'var',
+                    'redup',
+                    'circ',
+                    'v',
+                  ],
+                ],
+                ['Outras operações', ['card', 'ord', 'inflection', 'compose', 'copy']],
+              ].map(([label, values]) => (
+                <optgroup key={label as string} label={label as string}>
+                  {treeOperations
+                    .filter(([value]) => (values as string[]).includes(value))
+                    .map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                </optgroup>
               ))}
             </select>
+            <p className="canvas-operation-explanation">
+              {treeOperationTerm(operation).description}
+            </p>
+            <button onClick={() => setGuidePanel({ operation, target: operationPanel, session })}>
+              Ver receita e exemplos
+            </button>
             {operation === 'var' && (
               <label>
                 Número da variante
@@ -2373,15 +2442,29 @@ export function ExpressionCanvas({
                       ? 'Argumento opcional'
                       : 'Argumento da nova operação'}
                   </p>
-                  <LexicalInput
-                    label="Argumento da nova operação"
-                    value={operationOperand}
-                    onChange={setOperationOperand}
-                    onQueryChange={() => setOperationOperand('')}
-                    passageId={props.passageId}
-                    sourceId={props.sourceId}
-                    contextKey={JSON.stringify([session, operationPanel, operation])}
-                  />
+                  {operation === 'circ' ? (
+                    <label>
+                      Modo verbal
+                      <select
+                        aria-label="Modo verbal"
+                        value={operationOperand}
+                        onChange={(event) => setOperationOperand(event.target.value)}
+                      >
+                        <option value="">Circunstancial · padrão (True)</option>
+                        <option value="False">Indicativo (False)</option>
+                      </select>
+                    </label>
+                  ) : (
+                    <LexicalInput
+                      label="Argumento da nova operação"
+                      value={operationOperand}
+                      onChange={setOperationOperand}
+                      onQueryChange={() => setOperationOperand('')}
+                      passageId={props.passageId}
+                      sourceId={props.sourceId}
+                      contextKey={JSON.stringify([session, operationPanel, operation])}
+                    />
+                  )}
                 </div>
               )}
             {binaryTreeOperations.has(operation) && (
@@ -2513,7 +2596,9 @@ export function ExpressionCanvas({
                 const result = item && treeEvaluationPreview(item.node);
                 return (
                   <div key={index}>
-                    <small>{index === 0 ? 'Primeira peça' : 'Segunda peça'}</small>
+                    <small>
+                      {index === 0 ? 'Primeira peça · esquerda' : 'Segunda peça · direita'}
+                    </small>
                     <strong>
                       {result?.status === 'ok'
                         ? result.text || '∅'
@@ -2549,6 +2634,16 @@ export function ExpressionCanvas({
                   ))}
               </select>
             </label>
+            <p className="canvas-operation-explanation">
+              {treeOperationTerm(combineOperator).description}
+            </p>
+            <p>
+              Por padrão, a peça arrastada entra à direita. Inverter muda os lados antes de aplicar;
+              confira a prévia.
+            </p>
+            <button onClick={() => setGuidePanel({ operation: combineOperator, session })}>
+              Ver receita e exemplos
+            </button>
             <p>
               As duas peças formarão uma nova etapa. Você poderá continuar construindo a partir
               dela.
@@ -2582,6 +2677,32 @@ export function ExpressionCanvas({
           </div>
         )}
       </div>
+      {guidePanel && (
+        <BuilderGuide
+          initialOperation={guidePanel.operation}
+          context={{
+            passageId: props.passageId,
+            sourceId: props.sourceId,
+            revisionId: props.revisionId,
+            engineFingerprint: props.engineFingerprint,
+            sharedDefinition: props.sharedDefinition,
+          }}
+          onClose={() => setGuidePanel(null)}
+          onChooseOperation={
+            guidePanel.target
+              ? (value) => {
+                  if (guidePanel.session !== liveSession.current || !guidePanel.target) return;
+                  setOperationPanel(guidePanel.target);
+                  setOperation(value);
+                  setOperationArgument('1');
+                  setOperationOperand('');
+                  setOperationSide('right');
+                  setGuidePanel(null);
+                }
+              : undefined
+          }
+        />
+      )}
       {notice && (
         <p className="runtime-diagnostic canvas-status" role="status">
           {notice}

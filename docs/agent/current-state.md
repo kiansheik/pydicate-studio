@@ -1,3 +1,27 @@
+# Builder recipes and common unary controls (2026-10-02)
+
+Implemented in isolated `feat/builder-cheatsheet` from merged main `6e6351c`;
+unrelated stash and dirty live grammar/corpus preserved. Studio's tree header and
+operation panels now expose a searchable Portuguese guide with recipes for
+arguments, composition, conjunctions, postpositions, adjunct ordering and common
+unary transformations. Context shortcuts prepare base nominal, negation and
+omission through the existing scoped preview/apply/undo workflow. The operation
+catalog is grouped; circumstance/indicative choice has a labelled selector.
+
+Reference examples were executed without providers against both the local and
+current live engine. Equal bé surfaces retain distinct Conjunction/Postposition
+objects and arities; marã is explicitly an Adverb in the ordering examples, while
+the inspected corpus's lexical marã is a Noun. Nominalization before/after a PP
+is demonstrated as a recipe, not a universal order rule. Guide checks use the
+existing stale-context guarded evaluator and never modify a draft.
+
+Portable documentation is [construction-cheatsheet.md](../construction-cheatsheet.md),
+generated from the in-app data; recipe and interaction checks plus provenance
+are recorded in the [handoff](session-handoffs/2026-10-02-builder-cheatsheet.md).
+The prior grammar workflow and server-only changes are merged on main but the
+live app remains `85ddedd`. No deployment occurred: legacy pruning can delete
+research provenance and approval to skip it is still pending with the parent.
+
 # Current state
 
 ## Surgical grammar workflow and bounded analysis storage (review, not deployed)
