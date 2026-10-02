@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Download,
@@ -40,13 +41,18 @@ import { expressionGraph } from '../domain/expression-tree';
 import { TreeScopeEditor } from './TreeScopeEditor';
 import { LexicalInput } from './LexicalInput';
 import { operationTerm } from '../domain/operation-terms';
-import { ExpressionCanvas } from './ExpressionCanvas';
+import { addTreeOperation } from '../domain/tree-operations';
+import { TreeWorkspace } from './TreeWorkspace';
 import type { CanvasEdit, CanvasState } from '../domain/canvas';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type { EvaluationFailure } from '../domain/authoring';
 import type { MorphemeSurfaceHighlight } from '../domain/morpheme-display';
+import type { SharedTreeNavigation } from '../domain/shared-definition';
 
 interface TreeEditingProps {
+  onEditingSharedTree?: (name: string | null) => void;
+  sharedTreeNavigation?: SharedTreeNavigation | null;
+  onSharedTreeNavigationChange?: (target: SharedTreeNavigation | null) => void;
   onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
   canvas?: CanvasState;
   onChangeCanvas?: (change: CanvasEdit) => void;
@@ -126,11 +132,7 @@ type PydicateTreeProps = TreeEditingProps & {
 };
 export function PydicateTree(props: PydicateTreeProps) {
   return props.onChangeCanvas ? (
-    <ExpressionCanvas
-      key={props.passageId ?? 'canvas'}
-      {...props}
-      onChangeCanvas={props.onChangeCanvas}
-    />
+    <TreeWorkspace {...props} onChangeCanvas={props.onChangeCanvas} />
   ) : (
     <LegacyPydicateTree {...props} />
   );
@@ -187,6 +189,7 @@ function LegacyPydicateTree({
       </p>
       {editing.onChangeRaw && !editing.raw?.trim() && (
         <form
+          {...workspaceAutofill}
           className="runtime-scope-editor"
           onSubmit={(event) => {
             event.preventDefault();
@@ -585,6 +588,7 @@ function TreeCanvas({
       <div className="runtime-toolbar">
         {advancedTools && (
           <form
+            {...workspaceAutofill}
             className="runtime-search"
             onSubmit={(event) => {
               event.preventDefault();
@@ -593,6 +597,7 @@ function TreeCanvas({
           >
             <Search size={16} />
             <input
+              {...workspaceAutofill}
               aria-label="Buscar na árvore"
               placeholder={
                 sourceTree
@@ -708,6 +713,7 @@ function TreeCanvas({
             {!sourceTree && (
               <label>
                 <input
+                  {...workspaceAutofill}
                   type="checkbox"
                   checked={showLinks}
                   onChange={(event) => {
@@ -721,6 +727,7 @@ function TreeCanvas({
             {completeGraph.edges.some((edge) => edge.kind === 'internal') && (
               <label>
                 <input
+                  {...workspaceAutofill}
                   type="checkbox"
                   checked={showInternals}
                   onChange={(event) => {
@@ -1251,6 +1258,7 @@ const treeOperations = [
   ['var', 'Variante'],
   ['redup', 'Reduplicar'],
   ['base_nominal', 'Base nominal'],
+  ['v', 'Verbo de 2ª classe (estativo)'],
   ['card', 'Cardinal'],
   ['ord', 'Ordinal'],
   ['inflection', 'Flexão'],
@@ -1328,13 +1336,19 @@ function RuntimeScopeEditor({
     if (!scope) return;
     const base = `(${scope.code})`;
     const next =
-      operation === 'negate'
-        ? `-${base}`
-        : operation === 'hidden'
-          ? `+${base}`
-          : binaryOperations.has(operation)
-            ? `${base} ${operation} (${argument})`
-            : `${base}.${operation}(${argumentOperations.has(operation) ? argument : ''})`;
+      operation === 'v'
+        ? addTreeOperation(scope.code, operation, '', 'right', {
+            stativeConversion:
+              scope.stativeConversion ??
+              (node.sourceNodeId === scope.id ? node.stativeConversion : undefined),
+          })
+        : operation === 'negate'
+          ? `-${base}`
+          : operation === 'hidden'
+            ? `+${base}`
+            : binaryOperations.has(operation)
+              ? `${base} ${operation} (${argument})`
+              : `${base}.${operation}(${argumentOperations.has(operation) ? argument : ''})`;
     apply(next);
   }
   async function inspectExpansion() {
@@ -1369,6 +1383,7 @@ function RuntimeScopeEditor({
         <label>
           Editar escopo
           <select
+            {...workspaceAutofill}
             aria-label="Escopo editável na árvore"
             value={scope.id}
             onChange={(event) => {
@@ -1397,6 +1412,7 @@ function RuntimeScopeEditor({
           <label>
             Substituir por
             <textarea
+              {...workspaceAutofill}
               aria-label="Expressão da parte na árvore"
               rows={Math.min(5, Math.max(2, replacement.split('\n').length))}
               value={replacement}
@@ -1412,6 +1428,7 @@ function RuntimeScopeEditor({
           </button>
           <div className="runtime-operation">
             <select
+              {...workspaceAutofill}
               aria-label="Operação na árvore"
               value={operation}
               onChange={(event) => {
@@ -1425,7 +1442,7 @@ function RuntimeScopeEditor({
                 .filter(
                   ([value]) =>
                     !node.methods ||
-                    ['negate', 'hidden', ...binaryOperations].includes(value) ||
+                    ['negate', 'hidden', 'v', ...binaryOperations].includes(value) ||
                     node.methods.includes(value),
                 )
                 .map(([value, label]) => (

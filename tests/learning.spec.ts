@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import type { StudioProject } from '../src/domain/types';
 import type { LearningLibrary } from '../src/domain/learning';
 const require = createRequire(import.meta.url);
-const { PythonWorker } = require('../electron/python-worker.cjs');
+const { PythonWorker } = require('../runtime/python-worker.cjs');
 const parent = process.env.PYDICATE_PROJECT_PARENT ?? path.resolve('..');
 let worker: InstanceType<typeof PythonWorker>;
 let project: StudioProject;

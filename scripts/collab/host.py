@@ -400,11 +400,13 @@ class Host:
             if not file.startswith(ALLOW[name]):skipped.append({'path':file,'reason':'outside the publish allowlist'});continue
             if any(part.startswith('.') for part in pathlib.PurePosixPath(file).parts):skipped.append({'path':file,'reason':'hidden path'});continue
             if target.exists() and target.stat().st_size>2*1024*1024:skipped.append({'path':file,'reason':'larger than 2 MiB'});continue
-            rows.append({'path':file,'sha256':sha(target) if target.exists() else None})
+            rows.append({'path':file,'sha256':sha(target) if target.exists() else None,
+                         'mode':('100755' if target.stat().st_mode & 0o100 else '100644') if target.exists() else None})
         manifest={'repo':name,'origin':REPOS[name],'base':base,'head':git(repo,'rev-parse','HEAD'),'files':rows,'skipped':skipped}
         digest=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest();manifest['reviewSha']=digest
         return manifest
-    def merge_upstream(self,repo):
+    @staticmethod
+    def merge_upstream(repo):
         """Bring server/work up to date with origin/main so the pull request merges cleanly.
 
         A plain merge is attempted first. Only when it conflicts is the merge redone
@@ -413,9 +415,8 @@ class Host:
         """
         identity=['-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com']
         safe=['git','-c','safe.directory='+str(repo),*identity,'-C',str(repo)]
-        # Never prompt and never block: this runs with the application stopped, so a
-        # hung fetch is an outage. Git is told there is no terminal, and every step
-        # is bounded.
+        # Reconcile only the exported laptop checkout, never the live workspace.
+        # Git cannot prompt and every network/merge step is bounded.
         environment={**os.environ,'GIT_TERMINAL_PROMPT':'0','GIT_ASKPASS':'','SSH_ASKPASS':'',
                      'GIT_SSH_COMMAND':'ssh -o BatchMode=yes -o StrictHostKeyChecking=yes'}
         def attempt(*args,timeout=120):
@@ -442,32 +443,9 @@ class Host:
             return {**clean,'upstreamMergeBlocked':True}
         print('[server] Upstream conflicts resolved in favour of the server copy: '+', '.join(conflicts),flush=True)
         return {'mergedUpstream':True,'conflictsResolvedFromServer':conflicts,'upstreamMergeBlocked':False}
-    def collect(self,name,dest,review_sha=''):
-        dest=pathlib.Path(dest);dest.mkdir(parents=True,mode=0o700)
-        with self.stopped(), self.workspace_writes():
-            manifest=self.changes(name);repo=self.workspace/name
-            publishable=[row['path'] for row in manifest['files']]
-            # The review artefacts describe exactly what publication would commit, so
-            # skipped paths stay out of both the diff and the copied source bytes.
-            with open(dest/'review.diff','wb') as out:
-                if publishable:run(['git','-c','safe.directory='+str(repo),'-C',repo,'diff','--binary','origin/main','--',*publishable],stdout=out)
-            # Include untracked source bytes in the review directory; do not silently omit them.
-            new=[f for f in git(repo,'ls-files','--others','--exclude-standard').splitlines() if f in set(publishable)]
-            for file in new:
-                target=dest/'new-files'/file;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(repo/file,target)
-            if review_sha:
-                if manifest['reviewSha']!=review_sha:raise ValueError('Server changes differ from the reviewed snapshot. Collect and review again.')
-                if git(repo,'branch','--show-current')!='server/work':raise ValueError('Publication requires the dedicated server/work branch.')
-                if git(repo,'diff','--cached','--name-only'):raise ValueError('An existing staged change must be handled before publication.')
-                if not publishable:raise ValueError('No publishable files')
-                run(['git','-c','safe.directory='+str(repo),'-C',repo,'add','--',*publishable])
-                if git(repo,'diff','--cached','--name-only'):
-                    run(['git','-c','safe.directory='+str(repo),'-c','user.name=Pydicate Studio','-c','user.email=studio@academiatupi.com','-C',repo,'commit','-m','Reviewed server contribution\n\nStudio-Review-SHA: '+review_sha])
-                manifest.update(self.merge_upstream(repo))
-                run(['git','-c','safe.directory='+str(repo),'-C',repo,'bundle','create',dest/'repository.bundle','server/work'])
-                manifest['publishedHead']=git(repo,'rev-parse','HEAD');manifest['bundleSha256']=sha(dest/'repository.bundle')
-            write_json(dest/'manifest.json',manifest)
-        return dest
+    def collect(self,name,dest,review_sha='',publish_current=False):
+        from publication import collect
+        return collect(self,name,dest,review_sha,publish_current)
     def sync(self,name):
         if name not in ALLOW:raise ValueError('Unknown repository')
         self.checkpoint(self.root/'backups'/('presync-'+stamp()),provenance=False)
@@ -506,11 +484,14 @@ def main():
     with host.lock():
         if args.action=='install':host.prepare(args.public_url,args.smtp,args.neo_path);host.deploy(initial=not (host.root/'release.json').exists(),evidence=args.evidence,desktop=args.desktop)
         elif args.action=='redeploy':host.deploy(evidence=args.evidence,desktop=args.desktop)
+        elif args.action=='light-deploy':
+            from light import deploy_light
+            deploy_light(host)
         elif args.action=='backup':host.backup(args.file,True)
         elif args.action=='db-backup':host.backup(args.file,False)
         elif args.action=='db-restore':host.restore_database(args.file,args.confirm)
         elif args.action=='restore':host.restore(args.file,args.confirm)
-        elif args.action in ('changes','publish'):host.collect(args.repo,args.file,args.review_sha if args.action=='publish' else '')
+        elif args.action in ('changes','publish','publish-current'):host.collect(args.repo,args.file,args.review_sha if args.action=='publish' else '',publish_current=args.action=='publish-current')
         elif args.action=='sync':host.sync(args.repo)
         elif args.action=='admin':host.compose('exec',*(() if sys.stdin.isatty() else ('-T',)),'studio','node','server/admin.cjs','bootstrap','--email',args.email,'--name',args.name)
         elif args.action=='start':host.compose('up','-d','--wait','studio')

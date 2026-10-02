@@ -11,6 +11,8 @@ test('hosted AI is opt-in and keeps unrelated desktop operations denied', () => 
   assert.equal(config({COLLAB_AI_ENABLED:'1'}).aiEnabled, true);
   assert.throws(() => authorizeMethod('analysis_submit','admin'), {code:'HOSTED_UNAVAILABLE'});
   authorizeMethod('analysis_submit','contributor',true);
+  authorizeMethod('analysis_steer','contributor',true);
+  assert.throws(() => authorizeMethod('analysis_steer','admin'), {code:'HOSTED_UNAVAILABLE'});
   assert.throws(() => authorizeMethod('analysis_external_start','admin',true), {code:'HOSTED_UNAVAILABLE'});
 });
 
@@ -41,6 +43,7 @@ test('AI acceptance is an atomic attributed draft revision, replayable without l
   assert.equal(replay.draft.aiAcceptances.length,1);
   assert.equal(replay.versions['passage:a'],3);
   await assert.rejects(ai.run('analysis_cancel',{...params,passageId:'passage:other'},ctx,invoke),{code:'PASSAGE_MISMATCH'});
+  await assert.rejects(ai.run('analysis_steer',{...params,passageId:'passage:other'},ctx,invoke),{code:'PASSAGE_MISMATCH'});
   await assert.rejects(ai.run('analysis_submit_batch',{projectId:project.id,items:[{passageId:'unknown'}]},ctx,invoke),{code:'PASSAGE_MISSING'});
   await assert.rejects(ai.run('ai_configure',{provider:'claude'},ctx,invoke),{code:'PROVIDER_UNAVAILABLE'});
 });

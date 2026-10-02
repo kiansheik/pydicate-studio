@@ -16,6 +16,7 @@ let record: AIRecord | null = null;
 const calls: string[] = [];
 const requests: { method: string; params: Record<string, unknown> }[] = [];
 const translationOnly = new URLSearchParams(location.search).has('translation');
+const separateProfiles = new URLSearchParams(location.search).has('separate-profiles');
 let releasePreview: (() => void) | undefined;
 const listeners = new Set<(event: unknown) => void>();
 function phase(value: AIPhase) {
@@ -84,9 +85,20 @@ window.studio = {
       return {
         config: {
           provider: 'codex',
-          models: { codex: 'synthetic', claude: 'synthetic' },
-          reasoningEffort: 'medium',
+          models: {
+            codex: separateProfiles ? 'grammar-model-kept' : 'synthetic',
+            claude: 'synthetic',
+          },
+          reasoningEffort: separateProfiles ? 'high' : 'medium',
         },
+        ...(separateProfiles
+          ? {
+              translation: {
+                models: { codex: 'gpt-5.6-luna', claude: 'synthetic', 'claude-code': 'synthetic' },
+                reasoningEffort: 'medium',
+              },
+            }
+          : {}),
         providers: [
           {
             id: 'codex',

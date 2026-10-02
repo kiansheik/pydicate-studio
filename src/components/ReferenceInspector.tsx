@@ -1,8 +1,15 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, type SourcePreview } from '../domain/authoring';
 import type { RuntimeGraph } from '../domain/runtime-tree';
 import { RuntimeTree } from './RuntimeTree';
 import { OperationPreview } from './OperationPreview';
+import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
+import type {
+  SharedDefinitionTarget,
+  SharedTreeTarget,
+  SharedTreeEntry,
+} from '../domain/shared-definition';
 
 interface ReferenceInfo {
   name: string;
@@ -11,6 +18,7 @@ interface ReferenceInfo {
   sourcePath: string;
   line: number;
   runtimeTree?: RuntimeGraph;
+  treeEdit?: SharedTreeTarget;
   safeOccurrenceExpansion?: string | null;
   projectUses?: {
     uses: {
@@ -35,6 +43,10 @@ export function ReferenceInspector(props: {
   onCopy: (raw: string) => void;
   onDefinition: (definition: string) => Promise<void>;
   onPreview?: (preview: SourcePreview) => void;
+  onPrepareDiagnostic?: (report: CanvasDiagnostic) => void;
+  definitionContext?: SharedDefinitionTarget;
+  onOpenSharedTree?: (entry: SharedTreeEntry) => void;
+  inactive?: boolean;
 }) {
   const identity = JSON.stringify([
     props.name,
@@ -42,6 +54,7 @@ export function ReferenceInspector(props: {
     props.sourceId,
     props.revisionId,
     props.engineFingerprint,
+    props.definitionContext,
   ]);
   const [state, setState] = useState<{ identity: string; info?: ReferenceInfo; error?: string }>({
     identity,
@@ -53,6 +66,7 @@ export function ReferenceInspector(props: {
   const activeIdentity = useRef<string | null>(identity);
   activeIdentity.current = identity;
   useEffect(() => {
+    if (props.inactive) return;
     let active = true;
     activeIdentity.current = identity;
     setState({ identity });
@@ -65,6 +79,7 @@ export function ReferenceInspector(props: {
       sourceId: props.sourceId,
       revisionId: props.revisionId,
       engineFingerprint: props.engineFingerprint,
+      definitionContext: props.definitionContext,
     })
       .then((info) => {
         if (active) {
@@ -79,7 +94,7 @@ export function ReferenceInspector(props: {
       active = false;
       activeIdentity.current = null;
     };
-  }, [identity]);
+  }, [identity, props.inactive]);
   const info = state.identity === identity ? state.info : undefined;
   return (
     <section className="reference-inspector" aria-label={`Estrutura de ${props.name}`}>
@@ -91,11 +106,29 @@ export function ReferenceInspector(props: {
       {info && (
         <>
           <p>{info.definition || 'Significado não informado.'}</p>
+          {props.onOpenSharedTree && info.treeEdit?.editable && (
+            <button
+              onClick={() => {
+                if (info.treeEdit?.editable)
+                  props.onOpenSharedTree?.({ target: info.treeEdit, sourcePath: info.sourcePath });
+              }}
+            >
+              Editar árvore compartilhada
+            </button>
+          )}
+          {info.treeEdit && !info.treeEdit.editable && <p>{info.treeEdit.reason}</p>}
           {info.runtimeTree && (
-            <RuntimeTree
-              graph={info.runtimeTree}
-              status="Estrutura do objeto compartilhado · consulta"
-            />
+            <details>
+              <summary>Ver objeto calculado pelo motor</summary>
+              <p>
+                Esta consulta mostra o resultado das operações. Para editar os passos e variantes,
+                abra a peça em uma aba.
+              </p>
+              <RuntimeTree
+                graph={info.runtimeTree}
+                status="Estrutura do objeto compartilhado · consulta"
+              />
+            </details>
           )}
           <details>
             <summary>Expressão e origem</summary>
@@ -144,6 +177,7 @@ export function ReferenceInspector(props: {
                 os nomes dos constituintes continuam ligados às respectivas entradas do léxico.
               </p>
               <OperationPreview
+                sharedDefinition={props.definitionContext}
                 raw={info.safeOccurrenceExpansion}
                 passageId={props.passageId}
                 sourceId={props.sourceId}
@@ -161,6 +195,7 @@ export function ReferenceInspector(props: {
             <label>
               Significado
               <textarea
+                {...workspaceAutofill}
                 aria-label="Significado da referência"
                 value={definition}
                 onChange={(event) => setDefinition(event.target.value)}
@@ -169,6 +204,7 @@ export function ReferenceInspector(props: {
             <label>
               Onde muda
               <select
+                {...workspaceAutofill}
                 aria-label="Alcance do significado da referência"
                 value={scope}
                 onChange={(event) => setScope(event.target.value)}

@@ -117,6 +117,7 @@ export interface AIRecord {
 }
 export interface AIStatus {
   config: { provider: AIProvider; models: Record<AIProvider, string>; reasoningEffort?: string };
+  translation?: { models: Record<AIProvider, string>; reasoningEffort: string };
   providers: {
     id: AIProvider;
     state: string;

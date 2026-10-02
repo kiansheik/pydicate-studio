@@ -6,9 +6,10 @@ const { isIP } = require('node:net');
 const { randomUUID } = require('node:crypto');
 const { fault, identifier, passageKey } = require('./store.cjs');
 const { RateLimiter } = require('./auth.cjs');
+const { safeReturnTo } = require('./return-to.cjs');
 const UI_EVENTS = new Set(`navigation.passage navigation.mode navigation.projection navigation.search editor.batch
 editor.selection editor.operation editor.undo editor.redo draft.save source.preview source.apply source.conflict
-review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export`.split(/\s+/));
+review.status lexicon.search lexicon.select dictionary.search pdf.action ai.action ui.theme ui.tools ui.resize ui.error usage.export activity.active`.split(/\s+/));
 // PDF.js decodes JBIG2, JPEG 2000 and ICC colour in WebAssembly; without
 // 'wasm-unsafe-eval' a scanned witness renders as blank pages.
 const POLICY = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src blob:; frame-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
@@ -137,8 +138,8 @@ function createHttp({ config, store, auth, runtime }) {
             if (req.method === 'POST' && ['/api/sso/start','/api/sso/finish'].includes(route)) {
                 limiter.hit('sso:'+ip(req),30,600000);
                 const input=await body(req,4096);
-                if(route==='/api/sso/start') { const result=await identity.start(input);res.setHeader('Set-Cookie',result.cookie);return json(res,200,{url:result.url}); }
-                const result=await identity.finish(input,req.headers.cookie);res.setHeader('Set-Cookie',[result.cookie,identity.cookie('',true)]);return json(res,200,{ok:true});
+                if(route==='/api/sso/start') { const result=await identity.start(input);res.setHeader('Set-Cookie',[result.cookie,result.destinationCookie]);return json(res,200,{url:result.url}); }
+                const result=await identity.finish(input,req.headers.cookie);res.setHeader('Set-Cookie',[result.cookie,identity.cookie('',true),identity.destinationCookie('',true)]);return json(res,200,{ok:true,returnTo:result.returnTo});
             }
             const publicPost = ['/api/login', '/api/forgot', '/api/reset'];
             if (req.method === 'POST' && publicPost.includes(route)) {
@@ -147,7 +148,7 @@ function createHttp({ config, store, auth, runtime }) {
                 if (route === '/api/login') {
                     const result = await auth.login(input, ip(req));
                     res.setHeader('Set-Cookie', result.cookie);
-                    return json(res, 200, { user: result.user, csrf: result.csrf });
+                    return json(res, 200, { user: result.user, csrf: result.csrf, returnTo: safeReturnTo(input.returnTo) });
                 }
                 if (route === '/api/forgot')
                     return json(res, 200, await auth.forgot(input, ip(req)));
@@ -156,7 +157,8 @@ function createHttp({ config, store, auth, runtime }) {
             const session = await auth.session(req.headers.cookie, !['/api/events', '/api/presence', '/api/me', '/api/upstream-status'].includes(route));
             if (!session) {
                 if (req.method === 'GET' && !route.startsWith('/api/')) {
-                    res.writeHead(303, { Location: '/login' });
+                    const returnTo = safeReturnTo(route + url.search);
+                    res.writeHead(303, { Location: returnTo === '/' ? '/login' : '/login?returnTo=' + encodeURIComponent(returnTo) });
                     return res.end();
                 }
                 throw fault(401, 'SESSION_EXPIRED', 'Sessão expirada. Exporte eventuais edições locais antes de entrar novamente.');
@@ -193,13 +195,13 @@ function createHttp({ config, store, auth, runtime }) {
                 const asset = await runtime.openPdf(params, { user: session.user });
                 return await require('./pdf.cjs').servePdf(req, res, asset);
             }
-            if (route === '/api/submissions' && req.method === 'GET') return json(res,200,await submissions.list(session.user,integer(url.searchParams.get('after')||0)));
+            if (route === '/api/submissions' && req.method === 'GET') return json(res,200,await submissions.list(session.user,integer(url.searchParams.get('after')||0),url.searchParams.get('projectId')));
             if (route === '/api/submission' && req.method === 'GET') {
                 const row=await submissions.get(url.searchParams.get('id'));
                 return json(res,200,{id:row.id,authorId:row.author_id,snapshotSha256:row.snapshot_sha256,snapshot:JSON.parse(row.snapshot)});
             }
             if (route === '/api/me' && req.method === 'GET')
-                return json(res, 200, { user: session.user, csrf: session.csrf, projectId: runtime.project.id, telemetryDays: config.telemetryDays, aiEnabled: config.aiEnabled === true });
+                return json(res, 200, { user: session.user, csrf: session.csrf, serverTime: store.now(), projectId: runtime.project.id, telemetryDays: config.telemetryDays, aiEnabled: config.aiEnabled === true });
             if (route === '/api/events' && req.method === 'GET') {
                 if (streams.size >= 100 || [...streams].filter(s => s.userId === session.user.id).length >= 8)
                     throw fault(429, 'STREAM_LIMIT', 'Feche outras abas antes de continuar.');
@@ -278,7 +280,7 @@ function createHttp({ config, store, auth, runtime }) {
             }
             if (req.method === 'POST' && route.startsWith('/api/')) {
                 const input = await body(req, route === '/api/drafts' ? 4 * 1024 * 1024 : 1000000);
-                if (route === '/api/sso/link') { limiter.hit('sso-link:'+session.user.id,5,600000);const result=await identity.start(input,session);res.setHeader('Set-Cookie',result.cookie);return json(res,200,{url:result.url}); }
+                if (route === '/api/sso/link') { limiter.hit('sso-link:'+session.user.id,5,600000);const result=await identity.start(input,session);res.setHeader('Set-Cookie',[result.cookie,result.destinationCookie]);return json(res,200,{url:result.url}); }
                 if (route === '/api/logout') {
                     await auth.logout(session);
                     res.setHeader('Set-Cookie', auth.cookie('', true));
@@ -321,6 +323,12 @@ function createHttp({ config, store, auth, runtime }) {
                     emit({type:'submissions-change'});emit(await presence());
                     return json(res,200,result);
                 }
+                if(route==='/api/submission/prepare'||route==='/api/submission/publish') {
+                    admin(session);
+                    const result=await runtime.reviewSubmission(route.endsWith('/prepare')?'prepare':'publish',input,context(req,session));
+                    if(route.endsWith('/publish')) {emit({type:'submissions-change'});emit({type:'source-change',projectId:runtime.project.id,engineFingerprint:runtime.project.engineFingerprint});}
+                    return json(res,200,result);
+                }
                 if(route==='/api/submission/review') { const result=await submissions.review(session.user,input);emit({type:'submissions-change'});return json(res,200,result); }
                 if(route==='/api/admin/submissions/export') {admin(session);return json(res,200,await submissions.export(input.ids));}
                 const ctx = context(req, session);
@@ -357,6 +365,12 @@ function createHttp({ config, store, auth, runtime }) {
                         throw fault(403, 'PROJECT_MISMATCH', 'Projeto inválido.');
                     return json(res, 200, await store.snapshot(runtime.project.id));
                 }
+                if (route === '/api/admin/passages') {
+                    admin(session);
+                    const result = await require('./passage-management.cjs').managePassages(store, runtime.project, input, session.user, ctx.clientId);
+                    emit({ type: 'drafts-change', projectId: runtime.project.id, passageIds: result.changed, userId: session.user.id, clientId: ctx.clientId });
+                    return json(res, 200, result);
+                }
                 if (route === '/api/drafts') {
                     if (input.projectId !== runtime.project.id)
                         throw fault(403, 'PROJECT_MISMATCH', 'Projeto inválido.');
@@ -386,6 +400,8 @@ function createHttp({ config, store, auth, runtime }) {
                         throw fault(400, 'EVENT_DENIED', 'Evento inválido.');
                     if (input.event !== 'ui.error') idle.activity();
                     const id = input.passageId && await runtime.hasPassage(input.passageId) ? input.passageId : null;
+                    if (input.event === 'activity.active')
+                        return json(res, 200, await require('./activity.cjs').recordActivity(store, session.user, input, id ? passageKey(id) : null));
                     const duration = Number.isFinite(input.durationMs) ? Math.round(Math.max(0, Math.min(input.durationMs, 3600000))) : null;
                     // No client-provided names, details, text, error messages, or authorship.
                     await store.audit(session.user.id, input.event, id, ['succeeded','failed','started','changed','cancelled','ignored'].includes(input.outcome)?input.outcome:'changed', duration, 'browser', require('./research.cjs').categoricalDetails(input));
@@ -435,7 +451,7 @@ function createHttp({ config, store, auth, runtime }) {
             }
             const status = Number.isInteger(error.status) ? error.status : (error.code === 'ENOENT' ? 404 : 500);
             if (status === 429 || error.code === 'UPSTREAM_UPDATING')
-                res.setHeader('Retry-After', status === 429 ? '60' : '15');
+                res.setHeader('Retry-After', status === 429 ? (error.code === 'ENGINE_BUSY' ? '2' : '60') : '15');
             json(res, status, { error: { code: status === 500 ? 'SERVER_ERROR' : error.code || 'INVALID_INPUT', message: status === 500 ? 'Não foi possível completar o pedido. A administração deve verificar o servidor.' : String(error.message).slice(0, 4000) } });
         } finally { finishWork(); }
     });

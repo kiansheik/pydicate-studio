@@ -139,3 +139,66 @@ test('retrying an initial correction after editing saved lexical notes captures 
   expect(submitted[1].operationId).not.toBe(submitted[0].operationId);
   expect(submitted[1].revisionId).toBe(submitted[0].revisionId);
 });
+
+test('early target stays provisional, can be confirmed once, survives reload and remains cancellable', async ({
+  page,
+}) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await page.getByRole('button', { name: 'Corrigir gramática / árvore' }).first().click();
+  await page.getByLabel('Forma pretendida', { exact: true }).fill('ogûerekomemûãsara');
+  await page.getByRole('button', { name: 'Enviar ao Codex' }).click();
+  await expect(page.getByLabel('Verificação da correção')).toBeVisible();
+  await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem('simulated-analysis')!);
+    const job = data.jobs.at(-1);
+    job.status = 'running';
+    job.phase = 'grammar-corpus';
+    job.attemptStartedAt = new Date(Date.now() - 22 * 60000).toISOString();
+    job.deadlineAt = new Date(Date.now() - 7 * 60000).toISOString();
+    job.events = [
+      {
+        type: 'tool-result',
+        tool: 'grammar_read',
+        at: new Date(Date.now() - 18 * 60000).toISOString(),
+        result: { content: 'x'.repeat(100000) },
+      },
+    ];
+    job.grammarCandidate = {
+      id: 'observed-target',
+      expression: 'alpha',
+      surface: 'ogûerekomemûãsara',
+      intendedSurface: 'ogûerekomemûãsara',
+      matches: true,
+      evaluationStatus: 'complete',
+      validation: 'pending',
+      engineFingerprint: 'fixture',
+    };
+    delete job.grammarVerification;
+    job.updatedAt = new Date().toISOString();
+    window.__nextControl.setAnalysis(data);
+  });
+  await page.reload();
+  await page.getByRole('tab', { name: /^IA/ }).click();
+  const target = page.getByLabel('Resultado do alvo');
+  await expect(target).toContainText('ainda não está validado');
+  await expect(target).toContainText('ogûerekomemûãsara');
+  await expect(page.getByText(/22 min nesta tentativa/)).toBeVisible();
+  await expect(page.getByText(/Sem novo evento há 18 min/)).toBeVisible();
+  await page.screenshot({ path: 'test-results/grammar-target-pending.png' });
+  await target.getByRole('button', { name: 'Esta forma está correta' }).click();
+  await expect(target).toContainText('Confirmação desta forma registrada');
+  await expect(target.getByRole('button', { name: 'Esta forma está correta' })).toHaveCount(0);
+  await expect(target).toContainText('ainda não está validado');
+  await expect(page.getByRole('button', { name: 'Cancelar análise', exact: true })).toBeEnabled();
+  await page.reload();
+  await page.getByRole('tab', { name: /^IA/ }).click();
+  await expect(target).toContainText('Confirmação desta forma registrada');
+  await page.getByRole('button', { name: 'Cancelar análise', exact: true }).click();
+  await expect(page.getByText('Cancelada', { exact: true }).first()).toBeVisible();
+  await expect(target).toContainText('ainda não está validado');
+  await page.setViewportSize({ width: 720, height: 900 });
+  await page.getByRole('button', { name: 'Assistência IA', exact: true }).click();
+  await target.scrollIntoViewIfNeeded();
+  expect(await target.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await target.screenshot({ path: 'test-results/grammar-target-cancelled-narrow.png' });
+});

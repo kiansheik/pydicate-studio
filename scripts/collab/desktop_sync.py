@@ -21,12 +21,33 @@ from collections import Counter
 
 from evidence_sync import ROOT, default_state, inspect_project, regular
 
+def validate_browser_export(filename):
+    """Accept only the previous reader's research-key JSON, never credentials."""
+    file = regular(pathlib.Path(filename))
+    if file.stat().st_size > 16 * 1024 * 1024:
+        raise ValueError('Legacy browser export exceeds the size limit')
+    value = json.loads(file.read_text())
+    exact = {'studio-theme', 'pydicate-studio:workspace:v1',
+             'pydicate-studio:workspace:v2', 'pydicate-studio:tools:v1'}
+    prefixes = ('studio-learning:v1:', 'pydicate-studio:evidence-draft:v1:',
+                'pydicate-studio:evidence-last-passage:v1:', 'pydicate:lexical-note-buffer:',
+                'studio-pending:', 'studio:piece-query:', 'pydicate-studio:drafts:v1:',
+                'pydicate-studio:submission:v1:')
+    if value.get('format') != 'pydicate-browser-storage' or value.get('version') != 1 or not isinstance(value.get('origins'), list):
+        raise ValueError('Expected an allowlisted legacy browser JSON export')
+    for origin in value['origins']:
+        entries = origin.get('entries') if isinstance(origin, dict) else None
+        if not isinstance(entries, dict) or any(not isinstance(item, str) or
+                not (key in exact or key.startswith(prefixes)) for key, item in entries.items()):
+            raise ValueError('Legacy browser export contains non-allowlisted keys or values')
+    return file
+
 MAX_FILE = 256 * 1024 * 1024
 MAX_TOTAL = 2 * 1024 * 1024 * 1024
 MAX_FILES = 100000
 SHA = re.compile(r'^[a-f0-9]{64}$')
 # Directory allowlist, not a profile copy: ai/config and analysis/mcp may contain
-# credentials. Browser stores are read through Electron with a key allowlist.
+# credentials. Existing allowlisted browser JSON exports can be imported separately.
 ROOTS = {'drafts': 'drafts', 'analysis/records': 'analysis',
          'analysis/images': 'analysis-image', 'analysis/grammar-edits': 'grammar',
          'ai/ai': 'legacy-ai', 'lexical-notes': 'lexical-notes',
@@ -174,10 +195,11 @@ def prepare_local_bundle(destination, known=()):
         return None
     with tempfile.TemporaryDirectory(prefix='studio-browser-export-') as temporary:
         preferences = None
-        if (state / 'Local Storage').is_dir():
-            preferences = pathlib.Path(temporary) / 'browser-storage.json'
-            subprocess.run(['node', str(ROOT / 'scripts/collab/read_local_storage.cjs'),
-                            '--state', str(state), '--output', str(preferences)], check=True)
+        exported = os.environ.get('LOCAL_BROWSER_STORAGE')
+        if exported:
+            preferences = validate_browser_export(pathlib.Path(exported).expanduser())
+        elif (state / 'Local Storage').is_dir():
+            raise ValueError('Legacy Chromium storage needs an existing allowlisted JSON export (LOCAL_BROWSER_STORAGE). Use the previous desktop release to export it; no Electron reader is bundled.')
         result = create_bundle(state, pathlib.Path(parent).expanduser(), destination,
                                preferences=preferences, known=known)
     print(f"Desktop research: {result['files']} files; uploading {result['uploaded']} ({result['bytes']} bytes), "

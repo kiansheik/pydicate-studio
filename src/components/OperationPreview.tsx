@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { invoke, type NodeEvaluation } from '../domain/authoring';
 import type { RenderResult } from '../domain/types';
+import type { SharedDefinitionTarget } from '../domain/shared-definition';
 import './OperationPreview.css';
 
 export interface OperationPreviewProps {
@@ -9,6 +10,7 @@ export interface OperationPreviewProps {
   sourceId?: string;
   revisionId?: string;
   engineFingerprint?: string;
+  sharedDefinition?: SharedDefinitionTarget;
   contextKey: string;
   pendingMessage?: string;
   label?: string;
@@ -21,6 +23,7 @@ export function OperationPreview({
   sourceId,
   revisionId = '',
   engineFingerprint,
+  sharedDefinition,
   contextKey,
   pendingMessage = 'Complete os argumentos para ver a forma resultante.',
   label = 'Prévia do resultado',
@@ -32,6 +35,7 @@ export function OperationPreview({
     revisionId,
     engineFingerprint,
     contextKey,
+    sharedDefinition,
   ]);
   const [snapshot, setSnapshot] = useState<{
     identity: string;
@@ -46,13 +50,17 @@ export function OperationPreview({
     setSnapshot({ identity });
     if (!raw.trim()) return;
     const timer = window.setTimeout(() => {
-      void invoke<RenderResult>('evaluate_expression', {
-        raw,
-        passageId,
-        sourceId,
-        revisionId,
-        engineFingerprint,
-      })
+      void invoke<RenderResult>(
+        sharedDefinition ? 'lexicon_tree_evaluate' : 'evaluate_expression',
+        {
+          ...sharedDefinition,
+          raw,
+          passageId,
+          sourceId,
+          revisionId,
+          engineFingerprint,
+        },
+      )
         .then((result) => {
           if (!active) return;
           if (

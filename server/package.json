@@ -2,7 +2,7 @@
   "name": "pydicate-studio-collaboration",
   "version": "0.1.0",
   "private": true,
-  "description": "Optional Linux collaboration service",
+  "description": "PostgreSQL-backed collaborative Studio server",
   "engines": {
     "node": ">=22.16.0"
   },

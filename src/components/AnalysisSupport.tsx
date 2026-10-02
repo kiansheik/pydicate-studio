@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { translationChange } from '../domain/translations';
 import { analysisAvailable } from '../domain/capabilities';
 import { BulkTranslation } from './BulkTranslation';
@@ -13,7 +14,10 @@ import {
   analysisActivity,
   analysisLabels,
   analysisProgress,
+  analysisTechnicalLog,
+  analysisLiveness,
   analysisStreamText,
+  mergeAnalysisDetails,
   analysisTasks,
   canAcceptCandidate,
   candidateTranslation,
@@ -28,6 +32,7 @@ import {
   type AnalysisListing,
   type AnalysisTask,
   type AnalysisQuestion,
+  type AnalysisDetail,
 } from '../domain/analysis';
 import type { EvidencePointer, EvidenceStatus } from '../domain/evidence';
 import type { Studio } from '../useStudio';
@@ -39,11 +44,6 @@ import type { CanvasEdit, CanvasState } from '../domain/canvas';
 import type { EvidencePreparation } from './PdfEvidence';
 import '../analysis-support.css';
 
-type AnalysisDetail = {
-  job: AnalysisJob;
-  conversation: AnalysisConversation;
-  candidates: AnalysisCandidate[];
-};
 function rememberConversation(
   cache: Map<string, AnalysisConversation>,
   conversation: AnalysisConversation,
@@ -57,41 +57,26 @@ function readableText(text: string) {
   return text
     .split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
     .map((part, index) =>
-      part.startsWith('**') ? (
-        <strong key={index}>{part.slice(2, -2)}</strong>
-      ) : part.startsWith('`') ? (
-        <code key={index}>{part.slice(1, -1)}</code>
-      ) : (
+      index % 2 === 0 ? (
         part
+      ) : part.startsWith('**') ? (
+        <strong key={index}>{part.slice(2, -2)}</strong>
+      ) : (
+        <code key={index}>{part.slice(1, -1)}</code>
       ),
     );
 }
-function mergeAnalysisDetails(
-  listing: AnalysisListing,
-  details: Map<string, AnalysisDetail>,
-  conversations: Map<string, AnalysisConversation>,
-): AnalysisListing {
-  const currentDetails = [...details.values()].filter((detail) =>
-    listing.jobs.some((job) => job.id === detail.job.id && job.updatedAt === detail.job.updatedAt),
+function RepairLiveStatus({ job }: { job: AnalysisJob }) {
+  const [time, setTime] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setTime(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, [job.id]);
+  return (
+    <p className="analysis-liveness" role="status">
+      {analysisLiveness(job, time)}
+    </p>
   );
-  return {
-    ...listing,
-    jobs: listing.jobs
-      .map((job) => currentDetails.find((item) => item.job.id === job.id)?.job ?? job)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    conversations: listing.conversations.map((conversation) => {
-      const cached = conversations.get(conversation.id);
-      return cached && cached.revision >= conversation.revision
-        ? cached
-        : { ...conversation, turns: cached?.turns ?? conversation.turns };
-    }),
-    candidates: [
-      ...listing.candidates.filter(
-        (candidate) => !currentDetails.some((detail) => detail.job.id === candidate.jobId),
-      ),
-      ...currentDetails.flatMap((item) => item.candidates),
-    ],
-  };
 }
 export function useAnalysisWorkspace(studio: Studio) {
   const [listing, setListing] = useState<AnalysisListing>(emptyAnalysis);
@@ -108,63 +93,100 @@ export function useAnalysisWorkspace(studio: Studio) {
   const activeThreads = useRef(new Map<string, string>());
   for (const thread of listing.conversations)
     activeThreads.current.set(`${thread.projectId}:${thread.passageId}`, thread.id);
-  const refresh = useCallback(async () => {
-    const projectId = latest.current.project.id;
-    const passageId = latest.current.passage.id;
-    if (!analysisAvailable() || latest.current.project.mode !== 'local' || !window.studio?.invoke)
-      return;
-    const request = ++sequence.current;
-    try {
-      const data = await invoke<AnalysisListing>('analysis_list', { projectId });
-      const activeThread = data.conversations.find((item) => item.passageId === passageId);
-      const newest = data.jobs
-        .filter(
+  const refreshing = useRef<Promise<void> | null>(null);
+  const refreshAgain = useRef(false);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(refreshTimer.current);
+    };
+  }, []);
+  const refresh = useCallback((): Promise<void> => {
+    if (refreshing.current) {
+      refreshAgain.current = true;
+      return refreshing.current;
+    }
+    clearTimeout(refreshTimer.current);
+    refreshAgain.current = false;
+    const task = (async () => {
+      const projectId = latest.current.project.id;
+      const passageId = latest.current.passage.id;
+      if (!analysisAvailable() || latest.current.project.mode !== 'local' || !window.studio?.invoke)
+        return;
+      const request = ++sequence.current;
+      try {
+        const data = await invoke<AnalysisListing>('analysis_list', { projectId });
+        const activeThread = data.conversations.find((item) => item.passageId === passageId);
+        const newest = data.jobs
+          .filter(
+            (job) =>
+              job.passageId === passageId &&
+              (!activeThread || job.conversationId === activeThread.id),
+          )
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+        const selectedId =
+          localRef.current[passageId]?.selectedCandidateId ??
+          data.conversations.find((item) => item.passageId === passageId)?.selectedCandidateId;
+        const selectedJob = data.jobs.find(
+          (job) => selectedId && job.candidateIds.includes(selectedId),
+        );
+        const activeJobs = data.jobs.filter(
           (job) =>
             job.passageId === passageId &&
-            (!activeThread || job.conversationId === activeThread.id),
-        )
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      const selectedId =
-        localRef.current[passageId]?.selectedCandidateId ??
-        data.conversations.find((item) => item.passageId === passageId)?.selectedCandidateId;
-      const selectedJob = data.jobs.find(
-        (job) => selectedId && job.candidateIds.includes(selectedId),
-      );
-      for (const job of [newest, selectedJob].filter(
-        (value, index, values) =>
-          value && values.findIndex((item) => item?.id === value.id) === index,
-      )) {
-        if (!job) continue;
-        const thread = data.conversations.find((item) => item.passageId === job.passageId);
-        if (
-          jobDetails.current.get(job.id)?.job.updatedAt === job.updatedAt &&
-          (!thread ||
-            (conversationDetails.current.get(thread.id)?.revision ?? -1) >= thread.revision)
-        )
-          continue;
-        const detail = await invoke<AnalysisDetail>('analysis_get', { projectId, jobId: job.id });
-        if (projectId === latest.current.project.id) {
-          jobDetails.current.set(job.id, detail);
-          if (detail.conversation)
-            rememberConversation(conversationDetails.current, detail.conversation);
-          if (jobDetails.current.size > 8)
-            jobDetails.current.delete(jobDetails.current.keys().next().value!);
+            (!activeThread || job.conversationId === activeThread.id) &&
+            ['running', 'cancelling'].includes(job.status),
+        );
+        const predecessor = newest?.parentJobId
+          ? data.jobs.find((job) => job.id === newest.parentJobId)
+          : undefined;
+        for (const job of [newest, selectedJob, predecessor, ...activeJobs].filter(
+          (value, index, values) =>
+            value && values.findIndex((item) => item?.id === value.id) === index,
+        )) {
+          if (!job) continue;
+          const thread = data.conversations.find((item) => item.passageId === job.passageId);
+          if (
+            jobDetails.current.get(job.id)?.job.updatedAt === job.updatedAt &&
+            (!thread ||
+              (conversationDetails.current.get(thread.id)?.revision ?? -1) >= thread.revision)
+          )
+            continue;
+          const detail = await invoke<AnalysisDetail>('analysis_get', { projectId, jobId: job.id });
+          if (projectId === latest.current.project.id) {
+            jobDetails.current.set(job.id, detail);
+            if (detail.conversation)
+              rememberConversation(conversationDetails.current, detail.conversation);
+            if (jobDetails.current.size > 8)
+              jobDetails.current.delete(jobDetails.current.keys().next().value!);
+          }
         }
+        if (projectId === latest.current.project.id && request === sequence.current) {
+          setListing(mergeAnalysisDetails(data, jobDetails.current, conversationDetails.current));
+          setError((current) =>
+            current.startsWith('Não foi possível carregar a fila:') ? '' : current,
+          );
+        }
+      } catch (failure) {
+        if (projectId === latest.current.project.id)
+          setError((current) =>
+            current && !current.startsWith('Não foi possível carregar a fila:')
+              ? current
+              : `Não foi possível carregar a fila: ${analysisError(failure)}`,
+          );
       }
-      if (projectId === latest.current.project.id && request === sequence.current) {
-        setListing(mergeAnalysisDetails(data, jobDetails.current, conversationDetails.current));
-        setError((current) =>
-          current.startsWith('Não foi possível carregar a fila:') ? '' : current,
-        );
-      }
-    } catch (failure) {
-      if (projectId === latest.current.project.id)
-        setError((current) =>
-          current && !current.startsWith('Não foi possível carregar a fila:')
-            ? current
-            : `Não foi possível carregar a fila: ${analysisError(failure)}`,
-        );
-    }
+    })();
+    const context = `${latest.current.project.id}:${latest.current.passage.id}`;
+    refreshing.current = task.finally(() => {
+      refreshing.current = null;
+      // Navigation during a slow request needs a fresh read of the new passage.
+      if (!mounted.current) return;
+      if (context !== `${latest.current.project.id}:${latest.current.passage.id}`) void refresh();
+      else if (refreshAgain.current) refreshTimer.current = setTimeout(() => void refresh(), 1500);
+    });
+    return refreshing.current;
   }, []);
   useEffect(() => {
     setListing(emptyAnalysis());
@@ -184,7 +206,7 @@ export function useAnalysisWorkspace(studio: Studio) {
         timer = setTimeout(() => {
           timer = undefined;
           void refresh();
-        }, 100);
+        }, 1500);
     });
     return () => {
       unsubscribe?.();
@@ -667,8 +689,16 @@ export function AnalysisSupport({
   const isRepairConversation = currentJobs[0]?.input.task === 'grammar-repair';
   const visibleJobs = historyJob
     ? jobs.filter((job) => job.id === historyJob)
-    : currentJobs.slice(0, 1);
-  const historicJobs = jobs.filter((job) => job.id !== currentJobs[0]?.id);
+    : currentJobs
+        .filter(
+          (job, index) =>
+            index === 0 ||
+            job.id === currentJobs[0]?.parentJobId ||
+            ['queued', 'running', 'cancelling'].includes(job.status),
+        )
+        .slice()
+        .reverse();
+  const historicJobs = jobs.filter((job) => !visibleJobs.some((visible) => visible.id === job.id));
   const candidates = listing.candidates.filter(
     (candidate) => candidate.passageId === studio.passage.id,
   );
@@ -806,6 +836,47 @@ export function AnalysisSupport({
         jobs.find((job) => job.id === (replyJobId ?? historyJob)) ?? currentJobs[0];
       if (repairParent?.input.task === 'grammar-repair') {
         if (!description.trim()) throw new Error('Escreva sua orientação para continuar.');
+        const runningRepair = jobs.find(
+          (job) =>
+            job.conversationId === repairParent.conversationId &&
+            job.status === 'running' &&
+            job.input.task === 'grammar-repair',
+        );
+        if (runningRepair) {
+          const submission = { projectId, passageId, jobId: runningRepair.id, description };
+          await invoke('analysis_steer', {
+            ...submission,
+            operationId: submissionOperation(
+              {
+                submission: {
+                  ...submission,
+                  revisionId: runningRepair.input.baseRevisionId,
+                  task: 'steer',
+                  scope: 'passage',
+                },
+                provider: runningRepair.input.provider,
+                engine: runningRepair.currentAttemptId ?? runningRepair.id,
+                conversation: runningRepair.conversationId,
+                noteSnapshot: '',
+              },
+              [],
+            ),
+          });
+          await saveConversation(
+            passageId,
+            { composer: '' },
+            projectId,
+            runningRepair.conversationId,
+          );
+          await analysis.openSubmittedConversation(runningRepair.conversationId);
+          setNotice(
+            'Orientação salva para a correção em andamento. A confirmação de envio aparece na conversa.',
+          );
+          setHistoryJob(null);
+          setShowHistory(false);
+          layout.support('ai');
+          return;
+        }
         await studio.persist();
         const submission = {
           projectId,
@@ -832,6 +903,11 @@ export function AnalysisSupport({
           ),
         });
         await analysis.openSubmittedConversation(repairParent.conversationId);
+        setNotice(
+          ['queued', 'running', 'cancelling'].includes(repairParent.status)
+            ? 'Orientação salva na fila. Ela será enviada após a correção atual terminar; a resposta em andamento continua abaixo.'
+            : 'Orientação salva. A continuação usará o trabalho já concluído.',
+        );
         setHistoryJob(null);
         setShowHistory(false);
         layout.support('ai');
@@ -886,6 +962,7 @@ export function AnalysisSupport({
         selectedNode: selected,
         includeImages,
         evidenceRevision: prepared.revision,
+        evidencePassageFingerprint: prepared.passageFingerprint,
         description,
         ...(nextTask === 'revise' && replyQuestion
           ? {
@@ -991,6 +1068,7 @@ export function AnalysisSupport({
                 : 'translate-source',
           scope: 'passage',
           evidenceRevision: status.revision,
+          evidencePassageFingerprint: status.passageFingerprint,
           includeImages,
         };
         items.push({
@@ -1097,7 +1175,8 @@ export function AnalysisSupport({
       setReplyJobId(job.id);
       setScope('passage');
       if (candidate) onPreview();
-      composer.current?.focus();
+      // The preview and reply task can replace the composer during this render.
+      requestAnimationFrame(() => composer.current?.focus());
     });
   }
   async function accept(candidate: AnalysisCandidate) {
@@ -1192,8 +1271,12 @@ export function AnalysisSupport({
           }}
         >
           IA{' '}
-          {jobs.some((job) => job.status === 'ready-for-review') && (
-            <span aria-label="Há propostas prontas">●</span>
+          {currentJobs.some((job) => job.status === 'ready-for-review') ? (
+            <span aria-label="Há propostas prontas nesta conversa">●</span>
+          ) : (
+            jobs.some((job) => job.status === 'ready-for-review') && (
+              <span aria-label="Há propostas prontas em outras conversas">○</span>
+            )
           )}
         </button>
         <button
@@ -1324,7 +1407,16 @@ export function AnalysisSupport({
                     'local'}{' '}
                   · {analysisLabels[job.status]}
                 </button>
-                <small>{analysisTasks[job.input.task]}</small>
+                <small>
+                  {analysisTasks[job.input.task]}
+                  {job.input.task === 'grammar-repair' && job.input.tentativeReading && (
+                    <> · {job.input.tentativeReading}</>
+                  )}
+                  {' · '}
+                  <time dateTime={job.createdAt}>
+                    {new Date(job.createdAt).toLocaleString('pt-BR')}
+                  </time>
+                </small>
               </div>
             ))}
             <details>
@@ -1336,6 +1428,7 @@ export function AnalysisSupport({
               <label className="batch-task">
                 O que fazer com as selecionadas
                 <select
+                  {...workspaceAutofill}
                   aria-label="Tarefa do lote"
                   value={batchTask}
                   disabled={busy || batchLoading}
@@ -1365,6 +1458,7 @@ export function AnalysisSupport({
                 .map((item) => (
                   <label key={item.id}>
                     <input
+                      {...workspaceAutofill}
                       type="checkbox"
                       checked={batch.includes(item.id)}
                       onChange={(event) =>
@@ -1402,6 +1496,7 @@ export function AnalysisSupport({
         <nav className="analysis-chat-actions" aria-label="Conversas de IA">
           {jobs.length > 0 && (
             <select
+              {...workspaceAutofill}
               aria-label="Conversa de IA"
               value={conversation?.id ?? ''}
               disabled={busy}
@@ -1522,10 +1617,36 @@ export function AnalysisSupport({
                 <strong>Você</strong>
                 <p>{job.input.description || analysisTasks[job.input.task]}</p>
               </div>
+              {job.steering?.map((instruction) => (
+                <div className="analysis-turn is-user analysis-steering" key={instruction.id}>
+                  <strong>Você · orientação durante a correção</strong>
+                  <p>{instruction.text}</p>
+                  <small role="status">
+                    {instruction.status === 'delivered'
+                      ? 'Orientação enviada à IA nesta correção.'
+                      : instruction.status === 'waiting' || instruction.status === 'sending'
+                        ? 'Orientação salva; aguardando confirmação de envio à IA.'
+                        : instruction.status === 'not-delivered'
+                          ? 'A correção terminou antes do envio. Use Responder para continuar com esta orientação.'
+                          : 'Não foi possível confirmar o envio. A orientação está salva; confira a resposta antes de reenviar.'}
+                  </small>
+                </div>
+              ))}
               <header>
                 <strong>{analysisTasks[job.input.task]}</strong>
                 <span className={`analysis-status is-${job.status}`}>{analysisProgress(job)}</span>
               </header>
+              {job.input.task === 'grammar-repair' &&
+                ['running', 'cancelling'].includes(job.status) && <RepairLiveStatus job={job} />}
+              {job.status === 'queued' && job.input.task === 'grammar-repair' && (
+                <p className="analysis-waiting" role="status">
+                  {currentJobs.some(
+                    (item) => item.id !== job.id && ['running', 'cancelling'].includes(item.status),
+                  )
+                    ? 'Orientação salva. Aguardando a correção em andamento terminar, incluindo a verificação das outras passagens. Esta mensagem ainda não foi enviada à IA.'
+                    : 'Correção salva na fila. O Studio executa uma correção de gramática por vez; ela começa quando a anterior libera a gramática.'}
+                </p>
+              )}
               <small>
                 {job.input.scope === 'constituent'
                   ? 'Constituinte selecionado'
@@ -1549,10 +1670,65 @@ export function AnalysisSupport({
                   <p>{readableText(job.summary)}</p>
                 </div>
               )}
+              {job.grammarCandidate && (
+                <section className="grammar-verification" aria-label="Resultado do alvo">
+                  <strong>Forma do alvo avaliada</strong>
+                  <p lang="tpw">{job.grammarCandidate.surface || 'Sem resultado'}</p>
+                  <details>
+                    <summary>Expressão exata</summary>
+                    <code>{job.grammarCandidate.expression}</code>
+                  </details>
+                  <p role="status">
+                    {job.grammarCandidate.validation === 'pending'
+                      ? 'Verificação das outras passagens pendente. Este resultado ainda não está validado.'
+                      : job.grammarCandidate.validation === 'verified'
+                        ? 'Verificações automáticas concluídas. A decisão linguística continua sendo sua.'
+                        : 'Outras passagens ou a árvore de contexto precisam de revisão.'}
+                  </p>
+                  {job.grammarConfirmation?.candidateId === job.grammarCandidate.id ? (
+                    <p>
+                      Confirmação desta forma registrada. Isso não aprova a fonte nem dispensa as
+                      verificações.
+                    </p>
+                  ) : (
+                    job.grammarCandidate.matches &&
+                    job.grammarCandidate.evaluationStatus === 'complete' &&
+                    !['cancelled', 'cancelling', 'failed', 'blocked'].includes(job.status) && (
+                      <button
+                        disabled={busy || job.input.baseRevisionId !== passageRevision}
+                        onClick={() =>
+                          void operation(async () => {
+                            await invoke('analysis_confirm_grammar', {
+                              projectId: studio.project.id,
+                              jobId: job.id,
+                              candidateId: job.grammarCandidate!.id,
+                              operationId: crypto.randomUUID(),
+                            });
+                            await analysis.loadJob(job.id);
+                            await refresh();
+                          })
+                        }
+                      >
+                        Esta forma está correta
+                      </button>
+                    )
+                  )}
+                  {!!job.grammarTimings && (
+                    <small>
+                      Avaliação do alvo:{' '}
+                      {((job.grammarTimings['grammar-target'] ?? 0) / 1000).toFixed(1)} s
+                      {job.grammarTimings['grammar-corpus'] !== undefined &&
+                        ` · Corpus: ${(job.grammarTimings['grammar-corpus'] / 1000).toFixed(1)} s`}
+                      {' · Tempo do motor local; não inclui o tempo da IA.'}
+                    </small>
+                  )}
+                </section>
+              )}
               {job.grammarVerification && (
                 <section className="grammar-verification" aria-label="Verificação da correção">
                   <strong>
-                    {job.grammarVerification.matches
+                    {job.grammarVerification.matches &&
+                    job.grammarVerification.regressionsHealthy === true
                       ? 'Forma pretendida obtida'
                       : 'Resultado da verificação'}
                   </strong>
@@ -1561,6 +1737,20 @@ export function AnalysisSupport({
                   ) : (
                     <>
                       <p lang="tpw">{job.grammarVerification.surface || 'Sem resultado'}</p>
+                      {job.grammarVerification.regressionsHealthy === false && (
+                        <p role="alert">
+                          A correção ainda precisa de revisão: a árvore completa ou outras passagens
+                          apresentaram novas diferenças.
+                        </p>
+                      )}
+                      {job.grammarVerification.parent && (
+                        <p>
+                          Árvore completa:{' '}
+                          <strong lang="tpw">
+                            {job.grammarVerification.parent.surface || 'Sem resultado completo'}
+                          </strong>
+                        </p>
+                      )}
                       {!job.grammarVerification.matches && (
                         <p>Forma pretendida: {job.grammarVerification.intendedSurface}</p>
                       )}
@@ -1570,7 +1760,8 @@ export function AnalysisSupport({
                             {job.grammarVerification.comparison.checked} expressões verificadas ·{' '}
                             {job.grammarVerification.comparison.changed.length} alteradas ·{' '}
                             {job.grammarVerification.comparison.baselineIssues} divergências
-                            anteriores
+                            anteriores · {job.grammarVerification.comparison.newReferenceIssues}{' '}
+                            novas divergências em referências
                           </p>
                           {!!job.grammarVerification.comparison.sourceChanges.length && (
                             <p role="alert">
@@ -1600,11 +1791,20 @@ export function AnalysisSupport({
               )}
               {!!job.grammarEdits?.length && (
                 <details>
-                  <summary>Alterações na gramática ({job.grammarEdits.length})</summary>
+                  <summary>Histórico de edições da gramática ({job.grammarEdits.length})</summary>
                   {job.grammarEdits.map((edit) => (
                     <div key={edit.id}>
                       <strong>{edit.path}</strong>
-                      <pre>{`Antes:\n${edit.oldText}\n\nDepois:\n${edit.newText}`}</pre>
+                      <p>
+                        {edit.rolledBack
+                          ? 'Tentativa revertida · não aplicada.'
+                          : 'Edição aplicada.'}
+                      </p>
+                      <pre>
+                        {edit.rolledBack
+                          ? `Código preservado:\n${edit.oldText}\n\nTentativa descartada:\n${edit.newText}`
+                          : `Antes:\n${edit.oldText}\n\nDepois:\n${edit.newText}`}
+                      </pre>
                     </div>
                   ))}
                 </details>
@@ -1928,7 +2128,7 @@ export function AnalysisSupport({
                 </ul>
                 <details>
                   <summary>Registro técnico</summary>
-                  <pre>{JSON.stringify(job.events ?? [], null, 2)}</pre>
+                  <pre>{analysisTechnicalLog(job)}</pre>
                 </details>
                 {job.usage && (
                   <p>
@@ -1941,6 +2141,7 @@ export function AnalysisSupport({
           ))}
         </div>
         <form
+          {...workspaceAutofill}
           className="analysis-composer"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1951,6 +2152,7 @@ export function AnalysisSupport({
             <label>
               Tarefa
               <select
+                {...workspaceAutofill}
                 aria-label="Tarefa da análise"
                 value={task}
                 onChange={(event) => {
@@ -1972,6 +2174,7 @@ export function AnalysisSupport({
             <label>
               Escopo
               <select
+                {...workspaceAutofill}
                 aria-label="Escopo da análise"
                 value={scope}
                 onChange={(event) => setScope(event.target.value as 'passage' | 'constituent')}
@@ -1997,8 +2200,10 @@ export function AnalysisSupport({
             </div>
           )}
           <textarea
+            {...workspaceAutofill}
             ref={composer}
             aria-label="Mensagem para a IA"
+            disabled={busy}
             placeholder="Uma dúvida, uma acepção diferente, um papel gramatical…"
             rows={3}
             value={current.composer ?? ''}
@@ -2006,9 +2211,15 @@ export function AnalysisSupport({
               void saveConversation(studio.passage.id, { composer: event.target.value })
             }
           />
+          {isRepairConversation && (
+            <p className="field-hint">
+              Limite de 15 minutos por tentativa. Enviar uma orientação não reinicia esse tempo.
+            </p>
+          )}
           {!isRepairConversation && (
             <label className="image-choice">
               <input
+                {...workspaceAutofill}
                 type="checkbox"
                 checked={includeImages}
                 onChange={(event) => setIncludeImages(event.target.checked)}
@@ -2028,7 +2239,11 @@ export function AnalysisSupport({
                 (!studio.result || studio.result.evaluationStatus === 'partial'))
             }
           >
-            {busy ? 'Salvando…' : 'Salvar e enviar'}
+            {busy
+              ? 'Salvando…'
+              : isRepairConversation && currentJobs.some((job) => job.status === 'running')
+                ? 'Orientar correção em andamento'
+                : 'Salvar e enviar'}
           </button>
           {task === 'revise' && !selectedCandidate && !replyJobId && (
             <p className="field-hint">Escolha “Questionar / refinar” em uma proposta.</p>

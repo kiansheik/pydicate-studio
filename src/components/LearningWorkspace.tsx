@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
@@ -49,7 +50,7 @@ import '../learning.css';
 {"id":"referencia","title":"Forma, análise e referência não são a mesma coisa","terms":["ground truth","referência","concluída","publicar","aprovar","morfema","SUBJECT","OBJECT","erro"],"body":"A forma é a realização produzida pelo motor. A análise é a estrutura que a produziu. A referência é o registro revisado preservado no corpus. Dois códigos podem dar a mesma forma sem fazer a mesma afirmação gramatical. Confira as anotações SUBJECT e OBJECT; não infira papéis de uma tradução automática.","ui":"Compare a forma realizada, Morfemas e Código. No trabalho normal, revise a diferença antes de publicar na fonte. Aprovar Ground Truth é uma ação separada. As tentativas do tutorial nunca publicam nem aprovam registros.","code":"-(+nde * mondarõ).imp()","related":["editor","escopo"]}
 */
 /** @studio-guide
-{"id":"documentacao","title":"Como esta referência acompanha o código","terms":["documentação","implementação","build","docstring","comentário","gerar","agente"],"body":"O build reúne verbetes escritos em comentários do Studio, comentários e docstrings Python do motor e das fontes .tu.py, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.","ui":"Busque um assunto em Guia, uma assinatura em Implementação ou uma construção em Exemplos. Dentro de cada verbete há o caminho da fonte. No aplicativo desktop, a biblioteca é reconstruída para o projeto local aberto.","code":"npm run docs:build\nnpm run docs:check","related":["referencia"]}
+{"id":"documentacao","title":"Como esta referência acompanha o código","terms":["documentação","implementação","build","docstring","comentário","gerar","agente"],"body":"O build reúne verbetes escritos em comentários do Studio, comentários e docstrings Python do motor e das fontes .tu.py, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.","ui":"Busque um assunto em Guia, uma assinatura em Implementação ou uma construção em Exemplos. Dentro de cada verbete há o caminho da fonte. No servidor colaborativo, a biblioteca usa o projeto e o motor configurados.","code":"npm run docs:build\nnpm run docs:check","related":["referencia"]}
 */
 
 const bundled = compiled as unknown as LearningLibrary;
@@ -58,10 +59,12 @@ export function LearningWorkspace({
   project,
   onClose,
   initialView = 'lessons',
+  onViewChange,
 }: {
   project: StudioProject;
   onClose: () => void;
   initialView?: 'lessons' | 'reference';
+  onViewChange?: (view: 'lessons' | 'reference') => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [live, setLive] = useState<LearningLibrary | null>(null);
@@ -119,6 +122,7 @@ export function LearningWorkspace({
           library={library}
           project={project}
           initialView={initialView}
+          onViewChange={onViewChange}
         />
       ) : (
         <div className="learning-loading" role="status">
@@ -138,12 +142,19 @@ function LearningContent({
   library,
   project,
   initialView,
+  onViewChange,
 }: {
   library: LearningLibrary;
   project: StudioProject;
   initialView: 'lessons' | 'reference';
+  onViewChange?: (view: 'lessons' | 'reference') => void;
 }) {
-  const [view, setView] = useState<'lessons' | 'reference'>(initialView);
+  const [view, updateView] = useState<'lessons' | 'reference'>(initialView);
+  useEffect(() => updateView(initialView), [initialView]);
+  const setView = (next: 'lessons' | 'reference') => {
+    updateView(next);
+    onViewChange?.(next);
+  };
   const [selected, setSelected] = useState(library.lessons[0].id);
   const [guide, setGuide] = useState('primeiros-passos');
   const storageKey = `studio-learning:v1:${project.id}:${library.engineFingerprint ?? library.contentId}:${library.documentationFingerprint ?? ''}`;
@@ -348,8 +359,8 @@ function LessonPractice({
       {!lesson.available && <p role="alert">{lesson.reason}</p>}
       {!local && (
         <p className="learning-boundary">
-          Leitura dos exemplos da compilação. Abra este corpus no aplicativo desktop para editar e
-          conferir sua tentativa no motor local.
+          Leitura dos exemplos da compilação. Abra este corpus no servidor colaborativo para editar
+          e conferir sua tentativa no motor local.
         </p>
       )}
       <section className="lesson-step" aria-label="Etapa atual">
@@ -486,6 +497,7 @@ function LessonPractice({
         <label>
           Expressão da prática
           <textarea
+            {...workspaceAutofill}
             spellCheck={false}
             value={state.raw}
             readOnly={!local}
@@ -503,6 +515,7 @@ function LessonPractice({
         {lesson.choices.map((choice, index) => (
           <label key={choice}>
             <input
+              {...workspaceAutofill}
               type="radio"
               name={`answer-${lesson.id}`}
               checked={state.answer === index}
@@ -569,7 +582,9 @@ function LessonPractice({
               passage={passage}
             />
           ) : (
-            <p>As perguntas à IA ficam disponíveis com o projeto aberto no aplicativo desktop.</p>
+            <p>
+              As perguntas à IA ficam disponíveis com o projeto aberto no servidor colaborativo.
+            </p>
           )}
         </section>
       )}
@@ -620,6 +635,7 @@ function Reference({
         <label className="reference-search">
           <Search size={17} />
           <input
+            {...workspaceAutofill}
             autoFocus
             aria-label="Buscar na referência"
             placeholder="Assunto, operação ou forma"

@@ -20,7 +20,7 @@ test('two real browsers: hosted bridge, independent edits, stale conflicts, pres
     const editor=document.querySelector('#editor'),passage=document.querySelector('#passage'),result=document.querySelector('#result');
     async function select(){editor.disabled=true;try{await window.studio.invoke('session_select',{projectId:saved.project.id,passageId:passage.value});editor.value=envelope.drafts[passage.value].raw;}finally{editor.disabled=false;}}
     passage.onchange=select;await select();result.textContent='ready';
-    editor.onchange=async()=>{const id=passage.value;envelope.drafts[id]={...envelope.drafts[id],raw:editor.value,revisionId:crypto.randomUUID()};try{await window.studio.saveDrafts(envelope);result.textContent='saved';}catch(error){result.textContent=error.message;}};
+    editor.onchange=async()=>{const id=passage.value;envelope.drafts[id]={...envelope.drafts[id],raw:editor.value,revisionId:crypto.randomUUID()};try{await window.studio.saveDrafts(envelope);result.textContent='saved';}catch(error){result.dataset.code=error.code;result.textContent=error.message;}};
     })();`);
     const runtime = { project, hasPassage: id => project.passages.some(p => p.id === id), passage: id => id, validateChanges: () => { }, refresh: async () => project, invoke: async () => null };
     const auth = new Auth(store, settings), app = createHttp({ config: settings, store, auth, runtime });
@@ -32,11 +32,14 @@ test('two real browsers: hosted bridge, independent edits, stale conflicts, pres
     for (const [index, name] of ['alice', 'bob'].entries()) {
         const page = await contexts[index].newPage();
         pages.push(page);
-        await page.goto(settings.origin + '/login');
+        const returnTo = index === 0 ? '/?passage=passage%3Aa&source=araujo&view=tree&tab=enosem&node=var%3A1' : '/';
+        await page.goto(settings.origin + returnTo);
+        await page.waitForURL(url => url.pathname === '/login');
+        if (index === 0) assert.equal(new URL(page.url()).searchParams.get('returnTo'), returnTo);
         await page.locator('#email').fill(name + '@example.org');
         await page.locator('#password').fill(password);
         await page.locator('#submit').click();
-        await page.waitForURL(settings.origin + '/');
+        await page.waitForURL(settings.origin + returnTo);
         await page.waitForFunction(() => document.querySelector('#result')?.textContent === 'ready');
     }
     const [alice, bob] = pages;
@@ -52,7 +55,7 @@ test('two real browsers: hosted bridge, independent edits, stale conflicts, pres
     await bob.locator('#passage').selectOption('passage:a');
     await bob.locator('#editor').fill('stale Bob A');
     await bob.locator('#editor').blur();
-    await bob.waitForFunction(() => document.querySelector('#result').textContent.includes('DRAFT_CONFLICT'));
+    await bob.waitForFunction(() => document.querySelector('#result').dataset.code === 'DRAFT_CONFLICT');
     assert.equal(await bob.locator('#editor').inputValue(), 'stale Bob A');
     assert.equal((await store.snapshot(project.id)).envelope.drafts['passage:a'].raw, 'Alice changed A');
     await alice.locator('#collab-toggle').click();
@@ -63,8 +66,14 @@ test('two real browsers: hosted bridge, independent edits, stale conflicts, pres
     await auth.revoke('Alice');
     await alice.locator('#editor').fill('Alice retained offline');
     await alice.locator('#editor').blur();
-    await alice.waitForFunction(() => document.querySelector('#result').textContent.includes('SESSION_EXPIRED'));
+    await alice.waitForFunction(() => document.querySelector('#result').dataset.code === 'SESSION_EXPIRED');
     assert.equal(await alice.locator('#editor').inputValue(), 'Alice retained offline');
+    const loginPage = contexts[0].waitForEvent('page');
+    await alice.getByRole('button', { name: 'Entrar em outra aba', exact: true }).click();
+    const reopened = await loginPage;
+    await reopened.waitForURL(url => url.pathname === '/login');
+    assert.equal(new URL(reopened.url()).searchParams.get('returnTo'), new URL(alice.url()).pathname + new URL(alice.url()).search);
+    await reopened.close();
     const download = alice.waitForEvent('download');
     await alice.getByRole('button', { name: 'Exportar cópia local', exact: true }).click();
     assert.equal((await download).suggestedFilename(), 'studio-local-recovery.json');

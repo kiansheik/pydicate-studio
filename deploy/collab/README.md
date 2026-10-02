@@ -2,8 +2,9 @@
 
 The collaboration deployment targets **studio.academiatupi.com** on the existing Linux VPS.
 Normal contributors use [the browser guide](../../docs/collab-contributor.md); they install nothing.
-Desktop mode remains separate. This is a reviewed PR/deployment recipe, not a claim that the VPS
-has already been changed.
+The server and browser editor are the supported product. This recipe does not itself
+change the VPS. See [local setup](../../docs/local-setup.md) and
+[authentication](../../docs/authentication.md).
 
 ## 1. Prerequisites and a clean install
 
@@ -17,9 +18,8 @@ built into the Docker image; neither dependency repository is needed on the lapt
 ```sh
 git clone https://github.com/kiansheik/pydicate-studio.git
 cd pydicate-studio
-# Until this PR is merged:
-git switch collab-server-kian
-make collab-install STUDIO_REF=collab-server-kian
+# Select a reviewed commit/branch before running installation.
+make collab-install STUDIO_REF=<reviewed-commit>
 make collab-admin EMAIL=your-email@example.com NAME='Your name'
 ```
 
@@ -28,9 +28,9 @@ reviewed commit SHA. The app checkout is downloaded on the server from GitHub—
 uncommitted laptop files. Fresh workspace initialization downloads **oldtupicorpus and nhe-enga**
 from the tested revisions in `dependencies.json`. nhe-enga uses a sparse checkout that includes
 Pydicate, Tupi, dictionary resources and runtime imports, not the multi-GB scan collection.
-Install and update also transfer the PDFs already attached in the deploying laptop's Studio
-project, including saved source associations and passage regions. An empty desktop profile
-has no PDFs to transfer; contributors can upload their own PDFs in the browser.
+Routine install/update deploys the server release without inspecting a laptop profile.
+Contributors upload PDFs in the browser. Existing managed evidence and research archives
+remain compatible; no schema or data-directory migration is required.
 
 The same defaults as Neologismo are in the Makefile:
 
@@ -48,23 +48,25 @@ apex is proxied or points elsewhere. The key stays on your laptop; SSH agent for
 used. Verify the server fingerprint and establish known_hosts before installation.
 `make collab-ssh`, `collab-logs` and `collab-psql` reuse that same connection.
 
-### Desktop PDFs and saved research accompany each update
+### Optional one-time legacy research import
 
-`make collab-install`, `make collab-redeploy` and `make collab-deploy` automatically read the
-native `pydicate-studio` desktop profile and its last opened workspace. On macOS this is
+`make collab-install`, `make collab-redeploy` and `make collab-deploy` can read the
+legacy `pydicate-studio` desktop profile and its last opened workspace only when
+`COLLAB_IMPORT_LEGACY_DESKTOP=1` is explicitly set. Routine deployment does not read it. On macOS this is
 `~/Library/Application Support/pydicate-studio`; on Linux, `$XDG_CONFIG_HOME/pydicate-studio`
 (normally `~/.config/pydicate-studio`); on Windows, `%APPDATA%/pydicate-studio`. For a different
 profile/workspace:
 
 ```sh
-make collab-deploy STUDIO_REF=REVIEWED_COMMIT \
+make collab-deploy STUDIO_REF=REVIEWED_COMMIT COLLAB_IMPORT_LEGACY_DESKTOP=1 \
+  LOCAL_BROWSER_STORAGE=/private/path/to/allowlisted-export.json \
   LOCAL_STUDIO_STATE="$HOME/Library/Application Support/pydicate-studio" \
   LOCAL_PROJECT_PARENT="$HOME/code"
 ```
 
 The source of truth is `evidence/assets/` plus that project's `evidence/sources/` manifests.
 All attached/retained managed PDFs for that project are included, even if the original file
-has moved. To include another local PDF, attach it to its source in desktop Studio first.
+has moved. New PDFs should be uploaded in the browser. Legacy imports use only previously saved associations.
 The deployment does not scan unrelated folders or publish local `.tu.py` edits.
 A missing default profile is reported and skipped; an explicitly
 configured missing profile, invalid manifest or corrupt managed PDF stops before deployment.
@@ -84,10 +86,10 @@ file paths are removed from the portable metadata. Identical reruns retain the s
 and leave evidence revisions unchanged. These archives are covered by full backups. PDF sync
 does not grant editorial approval or create saved ground-truth references.
 
-Deployment also snapshots saved drafts, completion/review states, pending passages,
+This explicit import also snapshots saved drafts, completion/review states, pending passages,
 canvases, analysis conversations/candidates/history, lexical notebooks, recovery journals,
 parser experiments and usage records. Original source/ground-truth bytes are retained as
-provenance. An isolated Electron reader recovers allowlisted local browser buffers and
+provenance. An existing allowlisted JSON export supplies local browser buffers and
 preferences without opening Studio or its job queues. Provider settings, authentication,
 cookies and browser caches are excluded. In-memory undo and tab-local Session Storage
 are not persistent research records in this migration.
@@ -415,3 +417,20 @@ entry identity. Rendered-form search warms at process/project opening, persists 
 indexes separately, and refreshes changed drafts in a background worker. Cold-index polling
 never occupies the main grammar worker for the build. Cache identities include current engine,
 corpus and draft content; stale indexes cannot authorize insertion.
+
+## Legacy research migration boundary
+
+The Electron app, installer and Chromium profile reader are removed. Existing
+PostgreSQL schemas, PDF manifests, immutable import archives and the administrator
+history viewer retain their original formats and paths. No live data is deleted
+or rewritten by this cleanup. Deployment requires a full `make collab-deploy`
+because dependency/build inputs changed; light deployment rejects this change.
+
+An optional one-time import from an old profile remains available by explicitly
+setting `COLLAB_IMPORT_LEGACY_DESKTOP=1`, `LOCAL_STUDIO_STATE` and
+`LOCAL_PROJECT_PARENT`. If the profile contains Chromium Local Storage, also set
+`LOCAL_BROWSER_STORAGE` to an existing allowlisted JSON export made with the
+previous desktop release. The server-only repository cannot extract that database;
+it fails before upload rather than silently losing buffers. Preserve the original
+profile and Session Storage independently. Existing verified archive readers and
+conflict/orphan retention are unchanged. Do not install Electron into this service.

@@ -1,21 +1,29 @@
 'use strict';
 (() => {
   const api=window.collab;if(!api)return;
+  const loginUrl=()=>'/login?returnTo='+encodeURIComponent(location.pathname+location.search);
   const panel=document.createElement('aside');panel.id='collab-panel';panel.setAttribute('aria-label','Colaboração');
   const toggle=document.createElement('button');toggle.id='collab-toggle';toggle.textContent='Equipe e comentários';toggle.onclick=()=>{panel.hidden=!panel.hidden;};
   document.body.append(toggle,panel);panel.hidden=true;
-  function element(tag,text,parent=panel){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;parent.append(node);return node;}
+  function element(tag,text,parent=panel){const node=document.createElement(tag);if(['input','textarea','select','form'].includes(tag)){node.autocomplete='off';node.setAttribute('data-1p-ignore','true');node.setAttribute('data-lpignore','true');}if(text!==undefined)node.textContent=text;parent.append(node);return node;}
   function button(text,action,parent=panel){const node=element('button',text,parent);node.type='button';node.onclick=()=>Promise.resolve().then(action).catch(error=>{status.textContent=error.message;});return node;}
+  function feedbackButton(text,action,parent){
+    const group=element('div',undefined,parent),node=element('button',text,group),message=element('p','',group);
+    node.type='button';message.setAttribute('role','status');message.setAttribute('aria-live','polite');
+    node.onclick=async()=>{if(node.disabled)return;node.disabled=true;node.textContent='Enviando…';node.setAttribute('aria-busy','true');message.setAttribute('role','status');message.textContent='Enviando…';
+      try{message.textContent=await action();}
+      catch(error){message.setAttribute('role','alert');message.textContent=error.message;}
+      finally{node.disabled=false;node.textContent=text;node.removeAttribute('aria-busy');}
+    };return node;
+  }
   element('h2','Servidor colaborativo');const status=element('p','Conectando…');status.setAttribute('role','status');
   const identity=element('p',''),selection=element('p',''),people=element('div'),actions=element('div');
-  button('Reservar passagem',()=>api.request('/api/claim',{passageId:api.state().selected}),actions);
-  button('Liberar passagem',()=>api.request('/api/claim',{passageId:api.state().selected,release:true}),actions);
   button('Exportar cópia local',()=>api.exportLocal(),actions);
   button('Carregar estado compartilhado',()=>api.reload(),actions);
   button('Sair',()=>api.logout(),actions);
   const help=element('a','Tutorial e documentação ↗',actions);help.href='/help';help.target='_blank';help.rel='noopener';
-  button('Enviar última versão salva para revisão',async()=>{const result=await api.submit();status.textContent='Versão congelada enviada para revisão: '+result.id;await loadSubmissions();},actions);
-  element('p','A reserva dura dois minutos e é renovada enquanto você está ativo. Outras pessoas podem consultar e comentar. Mudanças remotas exigem recarga explícita; não misturamos árvores concorrentes automaticamente.');
+  feedbackButton('Enviar última versão salva para revisão',async()=>{await api.submit();void loadSubmissions().catch(()=>{});return 'Enviada. A passagem está aguardando revisão; a versão enviada foi preservada.';},actions);
+  element('p','Edição sem reservas. Se outra pessoa salvar primeiro, sua cópia local será preservada para comparar com a versão compartilhada.');
   const upstreamBox=element('details');element('summary','Atualizações do corpus e da gramática',upstreamBox);
   const upstreamStatus=element('p','Consultando atualizações…',upstreamBox),upstreamRows=element('div',undefined,upstreamBox);
   let upstreamHeads;
@@ -47,7 +55,7 @@
   let currentUser;
   async function loadSubmissions(){
     const data=await api.request('/api/submissions');submissionRows.replaceChildren();
-    for(const item of data.submissions){const row=element('article',undefined,submissionRows);element('p',`${item.author} · ${item.passageId} · ${item.status}`,row);
+    for(const item of data.submissions){const row=element('article',undefined,submissionRows);element('p',`${item.author} · ${item.passageId} · ${{submitted:'Aguardando revisão',ready:'Pronta para incorporar',changes_requested:'Correção solicitada',imported:'Incorporada',merged:'Publicada'}[item.status]||item.status}`,row);
       button('Ver versão enviada',async()=>{const detail=await api.request('/api/submission?id='+encodeURIComponent(item.id));api.download(detail,'studio-submission-'+item.id+'.json');},row);
       if(currentUser?.role==='admin'||currentUser?.role==='reviewer'){
         button('Marcar pronta para revisão local',async()=>{await api.request('/api/submission/review',{id:item.id,snapshotSha256:item.snapshotSha256,event:'ready'});await loadSubmissions();},row);
@@ -120,23 +128,41 @@
   button('Remover minha chave',async()=>{await api.request('/api/providers',{provider:provider.value,funding:'disabled',monthlyLimitCents:0,removeKey:true});apiKey.value='';await providerLoad();},providerBox);
   void providerLoad().catch(()=>{});
   const account=element('details');element('summary','Alterar minha senha',account);
-  const old=element('input',undefined,account);old.type='password';old.placeholder='Senha atual';old.autocomplete='current-password';old.setAttribute('aria-label','Senha atual');
-  const next=element('input',undefined,account);next.type='password';next.placeholder='Nova senha (15+ caracteres)';next.autocomplete='new-password';next.setAttribute('aria-label','Nova senha');
-  button('Trocar senha e encerrar sessões',async()=>{if(api.state().failed||api.state().inflight)throw new Error('Exporte as edições locais antes de trocar a senha.');await api.request('/api/password',{currentPassword:old.value,password:next.value});old.value='';next.value='';location.assign('/login');},account);
+  const old=element('input',undefined,account);old.type='password';old.placeholder='Senha atual';old.autocomplete='off';old.setAttribute('aria-label','Senha atual');
+  const next=element('input',undefined,account);next.type='password';next.placeholder='Nova senha (15+ caracteres)';next.autocomplete='off';next.setAttribute('aria-label','Nova senha');
+  button('Trocar senha e encerrar sessões',async()=>{if(api.state().failed||api.state().inflight)throw new Error('Exporte as edições locais antes de trocar a senha.');await api.request('/api/password',{currentPassword:old.value,password:next.value});old.value='';next.value='';location.assign(loginUrl());},account);
   function admin(){
     const section=element('details');element('summary','Administração',section);
     const address=element('input',undefined,section);address.type='email';address.placeholder='E-mail do convite';address.setAttribute('aria-label','E-mail do convite');
     const name=element('input',undefined,section);name.placeholder='Nome';name.maxLength=80;name.setAttribute('aria-label','Nome');
     const role=element('select',undefined,section);role.setAttribute('aria-label','Papel');for(const [value,text]of[['contributor','Colaborador'],['reviewer','Revisor'],['admin','Administrador']]){const option=element('option',text,role);option.value=value;}
-    button('Enviar convite',async()=>{await api.request('/api/admin/invite',{email:address.value,name:name.value,role:role.value});status.textContent='Convite enviado. A pessoa definirá sua própria senha.';},section);
+    feedbackButton('Enviar convite',async()=>{const email=address.value.trim();if(!address.reportValidity()||!email)throw new Error('Informe um e-mail válido para o convite.');await api.request('/api/admin/invite',{email,name:name.value,role:role.value});return 'Convite enviado para '+email+'. Peça à pessoa para conferir a caixa de entrada e o spam.';},section);
     const users=element('div',undefined,section);
     async function loadUsers(){const data=await api.request('/api/admin/users');users.replaceChildren();for(const user of data.users){const row=element('article',undefined,users);element('p',`${user.name} · ${user.email} · ${user.role}${user.disabled?' · desativado':''}`,row);
       const select=element('select',undefined,row);select.setAttribute('aria-label','Papel de '+user.name);for(const value of ['contributor','reviewer','admin']){const option=element('option',value,select);option.value=value;}select.value=user.role;
       const disabled=element('input',undefined,row);disabled.type='checkbox';disabled.checked=user.disabled;disabled.setAttribute('aria-label','Desativar '+user.name);
       button('Salvar conta',async()=>{if(!confirm('Alterar esta conta e encerrar suas sessões?'))return;await api.request('/api/admin/user',{id:user.id,role:select.value,disabled:disabled.checked});await loadUsers();},row);}}
     button('Listar contas',loadUsers,section);
-    const report=element('pre',undefined,section);
-    button('Relatório de atividade — 7 dias',async()=>{const data=await api.request('/api/admin/report?days=7');report.textContent=JSON.stringify(data,null,2);},section);
+    const report=element('div',undefined,section);
+    async function showReport(days) {
+      const data=await api.request('/api/admin/report?days='+days);report.replaceChildren();
+      element('h3',days===0?'Tempo ativo e contribuições — todo o histórico':'Tempo ativo e contribuições — 7 dias',report);
+      const active=new Map((data.activeTime?.users??[]).map(user=>[user.userId,user]));
+      const credited=new Map((data.contributions??[]).map(user=>[user.userId,user]));
+      const table=element('table',undefined,report),head=element('tr',undefined,element('thead',undefined,table));
+      for(const text of ['Pessoa','Tempo ativo no Studio','Passagens com contribuição','Revisões salvas'])element('th',text,head);
+      const body=element('tbody',undefined,table);
+      for(const id of new Set([...credited.keys(),...active.keys()])) {
+        const credit=credited.get(id),time=active.get(id),row=element('tr',undefined,body);
+        const seconds=Math.floor((time?.activeMs??0)/1000),hours=Math.floor(seconds/3600),minutes=Math.floor(seconds%3600/60);
+        for(const text of [credit?.name??time?.name??id,time?`${hours} h ${minutes} min ${seconds%60} s`:'Ainda não medido',String(credit?.passages??0),String(credit?.checkpoints??0)])element('td',text,row);
+      }
+      element('p',data.activeTime?.trackingSince?`Tempo registrado desde ${new Date(data.activeTime.trackingSince).toLocaleString('pt-BR')}.`:'O registro de tempo começa nesta versão; ainda não há intervalos recebidos.',report);
+      element('p',data.activeTime?.measurement??'',report);element('p',data.note,report);
+      const details=element('details',undefined,report);element('summary','Detalhes por passagem e operação',details);element('pre',JSON.stringify(data,null,2),details);
+    }
+    button('Relatório de atividade — 7 dias',async()=>showReport(7),section);
+    button('Tempo e créditos — todo o histórico',async()=>showReport(0),section);
     button('Exportar relatório — todo o histórico',async()=>api.download(await api.request('/api/admin/report?days=0'),'studio-usage-report.json'),section);
   }
   element('p','Todos os rascunhos e comentários deste espaço são compartilhados. A telemetria contém categorias e tempos, não o texto. Os dados de pesquisa e cada revisão salva são preservados sem expiração automática. Presença e contagens não calculam pagamentos nem certificam revisão.',panel).className='collab-disclosure';
@@ -145,16 +171,16 @@
     if(data.type==='submissions-change')void loadSubmissions().catch(()=>{});
     if(data.type==='selection')void loadComments().catch(error=>{status.textContent=error.message;});
     if(data.type==='comments-change'&&data.passageId===api.state().selected?.replace(/^pending:/,'passage:'))void loadComments().catch(()=>{});
-    if(data.type==='presence'){people.replaceChildren();element('h3','Quem está aqui',people);for(const person of data.people)element('p',`${person.name}: ${person.active?'ativo':'ausente'} — ${person.passageId||'consultando'}`,people);for(const claim of data.claims)element('small',`${claim.name} reservou ${claim.passageId} · `,people);}
+    if(data.type==='presence'){people.replaceChildren();element('h3','Quem está aqui',people);for(const person of data.people)element('p',`${person.name}: ${person.active?'ativo':'ausente'} — ${person.passageId||'consultando'}`,people);}
     if(data.type==='saved')status.textContent='Rascunho salvo no servidor.';
     if(data.type==='save-failed'){status.textContent=data.message;panel.hidden=false;}
-    if(data.type==='session-expired'){status.textContent='Sessão expirada. Exporte suas edições locais antes de entrar novamente.';panel.hidden=false;button('Entrar em outra aba',()=>window.open('/login','_blank','noopener'));}
+    if(data.type==='session-expired'){status.textContent='Sessão expirada. Exporte suas edições locais antes de entrar novamente.';panel.hidden=false;button('Entrar em outra aba',()=>window.open(loginUrl(),'_blank','noopener'));}
     if(data.type==='disconnected')status.textContent='Conexão interrompida. Salvamentos não confirmados continuam nesta aba.';
     if(data.type==='connected')status.textContent='Conectado ao servidor. Rascunhos e comentários compartilhados.';
     if(data.type==='resync-required'||(data.type==='drafts-change'&&data.clientId!==api.clientId))status.textContent='Há mudanças remotas. Salve ou exporte o trabalho local e use “Carregar estado compartilhado” para vê-las.';
   });
   api.me().then(({user})=>{currentUser=user;identity.textContent=user.name+' · '+user.role;
     if(user.authMethod==='academia'){account.replaceChildren();element('summary','Minha conta Academia Tupi',account);const link=element('a','Gerenciar senha no Neologismos',account);link.href='https://neo.academiatupi.com/login';link.target='_blank';link.rel='noopener noreferrer';}
-    else fetch('/api/auth-options').then(r=>r.json()).then(options=>{if(options.academia)button('Vincular conta Neo (confirme a senha atual acima)',async()=>{const result=await api.request('/api/sso/link',{currentPassword:old.value});old.value='';location.assign(result.url);},account);}).catch(()=>{});
-    if(user.role==='admin')admin();return loadComments();}).catch(error=>{status.textContent=error.message;});
+    else fetch('/api/auth-options').then(r=>r.json()).then(options=>{if(options.academia)button('Vincular conta Neo (confirme a senha atual acima)',async()=>{const result=await api.request('/api/sso/link',{currentPassword:old.value,returnTo:location.pathname+location.search});old.value='';location.assign(result.url);},account);}).catch(()=>{});
+    if(user.role==='admin')admin();return Promise.all([loadComments(),loadSubmissions()]);}).catch(error=>{status.textContent=error.message;});
 })();

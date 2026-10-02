@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { useState } from 'react';
-import { PassageLexicon } from '../src/components/PassageLexicon';
+import { PassageLexicon, type PassageLexiconNavigation } from '../src/components/PassageLexicon';
 import { AssistantPanel } from '../src/components/AssistantPanel';
 import { createExampleProject } from '../src/domain/example';
 import type { SourcePreview } from '../src/domain/authoring';
@@ -20,6 +20,8 @@ declare global {
       failedNoteWrites?: number;
       holdDictionary?: boolean;
       releaseDictionary?: () => void;
+      setNavigation?: (navigation: PassageLexiconNavigation | null) => void;
+      navigations?: PassageLexiconNavigation[];
     };
   }
 }
@@ -30,6 +32,10 @@ function Harness() {
   const [revision, setRevision] = useState('revision:1');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
   const [showLexicon, setShowLexicon] = useState(true);
+  const [navigation, setNavigation] = useState<PassageLexiconNavigation | null | undefined>(
+    undefined,
+  );
+  window.__lexicalFixture.setNavigation = setNavigation;
   return (
     <main style={{ padding: 24, maxWidth: 1100 }}>
       <div id="lexical-selection">{selected}</div>
@@ -58,6 +64,11 @@ function Harness() {
           selectedNodeId={selected}
           onSelectNode={setSelected}
           onRevealNode={setRevealed}
+          navigation={navigation}
+          onNavigationChange={(next) => {
+            (window.__lexicalFixture.navigations ??= []).push(next);
+            if (navigation !== undefined) setNavigation(next);
+          }}
           onEdit={(next, expected) => {
             if (expected !== revision) return false;
             setRaw(next);

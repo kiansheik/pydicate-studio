@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import {
   useEffect,
   useRef,
@@ -247,6 +248,7 @@ export function WorkspaceLayout({
               <strong>{titles[pane]}</strong>
               {advanced && (
                 <select
+                  {...workspaceAutofill}
                   aria-label={`Posição de ${titles[pane]}`}
                   value={state.positions[pane]}
                   onChange={(event) => layout.move(pane, event.target.value as DockPosition)}

@@ -149,6 +149,7 @@ export function samePassageReading(draft: Draft, passage: Passage): boolean {
 /** Upgrade only a proved legacy source identity; preserve all human work and revisions. */
 export function restoreDraft(saved: Draft | undefined, passage: Passage): Draft {
   if (!saved) return createDraft(passage);
+  if (saved.organization?.deleted) return saved;
   const legacy = saved.sourceFingerprint === passage.legacyExpressionFingerprint;
   const sameSource =
     saved.sourceFingerprint === passage.sourceFingerprint ||
@@ -230,6 +231,14 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: string[]): boolean {
 function isDraft(value: unknown, passageId: string): value is Draft {
   if (!isObject(value)) return false;
   return (
+    (value.organization === undefined ||
+      (isObject(value.organization) &&
+        hasOnlyKeys(value.organization, ['sourceId', 'position', 'deleted']) &&
+        typeof value.organization.sourceId === 'string' &&
+        /^[a-zA-Z0-9_-]{1,200}$/.test(value.organization.sourceId) &&
+        Number.isSafeInteger(value.organization.position) &&
+        Number(value.organization.position) >= 0 &&
+        typeof value.organization.deleted === 'boolean')) &&
     value.passageId === passageId &&
     passageId.length > 0 &&
     typeof value.revisionId === 'string' &&
@@ -328,6 +337,7 @@ function isDraft(value: unknown, passageId: string): value is Draft {
       'pending',
       'aiInput',
       'aiAcceptances',
+      'organization',
     ])
   );
 }

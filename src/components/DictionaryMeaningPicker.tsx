@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '../domain/authoring';
 import './DictionaryMeaningPicker.css';
@@ -172,6 +173,7 @@ export function DictionaryMeaningPicker(props: DictionaryMeaningPickerProps) {
           <label>
             Tipo de consulta Navarro
             <select
+              {...workspaceAutofill}
               value={mode}
               disabled={props.disabled}
               onChange={(event) => {
@@ -192,6 +194,7 @@ export function DictionaryMeaningPicker(props: DictionaryMeaningPickerProps) {
           <label>
             Forma ou significado a buscar
             <input
+              {...workspaceAutofill}
               type="search"
               value={query}
               maxLength={200}

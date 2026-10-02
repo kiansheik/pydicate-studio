@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, FlaskConical, Play, RefreshCw } from 'lucide-react';
 import { invoke } from '../domain/authoring';
@@ -209,7 +210,7 @@ export function PassageSolver({
       </div>
       {!local && (
         <p className="lab-boundary" role="status">
-          Abra o corpus local no aplicativo desktop para usar o motor selecionado.
+          Abra o corpus local no servidor colaborativo para usar o motor selecionado.
         </p>
       )}
       {local && !ready && (
@@ -250,6 +251,7 @@ export function PassageSolver({
         <label>
           Forma a analisar
           <textarea
+            {...workspaceAutofill}
             data-testid="solver-input"
             rows={2}
             spellCheck={false}

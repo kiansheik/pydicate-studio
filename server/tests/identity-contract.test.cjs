@@ -31,6 +31,7 @@ test('real Neo and Studio servers: existing login, invited identity, separate co
   const registered=await fetch(issuer+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'identity@example.org',password:'password kept only inside Neo',display_name:'Existing Neo user'})});
   assert.equal(registered.status,201,await registered.clone().text());const neoCookie=registered.headers.get('set-cookie').split(';')[0];
   let studioCookie;
+  const returnTo='/?passage=passage%3Aidentity-contract&source=araujo&view=tree&tab=enosem&node=var%3A1';
   if(process.env.COLLAB_IDENTITY_BROWSER==='1'){
     const {chromium}=require(process.env.COLLAB_PLAYWRIGHT_MODULE||'@playwright/test');
     const browser=await chromium.launch({headless:true,...(process.env.COLLAB_CHROMIUM?{executablePath:process.env.COLLAB_CHROMIUM}:{})});
@@ -41,7 +42,9 @@ test('real Neo and Studio servers: existing login, invited identity, separate co
     await fs.writeFile(path.join(directory,'index.html'),'<!doctype html><html><head><title>Identity fixture</title></head><body>Authenticated Studio fixture</body></html>');
     page.on('console',message=>{if(message.text().includes('form-action'))violations.push('form-action');});
     page.on('response',response=>{const url=new URL(response.url());if(url.pathname.includes('/sso/')||url.pathname.includes('/studio/authorize'))requests.push(response.request().method()+' '+url.pathname+' '+response.status());});
-    await page.goto(origin+'/account#token='+encodeURIComponent(inviteToken));
+    await page.goto(origin+'/account?returnTo='+encodeURIComponent(returnTo)+'#token='+encodeURIComponent(inviteToken));
+    await page.waitForFunction(()=>!location.hash);
+    assert.equal(new URL(page.url()).searchParams.get('returnTo'),returnTo);
     await page.getByRole('button',{name:'Entrar com Academia Tupi / Neologismos',exact:true}).click();
     await page.getByText('Continuar como',{exact:false}).waitFor();
     assert.equal(new URL(page.url()).origin,issuer);
@@ -55,15 +58,16 @@ test('real Neo and Studio servers: existing login, invited identity, separate co
     let response;
     try{response=await finished;}catch{assert.fail('Browser consent did not reach the cross-origin Studio callback; CSP violations: '+(violations.join(', ')||'none observed')+'; requests: '+requests.join(', ')+'; page: '+new URL(page.url()).pathname);}
     assert.equal(response.status(),200,response.status()===200?'':await response.text());
-    await page.waitForURL(origin+'/');
+    await page.waitForURL(origin+returnTo);
+    assert.equal((await context.cookies(origin)).some(cookie=>cookie.name==='studio-dev-identity-return'),false,'The return cookie is cleared after successful callback');
     assert.deepEqual(violations,[],'Consent permits the configured cross-origin callback');
     const cookie=(await context.cookies(origin)).find(cookie=>cookie.name==='pydicate-dev-session');
     assert.ok(cookie,'The actual callback page establishes a Studio browser session');
     studioCookie=cookie.name+'='+cookie.value;
     t.diagnostic('Real browser invitation, Neo consent POST, cross-origin callback and Studio cookie passed.');
   }else{
-  const started=await fetch(origin+'/api/sso/start',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({inviteToken})});
-  assert.equal(started.status,200);const flowCookie=started.headers.get('set-cookie').split(';')[0],authorize=(await started.json()).url;
+  const started=await fetch(origin+'/api/sso/start',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({inviteToken,returnTo})});
+  assert.equal(started.status,200);const flowCookie=started.headers.getSetCookie().map(cookie=>cookie.split(';')[0]).join('; '),authorize=(await started.json()).url;
   const consent=await fetch(authorize,{headers:{Cookie:neoCookie}}),html=await consent.text();assert.match(html,/Continuar como/);
   const fields=Object.fromEntries([...html.matchAll(/name="([^"]+)" value="([^"]*)"/g)].map(m=>[m[1],m[2].replaceAll('&amp;','&').replaceAll('&#x27;',"'").replaceAll('&quot;','"')]));
   const nonceCookie=consent.headers.get('set-cookie').split(';')[0];
@@ -71,6 +75,7 @@ test('real Neo and Studio servers: existing login, invited identity, separate co
   assert.equal(approved.status,303,await approved.clone().text());const callback=new URL(approved.headers.get('location'));
   const result=await fetch(origin+'/api/sso/finish',{method:'POST',headers:{Cookie:flowCookie,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new URLSearchParams(callback.hash.slice(1))))});
   assert.equal(result.status,200,await result.clone().text());
+  assert.equal((await result.json()).returnTo,returnTo);
   studioCookie=result.headers.getSetCookie().find(c=>c.startsWith('pydicate-dev-session=')).split(';')[0];
   }
   assert.notEqual(studioCookie.split('=')[0],neoCookie.split('=')[0]);assert.equal((await store.user(invited.id)).password_hash,null);

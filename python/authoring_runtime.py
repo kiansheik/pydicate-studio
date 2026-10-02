@@ -212,8 +212,24 @@ def shape(value, depth=0, active=None, path='$'):
     return {'type': type(value).__module__+'.'+type(value).__name__, **{k:shape(v,depth+1,active,path+'/'+k) for k,v in sorted(vars(value).items()) if k not in ignored and not k.startswith(('__', '_studio_'))}}
 
 
+def stative_conversion(value):
+    """Choose the selected engine's existing v(noun) input, without realizing it.
+
+    Inspect descriptors without invoking computed noun properties on incomplete
+    trees. The ordinary operation preview remains responsible for evaluation.
+    """
+    if inspect.isclass(value) or not callable(getattr(value, 'eval', None)):
+        return 'unsupported'
+    if inspect.getattr_static(value, 'noun', None) is not None:
+        return 'nominal'
+    if callable(getattr(value, 'base_nominal', None)):
+        return 'base_nominal'
+    return 'unsupported'
+
+
 def runtime_summary(value):
     result = {'runtimeType':type(value).__name__, 'category':getattr(value,'category',type(value).__name__)}
+    result['stativeConversion'] = stative_conversion(value)
     status = lexical_status(value)
     if status: result['lexicalStatus'] = status
     for key in ('definition','verbete','tag','mood','negated','variation_id','reduplicated','circumstancial','_inflection'):
@@ -273,6 +289,7 @@ def runtime_graph(value, limit=1200, source_nodes=None):
                 'definition': str(getattr(current, 'definition', '') or ''), 'tag': str(getattr(current, 'tag', '') or ''),
                 'attributes': attributes, 'morphology': {}}
         node['methods'] = sorted(name for name in METHODS if callable(getattr(current, name, None)))
+        node['stativeConversion'] = stative_conversion(current)
         occurrences = [source_nodes[source_id] for source_id in getattr(current, '_studio_sources', ())
                        if source_nodes and source_id in source_nodes]
         if occurrences:
@@ -757,7 +774,6 @@ def lexical_entries(corpus, source_path, namespace, source_line=None):
 
 
 def lexicon_result(payload, corpus, path, namespace):
-    import unicodedata
     entries=lexical_entries(corpus,path,namespace,payload.get('line'))
     if payload['action']=='lexicon_context':
         return {'results':[entry for entry in entries if entry['name'] in payload.get('names',[])]}
@@ -791,10 +807,8 @@ def lexicon_result(payload, corpus, path, namespace):
         from reference_uses import reference_uses
         usage = reference_uses(corpus, entry['name'], entry['sourcePath'], entry['line']) if entry.get('sourcePath') and entry.get('line') else {'uses':[], 'diagnostics':['Declaração de origem indisponível.']}
         return {**entry, 'expandedStructure':shape(value), 'runtimeTree':runtime_graph(value), 'authoring':expression_tree(entry['expression']), 'namedReference':expression_tree(entry['name']), 'editScopes':['occurrence','source','shared'], 'affectedUses':entry['uses'], 'projectUses':usage, 'safeOccurrenceExpansion':safe_expansion}
-    def fold(value): return ''.join(c for c in unicodedata.normalize('NFKD',value.casefold()) if not unicodedata.combining(c))
-    query=fold(payload.get('query',''))
-    from rendered_structures import normalize
-    rendered_query = normalize(payload.get('query', ''))
+    from lexical_search import Document, Query
+    query = Query(payload.get('query', ''))
     matches = []
     for entry in entries:
         try:
@@ -803,9 +817,12 @@ def lexicon_result(payload, corpus, path, namespace):
                 entry['surface'] = str(evaluation_snapshot(value).eval())
         except Exception:
             pass
-        if query in fold(entry['name'] + ' ' + str(entry['definition'])) or (rendered_query and rendered_query in normalize(entry.get('surface', ''))):
-            matches.append(entry)
-    return {'query':payload.get('query',''),'total':len(matches),'results':matches[:payload.get('limit',40)]}
+        match = query.match(Document(name=entry['name'],
+            forms=[('name', entry['name']), ('surface', entry.get('surface'))], definition=entry['definition']))
+        if match or query.empty:
+            matches.append((match.rank if match else (0, 0, 0), entry))
+    matches.sort(key=lambda row: (row[0], row[1]['name']))
+    return {'query':payload.get('query',''),'total':len(matches),'results':[entry for _,entry in matches[:payload.get('limit',40)]]}
 
 def approve_authoritatively(payload, corpus):
     """Approve only the selected passage; gaps contain no synthesized references."""
@@ -895,6 +912,23 @@ def main():
             elif payload.get('action') == 'node_definition':
                 from node_definitions import define_node
                 result = define_node({**payload, 'action': payload.get('definitionAction', 'set')}, corpus)
+            elif payload.get('action') == 'lexicon_tree_evaluate':
+                from shared_definition import evaluate
+                result = evaluate(payload, corpus)
+            elif payload.get('action') in {'lexicon_tree_inspect','lexicon_tree_search'}:
+                from shared_definition import declaration_namespace
+                context_line=payload['declarationLine']
+                if payload.get('resolveDefinitions') and payload['declarationSourceId']=='lexicon':
+                    from shared_definition_imports import plan
+                    prepared=plan((corpus/'historic/lexicon.tu.py').read_text(encoding='utf-8'),
+                                  'lexicon',context_line,payload['name'])
+                    if prepared['imports']:
+                        # Inspect the exact saved definition and its final meaning,
+                        # not the owner's old prefix or a passage-local shadow.
+                        context_line=10**9
+                namespace=declaration_namespace(corpus,payload['declarationSourceId'],context_line)
+                result=lexicon_result({**payload,'action':'lexicon_inspect' if payload['action']=='lexicon_tree_inspect' else 'lexicon','line':context_line},
+                    corpus,corpus/'historic'/(payload['declarationSourceId']+'.tu.py'),namespace)
             elif payload.get('action') == 'prepare_lexical_publication':
                 from lexical_publication import prepare_lexical_publication
                 result = prepare_lexical_publication(payload, corpus)

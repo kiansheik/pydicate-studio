@@ -10,7 +10,7 @@ test('compiled React editor uses real hosted corpus, saves a draft and retains a
 }, async (t) => {
     const { chromium } = require('@playwright/test');
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-full-editor-'));
-    const validate = require('../../electron/validation.cjs');
+    const validate = require('../../runtime/validation.cjs');
     const store = await createTestStore(directory, { validateEnvelope: validate.envelope });
     const password = 'isolated full editor fixture password';
     await store.db.prepare("INSERT INTO users VALUES($1,$2,$3,$4,$5,0,$6)").run('fixture', 'fixture@example.org', 'Hosted reviewer', 'reviewer', await hashPassword(password), Date.now());

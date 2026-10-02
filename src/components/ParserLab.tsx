@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -134,8 +135,8 @@ export function ParserLab({
       </nav>
       {!local && (
         <p className="lab-boundary" role="status">
-          Abra o corpus local no aplicativo desktop. O laboratório usa o motor selecionado; não há
-          análise no navegador.
+          Abra o corpus local no servidor colaborativo. O laboratório usa o motor selecionado; não
+          há análise no navegador.
         </p>
       )}
       {statusError && <p role="alert">{statusError}</p>}
@@ -406,6 +407,7 @@ function AnalyseSection({
               observation is shown beside the box instead. Enter during an IME
               composition commits that composition and must not submit. */}
           <textarea
+            {...workspaceAutofill}
             data-testid="lab-input"
             rows={2}
             spellCheck={false}
@@ -698,6 +700,7 @@ function AnalyseSection({
           <label className="lab-code">
             Código da análise
             <textarea
+              {...workspaceAutofill}
               data-testid="lab-code"
               rows={3}
               spellCheck={false}
@@ -861,6 +864,7 @@ function DataSection({
       <label>
         Perfil
         <select
+          {...workspaceAutofill}
           data-testid="lab-profile"
           value={profile}
           onChange={(event) => setProfile(event.target.value)}

@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { CircleHelp, EyeOff, GitBranch, Minus, Users, WandSparkles } from 'lucide-react';
 import type { Studio } from '../useStudio';
 
@@ -120,6 +121,7 @@ export function PhraseEditor({
             <small>A negação envolve a predicação e o modo.</small>
           </span>
           <input
+            {...workspaceAutofill}
             type="checkbox"
             aria-label="Negar a oração inteira"
             checked={analysis.negated}
@@ -133,6 +135,7 @@ export function PhraseEditor({
             <small>O sujeito permanece na análise, sem forma independente.</small>
           </span>
           <input
+            {...workspaceAutofill}
             type="checkbox"
             aria-label="Participante subentendido"
             checked={analysis.hiddenSubject}
@@ -146,6 +149,7 @@ export function PhraseEditor({
             <small>Escolha uma realização explícita para esta construção.</small>
           </span>
           <select
+            {...workspaceAutofill}
             aria-label="Modo da oração"
             value={analysis.mood}
             disabled={disabled}

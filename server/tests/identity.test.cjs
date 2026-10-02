@@ -25,13 +25,24 @@ async function setup(t){
 function reply(flow,overrides={}){const url=new URL(flow.url);return {code:token(),state:url.searchParams.get('state'),iss:'https://neo.example.org',...overrides};}
 async function invite(f){await f.auth.invite(f.admin,{email:'student@example.org',name:'Student'});return /token=([A-Za-z0-9_-]+)/.exec(f.mail.at(-1).body)[1];}
 test('verified Neo invitation links identity with no copied password or elevated role',async t=>{
-  const f=await setup(t),invitation=await invite(f),flow=await f.identity.start({inviteToken:invitation});
-  const result=await f.identity.finish(reply(flow),flow.cookie);const session=await f.auth.session(result.cookie);
+  const returnTo='/?passage=passage%3Atest&view=tree&tab=enosem&node=var%3A1';
+  const f=await setup(t),invitation=await invite(f),flow=await f.identity.start({inviteToken:invitation,returnTo});
+  assert.match(flow.destinationCookie,/; Path=\/; HttpOnly; SameSite=Lax; Max-Age=600; Secure$/);
+  const result=await f.identity.finish(reply(flow,{returnTo:'https://evil.example/'}),flow.cookie+'; '+flow.destinationCookie);const session=await f.auth.session(result.cookie);
+  assert.equal(result.returnTo,returnTo,'Only the destination bound at start survives the callback');
   assert.equal(session.user.authMethod,'academia');assert.equal(session.user.role,'contributor');
   assert.equal((await f.store.user(session.user.id)).password_hash,null);
   assert.equal((await f.store.db.query('SELECT * FROM identity_links')).rows[0].subject,f.claims.sub);
   await assert.rejects(f.identity.finish(reply(flow),flow.cookie),{code:'IDENTITY_STATE'});
   await assert.rejects(f.auth.reset({token:invitation,password:secret}),{code:'INVALID_TOKEN'});
+});
+test('a later SSO attempt cannot inherit a prior attempt destination',async t=>{
+  const f=await setup(t),invitation=await invite(f);
+  const previous=await f.identity.start({inviteToken:invitation,returnTo:'/?passage=previous'});
+  const current=await f.identity.start({inviteToken:invitation,returnTo:'/?passage=current'});
+  const result=await f.identity.finish(reply(current),current.cookie+'; '+previous.destinationCookie);
+  assert.equal(result.returnTo,'/');
+  assert.ok(await f.auth.session(result.cookie));
 });
 test('email match alone does not enroll an uninvited Neo account or take over a local account',async t=>{
   const f=await setup(t);let flow=await f.identity.start();await assert.rejects(f.identity.finish(reply(flow),flow.cookie),{code:'STUDIO_INVITE_REQUIRED'});

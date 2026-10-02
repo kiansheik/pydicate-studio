@@ -34,7 +34,7 @@ test('hosted grammar repair reloads the real engine and keeps its job and saved 
     execFileSync('git', ['-C', repository, 'add', '.']);
     execFileSync('git', ['-C', repository, '-c', 'user.name=Studio Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'Disposable hosted grammar fixture']);
   }
-  const analysisModule = require('../../electron/analysis-service.cjs');
+  const analysisModule = require('../../runtime/analysis-service.cjs');
   const createAnalysis = analysisModule.createAnalysisService;
   let toolResult;
   const runnerPaused = new Promise(resolve => { releaseRunner = resolve; });
@@ -49,7 +49,7 @@ test('hosted grammar repair reloads the real engine and keeps its job and saved 
       return { text: 'Fixture rule updated and checked.' };
     },
   }));
-  store = await createTestStore(stateDirectory, { validateEnvelope: require('../../electron/validation.cjs').envelope });
+  store = await createTestStore(stateDirectory, { validateEnvelope: require('../../runtime/validation.cjs').envelope });
   const { Auth, hashPassword } = require('../auth.cjs');
   const password = 'disposable grammar fixture password';
   await store.db.prepare('INSERT INTO users VALUES($1,$2,$3,$4,$5,0,$6)').run('fixture', 'fixture@example.org', 'Fixture contributor', 'contributor', await hashPassword(password), Date.now());

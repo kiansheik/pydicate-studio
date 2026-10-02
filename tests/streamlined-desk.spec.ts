@@ -26,7 +26,8 @@ test('the overflow menu keeps the hidden entry points reachable and restores the
   await page.getByRole('button', { name: 'Mais ferramentas' }).click();
   const menu = page.getByRole('menu', { name: 'Mais ferramentas' });
   await expect(menu.getByRole('menuitem', { name: 'Aprender' })).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: 'Atividade' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Referência' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Atividade' })).toHaveCount(0);
 
   await menu.getByRole('checkbox', { name: 'Ferramentas avançadas' }).check();
   await expect(page.getByRole('tab', { name: 'Código', exact: true })).toBeVisible();

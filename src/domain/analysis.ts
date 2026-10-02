@@ -62,13 +62,22 @@ export interface AnalysisInput {
   raw?: string;
 }
 export interface AnalysisJob {
+  steering?: {
+    id: string;
+    text: string;
+    status: 'waiting' | 'sending' | 'delivered' | 'not-delivered' | 'unconfirmed';
+    createdAt: string;
+  }[];
   id: string;
   projectId: string;
   passageId: string;
   conversationId: string;
+  parentJobId?: string;
   input: AnalysisInput;
   status: AnalysisStatus;
   phase?: string;
+  attemptStartedAt?: string;
+  deadlineAt?: string;
   createdAt: string;
   updatedAt: string;
   error?: string | { message: string; code?: string };
@@ -87,14 +96,45 @@ export interface AnalysisJob {
     attemptId?: string;
   }[];
   usage?: Record<string, number>;
+  grammarCandidate?: {
+    id: string;
+    engineFingerprint: string;
+    expression: string;
+    surface: string;
+    intendedSurface: string;
+    matches: boolean;
+    evaluationStatus: string;
+    validation: 'pending' | 'verified' | 'review-required';
+  };
+  grammarConfirmation?: { candidateId: string; at: string };
+  grammarTimings?: Record<string, number>;
   grammarVerification?: {
     surface?: string;
     intendedSurface?: string;
     matches?: boolean;
     error?: string;
+    regressionsHealthy?: boolean;
+    parent?: {
+      expression: string;
+      surface?: string;
+      evaluationStatus?: string;
+      regressed?: boolean;
+    };
+    passage?: {
+      expression: string;
+      surface?: string;
+      evaluationStatus?: string;
+      regressed?: boolean;
+    };
     comparison?: ReturnType<typeof import('./grammar-regression').compareGrammarSnapshots>;
   };
-  grammarEdits?: { id: string; path: string; oldText: string; newText: string }[];
+  grammarEdits?: {
+    id: string;
+    path: string;
+    oldText: string;
+    newText: string;
+    rolledBack?: boolean;
+  }[];
 }
 export type AnalysisQuestion =
   | string
@@ -144,6 +184,48 @@ export interface AnalysisConversation {
     at: string;
   }[];
 }
+export interface AnalysisDetail {
+  job: AnalysisJob;
+  conversation: AnalysisConversation;
+  candidates: AnalysisCandidate[];
+}
+
+export function mergeAnalysisDetails(
+  listing: AnalysisListing,
+  details: Map<string, AnalysisDetail>,
+  conversations: Map<string, AnalysisConversation>,
+): AnalysisListing {
+  // The compact list contains only the last 20 events. The following detail
+  // read can already be newer while text streams; retain that complete read.
+  const currentDetails = [...details.values()].filter((detail) =>
+    listing.jobs.some(
+      (job) =>
+        job.id === detail.job.id &&
+        job.projectId === detail.job.projectId &&
+        (detail.job.updatedAt > job.updatedAt ||
+          (detail.job.updatedAt === job.updatedAt &&
+            detail.job.currentAttemptId === job.currentAttemptId)),
+    ),
+  );
+  return {
+    ...listing,
+    jobs: listing.jobs
+      .map((job) => currentDetails.find((item) => item.job.id === job.id)?.job ?? job)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    conversations: listing.conversations.map((conversation) => {
+      const cached = conversations.get(conversation.id);
+      return cached && cached.revision >= conversation.revision
+        ? cached
+        : { ...conversation, turns: cached?.turns ?? conversation.turns };
+    }),
+    candidates: [
+      ...listing.candidates.filter(
+        (candidate) => !currentDetails.some((detail) => detail.job.id === candidate.jobId),
+      ),
+      ...currentDetails.flatMap((item) => item.candidates),
+    ],
+  };
+}
 export function analysisActivity(job: AnalysisJob): string[] {
   const labels: Record<string, string> = {
     studio_guide: 'Guia de análise consultada',
@@ -179,6 +261,8 @@ export function analysisActivity(job: AnalysisJob): string[] {
     ...new Set(
       (job.events ?? []).flatMap((event) => {
         if (event.type !== 'tool-result' || !event.tool || !labels[event.tool]) return [];
+        if (event.tool === 'grammar_edit' && rolledBackGrammarEdit(event.result))
+          return ['Edição da gramática revertida'];
         return [
           failedToolResult(event.result)
             ? (failures[event.tool] ?? `Falha na ferramenta ${event.tool}`)
@@ -189,18 +273,24 @@ export function analysisActivity(job: AnalysisJob): string[] {
   ];
 }
 
+function rolledBackGrammarEdit(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const result = value as Record<string, unknown>;
+  return (
+    result.rolledBack === true ||
+    rolledBackGrammarEdit(result.receipt) ||
+    rolledBackGrammarEdit(result.structuredContent)
+  );
+}
+
 function failedToolResult(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   const result = value as Record<string, unknown>;
   if (result.isError === true || result.error || result.verificationError) return true;
+  if (result.structuredContent != null) return failedToolResult(result.structuredContent);
   // Older Codex app-server results lost MCP's isError flag. Recover only the
   // exact error envelope emitted by our gateway, not arbitrary response prose.
-  if (
-    result.structuredContent != null ||
-    !Array.isArray(result.content) ||
-    result.content.length !== 1
-  )
-    return false;
+  if (!Array.isArray(result.content) || result.content.length !== 1) return false;
   const item = result.content[0];
   if (item?.type !== 'text' || typeof item.text !== 'string') return false;
   try {
@@ -358,8 +448,16 @@ export function canAcceptCandidate(
   );
 }
 export function analysisProgress(job: AnalysisJob): string {
+  if (job.phase === 'grammar-draining')
+    return 'Limite atingido; encerrando e verificando trabalho salvo…';
   if (job.status !== 'running') return analysisLabels[job.status];
   const phase = job.phase ?? '';
+  if (phase === 'grammar-reload') return 'Recarregando a gramática…';
+  if (phase === 'grammar-target') return 'Avaliando somente o alvo…';
+  if (/^grammar-(context-check|parent|passage)$/.test(phase))
+    return 'Verificando a árvore de contexto…';
+  if (phase === 'grammar-corpus') return 'Forma avaliada; verificando outras passagens…';
+  if (phase === 'grammar-checked') return 'Verificação concluída; finalizando a resposta…';
   if (phase === 'provider-tools-check') return 'Verificando as ferramentas do Studio…';
   if (/dictionary|lexicon/.test(phase)) return 'Consultando o dicionário…';
   if (/search|construction|reuse/.test(phase)) return 'Buscando construções…';
@@ -367,4 +465,37 @@ export function analysisProgress(job: AnalysisJob): string {
   if (/compare/.test(phase)) return 'Comparando as formas…';
   if (/context|input/.test(phase)) return 'Preparando a fonte…';
   return analysisLabels[job.status];
+}
+
+/** Small display projection; full tool bodies stay in durable history. */
+export function analysisTechnicalLog(job: AnalysisJob): string {
+  return JSON.stringify(
+    (job.events ?? []).slice(-40).map((event) => ({
+      type: event.type,
+      phase: event.phase,
+      tool: event.tool,
+      at: event.at,
+      ...(event.text ? { text: event.text.slice(0, 500) } : {}),
+      ...(event.result !== undefined
+        ? { result: 'Resultado completo preservado no histórico do servidor.' }
+        : {}),
+    })),
+    null,
+    2,
+  );
+}
+export function analysisLiveness(job: AnalysisJob, time = Date.now()): string {
+  const started = Date.parse(job.attemptStartedAt ?? job.createdAt);
+  if (!Number.isFinite(started)) return '';
+  const elapsed = Math.max(0, Math.floor((time - started) / 60000));
+  const last = Date.parse(job.events?.at(-1)?.at ?? job.attemptStartedAt ?? job.createdAt);
+  const quiet = Number.isFinite(last) ? Math.max(0, Math.floor((time - last) / 60000)) : 0;
+  const deadline = Date.parse(job.deadlineAt ?? '');
+  return (
+    `${elapsed} min nesta tentativa` +
+    (quiet >= 2 ? ` · Sem novo evento há ${quiet} min.` : '') +
+    (Number.isFinite(deadline) && time >= deadline
+      ? ' Limite atingido; aguardando encerramento e verificação segura. Você pode cancelar; retomar exige uma ação explícita.'
+      : '')
+  );
 }

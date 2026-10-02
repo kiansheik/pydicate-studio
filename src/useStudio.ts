@@ -11,13 +11,7 @@ import {
   updateDraft,
   writeBrowserDrafts,
 } from './domain/model';
-import type {
-  Draft,
-  DraftEnvelope,
-  InstallationStatus,
-  RenderResult,
-  StudioProject,
-} from './domain/types';
+import type { Draft, DraftEnvelope, RenderResult, StudioProject } from './domain/types';
 import { flushEdits, setUsageContext, track, trackEdit } from './domain/usage';
 import { registerStructureContext, structureDrafts } from './domain/structure-drafts';
 import { editCanvas, emptyCanvas } from './domain/canvas';
@@ -30,6 +24,8 @@ import {
 import { registerProjectRecovery } from './domain/project-recovery';
 import { approvalState, type ReferenceStatus } from './domain/ground-truth';
 import { emptySourcePassage, projectSources } from './domain/sources';
+import { latestSourcePassage } from './domain/passage-navigation';
+import { matchesPublicationBaseline } from './domain/draft-publication';
 
 export interface SourceApplyOutcome {
   sourceApplied: boolean;
@@ -40,13 +36,10 @@ export interface SourceApplyOutcome {
 }
 
 export function useStudio() {
-  const [installation, setInstallation] = useState<InstallationStatus | null>(null);
-  const [starting, setStarting] = useState(!!window.studio?.installationStatus);
-  const [setupRequired, setSetupRequired] = useState(false);
-  const [setupProgress, setSetupProgress] = useState<
-    InstallationStatus['workspace']['progress'] | null
-  >(null);
+  const [starting, setStarting] = useState(!!window.studio?.invoke);
+  const [sessionReady, setSessionReady] = useState(!window.studio?.invoke);
   const [sourceProject, setProject] = useState(createExampleProject);
+  const sourceProjectRef = useRef(sourceProject);
   const [selectedId, setSelectedId] = useState(
     () => sourceProject.passages.find((p) => p.analysis)?.id ?? sourceProject.passages[0].id,
   );
@@ -67,6 +60,7 @@ export function useStudio() {
   const redoHistory = useRef<Record<string, Draft[]>>({});
   const booted = useRef(false);
   const restoredSelection = useRef<string | undefined>(undefined);
+  const startAtLatest = useRef(false);
   const [result, setResult] = useState<RenderResult | null>(null);
   const [renderError, setRenderError] = useState('');
   const [pending, setPending] = useState(false);
@@ -201,7 +195,7 @@ export function useStudio() {
 
   function replaceEnvelope(next: DraftEnvelope) {
     latest.current.envelope = next;
-    latest.current.project = projectWithPending(latest.current.project, next);
+    latest.current.project = projectWithPending(sourceProjectRef.current, next);
     setEnvelope(next);
   }
 
@@ -226,12 +220,15 @@ export function useStudio() {
           drafts,
           storageRevision: saved?.storageRevision ?? 0,
         });
-        const requested = restoredSelection.current;
+        const requested = startAtLatest.current
+          ? latestSourcePassage(latest.current.project.passages, restoredSelection.current)?.id
+          : restoredSelection.current;
         if (requested && latest.current.project.passages.some((item) => item.id === requested)) {
           latest.current.selectedId = requested;
           setSelectedId(requested);
         }
         restoredSelection.current = undefined;
+        startAtLatest.current = false;
         setReady(true);
         setSaveState(saved ? 'Rascunhos recuperados' : 'Pronto para contribuir');
       })
@@ -270,7 +267,7 @@ export function useStudio() {
     if (!ready) return;
     let cancelled = false;
     setSaveState('Salvando…');
-    // Queue each edit immediately; desktop writes are serialized and atomic.
+    // Queue each edit immediately; server writes retain version guards.
     persist()
       .then(() => {
         if (cancelled) return;
@@ -378,7 +375,7 @@ export function useStudio() {
         } else {
           setResult(null);
           setRenderError(
-            'A edição geral exige o projeto local no aplicativo desktop. Seu código continua salvo.',
+            'A edição geral exige o corpus aberto no servidor. Seu código continua salvo.',
           );
         }
       } catch (reason) {
@@ -409,11 +406,11 @@ export function useStudio() {
       project: StudioProject | null;
       selectedPassageId?: string;
       error?: string;
-      setupRequired?: boolean;
     }>('session_restore')
       .then((saved) => {
         if (saved.project) {
           restoredSelection.current = saved.selectedPassageId;
+          startAtLatest.current = true;
           changeProject(saved.project);
           if (
             saved.selectedPassageId &&
@@ -422,36 +419,12 @@ export function useStudio() {
             setSelectedId(saved.selectedPassageId);
         }
         if (saved.error) setError(saved.error);
-        setSetupRequired(saved.setupRequired === true);
       })
       .catch((reason) => setError(String(reason.message ?? reason)))
       .finally(() => {
         setStarting(false);
-        void window.studio
-          ?.installationStatus?.()
-          .then(setInstallation)
-          .catch(() => {});
+        setSessionReady(true);
       });
-  }, []);
-
-  useEffect(() => {
-    if (!window.studio?.installationStatus) return;
-    // Subscribe before fetching the snapshot so startup progress is visible even
-    // while the session_restore request waits for an installer to finish.
-    const unsubscribe = window.studio.onEvent?.((event) => {
-      if (event.type === 'application-update')
-        setInstallation((value) => (value ? { ...value, update: event } : value));
-      if (event.type === 'managed-project') setSetupProgress(event);
-      if (event.type === 'installation-warnings')
-        setInstallation((value) => (value ? { ...value, warnings: event.warnings } : value));
-    });
-    void window.studio
-      .installationStatus()
-      .then(setInstallation)
-      .catch((reason) => {
-        setError(String(reason.message ?? reason));
-      });
-    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -696,7 +669,10 @@ export function useStudio() {
   async function applySource(
     preview: SourcePreview,
     reviewed?: RenderResult,
+    options?: { reviewedAnnotationChanges?: boolean },
   ): Promise<SourceApplyOutcome> {
+    if (preview.annotationChanges?.length && options?.reviewedAnnotationChanges !== true)
+      throw new Error('Confira e confirme as alterações de análise morfológica antes de aplicar.');
     if (operation.current)
       throw new Error(
         'Aguarde a atualização ou operação atual antes de aplicar a edição revisada.',
@@ -756,6 +732,9 @@ export function useStudio() {
           : await invoke<StudioProject>('source_apply', {
               previewId: preview.previewId,
               sourceFingerprint: preview.sourceFingerprint,
+              ...(preview.annotationChanges?.length
+                ? { reviewedAnnotationChanges: options?.reviewedAnnotationChanges === true }
+                : {}),
             });
       outcome.sourceApplied = hasChanges;
       const current = latest.current;
@@ -765,7 +744,19 @@ export function useStudio() {
         : targetId
           ? current.envelope.drafts[targetId]
           : null;
-      if (savedPassage && previousDraft) {
+      if (next.draftPublication?.projectId === next.id) {
+        const drafts = { ...current.envelope.drafts };
+        for (const change of next.draftPublication.changes) {
+          if (change.draft === null) delete drafts[change.id];
+          else drafts[change.id] = change.draft;
+        }
+        storageRevisions.current[next.id] = next.draftPublication.storageRevision;
+        replaceEnvelope({
+          ...current.envelope,
+          drafts,
+          storageRevision: next.draftPublication.storageRevision,
+        });
+      } else if (savedPassage && previousDraft) {
         const drafts = { ...current.envelope.drafts };
         if (preview.pendingDraftId) {
           delete drafts[preview.pendingDraftId];
@@ -774,6 +765,12 @@ export function useStudio() {
             (p) => p.sourceId === savedPassage.sourceId,
           );
           for (const [index, item] of ordered.entries()) {
+            const id = item.id === preview.pendingDraftId ? savedPassage.id : item.id;
+            if (id !== savedPassage.id && drafts[id])
+              drafts[id] = {
+                ...drafts[id],
+                organization: { sourceId: savedPassage.sourceId, position: index, deleted: false },
+              };
             const pending = drafts[item.id]?.pending;
             if (!pending) continue;
             const nextId = ordered[index + 1]?.id;
@@ -796,6 +793,17 @@ export function useStudio() {
           passageId: savedPassage.id,
           sourceFingerprint: savedPassage.sourceFingerprint,
           raw: savedPassage.sourceExpression,
+          ...(preview.pendingDraftId
+            ? {
+                organization: {
+                  sourceId: savedPassage.sourceId,
+                  position: current.project.passages
+                    .filter((p) => p.sourceId === savedPassage.sourceId)
+                    .findIndex((p) => p.id === preview.pendingDraftId),
+                  deleted: false,
+                },
+              }
+            : {}),
         };
         delete drafts[savedPassage.id].pending;
         replaceEnvelope({ ...current.envelope, drafts });
@@ -924,6 +932,52 @@ export function useStudio() {
     setVerification(
       'Rascunho associado à versão exibida. A fonte permanece disponível e só muda após revisar e aplicar a diferença.',
     );
+  }
+
+  async function publishReviewedSubmission(token: string) {
+    if (!window.studio?.publishSubmission || operation.current || !latest.current.ready)
+      throw new Error('Aguarde o salvamento antes de incorporar.');
+    operation.current = true;
+    setBusy(true);
+    try {
+      await persist();
+      const response = await window.studio.publishSubmission(token);
+      storageRevisions.current[response.envelope.projectId] =
+        response.envelope.storageRevision ?? 0;
+      replaceEnvelope(response.envelope);
+      changeProject(response.project);
+      history.current = {};
+      redoHistory.current = {};
+      return response;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function managePassages(
+    input: Parameters<NonNullable<import('./domain/types').StudioBridge['managePassages']>>[0],
+  ) {
+    if (!window.studio?.managePassages || operation.current || !latest.current.ready) return;
+    operation.current = true;
+    setBusy(true);
+    try {
+      await persist();
+      const result = await window.studio.managePassages(input);
+      storageRevisions.current[result.envelope.projectId] = result.envelope.storageRevision ?? 0;
+      replaceEnvelope(result.envelope);
+      latest.current.selectedId = result.selectedId;
+      setSelectedId(result.selectedId);
+      history.current = {};
+      redoHistory.current = {};
+      setParsed(null);
+      setResult(null);
+      setVerification('Lista de passagens atualizada.');
+      return result.selectedId;
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
   }
 
   function createPendingDraft(position?: 'before' | 'after', requestedSourceId?: string) {
@@ -1077,6 +1131,47 @@ export function useStudio() {
   }
 
   function changeProject(next: StudioProject) {
+    const publication = next.draftPublication;
+    if (publication?.receiptId && publication.projectId === latest.current.envelope.projectId) {
+      const drafts = { ...latest.current.envelope.drafts };
+      const clean = publication.changes.filter((change) =>
+        matchesPublicationBaseline(drafts[change.id], change),
+      );
+      if (
+        publication.changes.some(
+          (change) =>
+            change.draft === null &&
+            change.id.startsWith('pending:') &&
+            drafts[change.id] &&
+            !clean.includes(change),
+        )
+      )
+        throw new Error(
+          'A passagem foi publicada enquanto você editava. Seu rascunho local foi preservado; compare-o antes de recarregar.',
+        );
+      const acknowledged = window.studio?.acknowledgeDraftPublication?.(
+        publication.receiptId,
+        clean.map((change) => change.id),
+      );
+      for (const change of clean) {
+        if (acknowledged && !acknowledged.includes(change.id)) continue;
+        if (change.draft === null) delete drafts[change.id];
+        else drafts[change.id] = change.draft;
+      }
+      storageRevisions.current[next.id] = publication.storageRevision;
+      replaceEnvelope({
+        ...latest.current.envelope,
+        drafts,
+        storageRevision: publication.storageRevision,
+      });
+    }
+    // Receipts are one-shot transport acknowledgements, never project state.
+    // A later no-diff review may reuse this project without a new source_apply.
+    if (next.draftPublication) {
+      next = { ...next };
+      delete next.draftPublication;
+    }
+    sourceProjectRef.current = next;
     const sameProject = next.id === latest.current.project.id;
     if (sameProject && latest.current.ready) {
       const drafts = { ...latest.current.envelope.drafts };
@@ -1088,9 +1183,12 @@ export function useStudio() {
       if (sameProject) setLoadAttempt((attempt) => attempt + 1);
     }
     const projected = projectWithPending(next, latest.current.envelope);
+    const canonicalSelected = latest.current.selectedId.replace(/^pending:/, 'passage:');
     const selected = projected.passages.some((p) => p.id === latest.current.selectedId)
       ? latest.current.selectedId
-      : (projected.passages.find((p) => p.analysis)?.id ?? projected.passages[0]?.id ?? '');
+      : projected.passages.some((p) => p.id === canonicalSelected)
+        ? canonicalSelected
+        : (projected.passages.find((p) => p.analysis)?.id ?? projected.passages[0]?.id ?? '');
     latest.current.project = projected;
     latest.current.selectedId = selected;
     setProject(next);
@@ -1117,30 +1215,6 @@ export function useStudio() {
     } finally {
       operation.current = false;
       setBusy(false);
-    }
-  }
-
-  async function setupProject() {
-    if (!window.studio?.setupProject || operation.current) return false;
-    operation.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      await persist();
-      const next = await window.studio.setupProject();
-      changeProject(next);
-      setSetupRequired(false);
-      return true;
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return false;
-    } finally {
-      operation.current = false;
-      setBusy(false);
-      void window.studio
-        ?.installationStatus?.()
-        .then(setInstallation)
-        .catch(() => {});
     }
   }
 
@@ -1266,7 +1340,7 @@ export function useStudio() {
     }
   }
 
-  function selectPassage(id: string) {
+  function selectPassage(id: string, options?: { restoreLocation?: boolean }) {
     if (
       (operation.current && !automaticRefresh.current) ||
       !latest.current.project.passages.some((p) => p.id === id)
@@ -1277,7 +1351,7 @@ export function useStudio() {
     const previous = current.project.passages.find((p) => p.id === current.selectedId);
     const next = current.project.passages.find((p) => p.id === id)!;
     const nextDraft = current.envelope.drafts[id];
-    if (current.project.mode === 'local' && previous && nextDraft) {
+    if (!options?.restoreLocation && current.project.mode === 'local' && previous && nextDraft) {
       const prefilled = prefillEmptyNextPassage(
         previous,
         next,
@@ -1417,14 +1491,19 @@ export function useStudio() {
   const orphanDrafts =
     envelope.projectId === project.id
       ? Object.values(envelope.drafts).filter(
-          (item) => !item.passageId.startsWith('pending:') && !passageIds.has(item.passageId),
+          (item) =>
+            !item.organization?.deleted &&
+            !item.passageId.startsWith('pending:') &&
+            !passageIds.has(item.passageId),
         )
       : [];
   return {
     project,
+    sourcePassages: sourceProject.passages,
     passage,
     draft,
     ready: editable,
+    navigationReady: editable && sessionReady,
     selectedId,
     setSelectedId: selectPassage,
     edit,
@@ -1447,10 +1526,15 @@ export function useStudio() {
     reconcileDraft,
     refresh,
     createPendingDraft,
+    managePassages,
+    publishReviewedSubmission,
     createSource,
     editPendingDraft,
-    pendingDrafts: Object.values(envelope.drafts).filter((item) =>
-      item.passageId.startsWith('pending:'),
+    pendingDrafts: Object.values(envelope.drafts).filter(
+      (item) =>
+        !item.organization?.deleted &&
+        item.passageId.startsWith('pending:') &&
+        passageIds.has(item.passageId),
     ),
     renderError,
     pending,
@@ -1460,11 +1544,7 @@ export function useStudio() {
     verify,
     approveGroundTruth,
     openProject,
-    setupProject,
     starting,
-    installation,
-    setupProgress,
-    setupRequired,
     openExample,
     persist,
     acceptCandidate,

@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStudio, type Studio } from '../src/useStudio';
 import { createExampleProject } from '../src/domain/example';
 import type { DraftEnvelope, StudioProject } from '../src/domain/types';
@@ -22,7 +22,7 @@ interface Request {
 }
 interface Pending extends Request {
   resolve: () => void;
-  reject: (message: string) => void;
+  reject: (message: string, code?: string) => void;
 }
 interface NextControl {
   project: StudioProject;
@@ -34,7 +34,7 @@ interface NextControl {
   saved: Record<string, DraftEnvelope>;
   makeProject: typeof makeProject;
   release: (method: string, raw?: string) => void;
-  reject: (method: string, message: string) => void;
+  reject: (method: string, message: string, code?: string) => void;
   emit: (event: unknown) => void;
   preview?: SourcePreview;
   publicationPreview?: Partial<SourcePreview>;
@@ -45,6 +45,11 @@ interface NextControl {
 }
 declare global {
   interface Window {
+    __nextInitial?: {
+      raw?: string;
+      trees?: Record<string, AuthorNode | null>;
+      responses?: Record<string, unknown>;
+    };
     __nextStudio: Studio;
     __nextControl: NextControl;
     __nextInvoke: typeof invoke;
@@ -53,7 +58,11 @@ declare global {
 
 function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
   const fixture = createExampleProject();
-  const sourceId = new URLSearchParams(location.search).get('source') ?? 'araujo_catecismo_1686';
+  const search = new URLSearchParams(location.search);
+  // Source-switching URLs must not move the fixture's existing corpus rows.
+  const sourceId = search.has('sources')
+    ? 'araujo_catecismo_1686'
+    : (search.get('source') ?? 'araujo_catecismo_1686');
   return {
     ...fixture,
     id,
@@ -80,7 +89,7 @@ function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
   };
 }
 const listeners = new Set<(event: unknown) => void>();
-const project = makeProject();
+const project = makeProject('simulated:a', window.__nextInitial?.raw ?? 'alpha');
 if (new URLSearchParams(location.search).has('empty-next')) {
   project.passages[1].sourceExpression = '';
   project.passages[1].witness = {
@@ -112,8 +121,8 @@ const control: NextControl = {
   pending: [],
   holds: [],
   saved: {},
-  responses: {},
-  trees: {},
+  responses: window.__nextInitial?.responses ?? {},
+  trees: window.__nextInitial?.trees ?? {},
   evidence: {},
   setAnalysis(value) {
     analysisFixture = structuredClone(value);
@@ -128,10 +137,10 @@ const control: NextControl = {
     if (index < 0) throw new Error(`No pending simulated ${method} ${raw || ''}`);
     control.pending.splice(index, 1)[0].resolve();
   },
-  reject(method, message) {
+  reject(method, message, code) {
     const index = control.pending.findIndex((request) => request.method === method);
     if (index < 0) throw new Error(`No pending simulated ${method}`);
-    control.pending.splice(index, 1)[0].reject(message);
+    control.pending.splice(index, 1)[0].reject(message, code);
   },
   emit(event) {
     for (const listener of listeners) listener(event);
@@ -255,6 +264,32 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       candidates: analysisFixture.candidates.filter((item) => item.jobId === job.id),
       conversation: analysisFixture.conversations.find((item) => item.id === job.conversationId),
     };
+  }
+  if (method === 'analysis_confirm_grammar') {
+    const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
+    if (job.grammarCandidate?.id !== params.candidateId) throw new Error('SIMULATED stale result');
+    job.grammarConfirmation = {
+      candidateId: String(params.candidateId),
+      at: new Date().toISOString(),
+    };
+    job.updatedAt = new Date().toISOString();
+    saveAnalysisFixture();
+    control.emit({ type: 'analysis', projectId: project.id });
+    return structuredClone(job);
+  }
+  if (method === 'analysis_steer') {
+    const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
+    if (job.status !== 'running') throw new Error('SIMULATED correction finished');
+    (job.steering ??= []).push({
+      id: String(params.operationId),
+      text: String(params.description),
+      status: 'delivered',
+      createdAt: new Date().toISOString(),
+    });
+    job.updatedAt = new Date().toISOString();
+    saveAnalysisFixture();
+    control.emit({ type: 'analysis', projectId: project.id });
+    return structuredClone(job);
   }
   if (method === 'analysis_accept') {
     const envelope = structuredClone(control.saved[String(params.projectId)]);
@@ -431,6 +466,7 @@ function answer(method: string, params: Record<string, unknown>): unknown {
   if (method === 'analysis_cancel' || method === 'analysis_retry' || method === 'analysis_resume') {
     const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
     job.status = method === 'analysis_cancel' ? 'cancelled' : 'queued';
+    job.updatedAt = new Date().toISOString();
     saveAnalysisFixture();
     return structuredClone(job);
   }
@@ -486,6 +522,33 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       morphemes: [],
       origin: 'engine',
     };
+  if (method === 'lexicon_tree_evaluate') {
+    const raw = String(params.raw);
+    const tree: AuthorNode = structuredClone(control.trees[raw]) ?? {
+      id: 'root',
+      kind: 'reference',
+      label: raw,
+      code: raw,
+      start: 0,
+      end: raw.length,
+      children: [],
+    };
+    tree.evaluation = { status: 'ok', surface: `SIMULADO:${raw}` };
+    return {
+      expression: raw,
+      revisionId: params.revisionId,
+      engineFingerprint: params.engineFingerprint,
+      tree,
+      authoring: { raw, revisionId: params.revisionId, root: tree },
+      treeEdit: (control.responses.lexicon_inspect as { treeEdit?: unknown })?.treeEdit,
+      surface: `SIMULADO:${raw}`,
+      annotated: `SIMULADO:${raw}`,
+      morphemes: [],
+      failures: [],
+      evaluationStatus: 'complete',
+      origin: 'engine',
+    };
+  }
   if (publicationMode && (method === 'source_preview' || method === 'source_new_preview')) {
     const passage = control.project.passages.find((item) => item.id === params.passageId);
     const metadata = (params.metadata ?? {}) as Record<string, unknown>;
@@ -710,7 +773,7 @@ async function bridgeRequest(method: string, params: Record<string, unknown> = {
       control.pending.push({
         ...request,
         resolve: () => resolve(structuredClone(answer(method, params))),
-        reject: (message) => reject(new Error(message)),
+        reject: (message, code) => reject(Object.assign(new Error(message), code ? { code } : {})),
       }),
     );
   }
@@ -748,8 +811,62 @@ window.studio = {
   },
 };
 
+if (Object.hasOwn(control.responses, 'submissions_list')) {
+  window.studio.listSubmissions = async () =>
+    structuredClone(
+      control.responses.submissions_list,
+    ) as import('../src/domain/submissions').SubmissionSummary[];
+}
+
+if (new URLSearchParams(location.search).has('passage-admin')) {
+  project.passages[0].acceptedReference = 'Referência antiga';
+  window.studio.capabilities = { passageManagement: true };
+  window.studio.managePassages = async ({ sourceId, orderedIds, action, passageId }) => {
+    const envelope = structuredClone(control.saved[project.id]);
+    const order = [...orderedIds];
+    let selectedId = passageId;
+    if (action === 'duplicate') {
+      selectedId = 'pending:' + crypto.randomUUID();
+      const copy = {
+        ...envelope.drafts[passageId],
+        passageId: selectedId,
+        sourceFingerprint: 'pending',
+        pending: { sourceId, ordinal: 1 },
+      };
+      delete copy.workflow;
+      delete copy.aiAcceptances;
+      envelope.drafts[selectedId] = copy;
+      order.splice(order.indexOf(passageId) + 1, 0, selectedId);
+    }
+    if (action === 'delete') {
+      const position = order.indexOf(passageId);
+      envelope.drafts[passageId].organization = { sourceId, position, deleted: true };
+      order.splice(position, 1);
+      selectedId = order[0];
+    }
+    if (action === 'restore')
+      order.splice(envelope.drafts[passageId].organization!.position, 0, passageId);
+    order.forEach((id, position) => {
+      envelope.drafts[id].organization = { sourceId, position, deleted: false };
+    });
+    control.saved[project.id] = envelope;
+    localStorage.setItem(`simulated-next:${project.id}`, JSON.stringify(envelope));
+    return { envelope, selectedId };
+  };
+}
+
+// Most race contracts operate on passage A. Startup ordering has dedicated cases
+// using ?startup; other fixtures explicitly select their intended initial passage.
+const fixtureSelection = localStorage.getItem('simulated-selection:simulated:a') ?? 'passage-a';
 function Harness() {
   const studio = useStudio();
+  const selectedFixture = useRef(false);
+  useEffect(() => {
+    if (!studio.navigationReady || selectedFixture.current) return;
+    selectedFixture.current = true;
+    if (!new URLSearchParams(location.search).has('startup'))
+      studio.setSelectedId(fixtureSelection);
+  }, [studio.navigationReady]);
   const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);
   window.__nextStudio = studio;
   return (
@@ -818,6 +935,11 @@ function Harness() {
   );
 }
 if (new URLSearchParams(location.search).has('workspace')) {
+  const fixtureUrl = new URL(location.href);
+  if (!fixtureUrl.searchParams.has('passage') && !fixtureUrl.searchParams.has('startup')) {
+    fixtureUrl.searchParams.set('passage', fixtureSelection);
+    history.replaceState(null, '', fixtureUrl);
+  }
   void (async () => {
     for (const href of ['/src/styles.css', '/src/authoring.css', '/src/theme.css']) {
       const style = document.createElement('link');

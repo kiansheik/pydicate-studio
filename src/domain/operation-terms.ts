@@ -255,6 +255,13 @@ export function operationTerm(input: OperationTermInput): OperationTerm {
   }
   if (kind === 'call') {
     const name = method ?? label?.replace(/\(.*$/, '') ?? '';
+    if (name === 'v')
+      return {
+        label: 'Verbo de 2ª classe (estativo)',
+        description:
+          'Converte a base em verbo de 2ª classe. O motor usa o nome diretamente ou obtém a base nominal da construção; confira a forma na prévia.',
+        syntax: 'v(…)',
+      };
     if (name === 'studio_define')
       return {
         label: 'Significado do conjunto',
@@ -278,6 +285,7 @@ export function operationTerm(input: OperationTermInput): OperationTerm {
 
 /** Stable authoring-menu keys are separate from contributor-facing wording. */
 export function treeOperationTerm(operation: string): OperationTerm {
+  if (operation === 'v') return operationTerm({ kind: 'call', method: 'v' });
   if (operation === 'negate' || operation === 'hidden')
     return operationTerm({ kind: 'unary', operator: operation === 'negate' ? '-' : '+' });
   return operation in binary

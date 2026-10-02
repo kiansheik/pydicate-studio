@@ -16,6 +16,7 @@ export function structureDrafts(project: StudioProject, envelope: DraftEnvelope)
   if (project.id !== envelope.projectId || project.mode !== 'local') return [];
   const passages = new Map(project.passages.map((passage) => [passage.id, passage]));
   return Object.values(envelope.drafts).flatMap((draft) => {
+    if (draft.organization?.deleted) return [];
     const passage = passages.get(draft.passageId);
     if (passage && draftConflicts(draft, passage)) return [];
     // Legacy pending envelopes predate explicit source metadata; Araújo was their only source.

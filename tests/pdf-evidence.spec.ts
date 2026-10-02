@@ -6,16 +6,16 @@ import { createRequire } from 'node:module';
 import type { EvidenceStatus } from '../src/domain/evidence';
 
 const require = createRequire(import.meta.url);
-const { createEvidenceService } = require('../electron/evidence-service.cjs') as {
+const { createEvidenceService } = require('../runtime/evidence-service.cjs') as {
   createEvidenceService: (options: {
     stateDirectory: string;
     chooseFile: () => Promise<string>;
   }) => { invoke(method: string, params: Record<string, unknown>): Promise<unknown> };
 };
-const { makePdfFixture } = require('../electron/tests/pdf-fixture.cjs') as {
+const { makePdfFixture } = require('../runtime/tests/pdf-fixture.cjs') as {
   makePdfFixture: (options?: { paddingBytes?: number }) => Buffer;
 };
-const { makeScanPdfFixture } = require('../electron/tests/pdf-scan-fixture.cjs') as {
+const { makeScanPdfFixture } = require('../runtime/tests/pdf-scan-fixture.cjs') as {
   makeScanPdfFixture: () => Buffer;
 };
 const params = { projectId: 'project:pdf-test', sourceId: 'araujo', passageId: 'passage:a' };
@@ -39,6 +39,22 @@ async function draw(page: Page, start: [number, number], end: [number, number]) 
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * end[0], box.y + box.height * end[1], { steps: 8 });
   await page.mouse.up();
+}
+
+async function moveRegion(page: Page, dx: number, dy: number, resize = false) {
+  const region = page.getByTestId('pdf-region');
+  await region.scrollIntoViewIfNeeded();
+  const target = resize
+    ? region.locator('[data-handle="se"]')
+    : region.locator(':scope > rect').first();
+  const box = (await target.boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx, y + dy, { steps: 4 });
+  await page.mouse.up();
+  return (await region.getAttribute('data-pdf-rect'))!.split(',').map(Number);
 }
 
 async function guideFixture(
@@ -88,6 +104,211 @@ async function guideFixture(
   });
   return { fixture, assetId: attached?.asset?.id ?? '', revision: attached?.revision ?? 0 };
 }
+
+test('region autosave waits until a drawing gesture has finished', async ({ page }) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-region-autosave-gesture-'));
+  try {
+    const writes: Record<string, unknown>[] = [];
+    const { fixture } = await guideFixture(page, directory, (method, input) => {
+      if (method === 'evidence_save') writes.push(input);
+    });
+    await page.goto('/tests/pdf-harness.html');
+    await ready(page);
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Marcar região', exact: true }).click();
+    await page.getByTestId('pdf-canvas').scrollIntoViewIfNeeded();
+    const box = (await page.getByTestId('pdf-canvas').boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.35, { steps: 4 });
+    // Longer than the debounce: a partially drawn rectangle must never be saved.
+    await page.waitForTimeout(650);
+    expect(writes).toEqual([]);
+    await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.4, { steps: 4 });
+    await page.mouse.up();
+    const rect = (await page.getByTestId('pdf-region').getAttribute('data-pdf-rect'))!
+      .split(',')
+      .map(Number);
+    await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
+    expect(writes).toHaveLength(1);
+    const saved = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(saved.passage!.regions[0].rect).toEqual(rect);
+    expect(writes[0].expectedPassageFingerprint).toBeTruthy();
+  } finally {
+    await page.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('region autosave coalesces edits behind an inflight save without restoring its old rectangle', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-region-autosave-coalesce-'));
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  const firstGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const secondGate = new Promise<void>((resolve) => {
+    releaseSecond = resolve;
+  });
+  try {
+    const writes: Record<string, unknown>[] = [];
+    const { fixture } = await guideFixture(page, directory, async (method, input) => {
+      if (method !== 'evidence_save') return;
+      writes.push(input);
+      if (writes.length === 1) await firstGate;
+      if (writes.length === 2) await secondGate;
+    });
+    await page.goto('/tests/pdf-harness.html');
+    await draw(page, [0.2, 0.2], [0.5, 0.4]);
+    await expect.poll(() => writes.length).toBe(1);
+    await moveRegion(page, 12, 8);
+    await moveRegion(page, 8, 5);
+    const latest = await moveRegion(page, 15, 10, true);
+    expect((writes[0].regions as { rect: number[] }[])[0].rect).not.toEqual(latest);
+    releaseFirst();
+    await expect.poll(() => writes.length).toBe(2);
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', latest.join(','));
+    expect((writes[1].regions as { rect: number[] }[])[0].rect).toEqual(latest);
+    releaseSecond();
+    await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
+    await page.waitForTimeout(650);
+    expect(writes).toHaveLength(2);
+    const saved = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(saved.passage!.regions[0].rect).toEqual(latest);
+    await page.reload();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', latest.join(','));
+  } finally {
+    releaseFirst();
+    releaseSecond();
+    await page.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+for (const stage of ['dirty', 'inflight']) {
+  test(`switching passage with ${stage} regions saves the original and ignores its late response`, async ({
+    page,
+  }) => {
+    const directory = await mkdtemp(join(tmpdir(), `studio-region-autosave-switch-${stage}-`));
+    let releaseA!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    try {
+      const writes: Record<string, unknown>[] = [];
+      const { fixture } = await guideFixture(page, directory, async (method, input) => {
+        if (method !== 'evidence_save') return;
+        writes.push(input);
+        if (input.passageId === 'passage:a') await gate;
+      });
+      const initialA = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+      const initialB = (await fixture.service.invoke('evidence_status', {
+        ...params,
+        passageId: 'passage:b',
+      })) as EvidenceStatus;
+      await page.goto('/tests/pdf-harness.html');
+      await ready(page);
+      if (stage === 'dirty') {
+        await page.clock.install();
+        await page.clock.pauseAt(new Date(Date.now() + 100));
+      }
+      await draw(page, [0.2, 0.2], [0.45, 0.35]);
+      const rectA = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+      if (stage === 'inflight') await expect.poll(() => writes.length).toBe(1);
+      else expect(writes).toEqual([]);
+      await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+      if (stage === 'dirty') await page.clock.resume();
+      await expect.poll(() => writes.length).toBe(1);
+      expect(writes[0].passageId).toBe('passage:a');
+      await ready(page);
+      await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+      await draw(page, [0.4, 0.5], [0.65, 0.65]);
+      const rectB = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+      await expect(
+        page.getByText('Evidência salva no computador.', { exact: false }),
+      ).toBeVisible();
+      expect(writes.map((write) => write.passageId)).toEqual(['passage:a', 'passage:b']);
+      expect(writes[0].expectedPassageFingerprint).toBe(initialA.passageFingerprint);
+      expect(writes[1].expectedPassageFingerprint).toBe(initialB.passageFingerprint);
+      expect(writes.every((write) => typeof write.expectedPassageFingerprint === 'string')).toBe(
+        true,
+      );
+      const savedB = (await fixture.service.invoke('evidence_status', {
+        ...params,
+        passageId: 'passage:b',
+      })) as EvidenceStatus;
+      expect(savedB.passage!.regions[0].rect.join(',')).toBe(rectB);
+      releaseA();
+      await expect
+        .poll(async () =>
+          (
+            (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus
+          ).passage?.regions[0]?.rect.join(','),
+        )
+        .toBe(rectA);
+      await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', rectB!);
+      const afterA = (await fixture.service.invoke('evidence_status', {
+        ...params,
+        passageId: 'passage:b',
+      })) as EvidenceStatus;
+      expect(afterA.passage).toEqual(savedB.passage);
+      await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
+      await ready(page);
+      await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', rectA!);
+      expect(writes).toHaveLength(2);
+    } finally {
+      releaseA();
+      await page.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test('region autosave errors retain the local rectangle and offer an explicit retry', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-region-autosave-retry-'));
+  try {
+    let fail = true;
+    let attempts = 0;
+    const { fixture } = await guideFixture(page, directory, (method) => {
+      if (method !== 'evidence_save') return;
+      attempts++;
+      if (fail) throw new Error('Falha de rede simulada');
+    });
+    await page.goto('/tests/pdf-harness.html');
+    await draw(page, [0.2, 0.2], [0.55, 0.4]);
+    const rect = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+    await expect(page.getByRole('alert')).toContainText('Falha de rede simulada');
+    const cached = await page.evaluate(() =>
+      JSON.parse(
+        localStorage.getItem(
+          'pydicate-studio:evidence-draft:v1:["project:pdf-test","araujo","passage:a"]',
+        )!,
+      ),
+    );
+    expect(cached.regions[0].rect.join(',')).toBe(rect);
+    expect(
+      ((await fixture.service.invoke('evidence_status', params)) as EvidenceStatus).passage,
+    ).toBeNull();
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', rect!);
+    fail = false;
+    await page.getByRole('button', { name: 'Tentar novamente', exact: true }).click();
+    await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
+    expect(attempts).toBe(2);
+    const saved = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(saved.passage!.regions[0].rect.join(',')).toBe(rect);
+    await page.reload();
+    await ready(page);
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', rect!);
+  } finally {
+    await page.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 for (const edited of [false, true]) {
   test(`server region corrections ${edited ? 'preserve actual unsaved edits' : 'replace a cached old saved region'}`, async ({
@@ -389,7 +610,7 @@ test('hosted PDF keeps real rendering and saved regions without desktop relocati
     await ready(page);
     await expect(page.getByRole('button', { name: 'Relocalizar mesmo PDF' })).toHaveCount(0);
     await draw(page, [0.2, 0.3], [0.5, 0.45]);
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no servidor.', { exact: false })).toBeVisible();
     const saved = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
     expect(saved.passage!.regions).toHaveLength(1);
@@ -457,7 +678,7 @@ test('a passage continues onto another page with ordered crops preserved through
     ).toBeDisabled();
     await page.getByRole('button', { name: 'Mover região 2 para antes' }).click();
     await expect(page.getByRole('button', { name: 'Região 1 · PDF 2', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     fixture.restart();
     await page.reload();
@@ -531,7 +752,7 @@ test('an existing unmarked passage never adopts either page of its multipage pre
     await page.getByRole('button', { name: 'Adicionar região na próxima página' }).click();
     await ready(page);
     await draw(page, [0.2, 0.2], [0.5, 0.4]);
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     const donor = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
     expect(donor.passage!.regions).toHaveLength(2);
@@ -548,11 +769,15 @@ test('an existing unmarked passage never adopts either page of its multipage pre
       ...params,
       passageId: 'passage:b',
     })) as EvidenceStatus;
-    expect(onlyGuide.passage!.regions).toEqual([]);
-    expect(onlyGuide.passage!.guide!.region!.id).toBe(donor.passage!.regions[1].id);
+    // Merely loading a guide, including preparing an empty analysis, is not an edit.
+    expect(onlyGuide.passage).toBeNull();
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute(
+      'data-pdf-rect',
+      donor.passage!.regions[1].rect.join(','),
+    );
 
     await draw(page, [0.25, 0.5], [0.6, 0.65]);
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     fixture.restart();
     await page.reload();
@@ -635,7 +860,7 @@ test('actual PDF canvas and same physical region survive zoom, resize, rotation,
     await page.setViewportSize({ width: 850, height: 1000 });
     await ready(page);
     await expect(region).toHaveAttribute('data-pdf-rect', originalRect!);
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     const saved = (await service.invoke('evidence_status', params)) as EvidenceStatus;
     expect(saved.passage!.view.rotation).toBe(90);
@@ -667,7 +892,7 @@ test('actual PDF canvas and same physical region survive zoom, resize, rotation,
     await ready(page);
     await draw(page, [0.2, 0.2], [0.4, 0.4]);
     await expect(page.getByRole('button', { name: 'Região 2 · PDF 2', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     service = createEvidenceService(options);
     await page.reload();
@@ -679,7 +904,7 @@ test('actual PDF canvas and same physical region survive zoom, resize, rotation,
     expect(multi.passage!.regions.map((entry) => entry.pageIndex)).toEqual([0, 1]);
     await page.getByRole('button', { name: 'Remover região', exact: true }).click();
     await expect(page.getByTestId('pdf-region')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     expect(
       ((await service.invoke('evidence_status', params)) as EvidenceStatus).passage!.regions,
@@ -689,7 +914,7 @@ test('actual PDF canvas and same physical region survive zoom, resize, rotation,
   }
 });
 
-test('PDF region moving/resizing changes native coordinates and an unsaved draft stays attached to its passage across reload', async ({
+test('PDF region moving/resizing autosaves native coordinates on its own passage across reload', async ({
   page,
 }) => {
   const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-edits-'));
@@ -769,7 +994,7 @@ test('PDF region moving/resizing changes native coordinates and an unsaved draft
         ),
       ),
     ).toBe(inheritedCache);
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
     await expect(region).toHaveAttribute('data-pdf-rect', resized!);
@@ -781,12 +1006,11 @@ test('PDF region moving/resizing changes native coordinates and an unsaved draft
     await page.reload();
     await ready(page);
     await expect(region).toHaveAttribute('data-pdf-rect', resized!);
-    await expect(
-      page.getByText('Regiões ou visualização não salvas', { exact: false }),
-    ).toBeVisible();
+    await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     expect(
-      ((await service.invoke('evidence_status', params)) as EvidenceStatus).passage,
-    ).toBeNull();
+      ((await service.invoke('evidence_status', params)) as EvidenceStatus).passage!.regions[0]
+        .rect,
+    ).toEqual(resized!.split(',').map(Number));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -797,7 +1021,10 @@ test('next-passage guides stay separate from new evidence, accept drawing throug
 }) => {
   const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-guide-'));
   try {
-    const { fixture, assetId, revision } = await guideFixture(page, directory);
+    const writes: Record<string, unknown>[] = [];
+    const { fixture, assetId, revision } = await guideFixture(page, directory, (method, input) => {
+      if (method === 'evidence_save') writes.push(input);
+    });
     const original = { id: 'original-box', assetId, pageIndex: 0, rect: [100, 300, 260, 400] };
     await fixture.service.invoke('evidence_save', {
       ...params,
@@ -806,9 +1033,11 @@ test('next-passage guides stay separate from new evidence, accept drawing throug
       regions: [original],
       view: { pageIndex: 0, zoom: 0.5, rotation: 0 },
     });
-    const savedOriginal = (
-      (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus
-    ).passage;
+    const originalStatus = (await fixture.service.invoke(
+      'evidence_status',
+      params,
+    )) as EvidenceStatus;
+    const savedOriginal = originalStatus.passage;
     await page.goto('/tests/pdf-harness.html?guide');
     await ready(page);
     await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
@@ -820,24 +1049,32 @@ test('next-passage guides stay separate from new evidence, accept drawing throug
     await expect(ghost.locator('[data-handle]')).toHaveCount(0);
     expect(await ghost.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe('none');
     await expect(page.getByRole('button', { name: 'Remover região', exact: true })).toBeDisabled();
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.getByText('Evidência salva no computador.', { exact: false })).toBeVisible();
     await expect(page.locator('#evidence-pointers')).toHaveText('0');
     let saved = (await fixture.service.invoke('evidence_status', {
       ...params,
       passageId: 'passage:b',
     })) as EvidenceStatus;
-    expect(saved.passage!.regions).toEqual([]);
-    expect(saved.passage!.guide!.region).toEqual(original);
+    expect(saved.passage).toBeNull();
+    const ownFingerprint = saved.passageFingerprint;
+    expect(ownFingerprint).toBeTruthy();
+    expect(ownFingerprint).not.toBe(originalStatus.passageFingerprint);
+    await page.waitForTimeout(650);
+    expect(writes).toEqual([]);
     await draw(page, [0.3, 0.36], [0.6, 0.45]);
     await expect(page.getByTestId('pdf-region')).toHaveCount(1);
     await expect(ghost).toHaveAttribute('data-pdf-rect', original.rect.join(','));
-    await page.getByRole('button', { name: 'Salvar regiões', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Salvar regiões', exact: true })).toHaveCount(0);
     await expect(page.locator('#evidence-pointers')).toHaveText('1');
+    expect(writes).toHaveLength(1);
+    expect(writes[0].passageId).toBe('passage:b');
+    expect(writes[0].expectedPassageFingerprint).toBe(ownFingerprint);
     saved = (await fixture.service.invoke('evidence_status', {
       ...params,
       passageId: 'passage:b',
     })) as EvidenceStatus;
+    expect(saved.passage!.guide!.region).toEqual(original);
     expect(saved.passage!.regions[0].id).not.toBe(original.id);
     expect(saved.passage!.regions[0].rect).not.toEqual(original.rect);
     await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
@@ -906,7 +1143,171 @@ test('returning to an untouched existing next passage inherits the newly marked 
   }
 });
 
-test('an unsaved predecessor and repeated empty pending passages preserve a guide without promoting its box', async ({
+test('visible-order guides refresh saved and cached passages after edits, reordering and exclusion', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-visible-guide-'));
+  try {
+    const writes: Record<string, unknown>[] = [];
+    const { fixture, assetId, revision } = await guideFixture(page, directory, (method, input) => {
+      if (method === 'evidence_save') writes.push(input);
+    });
+    const regionA = { id: 'a', assetId, pageIndex: 0, rect: [100, 300, 260, 400] };
+    const regionB = { id: 'b', assetId, pageIndex: 0, rect: [40, 100, 160, 150] };
+    const regionC = { id: 'c', assetId, pageIndex: 0, rect: [30, 40, 100, 75] };
+    const save = async (
+      passageId: string,
+      regions: unknown[],
+      expectedRevision: number,
+      guide?: unknown,
+    ) =>
+      fixture.service.invoke('evidence_save', {
+        ...params,
+        passageId,
+        assetId,
+        expectedRevision,
+        regions,
+        view: { pageIndex: 0, zoom: 0.5, rotation: 0 },
+        ...(guide ? { guide } : {}),
+      }) as Promise<EvidenceStatus>;
+    const a = await save('passage:a', [regionA], revision);
+    const b = await save('passage:b', [regionB], a.revision);
+    const c = await save('passage:c', [regionC], b.revision, {
+      assetId,
+      fromPassageId: 'passage:a',
+      region: regionA,
+    });
+    await page.goto('/tests/pdf-harness.html?guide&ordered');
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    const ghost = page.getByTestId('pdf-guide-region');
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:b');
+    await expect(ghost).toHaveAttribute('data-pdf-rect', regionB.rect.join(','));
+    await expect(page.getByTestId('pdf-region')).toHaveAttribute(
+      'data-pdf-rect',
+      regionC.rect.join(','),
+    );
+    await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
+    await ready(page);
+    const changedA = await moveRegion(page, 24, 12);
+    await expect
+      .poll(
+        async () =>
+          ((await fixture.service.invoke('evidence_status', params)) as EvidenceStatus).passage
+            ?.regions[0].rect,
+      )
+      .toEqual(changedA);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:b');
+    await page.getByRole('button', { name: 'Ordem B A C', exact: true }).click();
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:a');
+    await expect(ghost).toHaveAttribute('data-pdf-rect', changedA.join(','));
+    await page.getByRole('button', { name: 'Excluir A da lista', exact: true }).click();
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:b');
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await expect(ghost).toHaveCount(0); // Neither last-visited C nor excluded A may supply it.
+    await page.getByRole('button', { name: 'Ordem A B C', exact: true }).click();
+    await expect(ghost).toHaveAttribute('data-source-passage', 'passage:a');
+    await expect(ghost).toHaveAttribute('data-pdf-rect', changedA.join(','));
+    await page.waitForTimeout(500);
+    expect(writes).toHaveLength(1);
+    expect(
+      (
+        (await fixture.service.invoke('evidence_status', {
+          ...params,
+          passageId: 'passage:c',
+        })) as EvidenceStatus
+      ).passage,
+    ).toEqual(c.passage);
+    expect(
+      await ghost.locator(':scope > rect').evaluate((element) => getComputedStyle(element).fill),
+    ).toBe('rgba(76, 83, 93, 0.17)');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a current unsaved predecessor crop is the guide through forward/back navigation and late autosave', async ({
+  page,
+}) => {
+  const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-guide-late-'));
+  let release: (() => void) | undefined;
+  try {
+    let held = false;
+    const { fixture } = await guideFixture(page, directory, async (method, input) => {
+      if (method === 'evidence_save' && input.passageId === 'passage:b' && !held) {
+        held = true;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+    });
+    await page.goto('/tests/pdf-harness.html?guide&ordered');
+    await ready(page);
+    await page.getByLabel('Zoom do PDF').selectOption('0.5');
+    await draw(page, [0.12, 0.2], [0.38, 0.32]);
+    await expect(page.locator('#evidence-pointers')).toHaveText('1');
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await draw(page, [0.42, 0.44], [0.69, 0.56]);
+    const rectB = await page.getByTestId('pdf-region').getAttribute('data-pdf-rect');
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute(
+      'data-source-passage',
+      'passage:b',
+    );
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute('data-pdf-rect', rectB!);
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+    await expect.poll(() => !!release).toBe(true);
+    release!();
+    await expect
+      .poll(async () =>
+        (
+          (await fixture.service.invoke('evidence_status', {
+            ...params,
+            passageId: 'passage:b',
+          })) as EvidenceStatus
+        ).passage?.regions[0].rect.join(','),
+      )
+      .toBe(rectB);
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute('data-pdf-rect', rectB!);
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await page.getByRole('button', { name: 'Remover região', exact: true }).click();
+    await expect(page.getByTestId('pdf-region')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute(
+      'data-source-passage',
+      'passage:a',
+    );
+    await page.getByRole('button', { name: 'Excluir A da lista', exact: true }).click();
+    await expect(page.getByTestId('pdf-guide-region')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Passagem B', exact: true }).click();
+    await ready(page);
+    await page.getByRole('button', { name: 'Passagem C', exact: true }).click();
+    await ready(page);
+    await expect(page.getByLabel('Zoom do PDF')).toHaveValue('0.5');
+    await page.waitForTimeout(600);
+    expect(
+      (
+        (await fixture.service.invoke('evidence_status', {
+          ...params,
+          passageId: 'passage:c',
+        })) as EvidenceStatus
+      ).passage,
+    ).toBeNull();
+  } finally {
+    release?.();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('an autosaved predecessor and repeated empty pending passages preserve a guide without promoting its box', async ({
   page,
 }) => {
   const directory = await mkdtemp(join(tmpdir(), 'studio-pdf-guide-unsaved-'));
@@ -938,9 +1339,8 @@ test('an unsaved predecessor and repeated empty pending passages preserve a guid
     );
     await expect(page.getByTestId('pdf-guide-region')).toHaveAttribute('data-pdf-rect', rect!);
     await expect(page.getByTestId('pdf-region')).toHaveCount(0);
-    expect(
-      ((await fixture.service.invoke('evidence_status', params)) as EvidenceStatus).passage,
-    ).toBeNull();
+    const savedDonor = (await fixture.service.invoke('evidence_status', params)) as EvidenceStatus;
+    expect(savedDonor.passage!.regions[0].rect).toEqual(rect!.split(',').map(Number));
     await page.getByRole('button', { name: 'Passagem A', exact: true }).click();
     await ready(page);
     await expect(page.getByTestId('pdf-region')).toHaveAttribute('data-pdf-rect', rect!);

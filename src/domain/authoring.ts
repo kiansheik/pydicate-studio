@@ -1,5 +1,5 @@
 import { withStructureContext } from './structure-drafts';
-import { serviceError, withProjectRecovery } from './project-recovery';
+import { withProjectRecovery } from './project-recovery';
 
 /** Captured from the selected engine at this exact source step. A failed
  * standalone realization does not invalidate the surrounding expression. */
@@ -37,6 +37,7 @@ export interface AuthorNode {
   lexicalReference?: string;
   category?: string;
   runtimeType?: string;
+  stativeConversion?: 'nominal' | 'base_nominal' | 'unsupported';
   verbete?: string;
   tag?: string;
   dispatch?: string;
@@ -93,6 +94,13 @@ export interface SourcePreview {
   name?: string;
   scope?: string;
   affectedUses?: unknown[];
+  annotationChanges?: {
+    sourceId: string;
+    ordinal: number;
+    passageId?: string;
+    before: string;
+    after: string;
+  }[];
   draftRevisionId?: string;
   pendingDraftId?: string;
   /** Source expression after any reviewed promotion to shared lexical names. */
@@ -118,14 +126,12 @@ export function diagnosticText(value: string | { message: string }) {
 }
 export async function invoke<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   if (!window.studio?.invoke)
-    throw new Error('Abra o aplicativo desktop para usar o projeto e o motor locais.');
+    throw new Error('Entre no servidor colaborativo para usar o corpus e o motor.');
   const bridge = window.studio;
-  return withProjectRecovery(method, params, (current) =>
-    (bridge.invoke!(method, withStructureContext(method, current)) as Promise<T>).catch(
-      (reason) => {
-        throw serviceError(reason);
-      },
-    ),
+  return withProjectRecovery(
+    method,
+    params,
+    (current) => bridge.invoke!(method, withStructureContext(method, current)) as Promise<T>,
   );
 }
 export function flattenNodes(root: AuthorNode | null): AuthorNode[] {

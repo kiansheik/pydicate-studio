@@ -1,4 +1,221 @@
+## 2026-10-02 — Surgical grammar feedback and bounded durable history
+
+Investigated the slow correction workflow from verified open PR #18 (`64632e2`)
+in an isolated writable checkout. Confirmed whole-project JSON rewrite/64 MiB
+limit, duplicated tool/checkpoint payload paths, cancellation persisting before
+abort, containing-tree context for selected targets, redundant reload prompt
+instructions and corpus scans for clerical Markdown edits. The specific live
+record's composition and actual provider stall remain unmeasured.
+
+Implemented narrow context, early provisional target/explicit form confirmation,
+mandatory validation stages/timings, note-only fast path, bounded browser logs,
+queue target/date provenance, owner deadline and orphan reconciliation. Durable
+content-addressed payloads preserve exact inputs/history/tool replay/checkpoints;
+cancel aborts before saving. No pruning, new provider calls, engine rules, corpus
+changes or deployment. The user subsequently authorized a push and stacked
+draft PR after final checks; no merge/deploy. See
+[handoff](session-handoffs/2026-10-02-surgical-grammar-workflow.md).
+
+## 2026-10-01 — Retire the desktop product, retain shared server services
+
+Prepared `refactor/server-only` from PR #16 at `4d0a60c`, targeting
+`unlocked-light-deploy` so the review diff excludes unrelated unmerged work.
+Moved shared Python/AI/MCP/PDF/storage services and tests to `runtime/`;
+removed native launch, packaging, updater, installer UI and desktop telemetry.
+Preserved server history/import readers, archives, schemas and source data.
+Routine deployment no longer discovers desktop profiles; legacy migration is
+explicit and requires an existing allowlisted browser-storage export.
+Carried applicable PR #17 server/browser regressions and corrected browser
+fixtures to assert structured error codes. No merge, deployment or live changes.
+See [handoff](session-handoffs/2026-10-01-server-only-cleanup.md).
+
+## 2026-10-01 — Steer active grammar corrections
+
+Added durable same-turn Codex steering instead of a second queued analysis.
+At the user's follow-up request, cancelled the old run and added a 15-minute
+agent deadline, retaining checked edits and partial output for explicit resume.
+Delivery receipts distinguish saved, acknowledged and uncertain instructions;
+completed-parent context and running-response visibility preserve older queues.
+Mock-provider, durability, browser and hosted authorization checks pass.
+Deployed `85ddedd97d48b61294d66ad2de8cae7c00a5a35d` in51.9seconds; live
+health checks158 lines with zero divergences/failures and no active repairs.
+Exact145 research/six PDF/evidence-file parity; Chrome reload and the real
+closed-turn steering guard pass without inference.
+See [handoff](session-handoffs/2026-10-01-live-repair-steering.md).
+
+## 2026-10-01 — Editing feedback and contributor credits
+
+Added an always-visible orientation toggle, consistent explicit completion,
+current-order PDF guides and Navarro-style lexical discovery. Translation uses
+its own Luna/medium profile and a scoped annotation guide without changing
+grammar settings. Hosted credit reports distinguish saved contributions from
+visits and record bounded active time per user/passage with overlap deduplication.
+See [handoff](session-handoffs/2026-10-01-workflow-feedback-and-credits.md).
+Deployed `c1167671f31fcc31afb8e1fad499a8085e786487` in 52.5 seconds.
+Production health checks 158 lines with zero divergences/failures; exact parity
+for 145 research and six PDF/evidence files.
+
+
+## 2026-09-30 — Reliable grammar repair transport and readable streaming
+
+Reproduced interrupted unbuffered Python writes truncating JSON; finish every
+byte before the newline and recover failed same-fingerprint workers. Keep newer
+complete analysis details instead of reverting to a rolling event tail; retain
+unfinished formatting and label rolled-back changes correctly. Fresh contrasts
+avoid redundant worker opens; edit and final regressions remain mandatory.
+One durable whole-history rewrite per successful tool call is removed by atomic
+result/replay persistence; cancellation can finish its drained verification.
+The reported pluriform patch passes in a disposable copy with all 154 corpus
+outputs/annotations unchanged; production grammar and provider jobs are untouched.
+See [handoff](session-handoffs/2026-09-30-repair-transport-streaming.md).
+
+Final release `771344f` is live (52.5s follow-up after the 52.7s main rollout).
+It also preserves paragraph boundaries between separate assistant blocks.
+The deployed synthetic signal test reproduces truncation with the old writer
+and complete output with the fix. All 145 research files and six evidence files
+retain exact hashes; live health passes 154 lines, zero divergences/failures.
+
+## 2026-09-30 — Autosave PDF regions
+
+Remove the manual region-save button; debounce completed edits and keep queued
+writes bound to their passage across navigation. Preserve recoverable local
+geometry on errors, with retry feedback. Exact own-passage fingerprints permit
+unrelated passage saves without weakening crop/asset or analysis snapshot guards.
+Actual PDF browser, domain, filesystem, capture and build checks pass. See
+[handoff](session-handoffs/2026-09-30-region-autosave.md).
+
+Release `374232e` is live after a 52.7-second light rollout. Read-only browser
+checks confirm the controls/status with no API/page errors or attempted research
+writes; three manifests and three PDF assets retain exact checksums. Fresh health
+passes all 154 lines with zero divergences/failures. Further editor metadata
+changes preserve the repaired passage's one identity, complete order and output.
+
+## 2026-09-30 — Revision identity race and admin reservations
+
+Confirmed a successful source publication followed by another browser's
+canonical autosave before client-side pending cleanup. One UUID appeared twice
+at positions 115 and 119; both trees realize identical text and annotations.
+Move publication finalization to the server, preserve visible order and editing
+metadata, adopt receipts in clients, reject retired-ID resurrection, and allow
+admins to take over reservations. Exact-version recovery retains history and
+refuses conflicting canonical edits. See
+[handoff](session-handoffs/2026-09-30-revision-identity-race.md).
+
+Release `865d7ad` is live (14.7-second follow-up). Guarded recovery preserved the
+entire order and source content; exact browser verification finds one row at 118
+with the unchanged generated form. Fresh health: 154 lines, zero divergences or
+failures, seven pending. The first recovery attempt stopped safely on a hidden
+legacy alias; the corrected helper matches all three complete source orders.
+
+## 2026-09-30 — Reuse definitions and navigate sections
+
+Persistent bordered tree tabs; complete shared-definition search and dependency
+resolution; linked reuse/copy with corpus review; source/section/subsection
+accordions and startup at the final listed passage. The exact production alias
+preserves 153 surfaces but changes one annotation decomposition, now exposed in
+an explicit shared-definition review. See
+[handoff](session-handoffs/2026-09-30-definition-reuse-navigation.md).
+
+Added the ordinary **Verbo de 2ª classe (estativo)** operation, retaining the
+compound tree and its annotations. Focused domain, selected-engine and browser
+checks pass. A generalized `v()` engine patch was tested separately against all
+153 saved lines; applying it awaits explicit permission to edit the neighboring
+engine. Confirmed that `ba'e` loses argument negation; that repair remains separate.
+
+Release `f7fe580d` deployed in 51.6s. Fresh live health: 153 lines with zero
+divergences/failures; exact alias preview checks all 153 references and presents
+the single annotation change. Verification applies no research edits.
+Live browser checks pass for tabs/variant/zoom/reuse. Screenshot review caught
+canvas controls covering sticky tabs after focus; follow-up `3aee95d` isolates
+tabpanel stacking and its focused regression fails before/passes after. The
+follow-up light rollout completed in 62.7s after unused build-cache cleanup.
+
+## 2026-09-30 — Shared pieces in main tree tabs
+
+Confirmed the published `enosem_26169d1f` retains `.var(1).copy()`; its runtime
+graph hid editable steps. Shared references now open beside the passage in the
+main canvas tabs. Independent drafts, camera and undo survive switching; closed
+drafts survive declaration line shifts. Shared morphology uses exact declaration
+scope; stale reviews and changed loose pieces stay guarded. Browser checks cover
+800×600 sticky tabs and the actual published expression. See
+[handoff](session-handoffs/2026-09-30-shared-tree-tabs.md).
+
+Release `e5852d84` deployed in 54.6 seconds. Authenticated live checks opened the
+actual compound, reached its variant input and switched/closed/reopened tabs.
+153 corpus lines, zero divergences/failures; 36 invokes without browser/API errors
+or attempted research writes. Original session selection restored.
+
+## 2026-09-30 — Shared tree editing and subtree grammar repair
+
+Added an editable shared-definition canvas inside the imported-piece inspector,
+with exact declaration scope, preserved parent references and reviewed full-corpus
+publication. Grammar repair accepts a validated subtree or unsaved definition,
+checks enclosing/saved trees and corpus after each edit, and withholds readiness
+on unexpected output/reference/coverage changes. Focused real-engine, browser,
+repair and build checks pass. Deployed `020f0ea` in 175.8 seconds after clearing
+unused Docker cache that had filled the disk and stalled the idle handshake. See the
+[handoff](session-handoffs/2026-09-30-shared-tree-editing.md).
+Live `enosem` shared editor opens and evaluates the original tree; 153 corpus lines
+have no divergences or execution failures. No research edits or AI calls were made.
+
+## 2026-09-30 — Remove publication maintenance freezes
+
+Publication now captures saved source bytes immediately with a private index;
+concurrent capture changes fail promptly, later edits remain live, and sparse
+checkout flags and executable-mode review guards are preserved. Removed the
+stalled production export's exact maintenance request without stopping research
+jobs. Added browser maintenance cooldown and lease renewal fixes. 30 operation
+tests and eight bridge/idle tests pass. Deployed as `6258328`; the real publication
+command completed in 12.68 seconds without restarting Studio. The earlier rollout's
+health/file checks and mocked maintenance fixtures missed the live freeze. See the
+[handoff](session-handoffs/2026-09-30-instant-git-capture.md).
+
+## 2026-09-30 — Fast Git publication without restarts
+
+Replaced two stopped-server collection passes per repository with one short
+maintenance-leased capture. Git bundles contain only contributions; upstream
+merges run in the laptop review checkout. Partial Git caching and sparse grammar
+checkout avoid historical assets. The exact pasted production snapshots produce
+6,113-byte and 6,567-byte bundles in 0.017 / 0.016 seconds, measured without
+changing live refs or source. See the
+[handoff](session-handoffs/2026-09-30-fast-git-publication.md).
+
+## 2026-09-30 — Repair completion and corpus health
+
+Removed the grammar-repair wall-clock cutoff, compacted oversized resume context,
+added failed-edit rollback and final verification on interruption. Added top-bar
+Saúde do corpus and a drain handshake before light deploy restarts. See the
+[handoff](session-handoffs/2026-09-30-repair-completion-corpus-health.md).
+
+## 2026-09-30 — Admin passage list organization
+
+Deployed `d877618` in 49.1 seconds. Live read-only browser checks verify all 114
+source entries and the admin dialog at 800×600. Added hosted admin move/position,
+duplicate, delete-from-list and restore controls.
+Shared metadata survives reload and autosave, with server authorization, version
+checks and before/after history. No automatic deduplication or source rewriting.
+Focused domain, PostgreSQL and browser validation recorded in the
+[handoff](session-handoffs/2026-09-30-admin-passage-list.md).
+
 # Work log
+
+## 2026-09-30 - Reservations disabled with an 18-second deployment
+
+Published PR #16, deployed its pinned `290da54` head through the new app-only
+light path, and verified that both affected contributors pass the reservation
+check without acquiring a claim. 23 focused collaboration tests and four rollout
+tests passed. Main stayed unchanged after automatic review rejected a direct push
+without full CI; deployment of the reviewable branch was approved. The deployment
+command took 18.1 seconds. See the
+[handoff](session-handoffs/2026-09-30-unlocked-light-deploy.md).
+
+## 2026-09-30 - Contributor UI deployed
+
+Merged PR #15 and deployed `21d6035` with a full private server checkpoint, dirty
+grammar/corpus preservation and health/publication checks. Fixed optional Claude
+status for unconfigured environments and one outdated source-append test. All CI
+checks passed; live cramped-screen browser smoke passed without content writes.
+See the [handoff](session-handoffs/2026-09-30-contributor-ui-deployment.md).
 
 ## 2026-09-30 - Production nasal mo audit and causative correction
 
@@ -780,3 +997,57 @@ credential installation. Acceptance uses attributed PostgreSQL revisions and
 claims; active AI blocks idle maintenance. Focused browser, compiled hosted editor,
 domain, desktop, hosted and credential/deploy tests pass. Live rollout pending;
 see [handoff](session-handoffs/2026-09-28-demo-readiness.md).
+
+## 2026-09-30 — Browser request pressure
+
+Bound hosted engine concurrency, share pending identical reads, honor 429
+cooldowns, and serialize/throttle streamed analysis refreshes. The earlier
+reported grammar repair completed with target matched and all 151 rows unchanged.
+See [handoff](session-handoffs/2026-09-30-browser-request-pressure.md).
+
+## 2026-09-30 — Suppress workspace credential autofill
+
+Applied shared initial-render autofill opt-out attributes to all workspace
+controls, including hosted collaboration/admin fields. Login/reset remain
+separate with correct credential autocomplete tokens. See
+[handoff](session-handoffs/2026-09-30-workspace-autofill.md).
+
+## 2026-09-30 — Submission queue and explicit checked batch review
+
+Persistent send feedback; durable submission statuses/filter across sources;
+admin line-by-line result/PDF comparison with checkbox-gated publication.
+Real isolated browser test published two checked lines sharing a source, preserved
+the unchecked source, verified PDF pixels and invitation feedback (mail stub).
+See [handoff](session-handoffs/2026-09-30-submission-review-queue.md).
+
+
+## 2026-09-30 — Shareable URL navigation
+
+Added root-query History API navigation for passages, views, source nodes,
+shared-tree tabs and lexical/dictionary locations. Explicit URLs win over latest
+startup; pending/publication aliases replace history. Hosted login retains safe
+root destinations through password and Neo SSO without schema changes. Browser
+checks cover refresh, same-document Back/Forward, unsaved drafts, delayed source
+graphs, stale targets and read-only dictionary restoration. See
+[handoff](session-handoffs/2026-09-30-url-navigation.md).
+
+URL navigation rollout: release `335de372a78c57d48f3a0623aff482fdb3c5e670`,
+52.9-second light deploy, actual production login/history/refresh/dictionary
+checks passed without research writes; 145 research and six evidence files
+unchanged, fresh corpus health 154 lines with zero divergences/failures.
+
+
+## 2026-09-30 — Unblock insertion after older unresolved references
+
+Moved insertion identity validation after the unchanged-reference fast path.
+Actual live source/reference identities reproduce the failure at targets 72/113;
+the candidate passes without rewriting references55/60. Seven focused tests and
+one real-engine duplicate insertion/approval regression pass. Full live preview
+verification and rollout are recorded in the
+[handoff](session-handoffs/2026-09-30-insertion-unrelated-references.md).
+
+Insertion fix deployed as `0c67322f489f15cff0841b7157d68d42e93111eb`. Both real
+pending-draft previews pass all 155 expression checks with zero failures; no source
+apply or approval. Exact 145 research/six evidence-file parity. Deployment took
+141.3s after full-disk heartbeat stall; removing six unused old build images
+restored 2.6 GB. No research/data/backup deletion.

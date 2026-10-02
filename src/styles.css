@@ -2726,3 +2726,94 @@ button:hover:not(:disabled) {
     overflow: auto;
   }
 }
+
+.passage-manager::backdrop {
+  background: #0007;
+}
+
+.passage-manager {
+  background: var(--paper, #fffdf7);
+  color: inherit;
+  width: min(680px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px #0005;
+}
+.passage-manager header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.passage-manager select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0 16px;
+}
+.passage-manager option {
+  padding: 7px;
+}
+.passage-manager-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.passage-manager-actions input {
+  width: 65px;
+}
+.passage-manager-deleted {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+.passage-manager-deleted span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.corpus-health-dialog {
+  background: var(--paper);
+  color: inherit;
+  width: min(900px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.corpus-health-dialog::backdrop {
+  background: #0007;
+}
+.corpus-health-dialog header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.corpus-health-table {
+  overflow-x: auto;
+}
+.corpus-health-table table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.corpus-health-table th,
+.corpus-health-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.corpus-health-issue {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+.corpus-health-button {
+  white-space: nowrap;
+}

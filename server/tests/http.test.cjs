@@ -37,11 +37,17 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     auth.origin = settings.origin;
     t.after(async () => { await app.close(); await store.close(); fs.rmSync(root, { recursive: true, force: true }); });
     async function post(route, value, session, headers = {}) { return fetch(settings.origin + route, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: settings.origin, 'X-Studio-Client': 'integration-tab', ...(session ? { Cookie: session.cookie, 'X-CSRF-Token': session.csrf } : {}), ...headers }, body: JSON.stringify(value) }); }
-    async function login(role) { const response = await post('/api/login', { email: role + '@example.org', password }); assert.equal(response.status, 200); const value = await response.json(); return { ...value, cookie: response.headers.get('set-cookie').split(';')[0] }; }
+    async function login(role, returnTo) { const response = await post('/api/login', { email: role + '@example.org', password, returnTo }); assert.equal(response.status, 200); const value = await response.json(); return { ...value, cookie: response.headers.get('set-cookie').split(';')[0] }; }
     assert.equal((await fetch(settings.origin + '/api/me')).status, 401);
     assert.equal((await fetch(settings.origin + '/', { redirect: 'manual' })).status, 303);
     assert.equal((await post('/api/login', { email: 'admin@example.org', password }, null, { Origin: 'https://evil.example' })).status, 403);
-    const admin = await login('admin'), user = await login('contributor');
+    const destination = '/?passage=passage%3Aa&source=araujo&view=tree&tab=shared&node=var%3A1';
+    const redirected = await fetch(settings.origin + destination, { redirect: 'manual' });
+    assert.equal(redirected.status, 303);
+    assert.equal(redirected.headers.get('location'), '/login?returnTo=' + encodeURIComponent(destination));
+    const admin = await login('admin', '//evil.example/'), user = await login('contributor', destination);
+    assert.equal(admin.returnTo, '/');
+    assert.equal(user.returnTo, destination);
     const page = await fetch(settings.origin + '/', { headers: { Cookie: user.cookie } });
     assert.equal(page.status, 200);
     assert.match(await page.text(), /collab\/bridge.js/);
@@ -111,10 +117,31 @@ test('authenticated HTTP transport: CSRF, roles, drafts, telemetry, comments, PD
     assert.equal((await store.db.prepare("SELECT user_id FROM revisions").get()).user_id, 'contributor');
     const stale = await post('/api/drafts', { projectId: project.id, changes: [{ id: 'passage:a', version: 1, draft }] }, user);
     assert.equal(stale.status, 409);
+    // The administrator can save over an active reservation, including one from
+    // their own other tab. Actual stale content remains a separate conflict.
+    const adminDraft = { ...draft, raw: 'admin correction' };
+    const adminSave = await post('/api/drafts', { projectId: project.id,
+        changes: [{ id: 'passage:a', version: 2, draft: adminDraft }] }, admin, { 'X-Studio-Client': 'admin-first-tab' });
+    assert.equal(adminSave.status, 200);
+    const adminOtherTab = await post('/api/drafts', { projectId: project.id,
+        changes: [{ id: 'passage:a', version: 3, draft: { ...adminDraft, raw: 'next admin correction' } }] }, admin, { 'X-Studio-Client': 'admin-second-tab' });
+    assert.equal(adminOtherTab.status, 200);
+    const adminStale = await post('/api/drafts', { projectId: project.id,
+        changes: [{ id: 'passage:a', version: 2, draft: adminDraft }] }, admin);
+    assert.equal(adminStale.status, 409);
+    assert.equal((await adminStale.json()).error.code, 'DRAFT_CONFLICT');
     await post('/api/usage', { event: 'editor.batch', passageId: 'passage:a', userId: 'admin', details: { password: 'never store this', text: 'private text' } }, user);
     const telemetry = await store.db.prepare("SELECT * FROM audit WHERE origin='browser'").get();
     assert.equal(telemetry.user_id, 'contributor');
     assert.equal(JSON.stringify(telemetry).includes('private text'), false);
+    const intervalEndMs=Date.now(),activity={event:'activity.active',eventId:require('node:crypto').randomUUID(),
+        intervalStartMs:intervalEndMs-10000,intervalEndMs,durationMs:10000,passageId:'passage:a',userId:'admin'};
+    const active=await post('/api/usage',activity,user);
+    assert.equal(active.status,200);assert.equal((await active.json()).acceptedMs,10000);
+    assert.equal((await (await post('/api/usage',activity,user)).json()).duplicate,true);
+    const credited=await store.db.prepare("SELECT * FROM audit WHERE event='activity.active'").get();
+    assert.equal(credited.user_id,'contributor');assert.equal(credited.passage_id,'passage:a');
+    assert.equal((await post('/api/usage',{...activity,eventId:'bad'},user)).status,400);
     assert.equal((await post('/api/usage', { event: 'auth.password-reset' }, user)).status, 400);
     await post('/api/comment', { passageId: 'passage:a', body: 'A minha dúvida', authorId: 'admin' }, user);
     const comments = await (await fetch(settings.origin + '/api/comments?passageId=passage:a', { headers: { Cookie: admin.cookie } })).json();

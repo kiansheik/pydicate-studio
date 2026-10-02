@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { invoke, type AuthorNode } from '../domain/authoring';
 import {
@@ -20,6 +21,7 @@ import '../tree-scope-editor.css';
 import { LexicalInput } from './LexicalInput';
 import { OperationPreview } from './OperationPreview';
 import { definitionBody } from '../domain/expression-tree';
+import type { SharedDefinitionTarget } from '../domain/shared-definition';
 
 export interface TreeScopeEditorProps {
   revealOperation?: boolean;
@@ -30,6 +32,7 @@ export interface TreeScopeEditorProps {
   passageId?: string;
   sourceId?: string;
   engineFingerprint?: string;
+  sharedDefinition?: SharedDefinitionTarget;
   onChangeRaw?: (raw: string) => void;
   onSelectScope: (id: string) => void;
   selectedScopeId?: string;
@@ -48,6 +51,7 @@ export function TreeScopeEditor({
   passageId,
   sourceId,
   engineFingerprint,
+  sharedDefinition,
   onChangeRaw,
   onSelectScope,
   selectedScopeId,
@@ -128,6 +132,7 @@ export function TreeScopeEditor({
           <small className="runtime-edit-hint">Forma da peça inteira após esta alteração.</small>
         )}
         <OperationPreview
+          sharedDefinition={sharedDefinition}
           raw={proposedRaw}
           passageId={passageId}
           sourceId={sourceId}
@@ -171,7 +176,9 @@ export function TreeScopeEditor({
   const isBinary = binaryTreeOperations.has(operation);
   const operationPreview =
     !needsArgument || argument.trim()
-      ? addTreeOperation(scope.code, operation, argument, argumentSide)
+      ? addTreeOperation(scope.code, operation, argument, argumentSide, {
+          stativeConversion: scope.stativeConversion ?? node.stativeConversion,
+        })
       : '';
   const binaryChildren = binaryTreeChildren(operationScope);
   const selectedTerm = operationTerm({
@@ -210,6 +217,7 @@ export function TreeScopeEditor({
               <label>
                 Operador desta conexão
                 <select
+                  {...workspaceAutofill}
                   aria-label="Novo operador desta parte"
                   value={replacementOperator}
                   onChange={(event) => setReplacementOperator(event.target.value)}
@@ -305,6 +313,7 @@ export function TreeScopeEditor({
         <label>
           Operação
           <select
+            {...workspaceAutofill}
             aria-label="Operação na árvore"
             value={operation}
             onChange={(event) => {
@@ -340,6 +349,7 @@ export function TreeScopeEditor({
           <label>
             Posição do novo argumento
             <select
+              {...workspaceAutofill}
               aria-label="Posição do novo argumento"
               value={argumentSide}
               onChange={(event) => setArgumentSide(event.target.value as 'left' | 'right')}
@@ -429,6 +439,7 @@ export function TreeScopeEditor({
       >
         <summary>Substituir por expressão ou valor</summary>
         <textarea
+          {...workspaceAutofill}
           aria-label="Expressão da parte na árvore"
           rows={Math.min(5, Math.max(2, replacement.split('\n').length))}
           value={replacement}

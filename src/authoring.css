@@ -627,6 +627,13 @@
 .status-dot.complete {
   background: #54a685;
 }
+.workflow-control.is-complete select,
+.agreement-bar .workflow-complete {
+  color: var(--green, #42694c);
+}
+.workflow-control.is-complete select {
+  border-color: var(--green, #42694c);
+}
 .evaluation-retry,
 .usage-controls,
 .usage-totals {

@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { useState } from 'react';
-import { DictionaryTab } from '../src/components/DictionaryTab';
+import { DictionaryTab, type DictionaryNavigation } from '../src/components/DictionaryTab';
 import type { DictionaryPredicateResult } from '../src/components/DictionaryEntryCreation';
 
 const fingerprint = 'sha256:' + 'a'.repeat(64);
@@ -30,6 +30,8 @@ interface Control {
   status: { available: boolean; url?: string; message?: string; datasetFingerprint?: string };
   send: (data: unknown, origin?: string, source?: 'frame' | 'parent') => void;
   setContext: (value: string) => void;
+  setNavigation: (navigation: DictionaryNavigation | null) => void;
+  navigations: DictionaryNavigation[];
   frame?: HTMLIFrameElement;
 }
 declare global {
@@ -58,6 +60,8 @@ const control: Control = {
     );
   },
   setContext() {},
+  setNavigation() {},
+  navigations: [],
 };
 window.dictionaryControl = control;
 window.studio = {
@@ -96,7 +100,9 @@ function Harness() {
   const [active, setActive] = useState(false);
   const [context, setContext] = useState('r1');
   const [count, setCount] = useState(0);
+  const [navigation, setNavigation] = useState<DictionaryNavigation | null | undefined>(undefined);
   control.setContext = setContext;
+  control.setNavigation = setNavigation;
   return (
     <main>
       <button onClick={() => setActive(!active)}>{active ? 'Fechar aba' : 'Abrir aba'}</button>
@@ -107,6 +113,11 @@ function Harness() {
         revisionId={context}
         engineFingerprint="engine-fixture"
         active={active}
+        navigation={navigation}
+        onNavigationChange={(next) => {
+          control.navigations.push(next);
+          if (navigation !== undefined) setNavigation(next);
+        }}
         onInsert={(expression, revision) => {
           if (control.rejectInsertion) return false;
           control.inserted.push({ expression, revision });

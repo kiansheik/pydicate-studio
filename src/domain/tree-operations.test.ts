@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import type { AuthorNode } from './authoring';
 import { replaceRuntimeScope } from './runtime-tree';
 import { addTreeOperation, binaryTreeChildren, changeTreeOperator } from './tree-operations';
+import { operationRemovalChoices } from './operation-removal';
 
 const leaf = (id: string, code: string, start: number): AuthorNode => ({
   id,
@@ -29,6 +30,24 @@ function parseSource(raw: string): AuthorNode {
 }
 
 describe('source tree operations', () => {
+  it('converts the selected tree through the engine nominal interface without flattening it', () => {
+    const raw = 'tekó / kuab';
+    const expression = addTreeOperation(raw, 'v', '', 'right', {
+      stativeConversion: 'base_nominal',
+    });
+    expect(expression).toBe('v((tekó / kuab).base_nominal())');
+    const tree = parseSource(expression);
+    expect(tree).toMatchObject({ kind: 'call', method: 'v' });
+    const nominal = tree.children[0].node;
+    expect(nominal).toMatchObject({ kind: 'method', method: 'base_nominal' });
+    expect(nominal.children[0].node.code).toBe(raw);
+    expect(operationRemovalChoices(tree).map(({ node }) => node.code)).toEqual([nominal.code]);
+    expect(
+      addTreeOperation('tekó / porang', 'v', '', 'right', { stativeConversion: 'nominal' }),
+    ).toBe('v((tekó / porang))');
+    expect(() => addTreeOperation(raw, 'v', '1')).toThrow('não recebe argumento');
+  });
+
   it('builds the classifier through each declared source operation without inventing a word', () => {
     let expression = 'tym';
     for (const reference of ['emi', 'og', 'pûera'])

@@ -98,3 +98,16 @@ describe('current draft structures for reuse', () => {
     expect(withStructureContext('structure_search', { query: 'tym' })).toEqual({ query: 'tym' });
   });
 });
+
+it('excluded pending drafts do not enter the reuse index', () => {
+  const { project, envelope } = fixture();
+  const id = 'pending:excluded';
+  envelope.drafts[id] = {
+    ...createDraft(project.passages[0]),
+    passageId: id,
+    raw: 'mo * pyta',
+    pending: { sourceId: 'araujo_catecismo_1686', ordinal: 3 },
+    organization: { sourceId: 'araujo_catecismo_1686', position: 2, deleted: true },
+  };
+  expect(structureDrafts(project, envelope).some((item) => item.passageId === id)).toBe(false);
+});

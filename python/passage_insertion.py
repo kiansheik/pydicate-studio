@@ -61,12 +61,18 @@ def insert(corpus, source, text, raw, directives, studio, passages, before_id):
     records=read(corpus,source); relocated={}
     by_ordinal={p['ordinal']:p for p in passages if p['sourceId']==source}
     for ordinal,record in records.items():
+        updated=ordinal+1 if ordinal>index else ordinal
+        # Earlier records do not move. Preserve even an already-unresolved
+        # identity exactly instead of making unrelated insertion depend on its
+        # reconciliation. In particular, never replace its saved passage ID.
+        if updated==ordinal:
+            relocated[ordinal]=record
+            continue
         passage=by_ordinal.get(ordinal)
         if not passage or record.get('studio_passage_id',passage['id'])!=passage['id']:
             raise ValueError('Referência sem passagem correspondente; concilie antes de inserir.')
-        updated=ordinal+1 if ordinal>index else ordinal
-        # Unshifted records remain byte-identical. Shifted reviews gain their
-        # stable identity; only address fields change, never approved content.
-        relocated[updated]=record if updated==ordinal else {**record,'ordinal':updated,
+        # Shifted reviews gain their stable identity; only address fields
+        # change, never approved content.
+        relocated[updated]={**record,'ordinal':updated,
             'id':f'{source}:{updated:04d}','studio_passage_id':passage['id']}
     return text,changes(corpus,source,relocated),index+1

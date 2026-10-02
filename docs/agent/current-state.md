@@ -1,5 +1,461 @@
 # Current state
 
+## Surgical grammar workflow and bounded analysis storage (review, not deployed)
+
+`improve/surgical-grammar` is based on the still-open PR #18 head `64632e2`,
+verified against GitHub on 2026-10-02. The original checkout's unrelated dirty
+work is preserved. No engine rule, corpus, provider attempt or live state changed.
+The user subsequently authorized a push and stacked draft PR after final checks;
+merge and deployment remain unauthorized.
+
+Selected-target context is narrow by default, with explicit containing-tree
+expansion. Integrated prompts no longer request redundant reloads after checked
+Python edits. Allowlisted Markdown-note edits retain hash guards and durable
+receipts without reopening/scanning the corpus; Python edits and final attempt
+validation keep every existing safety check.
+
+Target evaluation now appears before corpus verification, explicitly provisional.
+A hash-bound human form confirmation records an observation, not a source/draft
+approval or a validation bypass. The UI shows exact target, validation stage,
+local stage timings, elapsed/quiet time, deadline cleanup, and queue target/date
+provenance; large technical bodies/checkpoints stay out of browser history payloads.
+
+The reported 64 MiB error is the entire project analysis JSON write limit.
+Large inputs/tool results/checkpoints are retained in atomic hash-verified payload
+files under `analysis/records/payloads`, with a bounded index and legacy inline
+reading. Cancellation aborts inference before its metadata write; owner deadlines
+cover preparation/provider work, and ownerless persisted runs reconcile to blocked
+without starting another attempt. No payloads/history are pruned. Backups must
+retain the complete records directory; older runtimes cannot read a new packed
+index (they preserve it and report an error). See the
+[handoff](session-handoffs/2026-10-02-surgical-grammar-workflow.md) for measurements,
+checks, production uncertainties and rollout limits.
+
+## Server-only product cleanup (review, not deployed)
+
+The cleanup branch starts from PR #16 at `4d0a60c` and targets
+`unlocked-light-deploy`, keeping its 35 unrelated unmerged commits out of the diff.
+PR #17 remains open and unchanged; its server/browser fixes are carried here,
+while its obsolete desktop telemetry repair is omitted.
+
+The server's shared Python bridge, authoring/AI/MCP, validation, PDF/dictionary
+and compatible storage services move from `electron/` to `runtime/`, with shared
+service tests retained. Native entrypoints, installer/updater, packaged toolchains,
+desktop launch tests/scripts and dependencies are removed. The browser installer
+UI and desktop usage panel are retired; hosted reports remain in the team panel.
+
+`npm run build` builds the browser and shared runtime; `npm start`/`collab` launch
+the locked Linux server. Setup/authentication/deployment guidance describes the
+server product. Normal deployment no longer discovers desktop profiles. Existing
+legacy archives, import/history readers and data formats remain compatible; old
+Chromium buffers require an existing allowlisted JSON export for explicit import.
+This dependency/build change requires a full deployment when separately approved.
+No live service, data, credentials, releases or sibling repositories are changed.
+
+Earlier entries below are historical verification checkpoints. Native paths and
+release results describe what was tested at the time, not supported current APIs.
+
+## Steering and bounded grammar corrections (live)
+
+Grammar repair now has a 15-minute agent deadline per attempt. Steering does not
+reset it; timeout stops inference, drains atomic edits/checks and preserves a
+resumable partial response without automatically calling the provider again.
+Replies in an active Codex grammar conversation now use `analysis_steer` and
+native `turn/steer` on the existing turn, preserving its tools, edits and corpus
+checks. Instructions are saved before delivery, with waiting/delivered/undelivered
+or unconfirmed receipts; duplicate operations cannot send twice. Completion,
+transport failure and restart do not silently launch another provider run.
+Claude providers still require a completed turn; their composer text is retained
+with an explicit unsupported-steering message. Completed follow-ups receive the
+actual parent results at dispatch. Running work stays visible alongside legacy
+queued replies. Release `85ddedd97d48b61294d66ad2de8cae7c00a5a35d` is live
+(51.9-second light deployment). Production verification:158 lines, zero
+divergences/failures, four pending,327 morphemes and no active repairs. All145
+research files and six PDF/evidence files retain exact pre/post hashes. Live
+Chrome confirms refresh, retained responses and deadline guidance; a closed-turn
+steering request rejects without modifying the job or starting inference.
+See [handoff](session-handoffs/2026-10-01-live-repair-steering.md).
+
+## Editing feedback, translation cost and contributor credits (live)
+
+The tree toolbar has one always-visible orientation toggle. Explicit completion
+now wins over older review submissions in the navigator, panel and filters;
+submitting a newer revision reopens review. Completion is never inferred merely
+from matching generated text. The PDF guide follows current visible predecessors,
+including reordered/pending passages and region edits still saving, without
+turning inherited guides into owned evidence. Gray guides are more opaque.
+
+Lexical discovery uses Navarro-style complete-form/whole-meaning ranking with
+accent/glottal omission fallback; identifiers and saved definitions remain exact.
+Codex translation uses GPT-5.6 Luna at medium, verified in the live model catalog;
+grammar repair retains its own configuration. A scoped readable annotation
+legend supplements exact tree definitions and original tags. Tests use simulated
+providers and real local context; model-side translation quality remains untested.
+
+Hosted credit reporting separates confirmed contributions from checkpoints
+and visits, with distinct canonical passage IDs per user and an all-time export.
+Foreground activity intervals provide platform/per-passage time going forward,
+pause after inactivity, and deduplicate overlapping tabs on the server. Historical
+saved contributions remain reportable; historical hours are not reconstructed.
+See [handoff](session-handoffs/2026-10-01-workflow-feedback-and-credits.md).
+Release `c1167671f31fcc31afb8e1fad499a8085e786487` is live after a 52.5-second
+light deployment. Fresh health: 158 lines, zero divergences/failures, three
+pending, 327 morphemes, no active repairs. All 145 research files and six
+evidence/PDF files retain exact parity. Live model profile, read-only prompt
+construction and administrative report endpoints are verified. Actual Chrome
+checks also passed the completion labels, visible toggle, translation setup and
+credit table with no API/page errors or research mutations.
+
+
+## Insertion past unrelated unresolved references (live)
+
+The live insertion error came from Araújo reference records 55/60 retaining older
+UUIDs than their unpinned source rows. The insertion guard checked even reference
+rows before the new passage, although those rows never move. It now preserves
+those records unchanged and checks identity only for relocated rows. It does not
+reassociate or approve either older reference. Live in-memory reproductions at
+both actual insertion targets (72/113) fail under old code and pass with the fix,
+with exact reference bytes preserved. See
+[handoff](session-handoffs/2026-09-30-insertion-unrelated-references.md).
+Release `0c67322f489f15cff0841b7157d68d42e93111eb` is live. Full source-new
+previews of both actual saved drafts passed: 155 expressions checked, 153
+references retained, zero failures, one proposed new row each; nothing applied.
+The rollout hit a full disk and stalled its heartbeat; six explicitly named unused
+old Studio images were removed (current/rollback images and all data retained),
+restoring 2.6 GB free. Verify space before another image build. All 145 research
+files and six evidence/PDF files retain exact before/after parity.
+
+
+## URL navigation and shareable locations (live)
+
+Root query parameters now identify passages/sources, views/projections, selected
+source nodes, shared declaration tabs, lexical entries/occurrences/note scope,
+dictionary entries/searches, passage filters/searches, catalog and learning views.
+History API navigation preserves the mounted editor and unsaved drafts. Explicit
+links override latest-passage startup after project/draft restoration; published
+pending UUID aliases canonicalize with replaceState. Missing/malformed targets
+remain visible errors without creating passages. Search typing replaces its
+history entry, while navigation pushes; Alt+arrows retain browser history behavior.
+The header's **Copiar link** copies the current location.
+
+Hosted password/Neo login returns to the validated root query destination. Neo
+uses a short-lived HttpOnly cookie bound to the existing flow, with no migration.
+Dictionary restores are read-only, dataset-pinned and cannot trigger imports;
+iframe searches feed parent history. Shared-tree links require exact declaration
+identity and preserve existing tab drafts. Node restoration waits for parsing
+without repeatedly taking control of the canvas. See
+[handoff](session-handoffs/2026-09-30-url-navigation.md) for checks and rollout.
+Release `335de372a78c57d48f3a0623aff482fdb3c5e670` is live after a 52.9-second
+light deployment. Actual production Chrome checks passed login return, refresh,
+same-document Back/Forward and dictionary search restoration, with no page errors
+or attempted research mutations. All 145 research files and six evidence/PDF
+files retain exact parity. Fresh health: 154 lines, zero divergences/failures,
+seven pending, 321 morphemes, no active repairs (2.708 seconds).
+
+
+## Grammar repair transport, streaming and repeated work (live)
+
+The reported pluriform repair repeatedly rolled back with malformed Python JSON
+during `open_project`. Unbuffered Python output can legally write only a prefix;
+the old `print()` then terminated that truncated response. A real signal/slow
+reader reproduction produced invalid 65 KB output from a 2 MB response. The
+worker now finishes the UTF-8 byte frame, with bounded parser diagnostics and
+replacement of failed workers even at an unchanged project fingerprint.
+
+Streaming detail reads newer than their compact list snapshot are retained,
+preventing the last-20-events tail from replacing the full response. Unfinished
+Markdown preserves its characters; separate assistant messages retain paragraph
+breaks. Reverted edits and wrapped tool failures are
+labelled explicitly. Fresh linguistic contrasts no longer reopen the worker;
+edit/final corpus checks remain intact and tool instructions avoid duplicate checks.
+Successful tool results and replay receipts commit together, eliminating one
+whole-history rewrite per call. Cancelling repairs complete their drained final
+check under the same lease while rejecting late tool results.
+
+The exact proposed `pûera * eo` correction was tested only in disposable live-code
+copies: `te'õmbûera`, full tree `te'õmbûeratyma`, both possessive orders unchanged,
+154 corpus expressions unchanged. No shared linguistic correction or new provider
+attempt was applied. Final release `771344f629326e44bd3f1db3d0a9e40b91a6a49b`
+is live (52.5s follow-up), with exact parity for 145 research files and all six
+evidence manifests/PDFs. The real interrupted-write reproduction also passes
+inside the deployed container. Fresh health: 154 lines, zero divergences/failures,
+seven pending, 321 morphemes, no active repairs. See
+[handoff](session-handoffs/2026-09-30-repair-transport-streaming.md).
+
+## Automatic region saves (live)
+
+Implemented automatic PDF region/view saves with a 400 ms debounce; the manual
+**Salvar regiões** button is removed. Completed draw/move/resize, deletion and
+reading-order edits remain editable while writes run. Outgoing passage saves
+retain their original identity; delayed acknowledgements cannot replace another
+passage's regions. Failure retains local data with retry/export/reload feedback.
+Loading an inherited guide creates no owned regions and performs no save.
+
+Passage fingerprints let unrelated passages save concurrently while preserving
+same-passage/PDF guards. Analysis preparation flushes pending region edits and
+checks exact own evidence, so another passage's autosave does not cancel capture.
+Validation: 27 actual PDF browser cases, 13 domain cases, 16 filesystem evidence
+cases and five focused analysis capture cases; typecheck and Vite build pass.
+Release `374232ee725fc3cbbc02969a72dec2a66e83e522` is live; the light deployment
+took 52.7 seconds. Read-only browser verification confirms the button is absent,
+drawing remains enabled, saved feedback and the own-passage baseline are present,
+and clean navigation attempts no research writes. All three evidence manifests
+and three PDF assets retain identical checksums. Fresh health: 154 lines, zero
+divergences/failures, seven pending, 321 morphemes and no active repairs; see
+[handoff](session-handoffs/2026-09-30-region-autosave.md).
+
+## Revision publication identity and ordering (live)
+
+The reported `oîkotebẽba'emoapysyka` duplicate is one UUID left under both
+pending and canonical identities after publication raced another browser's
+autosave. Both expressions have identical complete surfaces and annotations;
+the corpus contains only one source record. Fresh inspection: 154 source lines,
+zero divergences/failures. Reservations were already disabled in production.
+
+Hosted publication now migrates draft identity and retains the visible order
+inside the server write transaction before sending source-change events.
+Clients adopt returned versions instead of attempting a second migration;
+retired pending identities cannot be revived by stale tabs. Admins override
+reservations using their current database role, with attributed history.
+Real stale-version guards remain. Focused PostgreSQL, HTTP and browser checks
+cover the publication/autosave race and exact-version legacy recovery.
+Release `865d7adbb738b867b9c0bd2e49021a32fb15455a` is live; its small server
+follow-up took 14.7 seconds. Exact recovery retired only the reported pending
+identity, retained the canonical tree/history, and preserved the complete
+visible order. The single entry is at 118. Live browser verification confirms
+that row and its output with no API/page errors or research mutations. Fresh
+health: 154 lines, zero divergence/failures, seven pending, 321 morphemes, 2.646s.
+Every unrelated draft's authored content and all source rows are unchanged; see
+[handoff](session-handoffs/2026-09-30-revision-identity-race.md).
+
+## Definition reuse, persistent tabs and passage accordions (live)
+
+Release `3aee95d10afacec596179d28039885a910fbd79c` is live from PR #16.
+The feature rollout took 51.6s; a compact-screen tab stacking follow-up took 62.7s
+after unused build-cache cleanup. Fresh live health: 153 lines, zero divergences
+or execution failures, no active grammar repairs. Exact live alias review checked
+all 153 references successfully; research sources were not applied by verification.
+
+Shared definition tabs now survive passage changes, with bordered tab styling
+and independent draft/camera/undo state. Their evaluation and grammar correction
+retain the originating passage context. **Substituir por peça existente** searches
+the complete shared léxico and offers a named reference or a copied tree. The
+resolver follows dependencies in memory; serialization preserves valid Python
+for existing corpus tools. Circular/ambiguous references and unsafe module effects
+remain explicit errors. Exact variable names rank first in search.
+
+The navigator groups passages by source, section and subsection, preserving
+administrator order and reflecting current draft labels/status. Initial load opens
+the final passage in the restored source, including pending rows, and reveals its
+section path. Filters reveal matches; subsequent navigation remains explicit.
+Live browser checks preserve tabs, variant and zoom between passages and find the
+exact newer definition for reuse. Tabpanels isolate canvas overlay layers so the
+sticky tabs remain clickable after keyboard focus scrolls the compact editor.
+This was verified on the deployed follow-up at 800×600 with actual tab hit tests
+and switching; no research writes occurred during the browser checks.
+
+A production snapshot and deployed preview confirm `enosem_26169d1f.copy()` preserves all
+153 surfaces when replacing old `enosem`. Araújo58 changes only its annotation to
+`eno[CAUSATIVE_PREFIX:ERO]sem[ROOT]`. Shared-definition review now shows annotated
+before/after rows and requires acknowledgement bound to that exact preview.
+Surface/reference/coverage/execution regressions remain blocked; this does not
+approve saved references. Imported definitions also retain complete meaning and
+structure: indirect alias mutations fail before reuse. See
+[handoff](session-handoffs/2026-09-30-definition-reuse-navigation.md).
+
+The ordinary tree operation menu exposes **Verbo de 2ª classe (estativo)** via
+`v(…)`, using `.base_nominal()` first when required by the selected engine.
+The original compound remains editable; `bae * v((tekó / kuab).base_nominal())`
+produces `itekokuaba'e` with incorporation annotations. Domain, actual-engine,
+browser preview/apply/undo and final app build checks pass. An isolated engine
+proposal extends `v()` to remaining predicate categories: five tests pass and
+153 saved outputs/annotations are unchanged. Applying that neighboring-engine
+patch awaits the requested AGENTS.md exception. Separately, live `ba'e` currently
+drops argument negation; this finding has not been repaired here.
+
+## Shared pieces in main tree tabs (live)
+
+Release `e5852d84fb0f0256a4548f02fab844942af9a77c` is live from PR #16;
+the light rollout completed in 54.6 seconds. Running image, bundled tab UI and
+exact-declaration refresh backend were independently checked.
+
+The actual `imomiaûsupyrarenosema` passage (Araújo ordinal 112) references
+`enosem_26169d1f`, whose saved expression is `(((ero) * (sem)).var(1)).copy()`.
+The variant survives publication; the former runtime-object view hid its authored
+steps. This is distinct from the older literal `enosem = Verb("enosem")`.
+
+**Abrir peça em aba** now opens the saved definition beside **Passagem**, above
+the main canvas, with the same editable operations and variant arguments. Tabs
+retain independent selection, camera and undo history while switching; closed
+tabs recover browser-session drafts. Shared review/repair controls are above the
+canvas; passage save controls clearly give way to the active shared definition.
+Inactive tabs pause reads. Shared morphology uses the declaration namespace.
+
+Reviewed saves refresh the exact declaration with stale-source guards intact.
+Unique definitions retain draft identity when earlier source lines shift;
+ambiguous bindings stay separate. A changed proposal or loose piece invalidates
+an in-flight review. Focused actual-engine, browser, domain and build checks pass.
+Authenticated live verification opened the exact published piece, canceled an
+inline variant edit, switched tabs and closed/reopened it with no research writes
+or browser/API errors. Fresh health: 153 lines, zero divergences/failures, 2.573s.
+See [handoff](session-handoffs/2026-09-30-shared-tree-tabs.md).
+
+## Shared definition trees and scoped grammar repair (live)
+
+Release `020f0ea195e8ce9eb6182f1bbd73ddb8eef3efd3` is live from PR #16.
+Rollout took 175.8 seconds because Docker filled the host disk and stalled the
+idle heartbeat. Cleared only unused build cache; 5.3 GB available afterward,
+with research, backups and running/rollback images retained.
+
+Imported source variables expose **Editar árvore compartilhada**. A separate
+canvas edits the declaration while retaining its name in every parent passage;
+source review evaluates the entire corpus before guarded application. The exact
+declaration namespace excludes later names and passage shadows. Helpers and
+ambiguous assignments explain why they cannot be edited directly.
+
+**Corrigir gramática** can target an existing subtree or an unsaved replacement
+definition. Each grammar edit checks that target, its enclosing tree, the saved
+passage where applicable, and the corpus. New execution errors roll back; unexpected
+output/reference/coverage changes prevent a clean completion. Definition publication
+remains a separate explicit source review. Draft definitions stay in tab storage.
+
+Actual-engine, focused repair, browser and build checks pass. Live inspection and
+scoped evaluation confirm `enosem` resolves its original declaration and yields
+`enosem`; its shared editor opens with grammar repair enabled. Fresh health:
+153 lines across three sources, zero divergence or execution failures, 2.6 seconds.
+Twenty-nine authenticated invokes had no HTTP/page errors or blocked mutations.
+See [handoff](session-handoffs/2026-09-30-shared-tree-editing.md).
+
+## Instant contribution capture (live)
+
+Release `6258328650bab1224f91d0600b8cf314205aa2f3` deployed in 14.6 seconds.
+The actual `make collab-publish-all` completed in 12.68 seconds, including first
+partial-cache fill and creation of nhe-enga PR #20; corpus had no changes. Live
+diff captures took 0.155 / 0.330 seconds alongside 25 browser invokes with no
+HTTP errors. Container start time remained the deployment time.
+
+`collab-publish-all` now captures saved source bytes without a maintenance lease,
+restart or wait for AI jobs. A change during capture fails promptly; changes saved
+after capture remain working edits. The private Git index preserves sparse flags;
+review hashes bind content and executable mode. Incremental bundles and laptop
+upstream reconciliation remain. 30 operation tests and eight bridge/idle tests pass.
+
+The previous `7d5c2dc` release still froze browser calls while waiting for work;
+its deployed-file/health checks missed this. The stalled export was cancelled and
+its exact maintenance request removed, without cancelling research jobs. Subsequent
+idle state reported no work. Maintenance 503 polling now honors Retry-After, and
+long maintenance leases renew correctly. See the
+[handoff](session-handoffs/2026-09-30-instant-git-capture.md) for the verification
+gap and completed deployment evidence.
+
+## Submission feedback and checked batch review (live)
+
+Release `42158ebea7a008ea3cad106c28b862c657103d64` is live (50.5 seconds),
+including the initial-list loading guard.
+The read-only live check verified the queue/filter UI and all 25 mounted controls
+opted out of autofill, with login intact. Fresh health: 151 lines, no divergences
+or execution failures; 2.492 seconds.
+
+Invites and submissions have persistent adjacent sending/success/error messages.
+The navigator shows durable submission status and filters awaiting review, ready
+to incorporate and requested corrections across all sources. Admins can open
+**Revisar envios em lote**, compare each engine result with saved PDF crop pixels
+or a chosen physical PDF page, check reviewed lines, then incorporate selected
+lines with approved references. See
+[handoff](session-handoffs/2026-09-30-submission-review-queue.md).
+
+## Workspace autofill suppression (live)
+
+Release `a784d1cc1617b540c6facbfd20a527687827e6cd` is live (50.3 seconds).
+Authenticated checks found all 24 mounted controls opted out and login tokens intact.
+
+All React workspace inputs, textareas, selects and forms use shared
+`workspaceAutofill` props before insertion: autocomplete off plus password-manager
+ignore hints. Hosted collaboration/account/admin fields and history filters use
+the same hints. Login/reset retain their credential semantics on separate pages.
+See [handoff](session-handoffs/2026-09-30-workspace-autofill.md).
+
+## Browser request pressure (live)
+
+Release `1bb0c22c9840107afa93544e7668652949120512` is live from PR #16;
+the light rollout completed in 49.8 seconds.
+
+Streamed AI refreshes now run one at a time, coalesce updates over 1.5 seconds,
+and retain a trailing refresh. Hosted engine requests share identical pending
+reads, allow three concurrent calls per tab, and respect 429 cooldowns. Writes
+are neither deduplicated nor retried. See
+[handoff](session-handoffs/2026-09-30-browser-request-pressure.md).
+
+## Repair completion and whole-corpus health (live)
+
+Release `bee3ba1e2a38a81676cd2d3e06f45fa53d7a9d71` is live from PR #16.
+The rollout acquired its private drain lease and completed in 50.5 seconds.
+Live authenticated health checks cover 151 source lines across three sources:
+zero reference divergences or execution failures, three pending drafts, and
+312 distinct annotated surface/tag forms. The check takes about 2.4 seconds;
+the dark-mode dialog was visually checked at 800×600.
+
+The reported interrupted repair finished at 10:58:07Z on its third attempt:
+target matched, all 151 corpus lines unchanged, no verification failures.
+
+Grammar repairs no longer stop at the ordinary five-minute deadline. Resume
+compacts provider context while preserving full saved history; in-flight edits
+finish checking before writer release, and failed syntax/import or new execution
+errors are rolled back with hash guards. **Saúde do corpus** in the top bar runs a
+read-only whole-source check with divergences, per-source counts, pending drafts,
+annotated morpheme forms and interrupted repair history. Light rollout now waits
+for a private drained-work lease before restart. See
+[handoff](session-handoffs/2026-09-30-repair-completion-corpus-health.md).
+
+## Admin passage list organization (live)
+
+Release `d8776184ab7a7511c0db34b248b7b77880eea983` is live from PR #16.
+The final light rollout took 49.1 seconds. Authenticated read-only browser checks
+passed at 1024×768 and 800×600; the manager matches all 114 source entries, with
+reference labels visible and dark-mode text readable. No production content was
+changed by verification.
+
+Hosted admins now have **Organizar passagens** beside the source selector: move
+up/down or to a numbered position, duplicate, exclude from the list, and restore.
+Order and exclusions are shared draft metadata, with admin authorization,
+optimistic revision checks and immutable before/after history. Source files and
+approved references are retained. Duplicates receive new pending identities and
+copy authored content/tree/locators, without completion, AI acceptance or PDF crops.
+New unranked drafts still follow their insertion anchors. Ordinary autosaves cannot
+change organization or overwrite deleted entries. The last active project entry
+cannot be excluded until another is created.
+See [handoff](session-handoffs/2026-09-30-admin-passage-list.md).
+
+## Reservations disabled; 18-second light deployment (live)
+
+Release `290da542827bf9909e238c97b17c0b9f3deb556d` is live from PR #16's
+reviewable `unlocked-light-deploy` branch. Main remains unchanged pending CI/review.
+Reservations default off: existing rows cannot block saves or appear in presence,
+and reserve/release controls are removed. Identity, role, optimistic-version and
+immutable-history checks remain. Read-only production checks passed for both
+Kian and Emerson on the formerly blocked passage.
+
+The new light command took 18.1 seconds including preflight; server rollout was
+13.4 seconds. It reused the frontend/dependencies, took a small DB snapshot,
+restarted only Studio, and verified health. No full CI wait, workspace archive,
+dependency sync or PostgreSQL restart. Installation/schema changes require full
+deploy; unhealthy app startup restores the previous image. Until PR #16 merges,
+use `STUDIO_REF=unlocked-light-deploy make collab-deploy-light`.
+See [handoff](session-handoffs/2026-09-30-unlocked-light-deploy.md).
+
+## Studio production release 21d6035
+
+PR #15 is merged and deployed as `21d60355767a1a4a105fdcc440d4f5d2e59bcb2e`.
+Both full CI jobs and hosted CI passed. Public health reports this exact release.
+Live authenticated browser checks passed at 1024×768 and 800×600: every pane
+remains reachable, the passage list scrolls, Fonte ends at transcription, and
+basic mode has no pane-close controls. The smoke blocked content/AI mutations
+and reported no browser errors. Production grammar regression still covers all
+150 corpus rows unchanged; the focused suite now passes 30 tests, including a
+concurrent contributor addition. Both backup checksums are verified; all 153
+checked files and all 254 drafts match the pre-deploy backup exactly. See the
+[deployment handoff](session-handoffs/2026-09-30-contributor-ui-deployment.md).
+
 ## Nasal mo production correction (live)
 
 The production AI repair changed only `/` composition. Kian explicitly requested
@@ -13,7 +469,7 @@ choices remain editorial. See the
 [audit](../research/2026-09-30-mo-causative-production.md) and
 [handoff](session-handoffs/2026-09-30-mo-causative-production.md).
 
-## Blank new passages and consolidated source view (local, not deployed)
+## Blank new passages and consolidated source view (live)
 
 New passages and navigation into an empty existing passage inherit only source
 locators (page/folio/line/section/subsection/prayer), never transcription, normalized
@@ -25,7 +481,7 @@ IA/correction/translation action. Eight domain tests and all 57 affected browser
 cases passed across the initial run and targeted fixture-correction rerun. See
 [handoff](session-handoffs/2026-09-29-blank-passages-source-consolidation.md).
 
-## Contributor feedback and cramped-screen navigation (local, not deployed)
+## Contributor feedback and cramped-screen navigation (live)
 
 Basic mode keeps every pane reachable and hides close/docking controls. Compact
 widths (up to 1100 px) expose explicit pane navigation; passage lists scroll

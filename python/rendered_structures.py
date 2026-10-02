@@ -54,25 +54,21 @@ def normalize(value, relaxed=False):
 
 
 def search(entries, query, limit=40):
-    key = normalize(query)
-    if not key:
+    from lexical_search import Document, Query
+    lookup = Query(query)
+    if lookup.empty:
         return {'query': query, 'results': [], 'total': 0}
-    relaxed = normalize(query, True)
-    ranks = {'exact': 0, 'prefix': 1, 'contains': 2, 'segment': 3, 'name': 4, 'definition': 5, 'relaxed': 6}
     matches = []
     for entry in entries:
-        rendered = normalize(entry['surface'])
-        match = ('exact' if key == rendered else 'prefix' if rendered.startswith(key) else
-                 'contains' if key in rendered else 'segment' if len(rendered) >= 3 and rendered in key else
-                 'name' if key in normalize(entry.get('name', '')) else
-                 'definition' if key in normalize(entry.get('definition', '')) else
-                 'relaxed' if relaxed and (relaxed in normalize(entry['surface'], True) or relaxed in normalize(entry.get('name', ''), True) or relaxed in normalize(entry.get('definition', ''), True)) else None)
+        match = lookup.match(Document(name=entry.get('name'),
+            forms=[('surface', entry['surface']), ('name', entry.get('name'))],
+            definition=entry.get('definition')), segments=True)
         if match:
             public = {k: v for k, v in entry.items() if not k.startswith('_')}
-            matches.append({**public, 'match': match})
-    matches.sort(key=lambda row: (ranks[row['match']], -len(normalize(row['surface'])) if row['match'] == 'segment' else 0,
-                                 row['kind'] != 'reference', len(row['surface']), len(row['expression']), row['id']))
-    return {'query': query, 'results': matches[:limit], 'total': len(matches)}
+            matches.append((match.rank, {**public, 'match': match.label}))
+    matches.sort(key=lambda item: (item[0], item[1]['kind'] != 'reference', len(item[1]['surface']),
+                                  len(item[1]['expression']), item[1]['id']))
+    return {'query': query, 'results': [row for _, row in matches[:limit]], 'total': len(matches)}
 
 
 def walk(root):

@@ -32,6 +32,25 @@ def dispatch(adapter: ProjectAdapter, request: object):
     return adapter.invoke(method, params)
 
 
+def write_response(response):
+    """Finish the UTF-8 frame even when unbuffered stdout writes only a prefix."""
+    # Studio launches Python unbuffered. TextIOWrapper over FileIO may accept a
+    # short raw write without retrying the remaining bytes; print() then appends
+    # a newline to that truncated JSON. Keep the delimiter in the same byte frame
+    # and advance only by the number actually written to the transport.
+    remaining = memoryview((json.dumps(response, ensure_ascii=False) + '\n').encode('utf-8'))
+    stream = sys.stdout.buffer
+    while remaining:
+        try:
+            count = stream.write(remaining)
+        except InterruptedError:
+            continue
+        if count is None or count <= 0:
+            raise BrokenPipeError('The JSONL transport could not write its response.')
+        remaining = remaining[count:]
+    stream.flush()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-dir", type=Path)
@@ -54,7 +73,7 @@ def main():
             response = {"id": request_id, "error": {"message": str(exc), "code": exc.code}}
         except Exception as exc:
             response = {"id": request_id, "error": {"message": f"Falha ao ler o projeto: {exc}", "code": "WORKER_ERROR"}}
-        print(json.dumps(response, ensure_ascii=False), flush=True)
+        write_response(response)
 
 
 if __name__ == "__main__":

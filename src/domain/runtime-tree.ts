@@ -33,6 +33,7 @@ export interface RuntimeNode {
   sourceOccurrences?: RuntimeSourceOccurrence[];
   lexicalOrigins?: string[];
   methods?: string[];
+  stativeConversion?: AuthorNode['stativeConversion'];
   evaluation?: NodeEvaluation;
   /** The primary authoring tree describes source steps, not evaluated objects. */
   expression?: {

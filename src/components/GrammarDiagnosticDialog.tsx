@@ -1,8 +1,9 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../domain/clipboard';
 import { Send, X } from 'lucide-react';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
-import { grammarDiagnostic } from '../domain/grammar-diagnostic';
+import { diagnosticTarget, grammarDiagnostic } from '../domain/grammar-diagnostic';
 import type { Passage, StudioProject } from '../domain/types';
 import { invoke } from '../domain/authoring';
 import type { RenderResult } from '../domain/types';
@@ -29,12 +30,13 @@ export function GrammarDiagnosticDialog({
     operationId: string;
   }) => Promise<void>;
 }) {
+  const target = diagnosticTarget(report);
   const [mode, setMode] = useState<'engine' | 'tree'>('engine');
   const [intendedSurface, setIntendedSurface] = useState(() =>
-    report.root.evaluation?.status === 'ok' ? report.root.evaluation.surface : '',
+    target.evaluation?.status === 'ok' ? target.evaluation.surface : '',
   );
   const [explanation, setExplanation] = useState('');
-  const baselineKey = `studio:grammar-baseline:${JSON.stringify([project.id, passage.id, report.revisionId, report.fragmentId])}`;
+  const baselineKey = `studio:grammar-baseline:${JSON.stringify([project.id, passage.id, report.revisionId, report.fragmentId, target.id, report.sharedDefinition])}`;
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [baseline, setBaseline] = useState<CorpusSnapshot | null>(() => {
@@ -84,18 +86,31 @@ export function GrammarDiagnosticDialog({
           <X size={18} />
         </button>
       </header>
+      <p>
+        Alvo: <code>{target.code}</code>
+        {report.sharedDefinition && (
+          <>
+            {' '}
+            · definição de <code>{report.sharedDefinition.name}</code>
+          </>
+        )}
+      </p>
+      {target.id !== report.root.id && (
+        <p>
+          Corrigir este trecho também verifica a árvore completa e todas as passagens do corpus.
+        </p>
+      )}
       <p className="grammar-current-result">
         Resultado atual:{' '}
         <strong lang="tpw">
-          {report.root.evaluation?.status === 'ok'
-            ? report.root.evaluation.surface
-            : 'Sem resultado'}
+          {target.evaluation?.status === 'ok' ? target.evaluation.surface : 'Sem resultado'}
         </strong>
       </p>
       <fieldset className="grammar-repair-mode">
         <legend>O que precisa ser investigado?</legend>
         <label>
           <input
+            {...workspaceAutofill}
             type="radio"
             name="grammar-repair-mode"
             checked={mode === 'engine'}
@@ -105,15 +120,18 @@ export function GrammarDiagnosticDialog({
             ? 'Corrigir a gramática compartilhada'
             : 'Corrigir a gramática local'}
         </label>
-        <label>
-          <input
-            type="radio"
-            name="grammar-repair-mode"
-            checked={mode === 'tree'}
-            onChange={() => setMode('tree')}
-          />{' '}
-          Completar ou ajustar a árvore
-        </label>
+        {!report.sharedDefinition && (
+          <label>
+            <input
+              {...workspaceAutofill}
+              type="radio"
+              name="grammar-repair-mode"
+              checked={mode === 'tree'}
+              onChange={() => setMode('tree')}
+            />{' '}
+            Completar ou ajustar a árvore
+          </label>
+        )}
       </fieldset>
       <p className="tree-operation-help" aria-live="polite">
         {mode === 'engine'
@@ -123,6 +141,7 @@ export function GrammarDiagnosticDialog({
       <label className="grammar-repair-field">
         Como deveria ficar?
         <input
+          {...workspaceAutofill}
           aria-label="Forma pretendida"
           value={intendedSurface}
           onChange={(event) => setIntendedSurface(event.target.value)}
@@ -131,6 +150,7 @@ export function GrammarDiagnosticDialog({
       <label className="grammar-repair-field">
         O que precisa mudar?
         <textarea
+          {...workspaceAutofill}
           aria-label="Explicação linguística"
           value={explanation}
           onChange={(event) => setExplanation(event.target.value)}
@@ -173,7 +193,13 @@ export function GrammarDiagnosticDialog({
       <p role="status">{status}</p>
       <details className="grammar-technical">
         <summary>Detalhes e diagnóstico</summary>
-        <textarea aria-label="Prompt de correção da gramática" readOnly value={prompt} rows={8} />
+        <textarea
+          {...workspaceAutofill}
+          aria-label="Prompt de correção da gramática"
+          readOnly
+          value={prompt}
+          rows={8}
+        />
         <div className="grammar-diagnostic-actions">
           <button
             className="button"
@@ -250,12 +276,16 @@ export function GrammarDiagnosticDialog({
                   const next = await invoke<CorpusSnapshot>('grammar_regression');
                   setComparison(compareGrammarSnapshots(baseline, next));
                 }
-                const result = await invoke<RenderResult>('evaluate_expression', {
-                  passageId: passage.id,
-                  sourceId: passage.sourceId,
-                  raw: report.raw,
-                  revisionId: report.revisionId ?? 'grammar-repair-check',
-                });
+                const result = await invoke<RenderResult>(
+                  report.sharedDefinition ? 'lexicon_tree_evaluate' : 'evaluate_expression',
+                  {
+                    ...report.sharedDefinition,
+                    passageId: passage.id,
+                    sourceId: passage.sourceId,
+                    raw: target.code,
+                    revisionId: report.revisionId ?? 'grammar-repair-check',
+                  },
+                );
                 setFreshSurface(result.surface);
                 setStatus(
                   'Motor e corpus reavaliados. Confira a forma pretendida e todas as linhas alteradas abaixo.',

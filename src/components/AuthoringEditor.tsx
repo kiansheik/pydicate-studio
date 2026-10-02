@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Code2, GitBranch, Plus, Redo2, Search, Undo2 } from 'lucide-react';
 import {
@@ -10,6 +11,7 @@ import {
 } from '../domain/authoring';
 import type { Studio } from '../useStudio';
 import { LexicalInput } from './LexicalInput';
+import { addTreeOperation } from '../domain/tree-operations';
 export { LexicalInput } from './LexicalInput';
 
 const operations = [
@@ -20,6 +22,7 @@ const operations = [
   ['Vocativo', 'voc'],
   ['Reduplicar', 'redup'],
   ['Nominalizar', 'base_nominal'],
+  ['Verbo de 2ª classe (estativo)', 'v'],
   ['Escolher variante 1', 'var'],
   ['Circunstancial', 'circ'],
   ['Adicionar participante / complemento', '*'],
@@ -147,19 +150,28 @@ export function AuthoringEditor({
   }
   function applyOperation() {
     if (!node) return;
+    const evaluated = flattenNodes(studio.result?.tree ?? null).find(
+      (item) =>
+        item.id === node.id &&
+        item.code === node.code &&
+        item.start === node.start &&
+        item.end === node.end,
+    );
     const base = `(${node.code})`;
     const value =
-      action === 'negate'
-        ? `-${base}`
-        : action === 'hidden'
-          ? `+${base}`
-          : action === 'var'
-            ? `${base}.var(${argument || '1'})`
-            : action === 'circ'
-              ? `${base}.circ(${argument || 'False'})`
-              : ['*', '+', '/', '@', '==', '>>', '<<'].includes(action)
-                ? `${base} ${action} (${argument})`
-                : `${base}.${action}()`;
+      action === 'v'
+        ? addTreeOperation(node.code, action, '', 'right', evaluated)
+        : action === 'negate'
+          ? `-${base}`
+          : action === 'hidden'
+            ? `+${base}`
+            : action === 'var'
+              ? `${base}.var(${argument || '1'})`
+              : action === 'circ'
+                ? `${base}.circ(${argument || 'False'})`
+                : ['*', '+', '/', '@', '==', '>>', '<<'].includes(action)
+                  ? `${base} ${action} (${argument})`
+                  : `${base}.${action}()`;
     alter(value);
   }
   return (
@@ -195,6 +207,7 @@ export function AuthoringEditor({
         <label className="editor-label raw-editor">
           Pydicate editável
           <textarea
+            {...workspaceAutofill}
             ref={code}
             spellCheck={false}
             aria-label="Pydicate editável"
@@ -257,6 +270,7 @@ export function AuthoringEditor({
               <label>
                 Operação
                 <select
+                  {...workspaceAutofill}
                   aria-label="Operação na parte selecionada"
                   value={action}
                   onChange={(e) => setAction(e.target.value)}
@@ -506,6 +520,7 @@ export function LexiconPanel({
             : 'Inspecionar ou editar definições do projeto'}
         </summary>
         <form
+          {...workspaceAutofill}
           className="lexicon-search"
           onSubmit={(e) => {
             e.preventDefault();
@@ -513,6 +528,7 @@ export function LexiconPanel({
           }}
         >
           <input
+            {...workspaceAutofill}
             aria-label="Buscar no léxico ou Navarro"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -618,11 +634,16 @@ export function LexiconPanel({
               <summary>Revisar definição existente</summary>
               <label>
                 Definição revisada
-                <textarea value={definition} onChange={(e) => setDefinition(e.target.value)} />
+                <textarea
+                  {...workspaceAutofill}
+                  value={definition}
+                  onChange={(e) => setDefinition(e.target.value)}
+                />
               </label>
               <label>
                 Alcance da revisão
                 <select
+                  {...workspaceAutofill}
                   aria-label="Alcance da revisão lexical"
                   value={editScope}
                   onChange={(e) => setEditScope(e.target.value)}
@@ -669,6 +690,7 @@ export function LexiconPanel({
         <label>
           Palavra
           <input
+            {...workspaceAutofill}
             aria-label="Palavra da nova definição"
             value={headword}
             onChange={(e) => setHeadword(e.target.value)}
@@ -677,6 +699,7 @@ export function LexiconPanel({
         <label>
           Definição e classe gramatical
           <textarea
+            {...workspaceAutofill}
             aria-label="Definição lexical"
             rows={4}
             value={definition}
@@ -686,6 +709,7 @@ export function LexiconPanel({
         <label>
           Categoria
           <select
+            {...workspaceAutofill}
             aria-label="Categoria lexical"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
@@ -698,6 +722,7 @@ export function LexiconPanel({
         <label>
           Escopo
           <select
+            {...workspaceAutofill}
             aria-label="Escopo lexical"
             value={scope}
             onChange={(e) => setScope(e.target.value)}

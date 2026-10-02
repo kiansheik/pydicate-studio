@@ -75,7 +75,7 @@ class AuthoringService:
             result.update(engineFingerprint=fingerprint, documentationFingerprint=docs_fingerprint)
             self.adapter.learning_library_cache = result
             return result
-        allowed={'source_create','node_definition','composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve','structure_prepare'}
+        allowed={'source_create','node_definition','composition_define','parse_expression','evaluate_expression','predicate_catalog','predicate_create','grammar_regression','source_preview','source_new_preview','source_apply','source_recover','source_recovery_list','lexicon_search','lexicon_inspect','lexicon_create','lexicon_update','lexicon_tree_evaluate','lexicon_tree_preview','assistant_context','reference_verify','reference_approve','reference_status','passage_lexicon','contribution_prepare','dictionary_search','dictionary_lookup','dictionary_entry_get','dictionary_predicate','structure_search','structure_resolve','structure_prepare'}
         if method not in allowed: self.error('Operação indisponível.','UNKNOWN_METHOD')
         if not isinstance(params,dict): self.error('Parâmetros inválidos.')
         return getattr(self,method)(params)
@@ -174,7 +174,7 @@ class AuthoringService:
         self.fresh(params)
         return self._checked_dictionary_result({**result,'engineFingerprint':fingerprint,'revisionId':params.get('revisionId','')},entry)
 
-    def _preview(self,path,before,after,extra_changes=(),**details):
+    def _preview(self,path,before,after,extra_changes=(),annotation_review=False,**details):
         # A copy with an occurrence gloss has an explicit source-local helper;
         # the resulting file never depends on an invisible Studio builtin.
         decoded = after.decode('utf-8')
@@ -202,7 +202,9 @@ class AuthoringService:
             cached=getattr(self.adapter,'publication_snapshot_cache',None)
             baseline=cached['snapshot'] if cached and cached['fingerprint']==fingerprint else None
             snapshots={}
-            details['regression']=check_publication(self,changes,recovery=bool(details.get('recovery')),insertion=(Path(path).name.removesuffix('.tu.py'),details['reviewSummary']['passageOrdinal']) if details.get('newPassage') else None,baseline=baseline,snapshots=snapshots)
+            details['regression']=check_publication(self,changes,recovery=bool(details.get('recovery')),insertion=(Path(path).name.removesuffix('.tu.py'),details['reviewSummary']['passageOrdinal']) if details.get('newPassage') else None,baseline=baseline,snapshots=snapshots,allow_annotation_changes=annotation_review)
+            if annotation_review:
+                details['annotationChanges']=details['regression']['annotationChanges']
             details['regressionFingerprint']=self.fresh()
             # This one-entry, in-memory baseline belongs to exact current
             # corpus/engine bytes. A changed source, reference or grammar must
@@ -468,11 +470,15 @@ class AuthoringService:
         current_fingerprint=self.fresh()
         if preview.get('regressionFingerprint') != current_fingerprint and any(item['before']!=item['after'] for item in changes):
             self.error('O projeto mudou depois da regressão. Gere outra revisão antes de publicar.','STALE_SOURCE')
+        if preview.get('annotationChanges') and params.get('reviewedAnnotationChanges') is not True:
+            self.error('Confira as mudanças de análise morfológica e confirme sua revisão antes de aplicar a definição. As referências salvas não serão aprovadas ou alteradas.','REVIEW_REQUIRED')
         if all(item['before']==item['after'] for item in changes):return self.adapter.project
         if not self.adapter.state_dir:self.error('Configure armazenamento local para manter a recuperação.','STATE_ERROR')
         records=[{'path':str(item['path']),'before':item['before'].decode('utf-8'),'afterFingerprint':digest(item['after']),'beforeExists':item.get('beforeExists',True)} for item in changes]
         primary=next(item for item in records if item['path']==str(preview['path']))
         journal={'version':2,**primary,'files':records,'status':'prepared'}
+        if preview.get('annotationChanges'):
+            journal['reviewedAnnotationChanges']=preview['annotationChanges']
         apply_reviewed_files(changes,self.adapter.state_dir/'recovery'/(preview['previewId']+'.json'),journal,self.error)
         self.adapter.previews.pop(preview['previewId'],None)
         return self.adapter.refresh_project()
@@ -529,7 +535,28 @@ class AuthoringService:
 
     def lexicon_search(self,params):
         context=self.structure_context(params); self.fresh(params)
-        result=self.child({'action':'lexicon',**context,'query':str(params.get('query','')),'limit':max(1,min(100,int(params.get('limit',40))))})
+        owner=self._definition_context(params['definitionContext']) if params.get('definitionContext') is not None else None
+        query={'query':str(params.get('query','')),'limit':max(1,min(100,int(params.get('limit',40))))}
+        if owner:
+            result=self.child({'action':'lexicon_tree_search',**query,
+                'declarationSourceId':owner['sourceId'],
+                'declarationLine':10**9 if params.get('includeLaterDefinitions') is True and owner['scope']=='shared' else owner['line']})
+            from shared_definition import edit_target
+            from shared_definition_imports import plan,DefinitionImportError
+            text=(self.corpus/'historic'/(owner['sourceId']+'.tu.py')).read_text(encoding='utf-8')
+            for entry in result['results']:
+                entry['treeEdit']=edit_target(self.corpus,entry)
+                entry['availableInDefinition']=entry.get('sourcePath')!=str(self.corpus/'historic'/(owner['sourceId']+'.tu.py')) or entry.get('line',10**9)<owner['line']
+                if not entry['treeEdit']['editable']:
+                    entry['reuseBlockedReason']=entry['treeEdit']['reason']
+                    continue
+                try:
+                    planned=plan(text,owner['sourceId'],owner['line'],entry['name']+'.copy()')
+                    entry['definitionImports']=planned['imports']
+                except DefinitionImportError as error:
+                    entry['reuseBlockedReason']=str(error)
+        else:
+            result=self.child({'action':'lexicon',**context,**query})
         self.fresh(params)
         return result
 
@@ -755,9 +782,126 @@ class AuthoringService:
 
     def lexicon_inspect(self,params):
         context=self.structure_context(params); self.fresh(params)
-        result=self.child({'action':'lexicon_inspect',**context,'name':params.get('name')})
+        if params.get('declarationTarget') is not None:
+            target=self._refresh_definition_target(params['declarationTarget'],params.get('name'))
+            result=self.child({'action':'lexicon_tree_inspect','name':params.get('name'),
+                'declarationSourceId':target['sourceId'],'declarationLine':target['contextLine']})
+        elif params.get('definitionContext') is not None:
+            owner=self._definition_context(params['definitionContext'])
+            result=self.child({'action':'lexicon_tree_inspect','name':params.get('name'),
+                'declarationSourceId':owner['sourceId'],'declarationLine':owner['line'],
+                'resolveDefinitions':owner['scope']=='shared'})
+        else:
+            result=self.child({'action':'lexicon_inspect',**context,'name':params.get('name')})
+        from shared_definition import edit_target
+        result['treeEdit']=edit_target(self.corpus,result)
         self.fresh(params)
         return result
+
+    def _refresh_definition_target(self,target,name):
+        """Read a fresh target after publication without rebinding through a passage."""
+        sources={'lexicon',*(source['id'] for source in self.adapter.project.get('sources',[]))}
+        if (not isinstance(target,dict) or not isinstance(name,str) or not name.isidentifier()
+                or name.startswith('_') or target.get('name')!=name
+                or target.get('declarationSourceId') not in sources
+                or type(target.get('declarationLine')) is not int or target['declarationLine']<1):
+            self.error('A origem da definição precisa ser selecionada novamente.','LEXICAL_SCOPE')
+        source=target['declarationSourceId'];line=target['declarationLine']
+        path=self.corpus/'historic'/(source+'.tu.py')
+        statements=ast.parse(path.read_text(encoding='utf-8')).body
+        # Multiple assignments and helper bindings remain possible rebindings,
+        # even though the tree editor cannot rewrite them.
+        bindings=[node for node in statements if
+            isinstance(node,ast.Assign) and any(isinstance(item,ast.Name) and item.id==name for item in node.targets)
+            or isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)) and node.name==name
+            or isinstance(node,ast.AnnAssign) and isinstance(node.target,ast.Name) and node.target.id==name]
+        selected=next((node for node in bindings if node.lineno==line),None)
+        if selected is None:
+            if len(bindings)!=1:
+                self.error('A definição mudou de lugar e há mais de uma declaração possível. Selecione a peça novamente.','STALE_SOURCE')
+            selected=bindings[0]
+        from shared_definition import edit_target
+        current=edit_target(self.corpus,{'name':name,'sourcePath':str(path),'line':selected.lineno})
+        if not current['editable']:
+            self.error(current['reason'],'LEXICAL_SCOPE')
+        # Keep this declaration's later meaning overrides, stopping before a
+        # later binding of the same name could silently select another piece.
+        following=next((node.lineno for node in bindings if node.lineno>selected.lineno),10**9)
+        return {**current,'contextLine':following}
+
+    def _definition_context(self,context):
+        """Resolve nested references in their owner's declaration, not the passage."""
+        sources={'lexicon',*(source['id'] for source in self.adapter.project.get('sources',[]))}
+        source=context.get('declarationSourceId') if isinstance(context,dict) else None
+        line=context.get('declarationLine') if isinstance(context,dict) else None
+        if not isinstance(context,dict) or source not in sources or type(line) is not int:
+            self.error('Reabra a definição para consultar suas peças no contexto correto.','LEXICAL_SCOPE')
+        from shared_definition import edit_target
+        target=edit_target(self.corpus,{'name':context.get('name'),
+            'sourcePath':str(self.corpus/'historic'/(source+'.tu.py')),'line':line})
+        if (not target['editable'] or target['expression']!=context.get('expectedExpression',context.get('expression'))
+                or target['sourceFingerprint']!=context.get('sourceFingerprint')
+                or target['declarationId']!=context.get('declarationId')):
+            self.error('A definição que contém esta peça mudou. Reabra sua árvore.','STALE_SOURCE')
+        return target
+
+    def _lexicon_tree_context(self,params):
+        self.fresh(params)
+        name=params.get('name');raw=params.get('raw')
+        if not isinstance(name,str) or not name.isidentifier() or name.startswith('_') or not isinstance(raw,str) or len(raw)>100000:
+            self.error('Selecione uma peça e uma expressão Pydicate de até 100000 caracteres.')
+        self.structure_context(params)
+        if any(key in params for key in ('declarationSourceId','declarationLine','declarationId')):
+            target=self._definition_context(params)
+            path=self.corpus/'historic'/(target['sourceId']+'.tu.py')
+            declaration=next(node for node in ast.parse(path.read_text(encoding='utf-8')).body if node.lineno==target['line'])
+            entry=self.child({'action':'lexicon_tree_inspect','name':name,
+                'declarationSourceId':target['sourceId'],'declarationLine':declaration.end_lineno+1})
+        else:
+            entry=self.lexicon_inspect(params);target=entry['treeEdit']
+        if not target['editable']:
+            self.error(target['reason'],'LEXICAL_SCOPE')
+        if params.get('expectedExpression')!=target['expression'] or params.get('sourceFingerprint')!=target['sourceFingerprint']:
+            self.error('A definição mudou desde a inspeção. Reabra a peça; sua proposta não foi aplicada.','STALE_SOURCE')
+        return entry,target
+
+    def lexicon_tree_evaluate(self,params):
+        entry,target=self._lexicon_tree_context(params)
+        fingerprint=self.fresh(params)
+        if 'includeMorphology' in params and not isinstance(params['includeMorphology'],bool):
+            self.error('A opção de morfologia deve ser booleana.')
+        result=self.child({'action':'lexicon_tree_evaluate','raw':params['raw'],
+            'declarationSourceId':target['sourceId'],'declarationLine':target['line'],
+            'includeMorphology':params.get('includeMorphology',False)})
+        self.fresh(params)
+        result.pop('structure',None)
+        return {'revisionId':params.get('revisionId',''),'engineFingerprint':fingerprint,
+            'expression':params['raw'],'origin':'engine','treeEdit':target,
+            'authoring':expression_tree(params['raw'],params.get('revisionId','')),**result}
+
+    def lexicon_tree_preview(self,params):
+        entry,target=self._lexicon_tree_context(params)
+        raw=params['raw']
+        if contains_slots(raw):
+            self.error('Conecte todos os lugares vazios antes de revisar a definição.','UNRESOLVED_SLOTS')
+        evaluation=self.lexicon_tree_evaluate(params)
+        if evaluation.get('evaluationStatus')=='partial':
+            self.error('A árvore precisa ser realizada por completo antes de alterar a definição compartilhada. Corrija a árvore ou a gramática primeiro.','INCOMPLETE_EVALUATION')
+        path=self.corpus/'historic'/(target['sourceId']+'.tu.py')
+        before=path.read_bytes();text=before.decode('utf-8')
+        if digest(before)!=target['sourceFingerprint']:
+            self.error('A definição mudou durante a revisão.','STALE_SOURCE')
+        from shared_definition_imports import plan
+        prepared=plan(text,target['sourceId'],target['line'],raw)
+        declaration=next(node for node in ast.parse(prepared['text']).body if node.lineno==prepared['line'])
+        from shared_definition import replace_expression
+        after=replace_expression(prepared['text'],declaration,raw).encode('utf-8')
+        summary={'kind':'lexicon','fields':[
+            {'label':'Árvore de '+entry['name'],'before':target['expression'],'after':raw},
+            {'label':'Onde muda','after':'Todas as referências a esta definição no léxico compartilhado' if target['scope']=='shared' else 'Todas as referências a esta definição nesta fonte'}]}
+        return self._preview(path,before,after,annotation_review=True,name=entry['name'],lexicalId=entry['id'],
+            scope=target['scope'],affectedUses=entry.get('projectUses',{}).get('uses',[]),
+            treeEdit=target,definitionImports=prepared['imports'],reviewSummary=summary)
 
     def lexicon_create(self,params):
         self.fresh(); headword=params.get('headword',''); definition=params.get('definition',''); category=params.get('category','Noun'); scope=params.get('scope','source')

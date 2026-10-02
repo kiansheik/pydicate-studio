@@ -1,6 +1,7 @@
 import type { Draft, DraftEnvelope, Passage, StudioProject } from './types';
 import { emptySourcePassage, projectSources } from './sources';
 import { createDraft, updateDraft } from './model';
+import { organizePassages } from './passage-organization';
 
 /** Continue the same book location; turning the physical PDF page is explicit. */
 export function nextPassageLocators(
@@ -73,7 +74,7 @@ export function prefillEmptyNextPassage(
 
 /** Project local shells into the same passage list without pretending they are published. */
 export function projectWithPending(project: StudioProject, envelope: DraftEnvelope): StudioProject {
-  const passages = project.passages.filter((passage) => !passage.id.startsWith('pending:'));
+  let passages = project.passages.filter((passage) => !passage.id.startsWith('pending:'));
   if (project.id !== envelope.projectId || project.mode !== 'local')
     return { ...project, passages };
   const pending = Object.values(envelope.drafts)
@@ -83,14 +84,30 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
         (a.pending?.ordinal ?? Number.MAX_SAFE_INTEGER) -
         (b.pending?.ordinal ?? Number.MAX_SAFE_INTEGER),
     );
+  // A source publication and an older browser envelope may cross in flight.
+  // The reserved UUID identifies one passage, regardless of its pending prefix.
+  // Keep that row in the draft's visible slot without discarding either draft.
+  const published = new Map(passages.map((passage) => [passage.id, passage]));
+  const aliases = new Map(
+    pending.flatMap((draft) => {
+      const canonical = published.get(draft.passageId.replace(/^pending:/, 'passage:'));
+      return canonical && canonical.sourceId === draft.pending?.sourceId
+        ? [[draft.passageId, canonical.id] as const]
+        : [];
+    }),
+  );
+  const materialized = new Set(aliases.values());
+  passages = passages.filter((passage) => !materialized.has(passage.id));
   const waiting = [...pending];
   for (let attempts = 0; waiting.length && attempts <= pending.length; attempts++) {
     const draft = waiting.shift()!;
-    const beforeId = draft.pending?.beforePassageId;
+    const pendingBefore = draft.pending?.beforePassageId;
+    const beforeId = aliases.get(pendingBefore ?? '') ?? pendingBefore;
+    const canonical = published.get(aliases.get(draft.passageId) ?? '');
     if (
-      beforeId?.startsWith('pending:') &&
+      pendingBefore?.startsWith('pending:') &&
       !passages.some((p) => p.id === beforeId) &&
-      waiting.some((d) => d.passageId === beforeId) &&
+      waiting.some((d) => d.passageId === pendingBefore) &&
       attempts < pending.length
     ) {
       waiting.push(draft);
@@ -101,49 +118,58 @@ export function projectWithPending(project: StudioProject, envelope: DraftEnvelo
     const siblings = passages.filter((passage) => passage.sourceId === sourceId);
     const source = projectSources(project).find((item) => item.id === sourceId);
     const previous =
-      siblings.find((p) => p.id === draft.pending?.previousPassageId) ??
+      siblings.find(
+        (p) =>
+          p.id ===
+          (aliases.get(draft.pending?.previousPassageId ?? '') ?? draft.pending?.previousPassageId),
+      ) ??
       siblings.at(-1) ??
+      canonical ??
       (source ? emptySourcePassage(source) : undefined);
     if (!previous) continue;
     const locators = draft.locators ?? nextPassageLocators(previous);
     const insertion = beforeId ? passages.findIndex((p) => p.id === beforeId) : -1;
-    passages.splice(insertion < 0 ? passages.length : insertion, 0, {
-      ...previous,
-      id: draft.passageId,
-      legacyId: draft.passageId,
-      ordinal: Math.max(0, ...siblings.map((passage) => passage.ordinal)) + 1,
-      title: draft.normalized || draft.diplomatic || 'Nova passagem',
-      sourceExpression: '',
-      sourceFingerprint: 'pending',
-      legacyExpressionFingerprint: undefined,
-      acceptedReference: null,
-      referenceProvenance: 'none',
-      diplomatic: '',
-      normalized: '',
-      translation: '',
-      translations: undefined,
-      notes: '',
-      analysis: null,
-      status: 'analysis',
-      witness: {
-        ...previous.witness,
-        printedPage: locators.printedPage ?? '',
-        folio: locators.folio ?? '',
-        textualLine: locators.line ?? '',
-        section: locators.section ?? '',
-        subsection: locators.subsection ?? '',
-        ...(locators.prayerName != null ? { prayerName: locators.prayerName } : {}),
-        pdfPage: null,
-        region: null,
+    passages.splice(
+      insertion < 0 ? passages.length : insertion,
+      0,
+      canonical ?? {
+        ...previous,
+        id: draft.passageId,
+        legacyId: draft.passageId,
+        ordinal: Math.max(0, ...siblings.map((passage) => passage.ordinal)) + 1,
+        title: draft.normalized || draft.diplomatic || 'Nova passagem',
+        sourceExpression: '',
+        sourceFingerprint: 'pending',
+        legacyExpressionFingerprint: undefined,
+        acceptedReference: null,
+        referenceProvenance: 'none',
+        diplomatic: '',
+        normalized: '',
+        translation: '',
+        translations: undefined,
+        notes: '',
+        analysis: null,
+        status: 'analysis',
+        witness: {
+          ...previous.witness,
+          printedPage: locators.printedPage ?? '',
+          folio: locators.folio ?? '',
+          textualLine: locators.line ?? '',
+          section: locators.section ?? '',
+          subsection: locators.subsection ?? '',
+          ...(locators.prayerName != null ? { prayerName: locators.prayerName } : {}),
+          pdfPage: null,
+          region: null,
+        },
+        sourceMetadata: {},
+        studioMetadata: {},
       },
-      sourceMetadata: {},
-      studioMetadata: {},
-    });
+    );
   }
   const ordinals = new Map<string, number>();
   return {
     ...project,
-    passages: passages.map((p) => {
+    passages: organizePassages(passages, envelope).map((p) => {
       const ordinal = (ordinals.get(p.sourceId) ?? 0) + 1;
       ordinals.set(p.sourceId, ordinal);
       return { ...p, ordinal };

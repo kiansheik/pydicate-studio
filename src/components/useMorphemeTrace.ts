@@ -3,6 +3,7 @@ import { invoke, type AuthorNode } from '../domain/authoring';
 import { expressionGraph } from '../domain/expression-tree';
 import { traceMorphemes } from '../domain/morpheme-trace';
 import type { RenderResult } from '../domain/types';
+import type { SharedDefinitionTarget } from '../domain/shared-definition';
 
 /** Fresh evidence for existing result labels; selection reuses the same step captures. */
 export function useMorphemeTrace(input: {
@@ -14,6 +15,8 @@ export function useMorphemeTrace(input: {
   sourceId?: string;
   revisionId?: string;
   engineFingerprint?: string;
+  sharedDefinition?: SharedDefinitionTarget;
+  inactive?: boolean;
 }) {
   const {
     raw,
@@ -24,6 +27,8 @@ export function useMorphemeTrace(input: {
     sourceId,
     revisionId = '',
     engineFingerprint,
+    sharedDefinition,
+    inactive,
   } = input;
   const hasRoot = !!root;
   const identity = JSON.stringify([
@@ -33,6 +38,7 @@ export function useMorphemeTrace(input: {
     sourceId,
     revisionId,
     engineFingerprint,
+    sharedDefinition,
   ]);
   const [snapshot, setSnapshot] = useState<{
     identity: string;
@@ -40,18 +46,22 @@ export function useMorphemeTrace(input: {
     error?: string;
   } | null>(null);
   useEffect(() => {
-    if (!raw.trim() || !root) return;
+    if (inactive || !raw.trim() || !root) return;
     let active = true;
     setSnapshot({ identity });
     const timer = window.setTimeout(() => {
-      void invoke<RenderResult>('evaluate_expression', {
-        raw,
-        passageId,
-        sourceId,
-        revisionId,
-        engineFingerprint,
-        includeMorphology: true,
-      })
+      void invoke<RenderResult>(
+        sharedDefinition ? 'lexicon_tree_evaluate' : 'evaluate_expression',
+        {
+          ...sharedDefinition,
+          raw,
+          passageId,
+          sourceId,
+          revisionId,
+          engineFingerprint,
+          includeMorphology: true,
+        },
+      )
         .then((result) => {
           if (!active) return;
           if (
@@ -71,7 +81,7 @@ export function useMorphemeTrace(input: {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [identity, hasRoot]);
+  }, [identity, hasRoot, inactive]);
   const current = snapshot?.identity === identity ? snapshot : null;
   const graph = useMemo(
     () => (root && current?.result?.tree ? expressionGraph(root, raw, current.result.tree) : null),

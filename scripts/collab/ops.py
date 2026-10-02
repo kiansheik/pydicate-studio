@@ -67,12 +67,13 @@ class Remote:
         # arbitrary local source changes never enter the application workspace.
         from evidence_sync import prepare_local_bundle
         from desktop_sync import prepare_local_bundle as prepare_research_bundle
-        known=self.inventory()
-        print('[deploy] Preparing local PDFs and source evidence…',flush=True)
+        legacy=os.getenv('COLLAB_IMPORT_LEGACY_DESKTOP') == '1'
+        known=self.inventory() if legacy else {}
+        print('[deploy] Preparing server release…',flush=True)
         with tempfile.TemporaryDirectory(prefix='studio-deploy-evidence-') as temporary:
-            bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar',known=known.get('evidence',()))
-            print('[deploy] Preparing saved desktop research and history…',flush=True)
-            desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar',known=known.get('research',()))
+            bundle=prepare_local_bundle(pathlib.Path(temporary)/'evidence.tar',known=known.get('evidence',())) if legacy else None
+            if legacy: print('[deploy] Preparing explicitly requested legacy research migration…',flush=True)
+            desktop=prepare_research_bundle(pathlib.Path(temporary)/'desktop.tar',known=known.get('research',())) if legacy else None
             sha=self.prepare_release(ref,bool(bundle),bool(desktop))
             from codex_auth import install
             install(self)
@@ -186,22 +187,63 @@ def stamp():
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')+'-'+os.urandom(3).hex()
 
-def unpack_export(remote,repo,label,review,output):
+def unpack_export(remote,repo,label,review,output,*,publish_current=False):
     """Run changes/publish on the server and expand the verified download."""
-    remote.action('publish' if review else 'changes','--repo',repo,'--file',remote.root+'/exports/'+label,'--review-sha',review)
+    remote.action('publish-current' if publish_current else ('publish' if review else 'changes'),'--repo',repo,'--file',remote.root+'/exports/'+label,'--review-sha',review)
     bundle=remote.download(remote.root+'/exports/'+label,output,True)
     local=pathlib.Path(output).with_suffix('').with_suffix('')
     if local.exists():raise ValueError('Local publication directory already exists')
     local.mkdir(mode=0o700);safe_extract(bundle,local)
     return local,json.loads((local/'manifest.json').read_text())
 
+def publication_checkout(repo,local,manifest):
+    """Reuse Git objects privately; never change a neighboring working checkout."""
+    clone=local/'checkout'
+    if not manifest.get('bundleBase'):
+        command(['git','clone','--branch','server/work',local/'repository.bundle',clone])
+        return clone
+    base=manifest['bundleBase']
+    if not re.fullmatch(r'[a-f0-9]{40}',base):raise ValueError('Invalid bundle prerequisite')
+    cache=HERE/'backups'/'publication-cache'/repo
+    if not cache.exists():
+        cache.parent.mkdir(parents=True,exist_ok=True)
+        command(['git','init','--bare',cache])
+        command(['git','-C',cache,'remote','add','origin',manifest['origin']])
+        command(['git','-C',cache,'config','remote.origin.promisor','true'])
+        command(['git','-C',cache,'config','remote.origin.partialclonefilter','blob:none'])
+        command(['git','-C',cache,'config','gc.auto','0'])
+    cached=subprocess.run(['git','-C',str(cache),'rev-parse','--verify','refs/heads/base'],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+    available=cached.returncode==0 and cached.stdout.strip()==base
+    if not available:
+        print(f'[{repo}] Caching upstream commit metadata (without historical file contents)…',flush=True)
+        command(['git','-C',cache,'fetch','--filter=blob:none','--no-tags','origin','+'+base+':refs/heads/base'])
+    command(['git','clone','--shared','--no-checkout',cache,clone])
+    command(['git','remote','set-url','origin',manifest['origin']],cwd=clone)
+    command(['git','update-ref','refs/remotes/origin/main',base],cwd=clone)
+    command(['git','config','remote.origin.promisor','true'],cwd=clone)
+    command(['git','config','remote.origin.partialclonefilter','blob:none'],cwd=clone)
+    command(['git','fetch','--no-tags',local/'repository.bundle','server/work:refs/heads/server/work'],cwd=clone)
+    if repo=='nhe-enga':
+        from host import SPARSE
+        command(['git','sparse-checkout','set','--no-cone',*SPARSE],cwd=clone)
+    command(['git','checkout','server/work'],cwd=clone)
+    if subprocess.check_output(['git','rev-parse','HEAD'],cwd=clone,text=True).strip()!=manifest['publishedHead']:
+        raise ValueError('Exported commit does not match the publication manifest')
+    return clone
+
+
 def open_pull_request(repo,label,local,manifest,review):
     """Push the reviewed server snapshot and return the pull request URL."""
     if checksum(local/'repository.bundle')!=manifest['bundleSha256']:raise ValueError('Bundle checksum mismatch')
     if manifest['repo']!=repo or manifest['origin']!=f'https://github.com/kiansheik/{repo}.git':raise ValueError('Unexpected publication repository')
-    clone=local/'checkout';command(['git','clone','--branch','server/work',local/'repository.bundle',clone])
+    clone=publication_checkout(repo,local,manifest)
     branch='contrib/studio-'+label;command(['git','switch','-c',branch],cwd=clone)
     command(['git','remote','set-url','origin',manifest['origin']],cwd=clone)
+    if manifest.get('bundleBase'):
+        from host import Host
+        print(f'[{repo}] Reconciling upstream in the local review checkout…',flush=True)
+        manifest.update(Host.merge_upstream(clone))
+        (local/'publication-result.json').write_text(json.dumps(manifest,indent=2)+'\n')
     command(['git','push','origin','HEAD:refs/heads/'+branch],cwd=clone)
     notes=''
     if manifest.get('skipped'):
@@ -217,16 +259,14 @@ def open_pull_request(repo,label,local,manifest,review):
 
 def publish_repository(remote,repo):
     """Collect, review and publish one repository. Returns a result row for the summary."""
-    print(f'\n[{repo}] Collecting server changes…',flush=True)
-    review_label=stamp()
-    local,manifest=unpack_export(remote,repo,review_label,'',str(HERE/'backups'/f'changes-{review_label}.tar.gz'))
-    for row in manifest.get('skipped',[]):print(f'[{repo}] Leaving on the server ({row["reason"]}): {row["path"]}',flush=True)
-    if not manifest['files']:
-        return {'repo':repo,'status':'no changes','detail':'nothing to publish','skipped':manifest.get('skipped',[])}
-    print(f'[{repo}] Publishing {len(manifest["files"])} file(s)…',flush=True)
+    print(f'\n[{repo}] Capturing server contribution without restarting Studio…',flush=True)
     label=stamp()
-    local,published=unpack_export(remote,repo,label,manifest['reviewSha'],str(HERE/'backups'/f'publish-{label}.tar.gz'))
-    url=open_pull_request(repo,label,local,published,manifest['reviewSha'])
+    local,published=unpack_export(remote,repo,label,'',str(HERE/'backups'/f'publish-{label}.tar.gz'),publish_current=True)
+    for row in published.get('skipped',[]):print(f'[{repo}] Leaving on the server ({row["reason"]}): {row["path"]}',flush=True)
+    if not published['files']:
+        return {'repo':repo,'status':'no changes','detail':'nothing to publish','skipped':published.get('skipped',[])}
+    print(f'[{repo}] Publishing {len(published["files"])} file(s)…',flush=True)
+    url=open_pull_request(repo,label,local,published,published['reviewSha'])
     return {'repo':repo,'status':'pull request','detail':url,'skipped':published.get('skipped',[]),
             'resolved':published.get('conflictsResolvedFromServer',[])}
 
@@ -259,6 +299,9 @@ def main():
     output=os.getenv('FILE') or str(HERE/'backups'/f'{action}-{label}.tar.gz')
     repo=os.getenv('REPO') or 'oldtupicorpus'
     if action in ('install','redeploy'):remote.deploy()
+    elif action=='deploy-light':
+        sha=remote.prepare_release(os.getenv('STUDIO_REF','main'))
+        remote.ssh(['python3','-B',remote.root+'/releases/'+sha+'/scripts/collab/host.py','light-deploy','--root',remote.root])
     elif action=='codex-auth':
         from codex_auth import install
         install(remote,replace=True)

@@ -1,0 +1,51 @@
+.passage-navigation .passage-accordion {
+  display: block;
+  padding: 0;
+  min-width: 0;
+}
+.passage-navigation .passage-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 8px;
+  text-align: left;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.passage-navigation .passage-group-toggle > svg,
+.passage-navigation .passage-group-toggle > small {
+  flex: none;
+}
+.passage-navigation .passage-group-toggle > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.passage-navigation .passage-group-toggle > small {
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+.passage-navigation .passage-group-toggle:focus-visible {
+  outline: 2px solid #72967a;
+  outline-offset: -2px;
+}
+.passage-accordion-section > .passage-group-toggle {
+  padding-inline-start: 12px;
+  font-weight: 600;
+}
+.passage-accordion-subsection > .passage-group-toggle {
+  padding-inline-start: 18px;
+}
+.passage-navigation .passage-group-content {
+  min-width: 0;
+}
+.passage-navigation .passage-item.is-complete .passage-status {
+  color: var(--green, #42694c);
+  font-weight: 600;
+}
+.passage-navigation .passage-item.is-complete .status-dot {
+  background: var(--green, #42694c);
+}

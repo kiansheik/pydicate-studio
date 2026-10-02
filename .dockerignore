@@ -1,7 +1,6 @@
 node_modules
 .git
 dist
-release
 *.log
 .env
 **/.env

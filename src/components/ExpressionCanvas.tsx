@@ -1,7 +1,10 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
+  ArrowUp,
+  ArrowRight,
   Copy,
   Expand,
   Maximize2,
@@ -66,9 +69,14 @@ import {
   treeOperations,
 } from '../domain/tree-operations';
 import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
+import type {
+  SharedDefinitionTarget,
+  SharedTreeEntry,
+  SharedTreeNavigation,
+  SharedTreeRequest,
+} from '../domain/shared-definition';
 import type { RenderResult } from '../domain/types';
 import { track } from '../domain/usage';
-import { useAdvancedTools } from '../domain/preferences';
 import { PredicatePalette } from './PredicatePalette';
 import { PieceSearch, type PieceSearchHandle } from './PieceSearch';
 import { canvasEdgePath, layoutCanvasTree } from '../domain/canvas-layout';
@@ -87,6 +95,12 @@ import '../expression-canvas.css';
 
 export interface ExpressionCanvasProps {
   onLexicalPreview?: (preview: import('../domain/authoring').SourcePreview) => void;
+  onOpenReference?: (request: SharedTreeRequest) => void;
+  onOpenSharedTree?: (entry: SharedTreeEntry) => void;
+  onEditingSharedTree?: (name: string | null) => void;
+  sharedTreeNavigation?: SharedTreeNavigation | null;
+  onSharedTreeNavigationChange?: (target: SharedTreeNavigation | null) => void;
+  inactive?: boolean;
   raw?: string;
   authoringRoot?: AuthorNode | null;
   evaluatedRoot?: AuthorNode | null;
@@ -96,6 +110,7 @@ export interface ExpressionCanvasProps {
   sourceId?: string;
   revisionId?: string;
   engineFingerprint?: string;
+  sharedDefinition?: SharedDefinitionTarget;
   selectedSourceNodeId?: string;
   onSelectSourceNode?: (id: string) => void;
   onSurfaceHighlight?: (highlight: MorphemeSurfaceHighlight | null) => void;
@@ -169,12 +184,13 @@ export function ExpressionCanvas({
 }: ExpressionCanvasProps) {
   const saved = useMemo(() => canvas ?? emptyCanvas(), [canvas]);
   const orientation = saved.layout ?? 'bottom-up';
-  const evaluationContext = `${props.passageId}:${props.sourceId}:${props.engineFingerprint}`;
+  const evaluationContext = `${props.passageId}:${props.sourceId}:${props.engineFingerprint}:${JSON.stringify(props.sharedDefinition)}`;
   const [fragmentResults, setFragmentResults] = useState<Record<string, FragmentResult>>({});
   const cache = useRef(new Map<string, FragmentResult>());
   const generation = useRef(0);
   const fragmentSignature = JSON.stringify(saved.fragments.map(({ id, raw: code }) => [id, code]));
   useEffect(() => {
+    if (props.inactive) return;
     const ticket = ++generation.current;
     let current = true;
     const next: Record<string, FragmentResult> = {};
@@ -221,13 +237,17 @@ export function ExpressionCanvas({
                 [fragment.id]: { ...result, pending: !!parsed.root },
               }));
             if (parsed.root) {
-              const realized = await invoke<RenderResult>('evaluate_expression', {
-                passageId: props.passageId,
-                sourceId: props.sourceId,
-                raw: fragment.raw,
-                revisionId: `piece:${fragment.id}:${ticket}`,
-                engineFingerprint: props.engineFingerprint,
-              });
+              const realized = await invoke<RenderResult>(
+                props.sharedDefinition ? 'lexicon_tree_evaluate' : 'evaluate_expression',
+                {
+                  ...props.sharedDefinition,
+                  passageId: props.passageId,
+                  sourceId: props.sourceId,
+                  raw: fragment.raw,
+                  revisionId: `piece:${fragment.id}:${ticket}`,
+                  engineFingerprint: props.engineFingerprint,
+                },
+              );
               result = { ...result, evaluatedRoot: realized.tree, failures: realized.failures };
             }
           } catch (reason) {
@@ -249,7 +269,14 @@ export function ExpressionCanvas({
       current = false;
       clearTimeout(timer);
     };
-  }, [fragmentSignature, props.passageId, props.sourceId, props.engineFingerprint]);
+  }, [
+    fragmentSignature,
+    props.passageId,
+    props.sourceId,
+    props.engineFingerprint,
+    JSON.stringify(props.sharedDefinition),
+    props.inactive,
+  ]);
 
   const pieces = useMemo<Piece[]>(() => {
     const mainGraph = authoringRoot ? expressionGraph(authoringRoot, raw, evaluatedRoot) : null;
@@ -356,9 +383,6 @@ export function ExpressionCanvas({
   const [operation, setOperation] = useState('*');
   const [operationSide, setOperationSide] = useState<'left' | 'right'>('right');
   const [advanced, setAdvanced] = useState(false);
-  // Reading direction was never switched in a month of recorded work; it keeps its place
-  // under the secondary tools instead of two wide buttons beside the search field.
-  const advancedTools = useAdvancedTools();
   const [staged, setStaged] = useState<{
     address: CanvasAddress;
     session: string;
@@ -503,6 +527,8 @@ export function ExpressionCanvas({
     raw: selectedPiece?.raw ?? '',
     root: selectedRoot,
     selectedId: selectedNode?.id,
+    sharedDefinition: props.sharedDefinition,
+    inactive: props.inactive,
     pieceId: selectedPiece?.id,
     passageId: props.passageId,
     sourceId: props.sourceId,
@@ -791,12 +817,19 @@ export function ExpressionCanvas({
     document.addEventListener('keydown', focusAddition);
     return () => document.removeEventListener('keydown', focusAddition);
   }, []);
+  const restoredSourceSelection = useRef('');
   useEffect(() => {
     const id = props.selectedSourceNodeId;
-    if (!id || (selected.startsWith('main:') && selected === 'main:' + id)) return;
+    const identity = JSON.stringify([props.passageId, props.sourceId, id]);
+    if (!id || restoredSourceSelection.current === identity) return;
     const main = pieces.find((piece) => piece.id === 'main');
-    if (main?.graph?.nodes.some((node) => node.id === id)) focusNode(main, id);
-  }, [props.selectedSourceNodeId]);
+    // A direct link can arrive before parsing has supplied the source graph.
+    // Retry when it arrives, then leave subsequent local canvas choices alone.
+    if (main?.graph?.nodes.some((node) => node.id === id)) {
+      restoredSourceSelection.current = identity;
+      if (selected !== 'main:' + id) focusNode(main, id);
+    }
+  }, [props.selectedSourceNodeId, props.passageId, props.sourceId, pieces]);
   useEffect(() => {
     if (!menu) return;
     requestAnimationFrame(() =>
@@ -1010,9 +1043,19 @@ export function ExpressionCanvas({
   }
   function getScope(address: CanvasAddress) {
     const piece = pieces.find((item) => item.id === (address.fragmentId ?? 'main'));
+    const source = flattenNodes(piece?.root ?? null).find((item) => item.id === address.nodeId);
+    const evaluated =
+      source &&
+      flattenNodes(piece?.evaluatedRoot ?? null).find(
+        (item) =>
+          item.id === source.id &&
+          item.code === source.code &&
+          item.start === source.start &&
+          item.end === source.end,
+      );
     return {
       piece,
-      node: flattenNodes(piece?.root ?? null).find((item) => item.id === address.nodeId),
+      node: source && { ...source, stativeConversion: evaluated?.stativeConversion },
     };
   }
   function addOperation() {
@@ -1249,7 +1292,7 @@ export function ExpressionCanvas({
           : 'Escolha um argumento para ver a forma. Sem ele, será criado um encaixe vazio.';
     else {
       try {
-        operationCode = addTreeOperation(scope.code, operation, argument, operationSide);
+        operationCode = addTreeOperation(scope.code, operation, argument, operationSide, scope);
         operationPreview = previewAction(
           {
             type: 'replace',
@@ -1702,6 +1745,7 @@ export function ExpressionCanvas({
       className="runtime-tree expression-tree expression-canvas"
       aria-label="Árvore de operações Pydicate"
       onKeyDown={(event) => {
+        if ((event.target as Element).closest('.expression-canvas') !== event.currentTarget) return;
         if (event.key === 'Escape') {
           event.preventDefault();
           if (
@@ -1871,6 +1915,7 @@ export function ExpressionCanvas({
       </div>
       <div className="runtime-options canvas-view-options">
         <form
+          {...workspaceAutofill}
           className="runtime-search"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1887,6 +1932,7 @@ export function ExpressionCanvas({
         >
           <Search size={15} />
           <input
+            {...workspaceAutofill}
             aria-label="Buscar na árvore"
             placeholder="Encontrar nesta composição…"
             value={query}
@@ -1895,22 +1941,20 @@ export function ExpressionCanvas({
           {query && <small>{matches.size}</small>}
           <button disabled={!matches.size}>Ir</button>
         </form>
-        {advancedTools && (
-          <>
-            <button
-              aria-pressed={orientation === 'bottom-up'}
-              onClick={() => changeLayout('bottom-up')}
-            >
-              De baixo para cima
-            </button>
-            <button
-              aria-pressed={orientation === 'horizontal'}
-              onClick={() => changeLayout('horizontal')}
-            >
-              Da esquerda para a direita
-            </button>
-          </>
-        )}
+        <button
+          className="canvas-orientation-toggle"
+          aria-label="Árvore da esquerda para a direita"
+          aria-pressed={orientation === 'horizontal'}
+          title={
+            orientation === 'horizontal'
+              ? 'Usar disposição de baixo para cima'
+              : 'Usar disposição da esquerda para a direita'
+          }
+          onClick={() => changeLayout(orientation === 'horizontal' ? 'bottom-up' : 'horizontal')}
+        >
+          {orientation === 'horizontal' ? <ArrowRight size={15} /> : <ArrowUp size={15} />}
+          {orientation === 'horizontal' ? 'Esquerda → direita' : 'Baixo → cima'}
+        </button>
         <button
           title="Expandir todos os ramos e restaurar a disposição automática da árvore"
           onClick={() => {
@@ -2268,6 +2312,7 @@ export function ExpressionCanvas({
             <label>
               Definição do conjunto
               <textarea
+                {...workspaceAutofill}
                 autoFocus
                 value={compositionDefinition}
                 disabled={defining}
@@ -2292,6 +2337,7 @@ export function ExpressionCanvas({
           <div role="dialog" aria-label="Adicionar operação" className="canvas-floating-panel">
             <h3>Adicionar operação</h3>
             <select
+              {...workspaceAutofill}
               aria-label="Operação na peça"
               value={operation}
               onChange={(event) => {
@@ -2309,6 +2355,7 @@ export function ExpressionCanvas({
               <label>
                 Número da variante
                 <input
+                  {...workspaceAutofill}
                   aria-label="Número da variante"
                   type="number"
                   step="1"
@@ -2341,6 +2388,7 @@ export function ExpressionCanvas({
               <label>
                 Posição do novo encaixe
                 <select
+                  {...workspaceAutofill}
                   aria-label="Posição do novo encaixe"
                   value={operationSide}
                   onChange={(event) => setOperationSide(event.target.value as 'left' | 'right')}
@@ -2360,6 +2408,7 @@ export function ExpressionCanvas({
                   : 'A prévia mostra a peça inteira com a alteração na parte selecionada.'}
             </p>
             <OperationPreview
+              sharedDefinition={props.sharedDefinition}
               raw={operationPreview.raw}
               pendingMessage={operationPreview.message}
               passageId={props.passageId}
@@ -2387,6 +2436,7 @@ export function ExpressionCanvas({
               <label>
                 Parte que continuará ligada
                 <select
+                  {...workspaceAutofill}
                   autoFocus
                   value={keptChildId}
                   onChange={(event) => setKeptChildId(event.target.value)}
@@ -2416,6 +2466,7 @@ export function ExpressionCanvas({
               </p>
             )}
             <OperationPreview
+              sharedDefinition={props.sharedDefinition}
               raw={removalPreview.raw}
               pendingMessage={removalPreview.message}
               passageId={props.passageId}
@@ -2484,6 +2535,7 @@ export function ExpressionCanvas({
             <label>
               Como ligar
               <select
+                {...workspaceAutofill}
                 aria-label="Operação para combinar peças"
                 value={combineOperator}
                 onChange={(event) => setCombineOperator(event.target.value)}
@@ -2502,6 +2554,7 @@ export function ExpressionCanvas({
               dela.
             </p>
             <OperationPreview
+              sharedDefinition={props.sharedDefinition}
               raw={combinationPreview.raw}
               pendingMessage={combinationPreview.message}
               passageId={props.passageId}
@@ -2572,15 +2625,31 @@ export function ExpressionCanvas({
               {advanced ? <ChevronUp size={15} /> : <ChevronDown size={15} />}Detalhes e edição
             </button>
             {selectedScope && definitionBody(selectedScope).kind === 'reference' && (
-              <button
-                onClick={() =>
-                  container.current
-                    ?.querySelector('.reference-inspector')
-                    ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-                }
-              >
-                Ver estrutura e usos
-              </button>
+              <>
+                {props.onOpenReference && (
+                  <button
+                    onClick={async () => {
+                      if (document.fullscreenElement === container.current)
+                        await document.exitFullscreen();
+                      props.onOpenReference?.({
+                        name: definitionBody(selectedScope).code,
+                        definitionContext: props.sharedDefinition,
+                      });
+                    }}
+                  >
+                    Abrir peça em aba
+                  </button>
+                )}
+                <button
+                  onClick={() =>
+                    container.current
+                      ?.querySelector('.reference-inspector')
+                      ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+                  }
+                >
+                  Ver estrutura e usos
+                </button>
+              </>
             )}
             {selectedRoot && props.onPrepareDiagnostic && (
               <button
@@ -2631,6 +2700,10 @@ export function ExpressionCanvas({
                 revisionId={props.revisionId}
                 engineFingerprint={props.engineFingerprint}
                 onPreview={props.onLexicalPreview}
+                onPrepareDiagnostic={props.onPrepareDiagnostic}
+                onOpenSharedTree={props.onOpenSharedTree}
+                inactive={props.inactive}
+                definitionContext={props.sharedDefinition}
                 onCopy={(replacement) =>
                   commit({
                     type: 'replace',
@@ -2673,6 +2746,7 @@ export function ExpressionCanvas({
           {advanced &&
             (selectedRoot && selectedScope ? (
               <TreeScopeEditor
+                sharedDefinition={props.sharedDefinition}
                 revealOperation
                 node={selectedNode}
                 authoringRoot={selectedRoot}
@@ -2737,6 +2811,7 @@ function FragmentRepair({ raw, onApply }: { raw: string; onApply: (raw: string) 
       <label>
         Corrigir expressão
         <textarea
+          {...workspaceAutofill}
           aria-label="Corrigir expressão da peça"
           value={value}
           onChange={(event) => setValue(event.target.value)}

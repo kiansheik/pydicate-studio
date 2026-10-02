@@ -9,7 +9,8 @@ async function createTestStore(directory, options={}) {
   const pool=new Pool({connectionString:url});
   await pool.query(`CREATE SCHEMA ${schema}`);
   let store;
-  try { store=await Store.open(directory,{...options,databaseUrl:url,schema}); }
+  // Legacy reservation contracts opt in; production defaults to unlocked editing.
+  try { store=await Store.open(directory,{passageClaims:true,...options,databaseUrl:url,schema}); }
   catch(error){await pool.query(`DROP SCHEMA ${schema} CASCADE`);await pool.end();throw error;}
   const close=store.close.bind(store);let closed=false;
   store.close=async()=>{if(closed)return;closed=true;try{await close();}finally{await pool.query(`DROP SCHEMA ${schema} CASCADE`);await pool.end();}};

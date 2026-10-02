@@ -28,16 +28,30 @@ function stable(value) {
 const same = (a, b) => stable(a) === stable(b);
 const CLAIM_MS = 120000;
 const passageKey = id => identifier(id).replace(/^pending:/, 'passage:');
+function sourceDraft(passage, now = Date.now()) {
+    return {
+        passageId: passage.id, revisionId: randomUUID(), sourceFingerprint: passage.sourceFingerprint,
+        raw: passage.sourceExpression, diplomatic: passage.diplomatic, normalized: passage.normalized,
+        translation: passage.translation, notes: passage.notes, analysis: passage.analysis ?? null,
+        updatedAt: new Date(now).toISOString(),
+        locators: { printedPage: passage.witness.printedPage ?? '', folio: passage.witness.folio ?? '',
+            line: passage.witness.textualLine == null ? '' : String(passage.witness.textualLine),
+            section: passage.witness.section ?? '', subsection: passage.witness.subsection ?? '',
+            ...(passage.witness.prayerName != null ? { prayerName: passage.witness.prayerName } : {}) },
+        ...(passage.translations ? { translations: passage.translations } : {}),
+    };
+}
 class Store {
     static async open(directory, options = {}) {
         const store = new Store(directory, options);
         try { await store.db.migrate(); return store; }
         catch(error) { await store.db.close(); throw error; }
     }
-    constructor(directory, { now = Date.now, validateEnvelope = null, databaseUrl = process.env.COLLAB_DATABASE_URL, schema = 'public' } = {}) {
+    constructor(directory, { now = Date.now, validateEnvelope = null, databaseUrl = process.env.COLLAB_DATABASE_URL, schema = 'public', passageClaims = process.env.COLLAB_PASSAGE_CLAIMS === '1' } = {}) {
         fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
         this.db = new Database(databaseUrl, { schema });
         this.now = now;
+        this.passageClaims = passageClaims;
         this.validateEnvelope = validateEnvelope;
         this.writes = new Map();
         this.context = {};
@@ -56,17 +70,7 @@ class Store {
             await this.db.prepare("INSERT INTO projects(id) VALUES($1) ON CONFLICT DO NOTHING").run(project.id);
             const put = this.db.prepare("INSERT INTO drafts VALUES($1,$2,1,$3) ON CONFLICT DO NOTHING");
             for (const passage of project.passages) {
-                const draft = {
-                    passageId: passage.id, revisionId: randomUUID(), sourceFingerprint: passage.sourceFingerprint,
-                    raw: passage.sourceExpression, diplomatic: passage.diplomatic, normalized: passage.normalized,
-                    translation: passage.translation, notes: passage.notes, analysis: passage.analysis ?? null,
-                    updatedAt: new Date(this.now()).toISOString(),
-                    locators: { printedPage: passage.witness.printedPage ?? '', folio: passage.witness.folio ?? '',
-                        line: passage.witness.textualLine == null ? '' : String(passage.witness.textualLine),
-                        section: passage.witness.section ?? '', subsection: passage.witness.subsection ?? '',
-                        ...(passage.witness.prayerName != null ? { prayerName: passage.witness.prayerName } : {}) },
-                    ...(passage.translations ? { translations: passage.translations } : {}),
-                };
+                const draft = sourceDraft(passage, this.now());
                 await put.run(project.id, passage.id, JSON.stringify(draft));
             }
             this.validateEnvelope?.((await this.snapshot(project.id)).envelope);
@@ -98,16 +102,23 @@ class Store {
         return this.transaction(() => this._assertClaim(passageId, user, clientId, acquire));
     }
     async _assertClaim(passageId, user, clientId, acquire = false) {
-        await this.assertUser(user);
+        const currentUser = await this.assertUser(user);
         passageId = passageKey(passageId);
         identifier(clientId);
+        if (!this.passageClaims) return;
         const row = await this.db.prepare("SELECT * FROM claims WHERE passage_id=$1 AND expires_at>$2").get(passageId, this.now());
-        if (row && (row.user_id !== user.id || row.client_id !== clientId)) {
+        const takeover = row && (row.user_id !== user.id || row.client_id !== clientId);
+        if (takeover && currentUser.role !== 'admin') {
             throw fault(409, 'PASSAGE_BUSY', 'Outra pessoa ou aba está trabalhando nesta passagem. Seu rascunho local foi preservado.');
         }
-        if (acquire)
+        if (acquire) {
             await this.db.prepare("INSERT INTO claims VALUES($1,$2,$3,$4) ON CONFLICT(passage_id)\n      DO UPDATE SET user_id=excluded.user_id,client_id=excluded.client_id,expires_at=excluded.expires_at")
                 .run(passageId, user.id, clientId, this.now() + CLAIM_MS);
+            if (takeover)
+                await this.audit(currentUser.id, 'passage.claim.override', passageId, 'succeeded', null, 'server', {
+                    previousUserId: row.user_id, previousClientId: row.client_id, clientId,
+                });
+        }
     }
     async release(passageId, user, clientId) {
         passageId = passageKey(passageId);
@@ -123,10 +134,11 @@ class Store {
         await this.db.prepare("DELETE FROM claims WHERE passage_id=$1 AND user_id=$2").run(passageId, user.id);
     }
     async claimList() {
+        if (!this.passageClaims) return [];
         return await this.db.prepare("SELECT c.passage_id AS \"passageId\",c.client_id AS \"clientId\",c.user_id AS \"userId\",\n      u.name,c.expires_at AS \"expiresAt\" FROM claims c JOIN users u ON u.id=c.user_id WHERE c.expires_at>$1 AND u.disabled=0").all(this.now());
     }
-    async patch(projectId, changes, user, clientId, trustedAcceptance = false) {
-        if (!Array.isArray(changes) || changes.length > 200)
+    async patch(projectId, changes, user, clientId, trustedAcceptance = false, trustedOrganization = false) {
+        if (!Array.isArray(changes) || changes.length > (trustedOrganization ? 5000 : 200))
             throw fault(400, 'INVALID_PATCH', 'Alterações demais em um pedido.');
         return await this.transaction(async () => {
             await this.assertUser(user);
@@ -147,16 +159,28 @@ class Store {
                     // Only unpublished shells can be removed. Source passages retain their work history.
                     if (!id.startsWith('pending:'))
                         throw fault(400, 'DRAFT_DELETE', 'Uma passagem da fonte não pode ser removida por autosave.');
+                    if (current.envelope.drafts[id]?.organization &&
+                        !changes.some(c => c.id === id.replace(/^pending:/, 'passage:') && c.draft))
+                        throw fault(400, 'DRAFT_DELETE', 'Use a organização de passagens para excluir esta entrada.');
                     delete next.drafts[id];
                 }
                 else {
                     if (!change.draft || change.draft.passageId !== id)
                         throw fault(400, 'INVALID_DRAFT', 'Passagem divergente.');
+                    if (id.startsWith('pending:') && !current.envelope.drafts[id] &&
+                        (current.versions[id] ?? 0) > 0 && current.envelope.drafts[passageKey(id)])
+                        throw fault(409, 'PASSAGE_PUBLISHED', 'Esta passagem já foi publicada. Recarregue para continuar na entrada publicada; seu rascunho local foi preservado.');
                     const draft = structuredClone(change.draft);
                     if (!trustedAcceptance) delete draft.aiAcceptances;
                     const old = current.envelope.drafts[id] ?? current.envelope.drafts[id.replace(/^passage:/, 'pending:')];
                     if (!trustedAcceptance && old?.aiAcceptances)
                         draft.aiAcceptances = structuredClone(old.aiAcceptances);
+                    if (!trustedOrganization) {
+                        delete draft.organization;
+                        if (old?.organization) draft.organization = structuredClone(old.organization);
+                        if (old?.organization?.deleted && !same(old, draft))
+                            throw fault(409, 'PASSAGE_DELETED', 'Esta passagem foi excluída da lista. Recarregue para continuar.');
+                    }
                     next.drafts[id] = draft;
                 }
             }
@@ -223,11 +247,13 @@ class Store {
     }
     async report(days = 7) {
         const cutoff = days === 0 ? 0 : this.now() - days * 86400000;
+        const { creditReport, activeReport } = require('./activity.cjs');
         return {
             days,
             operations: await this.db.prepare("SELECT a.user_id AS \"userId\",u.name,a.event,a.origin,a.outcome,\n        count(*) AS count,round(avg(a.duration_ms)) AS \"meanDurationMs\" FROM audit a LEFT JOIN users u ON u.id=a.user_id\n        WHERE a.at>=$1 GROUP BY a.user_id,u.name,a.event,a.origin,a.outcome ORDER BY count DESC LIMIT 1000").all(cutoff),
-            contributions: await this.db.prepare("SELECT r.user_id AS \"userId\",u.name,count(*) AS checkpoints,\n        count(DISTINCT CASE WHEN r.passage_id LIKE 'pending:%' THEN 'passage:' || substr(r.passage_id,9) ELSE r.passage_id END) AS passages FROM revisions r LEFT JOIN users u ON u.id=r.user_id\n        WHERE r.at>=$1 GROUP BY r.user_id,u.name ORDER BY checkpoints DESC").all(cutoff),
-            note: 'Presença e eventos de interface não comprovam horas trabalhadas, aprovação linguística ou direito a pagamento.',
+            ...await creditReport(this, cutoff),
+            activeTime: await activeReport(this, cutoff),
+            note: 'Créditos contam passagens distintas com conteúdo salvo, comentários, regiões alteradas, notas lexicais ou publicação confirmada. Visualizações, posição da câmera, rascunhos iniciais copiados da fonte e pedidos de IA não contam. Salvamentos antigos de PDF sem distinção entre região e zoom são listados separadamente, sem crédito confirmado. Edições de gramática sem revisão de passagem/publicação atribuível continuam apenas nos recibos da análise. Tempo registrado não certifica aprovação linguística nem calcula pagamento.',
         };
     }
     async cleanup() {
@@ -239,4 +265,4 @@ class Store {
     }
     async close() { await this.db.close(); }
 }
-module.exports = { Store, fault, text, identifier, same, CLAIM_MS, passageKey };
+module.exports = { Store, fault, text, identifier, same, stable, CLAIM_MS, passageKey, sourceDraft };

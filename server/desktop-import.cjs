@@ -4,7 +4,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
-const validate = require('../electron/validation.cjs');
+const validate = require('../runtime/validation.cjs');
 const { same, identifier } = require('./store.cjs');
 const sha = value => createHash('sha256').update(value).digest('hex');
 const FILE_SHA = /^sha256:[a-f0-9]{64}$/;
@@ -221,7 +221,7 @@ async function readDesktopBundle(directory) {
 // Inspect with a disposable identity registry. Even its routine registry save
 // must not modify server state during a dry run.
 async function createReadOnlyInspector(settings) {
-  const { PythonWorker } = require('../electron/python-worker.cjs');
+  const { PythonWorker } = require('../runtime/python-worker.cjs');
   const temporary = await fs.mkdtemp(path.join(require('node:os').tmpdir(), 'studio-desktop-inspect-'));
   let worker;
   try {

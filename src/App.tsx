@@ -1,3 +1,9 @@
+import { SubmissionReviewQueue } from './components/SubmissionReviewQueue';
+import { useSubmissions, submissionKey, submissionLabels } from './domain/submissions';
+import { passageStage, passageStatusLabels, passageSubmission } from './domain/passage-status';
+import { workspaceAutofill } from './domain/workspace-autofill';
+import { CorpusHealth } from './CorpusHealth';
+import { PassageManager } from './PassageManager';
 import { TranslationFields } from './components/TranslationFields';
 import { MorphemeText } from './components/MorphemeHighlight';
 import type { MorphemeSurfaceHighlight } from './domain/morpheme-display';
@@ -19,6 +25,7 @@ import {
   GitBranch,
   History,
   Layers,
+  Link,
   Leaf,
   MessageSquareText,
   MoreHorizontal,
@@ -47,20 +54,26 @@ import {
   CandidateProjection,
   useAnalysisWorkspace,
 } from './components/AnalysisSupport';
-import { analysisLabels, type AnalysisEvidence } from './domain/analysis';
+import { type AnalysisEvidence } from './domain/analysis';
 import { PydicateTree } from './components/RuntimeTree';
-import { UsagePanel } from './components/UsagePanel';
 import { WorkspaceLayout, useWorkspaceLayout } from './components/WorkspaceLayout';
 import { PassageLexicon } from './components/PassageLexicon';
+import { PassageNavigator } from './components/PassageNavigator';
 import { PassageSolver } from './components/PassageSolver';
 import { GrammarDiagnosticDialog } from './components/GrammarDiagnosticDialog';
-import type { CanvasDiagnostic } from './domain/grammar-diagnostic';
+import { diagnosticTarget, type CanvasDiagnostic } from './domain/grammar-diagnostic';
+import { aiSelection } from './domain/ai';
 import { DraftArchive } from './components/DraftArchive';
 import { track } from './domain/usage';
 import './workbench.css';
 import { flattenNodes, invoke, type SourcePreview } from './domain/authoring';
 import { PhraseEditor, SelectionNote, nodeLabels } from './components/PhraseEditor';
 import { useStudio } from './useStudio';
+import { useStudioLocation } from './useStudioLocation';
+import { locationTabs, readStudioLocation, type StudioLocation } from './domain/studio-location';
+import type { PassageLexiconNavigation } from './components/PassageLexicon';
+import type { SharedTreeNavigation } from './domain/shared-definition';
+import type { DictionaryNavigation } from './components/DictionaryTab';
 import type { Studio } from './useStudio';
 import { NewSourceDialog } from './components/NewSourceDialog';
 import { projectSources, sourceLabel } from './domain/sources';
@@ -90,14 +103,6 @@ type Tab = (typeof tabs)[number];
 // Additional projections remain available through the advanced-tools preference.
 const coreTabs: readonly Tab[] = ['Árvore', 'Sugerir', 'Tradução'];
 const coreModes = ['analysis', 'lexicon', 'dictionary'] as const;
-const statusLabels = {
-  untranscribed: 'Por transcrever',
-  analysis: 'Em análise',
-  review: 'Precisa de revisão',
-  approved: 'Aprovado',
-  changed: 'Resultado mudou',
-  complete: 'Concluída',
-};
 
 function exportContribution(studio: Studio) {
   const payload = {
@@ -142,6 +147,9 @@ function Projections({
   openLaboratory,
   translate,
   onSurfaceHighlight,
+  onEditingSharedTree,
+  sharedTreeNavigation,
+  onSharedTreeNavigationChange,
 }: {
   studio: Studio;
   tab: Tab;
@@ -154,16 +162,23 @@ function Projections({
   openLaboratory: () => void;
   translate: () => void;
   onSurfaceHighlight: (highlight: MorphemeSurfaceHighlight | null) => void;
+  onEditingSharedTree: (name: string | null) => void;
+  sharedTreeNavigation?: SharedTreeNavigation | null;
+  onSharedTreeNavigationChange?: (target: SharedTreeNavigation | null) => void;
 }) {
   const { draft, passage, result } = studio;
   if (studio.project.mode === 'local' && tab === 'Árvore')
     return (
       <PydicateTree
+        key={studio.project.id}
         evaluatedRoot={result?.tree}
         failures={result?.failures}
         selectedSourceNodeId={selected}
         onSelectSourceNode={select}
         onSurfaceHighlight={onSurfaceHighlight}
+        onEditingSharedTree={onEditingSharedTree}
+        sharedTreeNavigation={sharedTreeNavigation}
+        onSharedTreeNavigationChange={onSharedTreeNavigationChange}
         status={studio.pending ? 'Avaliando a estrutura…' : studio.renderError || undefined}
         authoringRoot={studio.parsed?.root}
         raw={draft?.raw ?? passage.sourceExpression}
@@ -329,6 +344,7 @@ function Projections({
         <label className="editor-label">
           Tradução sem idioma informado
           <textarea
+            {...workspaceAutofill}
             aria-label="Tradução sem idioma informado"
             rows={7}
             disabled={!studio.ready}
@@ -459,47 +475,6 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
       </div>
       <h2>Ler, descrever, construir.</h2>
       <p>Comece pela passagem. A estrutura pode vir depois.</p>
-      {window.studio?.setupProject && (
-        <>
-          <button
-            className="project-option actionable"
-            disabled={studio.busy}
-            onClick={() => {
-              void studio.setupProject().then((opened) => {
-                if (opened) close();
-              });
-            }}
-          >
-            <div className="project-option-icon">
-              <ArrowDownToLine />
-            </div>
-            <div>
-              <strong>
-                {studio.installation?.workspace.ready
-                  ? 'Abrir meu espaço de trabalho'
-                  : 'Preparar meu espaço de trabalho'}
-              </strong>
-              <p>
-                Baixa o corpus e a gramática para este computador. O aplicativo já inclui Python e
-                Git.
-              </p>
-              {studio.installation && (
-                <small className="workspace-directory">
-                  {studio.installation.workspace.directory}
-                </small>
-              )}
-            </div>
-            <ChevronRight size={20} />
-          </button>
-          {studio.setupProgress && (
-            <div className="setup-progress" role="status" aria-live="polite">
-              {studio.setupProgress.message}
-              {studio.busy && <progress max={100} value={studio.setupProgress.percent} />}
-            </div>
-          )}
-          {studio.error && <p role="alert">{studio.error}</p>}
-        </>
-      )}
       <button
         className="project-option"
         disabled={studio.busy}
@@ -532,11 +507,11 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
           <FolderOpen />
         </div>
         <div>
-          <strong>Abrir projeto existente</strong>
+          <strong>Abrir espaço compartilhado</strong>
           <p>
             {window.studio
-              ? 'Escolha a pasta que contém oldtupicorpus e nhe-enga.'
-              : 'Disponível no aplicativo desktop. Execute npm run desktop para abrir seus repositórios.'}
+              ? 'Abra o corpus configurado neste servidor.'
+              : 'Entre no servidor colaborativo para trabalhar com o corpus.'}
           </p>
         </div>
         <ChevronRight size={20} />
@@ -544,40 +519,26 @@ function ProjectDialog({ studio, close }: { studio: Studio; close: () => void })
       <div className="dialog-footnote">
         <Leaf size={16} />
         <span>
-          Seus rascunhos ficam neste dispositivo. A fonte e as referências do corpus são
-          preservadas.
+          No servidor, seus rascunhos ficam no espaço compartilhado. O exemplo mantém apenas
+          rascunhos neste navegador. Fonte e referência exigem revisão.
         </span>
       </div>
-      {studio.installation && (
-        <div className="installation-status">
-          <p>
-            Studio {studio.installation.update.currentVersion} ·{' '}
-            {studio.installation.update.message}
-          </p>
-          {[
-            ...new Set([
-              ...studio.installation.warnings,
-              ...studio.installation.workspace.warnings,
-            ]),
-          ].map((warning) => (
-            <p key={warning}>{warning}</p>
-          ))}
-          <p>
-            Ao abrir, o Studio procura atualizações. Alterações locais no corpus e na gramática são
-            preservadas.
-          </p>
-          <button className="button small" onClick={() => void window.studio?.openReleasePage?.()}>
-            Página de versões
-          </button>
-        </div>
-      )}
     </dialog>
   );
 }
 
 export default function App() {
+  const initialLocation = useRef(readStudioLocation(new URL(window.location.href)));
   const studio = useStudio();
   const { project, passage, draft, result } = studio;
+  const {
+    submissions,
+    error: submissionError,
+    ready: submissionsReady,
+  } = useSubmissions(project.id);
+  const submitted = passageSubmission(passage, draft, submissions[submissionKey(passage.id)]);
+  const currentSubmission = submitted?.revisionId === draft?.revisionId ? submitted : undefined;
+  const waitingSubmission = submitted && ['submitted', 'ready'].includes(submitted.status);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState<Tab>(
@@ -594,13 +555,10 @@ export default function App() {
   const collaborative = window.studio?.runtime === 'collaborative';
   const canReviewSource = window.studio?.capabilities?.sourceReview !== false;
   const [submitting, setSubmitting] = useState(false);
-  useEffect(() => {
-    if (studio.setupRequired) setProjectDialog(true);
-  }, [studio.setupRequired]);
+
   const advanced = useAdvancedTools();
   const [moreOpen, setMoreOpen] = useState(false);
   const [details, setDetails] = useState(false);
-  const [usageOpen, setUsageOpen] = useState(false);
   const [learningView, setLearningView] = useState<'lessons' | 'reference' | null>(null);
   const [labOpen, setLabOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -613,6 +571,10 @@ export default function App() {
   };
   const analysis = useAnalysisWorkspace(studio);
   const [dictionaryEvidence, setDictionaryEvidence] = useState<AnalysisEvidence | null>(null);
+  const [lexiconNavigation, setLexiconNavigation] = useState<PassageLexiconNavigation>({});
+  const [dictionaryNavigation, setDictionaryNavigation] = useState<DictionaryNavigation>({});
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [linkNotice, setLinkNotice] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('studio-theme') || 'dark');
   const [preview, setPreview] = useState<SourcePreview | null>(null);
   const [approveOnSave, setApproveOnSave] = useState(true);
@@ -631,12 +593,19 @@ export default function App() {
       })
     : null;
   const [grammarReport, setGrammarReport] = useState<CanvasDiagnostic | null>(null);
+  const grammarPassage = grammarReport?.context?.passageId
+    ? project.passages.find((item) => item.id === grammarReport.context?.passageId)
+    : passage;
+  const [sharedTreeName, setSharedTreeName] = useState<string | null>(null);
+  const [sharedTreeNavigation, setSharedTreeNavigation] = useState<SharedTreeNavigation | null>(
+    null,
+  );
   const restoredPendingProject = useRef('');
   useEffect(() => {
     if (!studio.ready || restoredPendingProject.current === project.id) return;
     restoredPendingProject.current = project.id;
     const saved = localStorage.getItem('studio-pending:' + project.id);
-    if (saved && studio.envelope.drafts[saved]) {
+    if (!initialLocation.current.explicit && saved && studio.envelope.drafts[saved]) {
       studio.setSelectedId(saved);
       setMode('analysis');
       setTab('Árvore');
@@ -644,6 +613,7 @@ export default function App() {
     localStorage.removeItem('studio-pending:' + project.id);
   }, [studio.ready, project.id, studio.envelope]);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [annotationReviewId, setAnnotationReviewId] = useState('');
   useEffect(() => {
     if (!preview) return;
     const cancel = (event: KeyboardEvent) => {
@@ -667,7 +637,6 @@ export default function App() {
     setEvidencePointer(null);
     setPreview(null);
     setReviewError('');
-    setSelected('root');
     setGrammarReport(null);
   }, [project.id, passage.id]);
   useEffect(() => {
@@ -675,11 +644,74 @@ export default function App() {
     localStorage.setItem('studio-theme', theme);
   }, [theme]);
   const [notice, setNotice] = useState('');
+  const navigation = useStudioLocation({
+    ready: studio.navigationReady,
+    passages: project.passages,
+    location: {
+      passage: passage.id,
+      source: passage.sourceId,
+      view: mode,
+      tab: (Object.keys(locationTabs) as StudioLocation['tab'][]).find(
+        (key) => locationTabs[key] === tab,
+      )!,
+      node: selected === 'object' ? 'root' : selected,
+      support: layout.state.supportTab,
+      learning: learningView ?? undefined,
+      listQuery: query || undefined,
+      filter: filter === 'all' ? undefined : filter,
+      tree: sharedTreeNavigation?.name,
+      declaration: sharedTreeNavigation?.declarationId,
+      declarationSource: sharedTreeNavigation?.sourceId,
+      declarationLine: sharedTreeNavigation ? String(sharedTreeNavigation.line) : undefined,
+      lexiconScope: lexiconNavigation.scope,
+      lexicon: lexiconNavigation.entryId,
+      occurrence: lexiconNavigation.occurrenceId,
+      lexiconQuery: lexiconNavigation.query,
+      catalog: catalogOpen ? 'open' : undefined,
+      dictionary:
+        dictionaryNavigation.entryIndex === undefined
+          ? undefined
+          : String(dictionaryNavigation.entryIndex),
+      dataset: dictionaryNavigation.datasetFingerprint,
+      dictionaryQuery: dictionaryNavigation.query,
+    },
+    apply: (location) => {
+      if (location.passage !== passage.id)
+        studio.setSelectedId(location.passage, { restoreLocation: true });
+      setMode(location.view);
+      setTab(locationTabs[location.tab]);
+      setSelected(location.node);
+      if (layout.state.supportTab !== location.support) layout.support(location.support);
+      setLearningView(location.learning ?? null);
+      setSharedTreeNavigation(
+        location.tree
+          ? {
+              name: location.tree,
+              declarationId: location.declaration!,
+              sourceId: location.declarationSource!,
+              line: Number(location.declarationLine),
+            }
+          : null,
+      );
+      setLexiconNavigation({
+        entryId: location.lexicon,
+        occurrenceId: location.occurrence,
+        query: location.lexiconQuery,
+        scope: location.lexiconScope,
+      });
+      setDictionaryNavigation({
+        entryIndex: location.dictionary === undefined ? undefined : Number(location.dictionary),
+        datasetFingerprint: location.dataset,
+        query: location.dictionaryQuery,
+      });
+      setCatalogOpen(location.catalog === 'open');
+      setDictionaryEvidence(null);
+      setQuery(location.listQuery ?? '');
+      setFilter(location.filter ?? 'all');
+    },
+  });
+
   const note = useRef<HTMLTextAreaElement>(null);
-  const activePassage = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    activePassage.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [passage.id, layout.state.hidden.navigator, layout.state.maximized]);
   const comparison =
     result && result.evaluationStatus !== 'partial'
       ? compareReference(result.surface, passage.acceptedReference)
@@ -700,12 +732,20 @@ export default function App() {
     surfaceHighlight.surface === result.surface
       ? surfaceHighlight.ranges
       : [];
-  const stage = draft?.workflow?.stage ?? (passage.status === 'review' ? 'review' : 'analysis');
+  const passageStatus = passageStage(passage, draft, submitted);
+  const stage =
+    passageStatus === 'complete'
+      ? 'complete'
+      : ['review', 'changed'].includes(passageStatus)
+        ? 'review'
+        : 'analysis';
   const sources = projectSources(project);
   const selectedSource = sources.find((source) => source.id === passage.sourceId);
   const sourcePassages = project.passages.filter((p) => p.sourceId === passage.sourceId);
   const completed = sourcePassages.filter(
-    (p) => studio.envelope.drafts[p.id]?.workflow?.stage === 'complete',
+    (p) =>
+      passageStage(p, studio.envelope.drafts[p.id], submissions[submissionKey(p.id)]) ===
+      'complete',
   ).length;
   function changeMode(next: typeof mode) {
     track('navigation.mode', { from: mode, to: next });
@@ -722,8 +762,11 @@ export default function App() {
   }
 
   // Turning the secondary tools off must never strand the desk on a surface it stopped showing.
+  const previousAdvanced = useRef(advanced);
   useEffect(() => {
-    if (advanced) return;
+    const disabled = previousAdvanced.current && !advanced;
+    previousAdvanced.current = advanced;
+    if (!disabled) return;
     if (!coreTabs.includes(tab)) setTab('Árvore');
     if (!(coreModes as readonly string[]).includes(mode)) setMode('analysis');
   }, [advanced, tab, mode]);
@@ -733,44 +776,44 @@ export default function App() {
     const timer = setTimeout(() => track('navigation.search', { count: query.length }), 800);
     return () => clearTimeout(timer);
   }, [query]);
-  const passages = sourcePassages.filter(
-    (p) =>
+  const reviewingSubmissions = ['submitted', 'ready', 'changes_requested'].includes(filter);
+  const listedPassages = reviewingSubmissions ? project.passages : sourcePassages;
+  const passages = listedPassages.filter((p) => {
+    const stage = passageStage(p, studio.envelope.drafts[p.id], submissions[submissionKey(p.id)]);
+    const submission = passageSubmission(
+      p,
+      studio.envelope.drafts[p.id],
+      submissions[submissionKey(p.id)],
+    );
+    return (
+      (filter !== 'submitted' ||
+        (submission && ['submitted', 'ready'].includes(submission.status))) &&
+      (filter !== 'ready' || submission?.status === 'ready') &&
+      (filter !== 'changes_requested' || submission?.status === 'changes_requested') &&
       (filter !== 'editable' || project.mode === 'local' || p.analysis) &&
-      (filter !== 'complete' || studio.envelope.drafts[p.id]?.workflow?.stage === 'complete') &&
-      (filter !== 'open' || studio.envelope.drafts[p.id]?.workflow?.stage !== 'complete') &&
+      (filter !== 'complete' || stage === 'complete') &&
+      (filter !== 'open' ||
+        (stage !== 'complete' &&
+          !(submission && ['submitted', 'ready'].includes(submission.status)))) &&
       `${p.title} ${p.ordinal} ${p.acceptedReference ?? ''}`
         .normalize('NFD')
         .replace(/\p{M}/gu, '')
         .toLowerCase()
-        .includes(query.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()),
-  );
-  const sourceIds = [...new Set(passages.map((p) => p.sourceId))];
+        .includes(query.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase())
+    );
+  });
   const selectedIndex = sourcePassages.findIndex((p) => p.id === passage.id);
   const orphaned = studio.orphanDrafts.length;
   const changePassage = (id: string) => {
+    navigation.dismissError();
     studio.setSelectedId(id);
     setNotice('');
     setSelected('object');
   };
-  // Passage navigation is the second most frequent thing recorded, and it runs in streaks:
-  // Alt+arrows keep a reading pass on the keyboard instead of returning to the header buttons.
-  useEffect(() => {
-    const step = (event: KeyboardEvent) => {
-      if (!event.altKey || event.metaKey || event.ctrlKey) return;
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if ((event.target as Element | null)?.closest('input,textarea,select,[contenteditable=true]'))
-        return;
-      if (!studio.ready) return;
-      const next = sourcePassages[selectedIndex + (event.key === 'ArrowRight' ? 1 : -1)];
-      if (!next) return;
-      event.preventDefault();
-      changePassage(next.id);
-    };
-    window.addEventListener('keydown', step);
-    return () => window.removeEventListener('keydown', step);
-  }, [project.passages, passage.sourceId, selectedIndex, studio.ready]);
+  // Alt+Left/Right belong to browser history, including view and node navigation.
 
   function prepareNewPassage() {
+    navigation.dismissError();
     setMode('analysis');
     setTab('Árvore');
     setSelected('root');
@@ -855,9 +898,11 @@ export default function App() {
         <span className="edition-number">01</span>
       </div>
       <h1>Fontes e passagens</h1>
+      {selectedSource && <PassageManager studio={studio} sourceId={selectedSource.id} />}
       <div className="source-selector">
         <label htmlFor="source-selection">Fonte</label>
         <select
+          {...workspaceAutofill}
           id="source-selection"
           value={selectedSource?.id ?? ''}
           disabled={!studio.ready}
@@ -883,6 +928,7 @@ export default function App() {
       <label className="search-box">
         <Search size={15} />
         <input
+          {...workspaceAutofill}
           aria-label="Buscar passagem"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -903,59 +949,46 @@ export default function App() {
         >
           Concluídas <span>{completed}</span>
         </button>
+        {window.studio?.listSubmissions && (
+          <select
+            {...workspaceAutofill}
+            aria-label="Filtrar envios para revisão"
+            disabled={!submissionsReady}
+            value={reviewingSubmissions ? filter : ''}
+            onChange={(event) => setFilter(event.target.value || 'all')}
+          >
+            <option value="">Envios para revisão…</option>
+            <option value="submitted">Aguardando revisão / incorporação</option>
+            <option value="ready">Prontas para incorporar</option>
+            <option value="changes_requested">Correção solicitada</option>
+          </select>
+        )}
       </div>
-      <div className="passage-list">
-        {sourceIds.map((sourceId) => (
-          <section key={sourceId}>
-            <div className="source-group">
-              <ChevronDown size={12} />
-              <BookOpen size={13} />
-              <span>{sourceLabel(sources.find((source) => source.id === sourceId)!)}</span>
-            </div>
-            {passages
-              .filter((p) => p.sourceId === sourceId)
-              .map((p) => (
-                <button
-                  key={p.id}
-                  ref={passage.id === p.id ? activePassage : undefined}
-                  className={`passage-item ${passage.id === p.id ? 'active' : ''}`}
-                  onClick={() => changePassage(p.id)}
-                  aria-current={passage.id === p.id ? 'page' : undefined}
-                >
-                  <span className="passage-item-top">
-                    <span className="ordinal">{String(p.ordinal).padStart(4, '0')}</span>
-                    {p.analysis && (
-                      <span className="editable-dot" title="Editor visual disponível" />
-                    )}
-                  </span>
-                  <span className="passage-reading" lang="tpw">
-                    {studio.envelope.drafts[p.id]?.normalized ||
-                      studio.envelope.drafts[p.id]?.diplomatic ||
-                      p.acceptedReference ||
-                      'Por transcrever'}
-                  </span>
-                  <span className="passage-status">
-                    <span
-                      className={`status-dot ${studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status}`}
-                    />
-                    {statusLabels[studio.envelope.drafts[p.id]?.workflow?.stage ?? p.status]}
-                    {analysis.listing.jobs.find((job) => job.passageId === p.id) && (
-                      <span className="analysis-nav-badge">
-                        IA ·{' '}
-                        {
-                          analysisLabels[
-                            analysis.listing.jobs.find((job) => job.passageId === p.id)!.status
-                          ]
-                        }
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
-          </section>
-        ))}
-        {!passages.length && <p className="empty-search">Nenhuma passagem encontrada.</p>}
-      </div>
+      {reviewingSubmissions && (
+        <p role="status">{passages.length} passagem(ns) · todas as fontes</p>
+      )}
+      {submissionError && <p role="alert">{submissionError}</p>}
+      <SubmissionReviewQueue
+        ready={submissionsReady}
+        studio={studio}
+        items={project.passages.flatMap((p) =>
+          submissions[submissionKey(p.id)] ? [submissions[submissionKey(p.id)]] : [],
+        )}
+      />
+      <PassageNavigator
+        ready={studio.ready}
+        projectId={project.id}
+        passages={passages}
+        sources={sources}
+        drafts={studio.envelope.drafts}
+        selectedId={passage.id}
+        onSelect={changePassage}
+        jobs={analysis.listing.jobs}
+        submissions={submissions}
+        filterKey={`${filter}:${query}`}
+        revealMatches={filter !== 'all' || !!query.trim()}
+        revealKey={`${layout.state.hidden.navigator}:${layout.state.maximized}`}
+      />
       <div className="navigator-bottom">
         <div className="notebook-icon">
           <FileText size={18} />
@@ -1114,10 +1147,18 @@ export default function App() {
               )}
             </div>
             <div className="workspace-title">
-              <div className="workflow-control">
+              <div className={`workflow-control${stage === 'complete' ? ' is-complete' : ''}`}>
+                {submitted && (
+                  <p role="status">
+                    Revisão: <strong>{submissionLabels[submitted.status]}</strong>
+                    {submitted.revisionId !== draft?.revisionId &&
+                      ' · há edições posteriores ao envio'}
+                  </p>
+                )}
                 <label>
                   Etapa do meu trabalho
                   <select
+                    {...workspaceAutofill}
                     aria-label="Etapa do trabalho"
                     value={stage}
                     disabled={!studio.ready}
@@ -1190,7 +1231,11 @@ export default function App() {
               >
                 <div className="surface-label">
                   <Layers size={13} />
-                  {project.mode === 'local' ? 'RESULTADO ATUAL' : 'RESULTADO DO EXEMPLO'}
+                  {project.mode === 'local'
+                    ? sharedTreeName
+                      ? 'RESULTADO DA PASSAGEM'
+                      : 'RESULTADO ATUAL'
+                    : 'RESULTADO DO EXEMPLO'}
                 </div>
                 <p data-testid="generated-surface" lang="tpw">
                   {studio.pending ? (
@@ -1208,13 +1253,19 @@ export default function App() {
                   )}
                 </p>
                 <span className="surface-caption">
-                  {result?.origin === 'engine'
-                    ? `${collaborative ? 'Motor do servidor' : 'Motor local'} · revisão atual`
-                    : result
-                      ? 'Resultado previamente avaliado'
-                      : !draft?.raw?.trim()
-                        ? 'Sua próxima leitura começa aqui'
-                        : 'Aguardando análise válida e avaliação'}
+                  {studio.pending
+                    ? 'Avaliando a estrutura atual…'
+                    : studio.renderError
+                      ? 'A avaliação atual precisa de atenção'
+                      : result?.origin === 'engine'
+                        ? `${collaborative ? 'Motor do servidor' : 'Motor local'} · revisão atual`
+                        : result
+                          ? 'Resultado previamente avaliado'
+                          : !draft?.raw?.trim()
+                            ? 'Sua próxima leitura começa aqui'
+                            : stage === 'complete'
+                              ? 'Passagem concluída · resultado em atualização'
+                              : 'Aguardando análise válida e avaliação'}
                 </span>
                 {project.mode === 'local' && canAnalyze && (
                   <div className="surface-repair-action">
@@ -1282,8 +1333,9 @@ export default function App() {
                       : 'Sem comparação'}
               </span>
               <span className="agreement-separator" />
-              <span>
-                Minha etapa <strong>{statusLabels[stage].toLowerCase()}</strong>
+              <span className={stage === 'complete' ? 'workflow-complete' : undefined}>
+                {stage === 'complete' && <Check size={13} />}
+                Minha etapa <strong>{passageStatusLabels[stage].toLowerCase()}</strong>
               </span>
               <span className="agreement-separator" />
               <span>
@@ -1411,7 +1463,10 @@ export default function App() {
           {mode === 'analysis' && (
             <>
               <div className="projection-tabs" role="tablist" aria-label="Projeções da análise">
-                {(advanced ? tabs : tabs.filter((item) => coreTabs.includes(item))).map((item) => (
+                {(advanced
+                  ? tabs
+                  : tabs.filter((item) => coreTabs.includes(item) || item === tab)
+                ).map((item) => (
                   <button
                     key={item}
                     role="tab"
@@ -1456,9 +1511,31 @@ export default function App() {
                     selected={selected}
                     select={setSelected}
                     onSurfaceHighlight={setSurfaceHighlight}
+                    onEditingSharedTree={setSharedTreeName}
+                    sharedTreeNavigation={sharedTreeNavigation}
+                    onSharedTreeNavigationChange={setSharedTreeNavigation}
                     inspectLexeme={() => changeMode('lexicon')}
                     lexicalPreview={setPreview}
-                    prepareDiagnostic={setGrammarReport}
+                    prepareDiagnostic={(report) => {
+                      const originId = report.context?.passageId ?? passage.id;
+                      const origin = project.passages.find((item) => item.id === originId);
+                      if (
+                        !origin ||
+                        (report.context?.sourceId && report.context.sourceId !== origin.sourceId)
+                      ) {
+                        studio.setError(
+                          'A passagem de origem mudou. Abra esta peça novamente para corrigir a gramática.',
+                        );
+                        return;
+                      }
+                      const revisionId =
+                        studio.envelope.drafts[origin.id]?.revisionId ?? report.revisionId;
+                      setGrammarReport({
+                        ...report,
+                        revisionId,
+                        context: { passageId: origin.id, sourceId: origin.sourceId, revisionId },
+                      });
+                    }}
                     openLaboratory={() => setLabOpen(true)}
                     translate={openTranslation}
                     askAI={(id) => {
@@ -1480,6 +1557,8 @@ export default function App() {
             engineFingerprint={project.engineFingerprint}
             active={mode === 'dictionary'}
             reference={dictionaryEvidence}
+            navigation={dictionaryNavigation}
+            onNavigationChange={setDictionaryNavigation}
             disabled={project.mode !== 'local' || !studio.ready || studio.busy || studio.conflict}
             onInsert={(expression, expectedRevision) => {
               if (!studio.insertPiece(expression, expectedRevision)) return false;
@@ -1500,6 +1579,8 @@ export default function App() {
                 raw={draft?.raw ?? passage.sourceExpression}
                 engineFingerprint={project.engineFingerprint}
                 selectedNodeId={selected}
+                navigation={lexiconNavigation}
+                onNavigationChange={setLexiconNavigation}
                 disabled={!studio.ready || studio.pending || studio.conflict}
                 onEdit={(raw, expectedRevision) => {
                   studio.edit({ raw }, expectedRevision);
@@ -1512,7 +1593,10 @@ export default function App() {
                   changeTab('Árvore');
                 }}
               />
-              <details>
+              <details
+                open={catalogOpen}
+                onToggle={(event) => setCatalogOpen(event.currentTarget.open)}
+              >
                 <summary>Catálogo do projeto e dicionário Navarro</summary>
                 <LexiconPanel studio={studio} onPreview={setPreview} selected={selected} />
               </details>
@@ -1529,6 +1613,7 @@ export default function App() {
               <label className="editor-label">
                 Tradução sem idioma informado
                 <textarea
+                  {...workspaceAutofill}
                   aria-label="Tradução sem idioma informado"
                   rows={3}
                   value={draft?.translation ?? ''}
@@ -1545,6 +1630,7 @@ export default function App() {
               <label className="editor-label">
                 Nota de leitura
                 <textarea
+                  {...workspaceAutofill}
                   ref={note}
                   rows={5}
                   value={draft?.notes ?? ''}
@@ -1668,6 +1754,7 @@ export default function App() {
               <label>
                 Nota de leitura
                 <textarea
+                  {...workspaceAutofill}
                   rows={1}
                   value={draft?.notes ?? ''}
                   disabled={!studio.ready}
@@ -1678,69 +1765,97 @@ export default function App() {
             </div>
           )}
           <footer className="workspace-footer">
-            <span className="save-status" role="status">
-              <span className={studio.saveState.includes('salvo') ? 'saved-dot' : 'status-dot'} />
-              {studio.saveState}
-            </span>
-            <div>
-              <button
-                className="icon-button"
-                aria-label="Desfazer"
-                title="Desfazer última edição desta passagem"
-                disabled={!studio.canUndo || !studio.ready || studio.conflict}
-                onClick={studio.undo}
-              >
-                <Undo2 size={17} />
-              </button>
-              <button
-                className="button"
-                disabled={!draft || !studio.ready || studio.conflict}
-                onClick={() => void studio.verify()}
-              >
-                <RefreshCw size={14} className={studio.busy ? 'spin' : ''} />
-                Verificar
-              </button>
-              <button
-                className="button primary"
-                disabled={!studio.ready}
-                onClick={() => void save()}
-              >
-                <Check size={15} />
-                Salvar rascunho
-              </button>
-              {window.studio?.submitContribution && (
-                <button
-                  className="button"
-                  disabled={!studio.ready || !draft?.raw?.trim() || submitting}
-                  onClick={() => {
-                    setSubmitting(true);
-                    void studio
-                      .persist()
-                      .then(() => window.studio!.submitContribution!())
-                      .then(() =>
-                        setNotice(
-                          'Contribuição enviada para revisão. Você pode continuar trabalhando; a versão enviada foi preservada.',
-                        ),
-                      )
-                      .catch((reason) =>
-                        studio.setError(reason instanceof Error ? reason.message : String(reason)),
-                      )
-                      .finally(() => setSubmitting(false));
-                  }}
-                >
-                  {submitting ? 'Enviando…' : 'Enviar para revisão'}
+            {sharedTreeName ? (
+              <>
+                <span className="save-status">
+                  Editando {sharedTreeName} · rascunho guardado nesta aba
+                </span>
+                <button onClick={() => window.dispatchEvent(new Event('studio:show-passage-tree'))}>
+                  Voltar à passagem
                 </button>
-              )}
-              {project.mode === 'local' && canReviewSource && (
-                <button
-                  className="button"
-                  disabled={!draft || !studio.ready || reviewBusy}
-                  onClick={() => void reviewSource(!!analysis.preview)}
-                >
-                  <ClipboardCheck size={15} /> Salvar como referência
-                </button>
-              )}
-            </div>
+              </>
+            ) : (
+              <>
+                <span className="save-status" role="status">
+                  <span
+                    className={studio.saveState.includes('salvo') ? 'saved-dot' : 'status-dot'}
+                  />
+                  {studio.saveState}
+                </span>
+                <div>
+                  <button
+                    className="icon-button"
+                    aria-label="Desfazer"
+                    title="Desfazer última edição desta passagem"
+                    disabled={!studio.canUndo || !studio.ready || studio.conflict}
+                    onClick={studio.undo}
+                  >
+                    <Undo2 size={17} />
+                  </button>
+                  <button
+                    className="button"
+                    disabled={!draft || !studio.ready || studio.conflict}
+                    onClick={() => void studio.verify()}
+                  >
+                    <RefreshCw size={14} className={studio.busy ? 'spin' : ''} />
+                    Verificar
+                  </button>
+                  <button
+                    className="button primary"
+                    disabled={!studio.ready}
+                    onClick={() => void save()}
+                  >
+                    <Check size={15} />
+                    Salvar rascunho
+                  </button>
+                  {window.studio?.submitContribution && (
+                    <button
+                      className="button"
+                      disabled={
+                        !studio.ready ||
+                        !draft?.raw?.trim() ||
+                        submitting ||
+                        (!!currentSubmission && !!waitingSubmission)
+                      }
+                      onClick={() => {
+                        setSubmitting(true);
+                        void studio
+                          .persist()
+                          .then(() => window.studio!.submitContribution!())
+                          .then(() =>
+                            setNotice(
+                              'Contribuição enviada para revisão. Você pode continuar trabalhando; a versão enviada foi preservada.',
+                            ),
+                          )
+                          .catch((reason) =>
+                            studio.setError(
+                              reason instanceof Error ? reason.message : String(reason),
+                            ),
+                          )
+                          .finally(() => setSubmitting(false));
+                      }}
+                    >
+                      {submitting
+                        ? 'Enviando…'
+                        : currentSubmission && waitingSubmission
+                          ? 'Enviada para revisão ✓'
+                          : submitted
+                            ? 'Enviar atualização para revisão'
+                            : 'Enviar para revisão'}
+                    </button>
+                  )}
+                  {project.mode === 'local' && canReviewSource && (
+                    <button
+                      className="button"
+                      disabled={!draft || !studio.ready || reviewBusy}
+                      onClick={() => void reviewSource(!!analysis.preview)}
+                    >
+                      <ClipboardCheck size={15} /> Salvar como referência
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </footer>
           {(notice || studio.verification) && (
             <div className="notice" role="status">
@@ -1787,14 +1902,9 @@ export default function App() {
         <img src="./mark.svg" alt="" width={56} height={56} />
         <h1>Pydicate Studio</h1>
         <p role="status" aria-live="polite">
-          {studio.setupProgress?.message ||
-            studio.installation?.update.message ||
-            'Abrindo seu espaço de trabalho…'}
+          Abrindo seu espaço de trabalho…
         </p>
-        <progress
-          max={100}
-          value={studio.setupProgress?.percent ?? studio.installation?.update.percent}
-        />
+        <progress />
       </main>
     );
   return (
@@ -1821,6 +1931,23 @@ export default function App() {
           <ChevronDown size={13} />
         </button>
         <div className="header-end">
+          <button
+            className="button small"
+            aria-label="Copiar link desta localização"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(window.location.href)
+                .then(() =>
+                  setLinkNotice('Link copiado. Quem abrir precisará ter acesso ao projeto.'),
+                )
+                .catch(() =>
+                  setLinkNotice('Não foi possível copiar. Copie o endereço da barra do navegador.'),
+                );
+            }}
+          >
+            <Link size={15} /> Copiar link
+          </button>
+          <CorpusHealth studio={studio} />
           {advanced && (
             <>
               <button className="button small" onClick={() => setLearningView('lessons')}>
@@ -1828,9 +1955,6 @@ export default function App() {
               </button>
               <button className="button small" onClick={() => setLearningView('reference')}>
                 Referência
-              </button>
-              <button className="button small" onClick={() => setUsageOpen(true)}>
-                Atividade
               </button>
               <button
                 className="button small"
@@ -1887,15 +2011,6 @@ export default function App() {
                       <button
                         role="menuitem"
                         onClick={() => {
-                          setMoreOpen(false);
-                          setUsageOpen(true);
-                        }}
-                      >
-                        Atividade
-                      </button>
-                      <button
-                        role="menuitem"
-                        onClick={() => {
                           const next = theme === 'dark' ? 'light' : 'dark';
                           track('ui.theme', { from: theme, to: next });
                           setTheme(next);
@@ -1908,6 +2023,7 @@ export default function App() {
                   )}
                   <label className="header-menu-toggle">
                     <input
+                      {...workspaceAutofill}
                       type="checkbox"
                       checked={advanced}
                       onChange={(event) => setAdvancedTools(event.target.checked)}
@@ -1965,9 +2081,27 @@ export default function App() {
           <LearningWorkspace
             project={project}
             initialView={learningView}
+            onViewChange={setLearningView}
             onClose={() => setLearningView(null)}
           />
         </Suspense>
+      )}
+      {navigation.error && (
+        <div role="alert" className="error-banner">
+          {navigation.error}
+        </div>
+      )}
+      {linkNotice && (
+        <div role="status" className="notice-banner">
+          <span>{linkNotice}</span>
+          <button
+            className="icon-button"
+            aria-label="Fechar aviso do link"
+            onClick={() => setLinkNotice('')}
+          >
+            <X size={17} />
+          </button>
+        </div>
       )}
       {groundTruthNote && (
         <div role="status" className="notice-banner">
@@ -2008,7 +2142,6 @@ export default function App() {
           Português · Tupi antigo <span className="status-divider">/</span> Pydicate Studio
         </span>
       </footer>
-      {usageOpen && <UsagePanel onClose={() => setUsageOpen(false)} />}
       {archiveOpen && <DraftArchive studio={studio} onClose={() => setArchiveOpen(false)} />}
       {newSourceOpen && (
         <NewSourceDialog
@@ -2033,6 +2166,7 @@ export default function App() {
             {passageReview && (
               <label>
                 <input
+                  {...workspaceAutofill}
                   type="checkbox"
                   checked={approveOnSave}
                   disabled={reviewBusy}
@@ -2053,6 +2187,20 @@ export default function App() {
               saveGroundTruth={passageReview && approveOnSave}
               acceptedReference={passage.acceptedReference}
             />
+            {!!preview.annotationChanges?.length && (
+              <label className="source-review-annotation-confirmation">
+                <input
+                  {...workspaceAutofill}
+                  type="checkbox"
+                  checked={annotationReviewId === preview.previewId}
+                  disabled={reviewBusy}
+                  onChange={(event) =>
+                    setAnnotationReviewId(event.target.checked ? preview.previewId : '')
+                  }
+                />{' '}
+                Revisei e aceito as alterações de análise morfológica mostradas acima.
+              </label>
+            )}
             <div>
               <button className="button" onClick={() => setPreview(null)} disabled={reviewBusy}>
                 Voltar sem aplicar
@@ -2063,6 +2211,8 @@ export default function App() {
                   !canReviewSource ||
                   reviewBusy ||
                   !studio.ready ||
+                  (!!preview.annotationChanges?.length &&
+                    annotationReviewId !== preview.previewId) ||
                   (passageReview && approveOnSave
                     ? studio.pending ||
                       !reviewedResult ||
@@ -2076,8 +2226,13 @@ export default function App() {
                     .applySource(
                       preview,
                       passageReview && approveOnSave ? reviewedResult! : undefined,
+                      { reviewedAnnotationChanges: annotationReviewId === preview.previewId },
                     )
                     .then((outcome) => {
+                      if (outcome?.sourceApplied)
+                        requestAnimationFrame(() =>
+                          window.dispatchEvent(new Event('studio:source-applied')),
+                        );
                       setPreview(null);
                       setEvidencePointer(null);
                       setReviewError('');
@@ -2160,32 +2315,43 @@ export default function App() {
         </div>
       )}
       {projectDialog && <ProjectDialog studio={studio} close={() => setProjectDialog(false)} />}
-      {grammarReport && (
+      {grammarReport && grammarPassage && (
         <GrammarDiagnosticDialog
-          key={`${project.id}:${passage.id}:${grammarReport.revisionId}:${grammarReport.fragmentId ?? 'main'}`}
+          key={`${project.id}:${grammarPassage.id}:${grammarReport.revisionId}:${grammarReport.fragmentId ?? 'main'}:${grammarReport.selectedNodeId}:${grammarReport.sharedDefinition?.name ?? ''}`}
           project={project}
-          passage={passage}
+          passage={grammarPassage}
           report={grammarReport}
           onClose={() => setGrammarReport(null)}
           onRefresh={studio.refresh}
           onSubmit={async (request) => {
+            if (studio.envelope.drafts[grammarPassage.id]?.revisionId !== grammarReport.revisionId)
+              throw new Error(
+                'O rascunho da passagem de origem mudou. Reabra a correção para usar o contexto atual.',
+              );
+            const target = diagnosticTarget(grammarReport);
+            const selectedNode =
+              target.id !== grammarReport.root.id
+                ? (aiSelection(target, grammarReport.raw) ?? undefined)
+                : undefined;
+            if (target.id !== grammarReport.root.id && !selectedNode)
+              throw new Error('O trecho selecionado mudou. Reabra a correção nesta árvore.');
             await flushLexicalNotes(project.id);
             const notebook = await invoke<{ records: LexicalNote[] }>('lexical_notes_list', {
               projectId: project.id,
             });
             const noteSnapshot = await analysisNoteSnapshot(
               notebook.records,
-              passage.sourceId,
-              passage.id,
+              grammarPassage.sourceId,
+              grammarPassage.id,
             );
             await studio.persist();
             await invoke('analysis_submit', {
               projectId: project.id,
-              passageId: passage.id,
+              passageId: grammarPassage.id,
               revisionId: grammarReport.revisionId,
               operationId: `${request.operationId}:${noteSnapshot}`,
               task: request.mode === 'engine' ? 'grammar-repair' : 'analyze',
-              scope: 'passage',
+              scope: selectedNode || grammarReport.sharedDefinition ? 'constituent' : 'passage',
               newConversation: true,
               ...(request.mode === 'engine'
                 ? {
@@ -2194,13 +2360,17 @@ export default function App() {
                       raw: grammarReport.raw,
                       revisionId: grammarReport.revisionId,
                       fragmentId: grammarReport.fragmentId,
+                      selectedNode,
+                      sharedDefinition: grammarReport.sharedDefinition,
                     },
                   }
                 : {
+                    selectedNode,
                     description: `Forma pretendida: ${request.intendedSurface}\n\n${request.explanation}\n\nInvestigue como completar ou ajustar a árvore atual para essa análise.`,
                   }),
             });
-            await analysis.openSubmittedConversation();
+            if (grammarPassage.id === passage.id) await analysis.openSubmittedConversation();
+            else studio.setSelectedId(grammarPassage.id);
             layout.support('ai');
           }}
         />

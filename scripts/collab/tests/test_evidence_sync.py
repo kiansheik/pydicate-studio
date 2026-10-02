@@ -252,7 +252,8 @@ class EvidenceSyncTests(unittest.TestCase):
     def test_deploy_prepares_bundle_before_upload_and_passes_staged_path(self):
         fixture = self.fixture(); archive = self.pack(fixture)
         remote = Remote(); calls = []
-        with patch('evidence_sync.prepare_local_bundle', side_effect=lambda path, known=(): (calls.append('prepare') or archive)), \
+        with patch.dict(os.environ, {'COLLAB_IMPORT_LEGACY_DESKTOP': '1'}), \
+                patch('evidence_sync.prepare_local_bundle', side_effect=lambda path, known=(): (calls.append('prepare') or archive)), \
                 patch('desktop_sync.prepare_local_bundle', return_value=None), \
                 patch.object(remote, 'inventory', return_value={}), \
                 patch.object(remote, 'prepare_release', side_effect=lambda ref, evidence, desktop: (calls.append(('preflight', evidence)) or 'a' * 40)), \
@@ -265,7 +266,8 @@ class EvidenceSyncTests(unittest.TestCase):
         self.assertEqual(calls[2][1], calls[3][1])
         # The read-only inventory aside, a corrupt local bundle must reach the server
         # with nothing at all: no preflight, no upload, no release.
-        with patch('evidence_sync.prepare_local_bundle', side_effect=ValueError('corrupt')), \
+        with patch.dict(os.environ, {'COLLAB_IMPORT_LEGACY_DESKTOP': '1'}), \
+                patch('evidence_sync.prepare_local_bundle', side_effect=ValueError('corrupt')), \
                 patch.object(remote, 'inventory', return_value={}), patch.object(remote, 'ssh') as ssh:
             with self.assertRaises(ValueError):remote.deploy()
             ssh.assert_not_called()

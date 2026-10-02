@@ -20,7 +20,8 @@ test('inspection refreshes a changed local engine once and reuses the same accep
     window.__nextControl.project.engineFingerprint = 'simulated:updated-grammar';
     window.__nextControl.reject(
       'analysis_accept',
-      '[STUDIO:STALE_ENGINE] O corpus ou a gramática mudou.',
+      'O corpus ou a gramática mudou.',
+      'STALE_ENGINE',
     );
   });
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:beta');
@@ -78,7 +79,8 @@ test('a local version that keeps changing stops after one refresh and preserves 
     await page.evaluate(() =>
       window.__nextControl.reject(
         'analysis_accept',
-        '[STUDIO:STALE_ENGINE] A gramática mudou durante a verificação local.',
+        'A gramática mudou durante a verificação local.',
+        'STALE_ENGINE',
       ),
     );
   }

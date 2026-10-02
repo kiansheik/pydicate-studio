@@ -1,8 +1,6 @@
 node_modules/
 dist/
-release/
-build/
-electron/authoring/shared-bundle.cjs
+runtime/authoring/shared-bundle.cjs
 .local/
 test-results/
 playwright-report/

@@ -298,3 +298,114 @@ it('places missed drafts between stable passages and preserves a chain of pendin
   ]);
   expect(result.passages.at(-1)!.acceptedReference).toBe(source.passages[1].acceptedReference);
 });
+
+describe('admin passage organization', () => {
+  it('keeps a materialized UUID once at its pending slot while retaining both draft records', () => {
+    const source = project();
+    const earlier = pending(source, 'earlier');
+    earlier.pending!.ordinal = 3;
+    earlier.pending!.beforePassageId = null;
+    const published = pending(source, 'published');
+    published.pending!.ordinal = 4;
+    published.pending!.beforePassageId = null;
+    published.pending!.previousPassageId = earlier.passageId;
+    published.raw = 'original_tree';
+    const canonical = {
+      ...source.passages[1],
+      id: 'passage:published',
+      sourceExpression: 'shared_lexeme',
+    };
+    source.passages.push(canonical);
+    const envelope: DraftEnvelope = {
+      version: 1,
+      projectId: source.id,
+      drafts: {
+        [earlier.passageId]: earlier,
+        [published.passageId]: published,
+        [canonical.id]: createDraft(canonical),
+      },
+    };
+    const before = structuredClone(envelope);
+    const projected = projectWithPending(source, envelope);
+    expect(projected.passages.map((p) => p.id)).toEqual([
+      'passage:0',
+      'passage:1',
+      earlier.passageId,
+      canonical.id,
+    ]);
+    expect(projected.passages.at(-1)?.sourceExpression).toBe('shared_lexeme');
+    expect(envelope).toEqual(before);
+    expect(projectWithPending(projected, envelope)).toEqual(projected);
+    // A deliberate duplicate has another UUID, even when its expression agrees.
+    const duplicate = { ...published, passageId: 'pending:explicit-copy' };
+    envelope.drafts[duplicate.passageId] = duplicate;
+    expect(projectWithPending(source, envelope).passages.map((p) => p.id)).toContain(
+      duplicate.passageId,
+    );
+  });
+
+  it('never reorders unrelated mixed ranked and unranked canonical rows', () => {
+    const source = project();
+    const canonical = { ...source.passages[0], id: 'passage:new' };
+    source.passages.unshift(canonical);
+    const drafts = Object.fromEntries(source.passages.map((p) => [p.id, createDraft(p)]));
+    drafts['passage:0'].organization = {
+      sourceId: canonical.sourceId,
+      position: 1,
+      deleted: false,
+    };
+    drafts['passage:1'].organization = {
+      sourceId: canonical.sourceId,
+      position: 0,
+      deleted: false,
+    };
+    const envelope: DraftEnvelope = { version: 1, projectId: source.id, drafts };
+    expect(projectWithPending(source, envelope).passages.map((p) => p.id)).toEqual([
+      'passage:1',
+      'passage:0',
+      'passage:new',
+    ]);
+    drafts[canonical.id].raw = 'revised_tree';
+    expect(projectWithPending(source, envelope).passages.map((p) => p.id)).toEqual([
+      'passage:1',
+      'passage:0',
+      'passage:new',
+    ]);
+  });
+
+  it('persists order and deletion without changing source; places later insertions by anchor', () => {
+    const source = project();
+    const original = structuredClone(source);
+    const drafts = Object.fromEntries(source.passages.map((p) => [p.id, createDraft(p)]));
+    drafts['passage:0'].organization = {
+      sourceId: source.passages[0].sourceId,
+      position: 1,
+      deleted: false,
+    };
+    drafts['passage:1'].organization = {
+      sourceId: source.passages[0].sourceId,
+      position: 0,
+      deleted: false,
+    };
+    drafts['pending:new'] = {
+      ...createDraft(source.passages[0]),
+      passageId: 'pending:new',
+      pending: { sourceId: source.passages[0].sourceId, ordinal: 2, beforePassageId: 'passage:0' },
+    };
+    const saved: DraftEnvelope = { version: 1, projectId: source.id, drafts };
+    expect(validateDraftEnvelope(saved)).toBe(true);
+    expect(projectWithPending(source, saved).passages.map((p) => p.id)).toEqual([
+      'passage:1',
+      'pending:new',
+      'passage:0',
+    ]);
+    drafts['passage:0'].organization.deleted = true;
+    expect(projectWithPending(source, saved).passages.map((p) => p.id)).toEqual([
+      'passage:1',
+      'pending:new',
+    ]);
+    drafts['passage:0'].organization.deleted = false;
+    expect(projectWithPending(source, saved).passages.map((p) => p.ordinal)).toEqual([1, 2, 3]);
+    expect(source).toEqual(original);
+  });
+});

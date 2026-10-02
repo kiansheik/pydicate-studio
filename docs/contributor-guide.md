@@ -1,13 +1,13 @@
 # Contribuir com o Pydicate Studio
 
-O Studio reúne fontes históricas, o dicionário, a árvore Pydicate e, no desktop, propostas de IA. Seu rascunho fica disponível para revisão. Ao aceitar a revisão da passagem, o revisor salva a fonte e pode registrar a forma revisada como ground truth.
+O Studio reúne fontes históricas, o dicionário, a árvore Pydicate e propostas de IA quando habilitadas no servidor. Seu rascunho fica disponível para revisão. Ao aceitar a revisão da passagem, o revisor salva a fonte e pode registrar a forma revisada como ground truth.
 
 ## Escolher ou criar uma fonte
 
 Use **Fonte**, no painel esquerdo, para alternar entre os documentos do projeto.
 **Nova fonte** pede o título, o ano opcional e o nome do arquivo `.tu.py`; cria
 o arquivo vazio e abre a primeira passagem como rascunho. Em **Fonte**, à direita,
-use **Vincular PDF à fonte**, marque o trecho e clique em **Salvar regiões**.
+use **Vincular PDF à fonte** e marque o trecho; as regiões são salvas automaticamente.
 Preencha a transcrição, tradução e dúvidas. Você pode salvar a leitura antes
 de montar a árvore.
 
@@ -26,22 +26,20 @@ mesma passagem. Para páginas não consecutivas, escolha **Página física do PD
 e use **Marcar região** novamente.
 
 A lista mostra as páginas abrangidas e os recortes na ordem de leitura. Clique
-numa região para voltar à página dela; use as setas para ajustar a ordem e depois
-**Salvar regiões**. Ao incluir imagens na análise, os recortes seguem essa ordem.
+numa região para voltar à página dela; use as setas para ajustar a ordem e confira a confirmação de salvamento automático. Ao incluir imagens na análise, os recortes seguem essa ordem.
 O intervalo exibido usa páginas físicas do PDF; a página impressa é um campo separado.
 
-## Abrir o aplicativo
+## Entrar no espaço compartilhado
 
-Esta versão ainda usa a instalação de desenvolvimento. A pasta que contém este repositório deve também conter os clones `oldtupicorpus` e `nhe-enga`. Use Node na versão indicada em `package.json` e o Python indicado em [dependências](design/dependencies.md). Na pasta do Studio:
+Use o convite e o endereço do servidor no [guia do navegador](collab-contributor.md).
+Não é necessário instalar o Studio. Contas locais usam senha; contas Neo usam
+**Entrar com Academia Tupi / Neologismos** quando habilitado. A recuperação de
+senha corresponde ao tipo de conta. A IA só aparece quando o administrador a
+habilita; propostas continuam separadas de aprovação editorial.
 
-```sh
-npm ci
-npm run doctor
-npm run build
-npm start
-```
-
-`npm run desktop` abre o modo de desenvolvimento. `PYDICATE_PROJECT_PARENT` permite escolher outra pasta contendo os dois clones; um projeto já salvo continua sendo restaurado. O diagnóstico compara um **baseline histórico**, portanto alterações posteriores legítimas no corpus podem gerar diferenças. Confira o relatório atual em [cobertura de Araújo](coverage/araujo.md); não restaure arquivos pessoais para silenciar o diagnóstico.
+Para desenvolver ou hospedar o serviço, siga [configuração local](local-setup.md)
+e [implantação](../deploy/collab/README.md). O diagnóstico de dependências registra
+um baseline histórico; não restaure arquivos pessoais para silenciar diferenças.
 
 O tema escuro é o padrão. Preferências de tema e disposição dos painéis existentes são mantidas. **Fonte / IA** compartilham o painel de apoio, inicialmente à direita; a árvore permanece no centro. O dicionário e o léxico continuam disponíveis.
 

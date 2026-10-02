@@ -1,7 +1,6 @@
 /**
  * The packaged window denies the renderer's clipboard permission, so a bare
- * navigator.clipboard.writeText fails with NotAllowedError. The desktop bridge writes from
- * the main process and has no such gate, so it goes first; a hidden selection copy is the
+ * navigator.clipboard.writeText fails with NotAllowedError. A bridge-provided copier may use the browser API too; a hidden selection copy is the
  * last resort for a plain browser that refuses the async API.
  */
 export async function copyText(text: string) {

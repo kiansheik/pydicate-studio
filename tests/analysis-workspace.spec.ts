@@ -559,20 +559,22 @@ test('inspection immediately adopts the proposal in the vertical editor with wor
   await expect(page.getByTestId('generated-surface')).toHaveText('SIMULADO:beta');
   const editor = page.locator('[data-pane="editor"] .expression-canvas');
   await expect(
-    editor.getByRole('button', { name: 'De baixo para cima', exact: true }),
-  ).toHaveAttribute('aria-pressed', 'true');
+    editor.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'false');
   expect(
     await page.evaluate(
       () => window.__nextControl.requests.filter((r) => r.method === 'analysis_accept').length,
     ),
   ).toBe(1);
-  await editor.getByRole('button', { name: 'Da esquerda para a direita', exact: true }).click();
+  await editor
+    .getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true })
+    .click();
   await expect(
-    editor.getByRole('button', { name: 'Da esquerda para a direita', exact: true }),
+    editor.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Inspecionar na árvore', exact: true }).click();
   await expect(
-    editor.getByRole('button', { name: 'Da esquerda para a direita', exact: true }),
+    editor.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await editor.locator('.canvas-node').first().click({ button: 'right' });
   await editor.getByRole('menuitem', { name: /Duplicar trecho/ }).click();
@@ -960,4 +962,36 @@ test('source view keeps only transcription, preserves legacy metadata and never 
       ),
     ),
   ).toEqual([]);
+});
+
+test('streamed updates do not overlap a slow analysis refresh', async ({ page }) => {
+  await page.goto('/tests/next-hook-harness.html?workspace&analysis');
+  await expect(page.getByLabel('Transcrição diplomática', { exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    window.__nextControl.holds.push({ method: 'analysis_list' });
+    window.__nextControl.emit({ type: 'analysis', projectId: 'simulated:a' });
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__nextControl.pending.filter((r) => r.method === 'analysis_list').length,
+      ),
+    )
+    .toBe(1);
+  await page.evaluate(async () => {
+    for (let i = 0; i < 40; i++) {
+      window.__nextControl.emit({ type: 'analysis', projectId: 'simulated:a' });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  });
+  expect(
+    await page.evaluate(
+      () => window.__nextControl.pending.filter((r) => r.method === 'analysis_list').length,
+    ),
+  ).toBe(1);
+  await page.evaluate(() => {
+    window.__nextControl.holds = [];
+    window.__nextControl.release('analysis_list');
+  });
+  await expect(page.getByText(/Não foi possível carregar a fila/)).toHaveCount(0);
 });

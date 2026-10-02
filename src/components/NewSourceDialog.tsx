@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import type { Studio } from '../useStudio';
 import { projectSources, sourceSlug } from '../domain/sources';
@@ -41,6 +42,7 @@ export function NewSourceDialog({
           no painel Fonte e registre a primeira passagem.
         </p>
         <form
+          {...workspaceAutofill}
           onSubmit={(event) => {
             event.preventDefault();
             if (!title.trim() || exists || busy) return;
@@ -60,6 +62,7 @@ export function NewSourceDialog({
           <label>
             Título da fonte
             <input
+              {...workspaceAutofill}
               ref={titleInput}
               required
               maxLength={500}
@@ -71,6 +74,7 @@ export function NewSourceDialog({
           <label>
             Ano (opcional)
             <input
+              {...workspaceAutofill}
               maxLength={40}
               value={year}
               disabled={busy}
@@ -80,6 +84,7 @@ export function NewSourceDialog({
           <label>
             Nome do arquivo .tu.py
             <input
+              {...workspaceAutofill}
               required
               pattern="[a-z][a-z0-9_]{0,79}"
               maxLength={80}

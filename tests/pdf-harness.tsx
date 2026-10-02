@@ -1,11 +1,13 @@
 import { createRoot } from 'react-dom/client';
 import { useRef, useState } from 'react';
 import { PdfEvidence, type EvidencePreparation } from '../src/components/PdfEvidence';
-import type { EvidencePointer } from '../src/domain/evidence';
+import { evidencePredecessors, type EvidencePointer } from '../src/domain/evidence';
 
 function Harness() {
   const guideMode = new URLSearchParams(location.search).has('guide');
   const sourcesMode = new URLSearchParams(location.search).has('sources');
+  const orderedMode = new URLSearchParams(location.search).has('ordered');
+  const [order, setOrder] = useState(['passage:a', 'passage:b', 'passage:c']);
   const [sourceId, setSourceId] = useState('araujo');
   const [projectId, setProjectId] = useState('project:pdf-test');
   const [pointers, setPointers] = useState(0);
@@ -25,6 +27,19 @@ function Harness() {
   return (
     <main style={{ maxWidth: 650, color: '#eee', background: '#1a1d24', fontFamily: 'sans-serif' }}>
       <nav>
+        {orderedMode && (
+          <>
+            <button onClick={() => setOrder(['passage:b', 'passage:a', 'passage:c'])}>
+              Ordem B A C
+            </button>
+            <button onClick={() => setOrder(['passage:a', 'passage:b', 'passage:c'])}>
+              Ordem A B C
+            </button>
+            <button onClick={() => setOrder((items) => items.filter((id) => id !== 'passage:a'))}>
+              Excluir A da lista
+            </button>
+          </>
+        )}
         {sourcesMode && (
           <>
             <button onClick={() => setSourceId('bettendorff')}>Fonte Bettendorff</button>
@@ -61,6 +76,15 @@ function Harness() {
           projectId={projectId}
           sourceId={sourceId}
           passageId={passage}
+          visiblePreviousPassages={
+            orderedMode
+              ? evidencePredecessors(
+                  order.map((id) => ({ id, sourceId })),
+                  passage,
+                  sourceId,
+                )
+              : undefined
+          }
           newPassageGuide={guideMode && passage !== 'passage:a'}
           previousPassageId={
             guideMode

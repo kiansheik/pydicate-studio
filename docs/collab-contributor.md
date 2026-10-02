@@ -20,7 +20,7 @@ no Neo antes de voltar ao convite. A alternativa é criar uma senha local do Stu
 ou mais). Convites expiram em 48 horas; peça outro caso necessário. Contas Neo recuperam a senha
 no Neo; contas locais usam **Esqueci minha senha** no Studio. Não envie sua senha ao mantenedor.
 
-**Não é necessário instalar Git, Python, Node ou o aplicativo desktop.** Você também não precisa
+**Não é necessário instalar Git, Python ou Node.** Você também não precisa
 de uma conta paga de IA. Quando habilitada pela administração, a aba **IA**, as traduções e
 **Corrigir gramática / árvore** usam a conexão Codex compartilhada do mantenedor.
 Suas solicitações e propostas ficam no espaço compartilhado. Aceitar uma proposta altera o
@@ -34,13 +34,13 @@ e mantêm registros das mudanças. Não envie senhas, cookies ou arquivos de log
    **Nova fonte**, informe título, ano opcional e nome do arquivo `.tu.py`.
    A primeira passagem abre como rascunho; **Adicionar próxima passagem** continua
    a fonte selecionada. Você também pode inserir antes ou depois de uma passagem.
-2. Abra **Equipe e comentários** e confira quem está ativo. Escolha uma passagem e use
-   **Reservar passagem**. A reserva é da pessoa e da aba, renovada enquanto há atividade;
+2. Abra **Equipe e comentários** e confira quem está ativo. Escolha uma passagem. Quando reservas estiverem habilitadas, use
+   **Reservar passagem**; a reserva é da pessoa e da aba, renovada enquanto há atividade;
    não é uma aprovação nem uma promessa automática de pagamento.
 3. Em **Fonte**, use **Vincular PDF à fonte** para enviar seu PDF (até 100 MiB),
    ou consulte o testemunho já vinculado. Uma fonte compartilha seu PDF entre as
    passagens; substituir um testemunho existente exige um revisor.
-   Marque seu trecho e clique em **Salvar regiões**. Confira a página física, a página impressa
+   Marque seu trecho e confira a confirmação de salvamento automático. Confira a página física, a página impressa
    e as regiões correspondentes. Nunca invente uma leitura para contornar um trecho ilegível:
    registre a dúvida em notas e comentários.
 4. Registre a transcrição e a tradução. Monte a análise em **Árvore**, **Construção**
@@ -64,7 +64,7 @@ separadas. Seu envio não aprova automaticamente a ground truth.
 - No site, **Aprender** oferece aulas guiadas e **Referência** reúne exemplos e operações. Use
   [a ajuda independente](https://studio.academiatupi.com/help) em outra janela enquanto trabalha.
 - [Guia do colaborador](contributor-guide.md) e [edição de árvores](design/canvas-editor.md)
-  explicam as ferramentas. Os trechos sobre instalação e IA local são do modo desktop; no site,
+  explicam as ferramentas. A instalação e a autenticação dos serviços são administradas no servidor; no site,
   os limites desta página prevalecem.
 - [Fontes e leitura histórica](design/source-text.md), [passagens e revisão](design/next-passage.md)
   e [referência de aprendizagem](design/learning.md) ajudam a distinguir dado histórico de análise.

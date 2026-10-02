@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import {
   useEffect,
   useImperativeHandle,
@@ -16,13 +17,16 @@ import {
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { createCachedPdfTask, type PdfLoadingTask } from '../domain/pdf-document';
 import { pdfSupportOptions } from '../domain/pdf-assets';
+import { EvidenceAutosaver, evidenceContent } from '../domain/evidence-autosave';
 import {
   pdfRect,
   viewportRect,
   guideEvidence,
+  currentEvidenceGuide,
   validWorkingEvidence,
   reconcileEvidenceCache,
   type EvidencePointer,
+  type EvidencePredecessor,
   type EvidenceStatus,
   type EvidenceView,
   type PdfRect,
@@ -40,6 +44,8 @@ interface Props {
   previousPassageId?: string;
   insertionBeforePassageId?: string | null;
   newPassageGuide?: boolean;
+  /** Current displayed order, nearest earlier passage first; never visit history. */
+  visiblePreviousPassages?: EvidencePredecessor[];
   disabled?: boolean;
   initialPage?: number | null;
   printedPage?: string | null;
@@ -50,6 +56,7 @@ interface Props {
 }
 export interface PreparedEvidence {
   revision: number;
+  passageFingerprint?: string;
   assetId?: string;
   regionIds: string[];
 }
@@ -90,6 +97,7 @@ export function PdfEvidence({
   previousPassageId,
   insertionBeforePassageId,
   newPassageGuide,
+  visiblePreviousPassages,
   disabled,
   initialPage,
   printedPage,
@@ -99,14 +107,17 @@ export function PdfEvidence({
   preparationRef,
 }: Props) {
   const key = JSON.stringify([projectId, sourceId, passageId]);
+  const guideOrderKey = JSON.stringify(visiblePreviousPassages ?? null);
   const cacheKey = `pydicate-studio:evidence-draft:v1:${key}`;
   const lastVisitedKey = `pydicate-studio:evidence-last-passage:v1:${JSON.stringify([projectId, sourceId])}`;
   const activeKey = useRef(key);
+  const mounted = useRef(true);
   const loadedKey = useRef<string | null>(null);
   activeKey.current = key;
   const [status, setStatus] = useState<EvidenceStatus | null>(null);
   const [working, setWorking] = useState<WorkingEvidence | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<'waiting' | 'saving' | 'saved' | 'error'>('saved');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -134,6 +145,7 @@ export function PdfEvidence({
     previousPassageId,
     insertionBeforePassageId,
     newPassageGuide,
+    visiblePreviousPassages,
   };
   const view = working?.view || emptyView(initialPage ?? 1);
   const regions = working?.regions || [];
@@ -163,10 +175,70 @@ export function PdfEvidence({
   const collaborative = window.studio?.runtime === 'collaborative';
   const preparing = useRef(false);
   const invalidCache = useRef(false);
+  const conflictingCache = useRef(false);
+  const currentEvidence = useRef({ key, working, status });
+  currentEvidence.current = { key, working, status };
+  const evidenceCallback = useRef(onEvidence);
+  evidenceCallback.current = onEvidence;
+  const autosaver = useRef<EvidenceAutosaver | null>(null);
+  if (!autosaver.current)
+    autosaver.current = new EvidenceAutosaver(
+      async (input) => (await window.studio!.invoke!('evidence_save', input)) as EvidenceStatus,
+      (event) => {
+        let cacheFailed = false;
+        try {
+          const savedKey = `pydicate-studio:evidence-draft:v1:${event.key}`;
+          const cached: unknown = JSON.parse(localStorage.getItem(savedKey) ?? 'null');
+          if (
+            event.status &&
+            validWorkingEvidence(cached, event.working.assetId) &&
+            evidenceContent(cached) === evidenceContent(event.working)
+          )
+            localStorage.setItem(savedKey, JSON.stringify(event.working));
+        } catch {
+          cacheFailed = true;
+          if (activeKey.current === event.key)
+            setError('Não foi possível preservar o rascunho local das regiões. Exporte uma cópia.');
+        }
+        if (!mounted.current || activeKey.current !== event.key || loadedKey.current !== event.key)
+          return;
+        setSaveState(event.state);
+        if (event.state === 'saved' && !cacheFailed) setError('');
+        if (event.error) setError(`Não foi possível salvar as regiões: ${message(event.error)}`);
+        if (event.status) {
+          currentEvidence.current = {
+            key: event.key,
+            working: event.working,
+            status: event.status,
+          };
+          setWorking(event.working);
+          setStatus(event.status);
+          setDirty(event.state !== 'saved');
+          const own = event.status.passage?.regions.filter(
+            (region) => region.assetId === event.status?.asset?.id,
+          );
+          evidenceCallback.current?.(
+            event.status.asset && own?.length
+              ? { version: 1, assetId: event.status.asset.id, passageId: JSON.parse(event.key)[2] }
+              : null,
+          );
+        }
+      },
+    );
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useImperativeHandle(preparationRef, () => ({
     async prepare() {
-      if (!window.studio?.invoke || loadedKey.current !== key || !status)
+      const live = currentEvidence.current;
+      const currentStatus = live.key === key ? live.status : null;
+      const currentWorking = live.key === key ? live.working : null;
+      if (!window.studio?.invoke || loadedKey.current !== key || !currentStatus)
         throw new Error('Aguarde o carregamento da evidência antes de analisar.');
       if (busy || preparing.current || gesture.current)
         throw new Error('Conclua a edição ou salvamento da região antes de analisar.');
@@ -174,34 +246,32 @@ export function PdfEvidence({
         throw new Error(
           'As regiões locais precisam ser recuperadas antes de analisar. Exporte ou restaure o rascunho de regiões.',
         );
-      if (!status.asset) return { revision: status.revision, regionIds: [] };
-      if (dirty && status.asset.managedState !== 'ok')
+      if (conflictingCache.current)
+        throw new Error(
+          'A evidência mudou em outra edição. Exporte ou confira o rascunho local antes de analisar.',
+        );
+      if (!currentStatus.asset)
+        return {
+          revision: currentStatus.revision,
+          passageFingerprint: currentStatus.passageFingerprint,
+          regionIds: [],
+        };
+      if (dirty && currentStatus.asset.managedState !== 'ok')
         throw new Error('O PDF vinculado está indisponível. Restaure o arquivo antes de analisar.');
-      if (!working) throw new Error('A evidência ainda não está pronta.');
+      if (!currentWorking) throw new Error('A evidência ainda não está pronta.');
       const requestKey = key;
       preparing.current = true;
       setBusy(true);
       try {
-        const next = dirty
-          ? ((await window.studio.invoke('evidence_save', {
-              ...params,
-              expectedRevision: working.revision,
-              assetId: working.assetId,
-              regions: working.regions,
-              view: working.view,
-              ...(working.guide ? { guide: working.guide } : {}),
-            })) as EvidenceStatus)
-          : status;
+        if (dirty) autosaver.current!.update(key, params, currentWorking);
+        const next = (await autosaver.current!.flush(key)) ?? currentStatus;
         if (activeKey.current !== requestKey)
           throw new Error('A passagem mudou durante o salvamento. Volte a ela para analisar.');
-        if (dirty) {
-          localStorage.removeItem(cacheKey);
-          acceptStatus(next, false);
-        }
         const ownRegions =
           next.passage?.regions.filter((region) => region.assetId === next.asset?.id) ?? [];
         return {
           revision: next.revision,
+          passageFingerprint: next.passageFingerprint,
           assetId: next.asset?.id,
           regionIds: ownRegions.map((region) => region.id),
         };
@@ -226,7 +296,9 @@ export function PdfEvidence({
   function acceptStatus(next: EvidenceStatus, restoreDraft: boolean) {
     if (activeKey.current !== key || next.projectId !== projectId || next.sourceId !== sourceId)
       return;
+    autosaver.current!.discard(key);
     invalidCache.current = false;
+    conflictingCache.current = false;
     loadedKey.current = key;
     setStatus(next);
     // Passage metadata can refresh without closing or downloading its source PDF.
@@ -256,6 +328,7 @@ export function PdfEvidence({
       ? {
           assetId: next.asset.id,
           revision: next.revision,
+          passageFingerprint: next.passageFingerprint,
           regions: boundRegions,
           view: savedView,
           baseline: JSON.stringify(next.passage),
@@ -263,6 +336,8 @@ export function PdfEvidence({
         }
       : null;
     let restored = false;
+    let seededGuide = false;
+    let restoredGuideOnly = false;
     if (restoreDraft && nextWorking) {
       try {
         const cachedText = localStorage.getItem(cacheKey);
@@ -275,16 +350,32 @@ export function PdfEvidence({
           cached.baseline === JSON.stringify(next.passage) &&
           JSON.stringify(cached.view) === JSON.stringify(savedView);
         if (validCache) {
-          nextWorking = reconcileEvidenceCache(cached, nextWorking);
+          restoredGuideOnly =
+            !next.passage &&
+            !cached.regions.length &&
+            (cached.guideOnly === true || (cached.guideOnly === undefined && !!cached.guide));
+          nextWorking = reconcileEvidenceCache(
+            cached,
+            nextWorking,
+            next.guideSources !== undefined,
+          );
           restored = true;
-          if (nextWorking.baseline === JSON.stringify(next.passage))
+          if (nextWorking.baseline === JSON.stringify(next.passage)) {
             nextWorking.revision = next.revision;
-          else if (nextWorking.revision !== next.revision)
+            nextWorking.passageFingerprint = next.passageFingerprint;
+          } else if (nextWorking.baseline !== undefined || nextWorking.revision !== next.revision) {
+            conflictingCache.current = true;
             setError(
               'Há regiões locais não salvas e a evidência mudou. Exporte o rascunho antes de recarregar.',
             );
+          }
         }
-        if ((!cachedText || untouchedCache) && !next.passage && next.asset?.managedState === 'ok') {
+        if (
+          next.guideSources === undefined &&
+          (!cachedText || untouchedCache) &&
+          !next.passage &&
+          next.asset?.managedState === 'ok'
+        ) {
           // Prefer the last visited earlier passage, then source order. Both saved and
           // unsaved locations remain bound to this project's exact PDF fingerprint.
           for (const previous of (newPassageGuide ? next.guideCandidates : next.previousPassages) ||
@@ -310,12 +401,16 @@ export function PdfEvidence({
               if (!newPassageGuide && previous.ordinal === undefined) continue;
               // A previous passage supplies a location guide, never this
               // passage's source evidence, including when it spans pages.
-              nextWorking = guideEvidence(donor, next.revision, {
-                passageId: previous.id,
-                ordinal: previous.ordinal,
-              });
+              nextWorking = {
+                ...guideEvidence(donor, next.revision, {
+                  passageId: previous.id,
+                  ordinal: previous.ordinal,
+                }),
+                passageFingerprint: next.passageFingerprint,
+              };
               localStorage.setItem(cacheKey, JSON.stringify(nextWorking));
               restored = true;
+              seededGuide = true;
               break;
             }
           }
@@ -339,6 +434,37 @@ export function PdfEvidence({
         );
       }
     }
+    if (nextWorking && next.guideSources !== undefined && next.asset?.managedState === 'ok') {
+      const resolved = currentEvidenceGuide(nextWorking.assetId, next.guideSources, (id) => {
+        try {
+          return JSON.parse(
+            localStorage.getItem(
+              `pydicate-studio:evidence-draft:v1:${JSON.stringify([projectId, sourceId, id])}`,
+            ) || 'null',
+          );
+        } catch {
+          return null;
+        }
+      });
+      // Guides are derived on every visit/order change. They do not alter owned
+      // crops or a reader's saved viewport, and never trigger a write by themselves.
+      const guideOnly =
+        !next.passage && !nextWorking.regions.length && (!restored || restoredGuideOnly);
+      nextWorking = {
+        ...nextWorking,
+        guide: resolved.guide,
+        guideOnly,
+        ...(!restored && !next.passage && resolved.view ? { view: { ...resolved.view } } : {}),
+      };
+      seededGuide = guideOnly;
+      if (!invalidCache.current && !conflictingCache.current) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(nextWorking));
+        } catch {
+          /* The existing status/error path preserves saved evidence. */
+        }
+      }
+    }
     const initialRegion = restoreDraft
       ? (nextWorking?.regions[0] ?? (!restored ? nextWorking?.guide?.region : undefined))
       : undefined;
@@ -347,8 +473,20 @@ export function PdfEvidence({
         ...nextWorking,
         view: { ...nextWorking.view, pageIndex: initialRegion.pageIndex },
       };
+    const needsSave = Boolean(
+      restored &&
+      !seededGuide &&
+      !nextWorking?.inheritedFrom &&
+      nextWorking &&
+      (JSON.stringify(nextWorking.regions) !== JSON.stringify(boundRegions) ||
+        JSON.stringify(nextWorking.view) !== JSON.stringify(savedView)),
+    );
+    currentEvidence.current = { key, working: nextWorking, status: next };
     setWorking(nextWorking);
-    setDirty(restored);
+    setDirty(needsSave);
+    setSaveState(needsSave ? (conflictingCache.current ? 'error' : 'waiting') : 'saved');
+    if (needsSave && nextWorking && !invalidCache.current && !conflictingCache.current && !disabled)
+      autosaver.current!.update(key, params, nextWorking);
     setSelection(
       initialRegion?.id ||
         nextWorking?.regions.find((region) => region.pageIndex === nextWorking?.view.pageIndex)
@@ -368,9 +506,11 @@ export function PdfEvidence({
     setStatus(null);
     setWorking(null);
     setDirty(false);
+    setSaveState('saved');
     setError('');
     setSelection(null);
     setDrawing(false);
+    gesture.current = null;
     if (!window.studio?.invoke) return;
     setBusy(true);
     let lastVisitedPassageId: string | null = null;
@@ -379,8 +519,10 @@ export function PdfEvidence({
     } catch {
       /* Source order remains available. */
     }
-    window.studio
-      .invoke('evidence_status', { ...params, lastVisitedPassageId })
+    void autosaver
+      .current!.flush(key)
+      .catch(() => {})
+      .then(() => window.studio!.invoke!('evidence_status', { ...params, lastVisitedPassageId }))
       .then((result) => {
         if (!cancelled) acceptStatus(result as EvidenceStatus, true);
       })
@@ -392,21 +534,13 @@ export function PdfEvidence({
       });
     return () => {
       cancelled = true;
+      // Finish the outgoing passage under its own captured identity. A late
+      // acknowledgement may update its cache, never the newly selected UI.
+      void autosaver.current!.flush(key).catch(() => {});
     };
     // Restore this passage first; new lines use earlier geometry only as a separate visual guide.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, sourceId, passageId, previousPassageId, newPassageGuide]);
-
-  useEffect(() => {
-    if (!dirty || !working || loadedKey.current !== key) return;
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify(working));
-    } catch {
-      setError(
-        'Não foi possível recuperar estas regiões após fechar a janela. Salve ou exporte o rascunho.',
-      );
-    }
-  }, [dirty, working, cacheKey]);
+  }, [projectId, sourceId, passageId, previousPassageId, newPassageGuide, guideOrderKey]);
 
   useEffect(() => {
     if (!scroller.current) return;
@@ -634,13 +768,16 @@ export function PdfEvidence({
     setBusy(true);
     setError('');
     try {
+      const flushed =
+        method !== 'evidence_status' ? await autosaver.current!.flush(key) : undefined;
+      if (activeKey.current !== requestKey) return;
+      const live = currentEvidence.current;
       const result = (await window.studio.invoke(method, {
         ...params,
-        expectedRevision: working?.revision ?? status?.revision ?? 0,
+        expectedRevision: flushed?.revision ?? live.working?.revision ?? live.status?.revision ?? 0,
         ...extra,
       })) as EvidenceStatus | null;
       if (activeKey.current !== requestKey || !result) return;
-      if (method === 'evidence_save') localStorage.removeItem(cacheKey);
       acceptStatus(result, false);
     } catch (failure) {
       if (activeKey.current === requestKey) setError(message(failure));
@@ -648,18 +785,44 @@ export function PdfEvidence({
       if (activeKey.current === requestKey) setBusy(false);
     }
   }
+  function editWorking(next: WorkingEvidence, schedule = true) {
+    const previous = currentEvidence.current.key === key ? currentEvidence.current.working : null;
+    if (!previous || loadedKey.current !== key || next.assetId !== previous.assetId) return;
+    // A network acknowledgement can precede React's next render; keep its
+    // concurrency baseline while applying the user's geometry/view change.
+    next = {
+      ...next,
+      guideOnly: false,
+      revision: previous.revision,
+      passageFingerprint: previous.passageFingerprint,
+      baseline: previous.baseline,
+    };
+    if (evidenceContent(previous) === evidenceContent(next) && !gesture.current && !dirty) return;
+    currentEvidence.current = { ...currentEvidence.current, working: next };
+    setWorking(next);
+    setDirty(true);
+    // Persist before React renders, including intermediate drag coordinates.
+    let cached = true;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(next));
+    } catch {
+      cached = false;
+      setError('Não foi possível preservar o rascunho local das regiões. Exporte uma cópia.');
+    }
+    if (invalidCache.current || conflictingCache.current || disabled) return;
+    if (cached) setError('');
+    autosaver.current!.update(key, params, next, schedule);
+  }
   function changeView(patch: Partial<EvidenceView>) {
     if (!working) return;
     gesture.current = null;
-    setWorking({ ...working, view: { ...working.view, ...patch } });
-    setDirty(true);
+    editWorking({ ...working, view: { ...working.view, ...patch } });
   }
   function reorderRegion(index: number, offset: number) {
     if (!working || index + offset < 0 || index + offset >= regions.length) return;
     const reordered = [...regions];
     [reordered[index], reordered[index + offset]] = [reordered[index + offset], reordered[index]];
-    setWorking({ ...working, regions: reordered });
-    setDirty(true);
+    editWorking({ ...working, regions: reordered });
   }
   function eventPoint(event: PointerEvent<HTMLDivElement>): [number, number] {
     const box = surface.current!.getBoundingClientRect();
@@ -681,6 +844,7 @@ export function PdfEvidence({
     const regionId = target.closest('[data-region-id]')?.getAttribute('data-region-id');
     const existing = regions.find((region) => region.id === regionId);
     const start = eventPoint(event);
+    if (existing || drawing) autosaver.current!.pause(key);
     if (existing) {
       setSelection(existing.id);
       gesture.current = {
@@ -697,18 +861,21 @@ export function PdfEvidence({
         start,
         original: [start[0], start[1], start[0], start[1]],
       };
-      setWorking({
-        ...working,
-        regions: [
-          ...regions,
-          {
-            id,
-            assetId: working.assetId,
-            pageIndex: view.pageIndex,
-            rect: pdfRect(viewport, [start[0], start[1], start[0] + 0.1, start[1] + 0.1]),
-          },
-        ],
-      });
+      editWorking(
+        {
+          ...working,
+          regions: [
+            ...regions,
+            {
+              id,
+              assetId: working.assetId,
+              pageIndex: view.pageIndex,
+              rect: pdfRect(viewport, [start[0], start[1], start[0] + 0.1, start[1] + 0.1]),
+            },
+          ],
+        },
+        false,
+      );
       setSelection(id);
     } else return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -743,18 +910,21 @@ export function PdfEvidence({
       else box[3] = current[1];
     }
     const nextRect = pdfRect(viewport, box);
-    setWorking({
-      ...working,
-      regions: regions.map((region) =>
-        region.id === active.id ? { ...region, rect: nextRect } : region,
-      ),
-    });
-    setDirty(true);
+    editWorking(
+      {
+        ...working,
+        regions: regions.map((region) =>
+          region.id === active.id ? { ...region, rect: nextRect } : region,
+        ),
+      },
+      false,
+    );
   }
   function finishGesture() {
     const active = gesture.current;
     if (!active || !working || !viewport) return;
-    setWorking({
+    gesture.current = null;
+    editWorking({
       ...working,
       regions: regions.filter((region) => {
         if (region.id !== active.id) return true;
@@ -762,9 +932,7 @@ export function PdfEvidence({
         return box[2] - box[0] >= 3 && box[3] - box[1] >= 3;
       }),
     });
-    setDirty(true);
     setDrawing(false);
-    gesture.current = null;
   }
   function exportRegions() {
     const url = URL.createObjectURL(
@@ -804,7 +972,7 @@ export function PdfEvidence({
       </div>
       {!available && (
         <p className="field-hint">
-          O PDF persistente está disponível no aplicativo desktop, após abrir o projeto local.
+          O PDF persistente está disponível no servidor colaborativo, após abrir o projeto local.
         </p>
       )}
       {status?.asset && (
@@ -848,6 +1016,7 @@ export function PdfEvidence({
           <label>
             Página física do PDF{' '}
             <input
+              {...workspaceAutofill}
               aria-label="Página física do PDF"
               type="number"
               min={1}
@@ -875,6 +1044,7 @@ export function PdfEvidence({
           <label>
             Zoom{' '}
             <select
+              {...workspaceAutofill}
               aria-label="Zoom do PDF"
               disabled={locked}
               value={view.zoom}
@@ -1020,7 +1190,7 @@ export function PdfEvidence({
           {working?.inheritedFrom && (
             <p className="field-hint" role="status">
               Localização herdada da passagem {working.inheritedFrom.ordinal} — ajuste se precisar.
-              Salvar regiões confirma a localização desta passagem.
+              Ao editar, a localização será salva para esta passagem.
             </p>
           )}
           <div className="evidence-controls">
@@ -1046,30 +1216,15 @@ export function PdfEvidence({
             <button
               disabled={locked || !selection}
               onClick={() => {
-                setWorking(
-                  working && {
+                if (working)
+                  editWorking({
                     ...working,
                     regions: regions.filter((region) => region.id !== selection),
-                  },
-                );
+                  });
                 setSelection(null);
-                setDirty(true);
               }}
             >
               Remover região
-            </button>
-            <button
-              disabled={locked || !dirty || rendering}
-              onClick={() =>
-                void operation('evidence_save', {
-                  assetId,
-                  regions,
-                  view,
-                  ...(working?.guide ? { guide: working.guide } : {}),
-                })
-              }
-            >
-              Salvar regiões
             </button>
           </div>
           {drawing && (
@@ -1116,19 +1271,35 @@ export function PdfEvidence({
             ))}
           </ol>
           <p className="field-hint" role="status">
-            {dirty
-              ? 'Regiões ou visualização não salvas · rascunho local recuperável.'
-              : collaborative
-                ? 'Evidência salva no servidor.'
-                : 'Evidência salva no computador.'}{' '}
+            {saveState === 'saving'
+              ? 'Salvando regiões…'
+              : saveState === 'error'
+                ? 'Regiões não salvas · rascunho local preservado.'
+                : dirty
+                  ? 'Alterações serão salvas automaticamente…'
+                  : collaborative
+                    ? 'Evidência salva no servidor.'
+                    : 'Evidência salva no computador.'}{' '}
             {regions.length} região(ões).
           </p>
           {dirty && (
             <div className="evidence-controls">
+              {saveState === 'error' && !conflictingCache.current && (
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    setError('');
+                    void autosaver.current!.flush(key).catch(() => {});
+                  }}
+                >
+                  Tentar novamente
+                </button>
+              )}
               <button onClick={exportRegions}>Exportar rascunho das regiões</button>
               <button
-                disabled={busy}
+                disabled={busy || saveState === 'saving'}
                 onClick={() => {
+                  if (!autosaver.current!.discard(key)) return;
                   localStorage.removeItem(cacheKey);
                   void operation('evidence_status');
                 }}

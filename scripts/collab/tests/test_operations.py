@@ -26,10 +26,7 @@ class OperationsTests(unittest.TestCase):
     @contextlib.contextmanager
     def offline_publication(self,host):
         """Publish without contacting the real origin, which the fixtures cannot reach."""
-        @contextlib.contextmanager
-        def stopped(*args,**kwargs):yield
-        merged={'mergedUpstream':False,'conflictsResolvedFromServer':[],'upstreamMergeBlocked':False}
-        with patch.object(host,'stopped',stopped),patch.object(host,'merge_upstream',lambda repo:merged):yield
+        with patch('light.drained',side_effect=AssertionError('Publication must not acquire maintenance')),patch.object(host,'stopped',side_effect=AssertionError('Publication must not stop Studio')),patch.object(host,'merge_upstream',side_effect=AssertionError('No upstream merge in live workspace')):yield
     def test_collect_then_publish_preserves_source_and_produces_verifiable_git_bundle(self):
         host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('changed\n')
         with self.offline_publication(host):
@@ -54,6 +51,169 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(g('status','--porcelain'),'?? AGENT_NOTES.md')
         self.assertEqual(g('show','--name-only','--format=','HEAD'),'historic/test.tu.py')
         self.assertNotIn('AGENT_NOTES.md',(dest/'review.diff').read_text())
+    def test_incremental_bundle_reconstructs_the_snapshot_with_new_and_deleted_files(self):
+        from ops import publication_checkout
+        host,repo,g=self.fixture()
+        (repo/'historic/test.tu.py').unlink()
+        (repo/'historic/new.tu.py').write_text('new line\n')
+        with self.offline_publication(host):
+            dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        manifest=json.loads((dest/'manifest.json').read_text())
+        self.assertEqual(manifest['bundleBase'],g('rev-parse','origin/main'))
+        # A tiny export has a prerequisite, rather than containing base history.
+        header=(dest/'repository.bundle').read_bytes().split(b'\n\n',1)[0]
+        self.assertIn(('-'+manifest['base']).encode(),header)
+        studio=host.workspace/'studio';studio.mkdir()
+        g('config','uploadpack.allowFilter','true')
+        manifest['origin']=repo.as_uri()
+        with patch('ops.HERE',studio):
+            clone=publication_checkout('oldtupicorpus',dest,manifest)
+        self.assertEqual((clone/'historic/new.tu.py').read_text(),'new line\n')
+        self.assertFalse((clone/'historic/test.tu.py').exists())
+        self.assertEqual(g('status','--porcelain'),'')
+
+    def test_upstream_reconciliation_changes_only_the_exported_checkout(self):
+        from ops import publication_checkout
+        host,repo,g=self.fixture();g('branch','main');g('config','uploadpack.allowFilter','true')
+        (repo/'historic/test.tu.py').write_text('server contribution\n')
+        with self.offline_publication(host):dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        server_head=g('rev-parse','HEAD')
+        g('checkout','main');(repo/'historic/upstream.py').write_text('new upstream line\n')
+        g('add','.');g('commit','-m','upstream');g('checkout','server/work')
+        manifest=json.loads((dest/'manifest.json').read_text());manifest['origin']=repo.as_uri()
+        studio=host.workspace/'studio';studio.mkdir()
+        with patch('ops.HERE',studio):clone=publication_checkout('oldtupicorpus',dest,manifest)
+        result=Host.merge_upstream(clone)
+        self.assertTrue(result['mergedUpstream'])
+        self.assertEqual((clone/'historic/upstream.py').read_text(),'new upstream line\n')
+        self.assertEqual((clone/'historic/test.tu.py').read_text(),'server contribution\n')
+        self.assertFalse((repo/'historic/upstream.py').exists())
+        self.assertEqual(g('rev-parse','HEAD'),server_head)
+        self.assertEqual(g('status','--porcelain'),'')
+
+    def test_sparse_partial_checkout_fetches_needed_blobs_without_historical_assets(self):
+        from ops import publication_checkout
+        host,repo,g=self.fixture()
+        (repo/'tupi').mkdir();(repo/'tupi/kept.py').write_text('unchanged grammar\n')
+        (repo/'media').mkdir();asset=os.urandom(1024*1024)
+        (repo/'media/large.bin').write_bytes(asset)
+        g('add','.');g('commit','-m','baseline with large asset')
+        g('update-ref','refs/remotes/origin/main','HEAD')
+        g('config','uploadpack.allowFilter','true')
+        (repo/'historic/test.tu.py').write_text('contribution\n')
+        with self.offline_publication(host):dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        manifest=json.loads((dest/'manifest.json').read_text());manifest['origin']=repo.as_uri()
+        studio=host.workspace/'studio';studio.mkdir()
+        with patch('ops.HERE',studio):clone=publication_checkout('nhe-enga',dest,manifest)
+        self.assertEqual((clone/'tupi/kept.py').read_text(),'unchanged grammar\n')
+        self.assertFalse((clone/'media/large.bin').exists())
+        objects=list((studio/'backups/publication-cache/nhe-enga/objects').rglob('*.pack'))+list((clone/'.git/objects').rglob('*.pack'))
+        self.assertLess(sum(file.stat().st_size for file in objects),len(asset)//2)
+        self.assertEqual((repo/'media/large.bin').read_bytes(),asset)
+
+    def test_edits_saved_after_capture_stay_local_and_do_not_enter_commit(self):
+        from host import run
+        host,repo,g=self.fixture();source=repo/'historic/test.tu.py'
+        source.write_text('snapshot\n')
+        def write_later(args,**kwargs):
+            if 'hash-object' in args:source.write_text('later edit\n')
+            return run(args,**kwargs)
+        with self.offline_publication(host),patch('host.run',side_effect=write_later):
+            dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(source.read_text(),'later edit\n')
+        self.assertEqual(g('show','HEAD:historic/test.tu.py'),'snapshot')
+        self.assertIn('M historic/test.tu.py',g('status','--porcelain'))
+        self.assertEqual(json.loads((dest/'manifest.json').read_text())['publishedHead'],g('rev-parse','HEAD'))
+
+    def test_busy_application_does_not_delay_saved_work_capture(self):
+        host,repo,g=self.fixture()
+        (repo/'historic/test.tu.py').write_text('active repair saved bytes\n')
+        with self.offline_publication(host),patch.object(host,'compose',side_effect=AssertionError('No Docker command')):
+            host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('show','HEAD:historic/test.tu.py'),'active repair saved bytes')
+        self.assertFalse((host.data/'operations/maintenance.json').exists())
+
+    def test_change_during_capture_fails_promptly_without_staging_or_committing(self):
+        host,repo,g=self.fixture();before=g('rev-parse','HEAD');changes=host.changes
+        source=repo/'historic/test.tu.py';source.write_text('first\n')
+        calls=0
+        def moving(name):
+            nonlocal calls
+            result=changes(name);calls+=1
+            if calls==1:source.write_text('newer save\n')
+            return result
+        with self.offline_publication(host),patch.object(host,'changes',side_effect=moving):
+            with self.assertRaisesRegex(ValueError,'changed during capture'):
+                host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('rev-parse','HEAD'),before)
+        self.assertEqual(g('diff','--cached','--name-only'),'')
+        self.assertEqual(source.read_text(),'newer save\n')
+
+    def test_sparse_index_flags_survive_publication(self):
+        host,repo,g=self.fixture()
+        (repo/'ground_truth').mkdir();(repo/'ground_truth/omitted.txt').write_text('keep sparse file\n')
+        g('add','.');g('commit','-m','sparse baseline');g('update-ref','refs/remotes/origin/main','HEAD')
+        g('sparse-checkout','set','--no-cone','/historic/')
+        self.assertFalse((repo/'ground_truth/omitted.txt').exists())
+        (repo/'historic/test.tu.py').write_text('snapshot\n')
+        with self.offline_publication(host):host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('status','--porcelain'),'')
+        self.assertEqual(g('ls-files','-t','ground_truth/omitted.txt'),'S ground_truth/omitted.txt')
+        self.assertEqual(g('show','HEAD:ground_truth/omitted.txt'),'keep sparse file')
+
+    def test_existing_git_lock_is_not_removed_and_failed_ref_update_keeps_index(self):
+        from host import git
+        for locked in (True,False):
+            with self.subTest(locked=locked):
+                host,repo,g=self.fixture();before=g('rev-parse','HEAD')
+                index=(repo/'.git/index').read_bytes()
+                (repo/'historic/test.tu.py').write_text('snapshot\n')
+                lock=repo/'.git/index.lock'
+                if locked:lock.write_text('other git operation')
+                def fail_ref(repo,*args):
+                    if args[0]=='update-ref':raise RuntimeError('simulated ref conflict')
+                    return git(repo,*args)
+                with self.offline_publication(host),patch('host.git',side_effect=fail_ref):
+                    with self.assertRaises((FileExistsError,RuntimeError)):
+                        host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+                self.assertEqual((repo/'.git/index').read_bytes(),index)
+                self.assertEqual(g('rev-parse','HEAD'),before)
+                if locked:self.assertEqual(lock.read_text(),'other git operation')
+                else:self.assertFalse(lock.exists())
+
+    def test_index_install_failure_rolls_back_head_and_preserves_working_edits(self):
+        host,repo,g=self.fixture();before=g('rev-parse','HEAD')
+        index=(repo/'.git/index').read_bytes();replace=pathlib.Path.replace
+        (repo/'historic/test.tu.py').write_text('snapshot\n')
+        def fail_install(path,target):
+            if path==repo/'.git/index.lock':raise OSError('simulated index install failure')
+            return replace(path,target)
+        with self.offline_publication(host),patch.object(pathlib.Path,'replace',fail_install):
+            with self.assertRaisesRegex(OSError,'index install failure'):
+                host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('rev-parse','HEAD'),before)
+        self.assertEqual((repo/'.git/index').read_bytes(),index)
+        self.assertEqual((repo/'historic/test.tu.py').read_text(),'snapshot\n')
+        self.assertFalse((repo/'.git/index.lock').exists())
+
+    def test_review_hash_covers_executable_mode(self):
+        host,repo,g=self.fixture();source=repo/'historic/test.tu.py'
+        source.write_text('reviewed\n');first=host.changes('oldtupicorpus')
+        source.chmod(0o755)
+        self.assertNotEqual(first['reviewSha'],host.changes('oldtupicorpus')['reviewSha'])
+        with self.offline_publication(host):
+            with self.assertRaisesRegex(ValueError,'differ from the reviewed'):
+                host.collect('oldtupicorpus',host.root/'export',first['reviewSha'])
+
+    def test_automatic_publication_collects_only_once(self):
+        from ops import publish_repository
+        manifest={'files':[{'path':'historic/test.tu.py'}],'reviewSha':'a'*64}
+        with patch('ops.unpack_export',return_value=(pathlib.Path('/fixture'),manifest)) as export,patch('ops.open_pull_request',return_value='fixture-pr'):
+            result=publish_repository(object(),'oldtupicorpus')
+        self.assertEqual(export.call_count,1)
+        self.assertTrue(export.call_args.kwargs['publish_current'])
+        self.assertEqual(result['detail'],'fixture-pr')
+
     def test_upstream_conflicts_resolve_in_favour_of_the_server_copy(self):
         host,repo,g=self.local_fetch_fixture()
         # origin/main and server/work edit the same line; the server copy must win.
@@ -223,12 +383,13 @@ class OperationsTests(unittest.TestCase):
             with self.subTest(accepted=accepted):
                 host,repo,g=self.fixture();(repo/'historic/test.tu.py').write_text('reviewed edit\n')
                 review=host.changes('oldtupicorpus')['reviewSha'] if accepted else '0'*64
-                with self.root_workspace_operation(host) as (owned,commands):
+                with self.root_workspace_operation(host) as (owned,commands),self.offline_publication(host):
                     if accepted:host.collect('oldtupicorpus',host.root/'review',review)
                     else:
                         with self.assertRaises(ValueError):host.collect('oldtupicorpus',host.root/'review',review)
-                self.assertIn(repo/'.git/index',owned)
-                self.assertIn(('up','-d','--no-deps','studio'),commands)
+                if accepted:self.assertIn(repo/'.git/index',owned)
+                self.assertEqual(commands,[])
+                self.assertNotIn(repo/'historic/test.tu.py',owned)
                 self.assertEqual((repo/'historic/test.tu.py').read_text(),'reviewed edit\n')
     def test_record_import_restores_git_access_before_restart_and_receipt_verification(self):
         host,repo,g=self.local_fetch_fixture();host.data.mkdir();receipt=host.root/'import.json';receipt.write_text('{}')

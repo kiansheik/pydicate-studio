@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useState } from 'react';
 import { MessageCircle, Send, Square } from 'lucide-react';
 import { invoke } from '../domain/authoring';
@@ -80,6 +81,7 @@ export function LessonQuestion({
         </article>
       ))}
       <form
+        {...workspaceAutofill}
         onSubmit={(event) => {
           event.preventDefault();
           if (!status || !question.trim() || starting || active) return;
@@ -112,6 +114,7 @@ export function LessonQuestion({
         <label>
           Minha pergunta
           <textarea
+            {...workspaceAutofill}
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             maxLength={4000}

@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../domain/clipboard';
 import { flushLexicalNotes, LEXICAL_NOTES_CHANGED } from '../domain/lexical-note-sync';
@@ -320,7 +321,8 @@ export function AssistantPanel(props: AssistantProps) {
     const snapshot = { ...current.current };
     try {
       await flushLexicalNotes(projectId);
-      await bridge.invoke('ai_configure', { provider, model, reasoningEffort });
+      if (action !== 'translate')
+        await bridge.invoke('ai_configure', { provider, model, reasoningEffort });
       if (
         current.current.projectId !== snapshot.projectId ||
         current.current.passageId !== snapshot.passageId ||
@@ -401,12 +403,13 @@ export function AssistantPanel(props: AssistantProps) {
     ? configuredModel.supportedReasoningEfforts
     : ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
   const active = records.filter((item) => item.status === 'streaming');
+  const translating = action === 'translate' && !props.configurationOnly;
   if (!window.studio?.invoke)
     return (
       <div className="assistant-panel">
         <h3>Assistência de IA</h3>
         <p>
-          As conexões Codex e Claude estão disponíveis no aplicativo desktop. Nenhum provedor foi
+          As conexões Codex e Claude estão disponíveis no servidor colaborativo. Nenhum provedor foi
           conectado nesta visualização.
         </p>
       </div>
@@ -431,6 +434,7 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Provedor
             <select
+              {...workspaceAutofill}
               aria-label="Provedor de IA"
               value={provider}
               onChange={(event) => {
@@ -454,8 +458,10 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Modelo
             <input
+              {...workspaceAutofill}
               aria-label="Modelo de IA"
-              value={model}
+              value={translating ? (status?.translation?.models[provider] ?? model) : model}
+              readOnly={translating}
               list="assistant-models"
               placeholder={
                 provider === 'codex'
@@ -479,8 +485,12 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Raciocínio
             <select
+              {...workspaceAutofill}
               aria-label="Esforço de raciocínio"
-              value={reasoningEffort}
+              value={
+                translating ? (status?.translation?.reasoningEffort ?? 'medium') : reasoningEffort
+              }
+              disabled={translating}
               onChange={(event) => setReasoningEffort(event.target.value)}
             >
               {Array.from(new Set([...efforts, reasoningEffort])).map((effort) => (
@@ -524,7 +534,7 @@ export function AssistantPanel(props: AssistantProps) {
           <summary>Configuração e dados enviados</summary>
           <p>
             Codex usa o login do aplicativo de linha de comando: <code>codex login</code>. Claude
-            usa <code>ANTHROPIC_API_KEY</code> no ambiente do processo desktop; a chave não entra na
+            usa <code>ANTHROPIC_API_KEY</code> no ambiente do servidor; a chave não entra na
             interface. Para uma chave com vários workspaces, configure também{' '}
             <code>ANTHROPIC_WORKSPACE_ID</code>.
           </p>
@@ -545,10 +555,18 @@ export function AssistantPanel(props: AssistantProps) {
       </details>
       {!props.configurationOnly && (
         <>
+          {translating && (
+            <p className="assistant-translation-model">
+              Tradução: {status?.translation?.models[provider] || model || 'modelo padrão'}
+              {provider === 'codex' && ' · raciocínio médio'}. A correção de gramática usa sua
+              configuração própria.
+            </p>
+          )}
           {!props.translationOnly && (
             <label>
               Tarefa
               <select
+                {...workspaceAutofill}
                 aria-label="Tarefa de IA"
                 value={action}
                 onChange={(event) => {
@@ -568,6 +586,7 @@ export function AssistantPanel(props: AssistantProps) {
             <label>
               Idioma da tradução
               <input
+                {...workspaceAutofill}
                 aria-label="Idioma da tradução"
                 list="translation-languages"
                 maxLength={80}
@@ -586,6 +605,7 @@ export function AssistantPanel(props: AssistantProps) {
           <label>
             Escopo da solicitação
             <select
+              {...workspaceAutofill}
               aria-label="Escopo da solicitação"
               value={requestScope}
               onChange={(event) => setScope(event.target.value as AIScope)}
@@ -624,6 +644,7 @@ export function AssistantPanel(props: AssistantProps) {
             <label>
               Descrição, dúvida ou contraste linguístico
               <textarea
+                {...workspaceAutofill}
                 aria-label="Descrição para a IA"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
@@ -701,6 +722,7 @@ export function AssistantPanel(props: AssistantProps) {
           )}
           {candidate.kind === 'expression' && <pre aria-label="Expressão atual">{raw}</pre>}
           <textarea
+            {...workspaceAutofill}
             aria-label="Sugestão revisada"
             rows={5}
             value={candidate.text}

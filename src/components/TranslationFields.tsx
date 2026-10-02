@@ -1,3 +1,4 @@
+import { workspaceAutofill } from '../domain/workspace-autofill';
 import type { PassageTranslations } from '../domain/types';
 
 /** Legacy unlabelled text stays in its own field; no language is guessed. */
@@ -21,6 +22,7 @@ export function TranslationFields({
         <label className="editor-label" key={language}>
           {label}
           <textarea
+            {...workspaceAutofill}
             aria-label={label}
             lang={language}
             rows={3}

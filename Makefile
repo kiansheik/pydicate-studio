@@ -1,26 +1,26 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev desktop build check test-e2e smoke-desktop
+.PHONY: help install dev start build check test-e2e
 
 help:
 	@echo "collab-help    Hosted server install/deploy/backup/publish commands"
 	@echo "install        Install pinned npm dependencies"
 	@echo "dev            Open the browser example through Vite"
-	@echo "desktop        Run Vite and the Electron desktop"
+	@echo "start          Run the collaborative server"
 	@echo "build          Type-check and build the renderer"
-	@echo "check          Build and run focused TypeScript, desktop and Python checks"
+	@echo "check          Build and run TypeScript, shared runtime, Python, operations and server checks"
 	@echo "test-e2e       Run Playwright browser workflows"
-	@echo "smoke-desktop  Build and test compiled desktop save/reopen in temporary state"
 
 install:
 	npm ci
+	npm --prefix server ci
 
 dev:
 	npm run dev
 
-desktop:
-	npm run desktop
+start:
+	npm start
 
 build:
 	npm run build
@@ -30,9 +30,6 @@ check:
 
 test-e2e:
 	npm run test:e2e
-
-smoke-desktop: build
-	node scripts/smoke-desktop.mjs
 
 push:
 	git add .
@@ -50,7 +47,7 @@ SMTP_MODE ?= relay
 NEOLOGISMO_PATH ?= /srv/nheenga-neologismos
 export DEPLOY_HOST DEPLOY_USER DEPLOY_PATH SSH_IDENTITY SSH_PORT STUDIO_REF COLLAB_PUBLIC_URL SMTP_MODE NEOLOGISMO_PATH
 export FILE REPO REVIEW_SHA CONFIRM EMAIL NAME IDS LOCAL_REVIEW_DIR LOCAL_REPOS_PARENT IMPORT_DIR MODE
-export LOCAL_STUDIO_STATE LOCAL_PROJECT_PARENT
+export COLLAB_IMPORT_LEGACY_DESKTOP LOCAL_STUDIO_STATE LOCAL_PROJECT_PARENT LOCAL_BROWSER_STORAGE
 
 .PHONY: collab-help collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-start collab-stop collab-logs collab-psql collab-backup collab-db-backup collab-db-restore collab-restore collab-research collab-changes collab-publish collab-publish-all collab-sync collab-prune collab-local-install collab-test
 collab-help:
@@ -62,8 +59,8 @@ collab-help:
 	@echo 'collab-restore FILE=... CONFIRM=RESTORE-STUDIO-PRODUCTION@HOST  Restore full matching state; leaves app stopped'
 	@echo 'collab-research FILE=...  All-time research export, excluding account and provider secrets'
 	@echo 'collab-changes REPO=... FILE=...  Collect source diff and review manifest'
-	@echo 'collab-publish REPO=... REVIEW_SHA=... FILE=...  Checkpoint, fetch bundle, push review branch, open PR using laptop gh login'
-	@echo 'collab-publish-all       One command: publish BOTH repositories and print the pull request links'
+	@echo 'collab-publish REPO=... REVIEW_SHA=... FILE=...  Capture without restart, fetch delta bundle, push review branch, open PR'
+	@echo 'collab-publish-all       Publish BOTH repositories without restarts; print pull request links'
 	@echo 'collab-prune             Reclaim superseded checkpoints, releases, import bundles and images'
 	@echo 'collab-sync REPO=...     After PR merge: safety backup + clean-tree fast-forward only'
 	@echo 'collab-db-restore-local FILE=... LOCAL_REVIEW_DIR=...  Trusted dump into a new laptop-only PostgreSQL'
@@ -80,7 +77,7 @@ collab-install collab-redeploy collab-codex-auth collab-ssh collab-admin collab-
 collab-local-install:
 	npm ci
 	npm --prefix server ci
-	npm run build:app
+	npm run build
 
 collab-test:
 	npm --prefix server ci
@@ -110,3 +107,10 @@ collab-record-import collab-notify:
 export NEO_API_ENV_FILE
 collab-sso-config:
 	@python3 scripts/collab/ops.py sso-config
+
+.PHONY: collab-deploy-light
+# App-only release: targeted checks, a small DB checkpoint and automatic app rollback.
+# Full CI continues independently; installation/schema changes require collab-deploy.
+collab-deploy-light:
+	@python3 -B -m unittest discover -s scripts/collab/tests -p test_light.py -q
+	@python3 -B scripts/collab/ops.py deploy-light

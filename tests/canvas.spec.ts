@@ -652,6 +652,70 @@ for (const kind of [
   });
 }
 
+test('one compact orientation toggle stays available without advanced tools and preserves the expression', async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  const raw = 'abá * kunhã';
+  const requests = await openCanvas(
+    page,
+    raw,
+    {
+      layout: 'bottom-up',
+      fragments: [],
+      positions: {},
+    },
+    false,
+    async () => {
+      await page.addInitScript(() =>
+        localStorage.setItem(
+          'pydicate-studio:tools:v1',
+          JSON.stringify({ version: 1, advanced: false }),
+        ),
+      );
+    },
+    { fit: false },
+  );
+  const toggle = page.getByRole('button', {
+    name: 'Árvore da esquerda para a direita',
+    exact: true,
+  });
+  await expect(toggle).toHaveCount(1);
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveText('Baixo → cima');
+  const rootBefore = await center(node(page, 'main:root'));
+  expect(rootBefore.y).toBeLessThan((await center(node(page, 'main:root/left'))).y);
+  const evaluations = requests.filter((request) => request.method === 'evaluate_expression').length;
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveText('Esquerda → direita');
+  await expect
+    .poll(
+      async () =>
+        (await center(node(page, 'main:root'))).x < (await center(node(page, 'main:root/left'))).x,
+    )
+    .toBe(true);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  expect(requests.filter((request) => request.method === 'evaluate_expression')).toHaveLength(
+    evaluations,
+  );
+  await page.reload();
+  await ready(page, false);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect
+    .poll(
+      async () =>
+        (await center(node(page, 'main:root'))).y < (await center(node(page, 'main:root/left'))).y,
+    )
+    .toBe(true);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('orientation-toggle-800x600.png') });
+});
+
 test('visible create action creates a real predicate in an empty canvas and persists its orientation', async ({
   page,
 }) => {
@@ -699,7 +763,9 @@ test('visible create action creates a real predicate in an empty canvas and pers
   const childCenter = await center(node(page, `main:${parsed.children[0].node.id}`));
   expect(rootCenter.y).toBeLessThan(childCenter.y);
   const before = requests.filter((request) => request.method === 'evaluate_expression').length;
-  await page.getByRole('button', { name: 'Da esquerda para a direita', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true })
+    .click();
   await expect
     .poll(() => page.evaluate(() => window.canvasSnapshot.canvas.layout))
     .toBe('horizontal');
@@ -709,7 +775,7 @@ test('visible create action creates a real predicate in an empty canvas and pers
   await page.reload();
   await ready(page);
   await expect(
-    page.getByRole('button', { name: 'Da esquerda para a direita', exact: true }),
+    page.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#canvas-raw')).toHaveText(raw);
 });
@@ -777,6 +843,59 @@ test('context operations chain a selected variant and imperative without writing
   expect(root.children[0].node.method).toBe('var');
   expect(root.children[0].node.children[1].node.code).toBe('2');
   expect(root.children[0].node.children[0].node.code).toBe('pysyro');
+});
+
+test('the normal tree menu converts a verb subtree to second-class stative without flattening it and supports undo', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'pydicate-studio:tools:v1',
+      JSON.stringify({ version: 1, advanced: false }),
+    ),
+  );
+  const raw = 'potar * moro';
+  const wrapped = '(v((potar * moro).base_nominal()))';
+  const requests = await openCanvas(page, raw);
+  const initial = await page.evaluate(() => window.canvasSnapshot);
+  await menu(page, 'main:root', 'Adicionar operação');
+  const dialog = page.getByRole('dialog', { name: 'Adicionar operação', exact: true });
+  const operation = dialog.getByRole('combobox', { name: 'Operação na peça', exact: true });
+  await expect(
+    operation.getByRole('option', { name: /^Verbo de 2ª classe \(estativo\)/ }),
+  ).toHaveCount(1);
+  await operation.selectOption('v');
+  const form = dialog
+    .getByRole('region', { name: 'Prévia do resultado', exact: true })
+    .getByLabel('Forma prevista', { exact: true });
+  await expect(form).toBeVisible();
+  await expect(form).not.toHaveText('');
+  await expect
+    .poll(() =>
+      requests.some(
+        (request) => request.method === 'evaluate_expression' && request.params.raw === wrapped,
+      ),
+    )
+    .toBe(true);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+  await dialog.getByRole('button', { name: 'Criar operação', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(wrapped);
+  const parsed = run('parse_expression', { raw: wrapped }).root;
+  expect(
+    flattenNodes(parsed).some(
+      (node) => node.kind === 'binary' && node.operator === '*' && node.code === raw,
+    ),
+  ).toBe(true);
+  expect(
+    flattenNodes(parsed)
+      .filter((node) => node.kind === 'reference')
+      .map((node) => node.code),
+  ).toEqual(['potar', 'moro']);
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText(raw);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
 });
 
 test('combination previews follow order and operator without editing until the exact candidate is confirmed', async ({

@@ -60,6 +60,33 @@ const note = {
   expressionFingerprint: 'earlier-expression',
 } as LexicalNote;
 describe('passage tree lexical projection', () => {
+  it('ranks saved names and accent-free whole forms ahead of meanings and partial forms', () => {
+    const entries = [
+      { ...entry, id: 'substring', name: 'one', headword: 'other', definition: 'acabamento' },
+      { ...entry, id: 'prefix', name: 'two', headword: 'abacaxi', definition: '' },
+      { ...entry, id: 'meaning', name: 'three', headword: 'word', definition: 'abá; pessoa' },
+      { ...entry, id: 'folded', name: 'four', headword: 'abá', definition: '' },
+      { ...entry, id: 'saved', name: 'aba', headword: "'ú", definition: '' },
+    ];
+    const sample = {
+      ...inventory,
+      entries,
+      occurrences: entries.map((item) => ({ ...occurrence, id: item.id, lexicalId: item.id })),
+    };
+    expect(lexicalOccurrenceRows(sample, 'aba').map((row) => row.entry.id)).toEqual([
+      'saved',
+      'folded',
+      'meaning',
+      'prefix',
+      'substring',
+    ]);
+    expect(lexicalOccurrenceRows(sample, 'u').map((row) => row.entry.id)).toContain('saved');
+    expect(lexicalOccurrenceRows(sample, '’ú')[0].entry.id).toBe('saved');
+    expect(lexicalOccurrenceRows(sample).map((row) => row.entry.id)).toEqual(
+      entries.map((item) => item.id),
+    );
+    expect(sample.entries[4].headword).toBe("'ú");
+  });
   it('lists every occurrence in source order, retaining the whole expression and repeated constructions', () => {
     expect(lexicalOccurrenceRows(inventory).map((item) => item.occurrence.id)).toEqual([
       'root',

@@ -144,6 +144,48 @@ export function SourceReviewContent({
           </p>
         </section>
       )}
+      {!!preview.annotationChanges?.length && (
+        <section
+          className="source-review-notice source-review-annotations"
+          aria-label="Alterações na análise morfológica"
+        >
+          <h3>Análise morfológica das passagens</h3>
+          <p>
+            As formas escritas continuam iguais. A árvore proposta muda a decomposição destas
+            passagens; confira cada alteração antes de aplicar.
+          </p>
+          {preview.annotationChanges.map((change) => (
+            <article key={`${change.sourceId}:${change.ordinal}`}>
+              <h4>
+                {change.sourceId
+                  .replace(/araujo_catecismo_1686/g, 'Araújo')
+                  .replace(/bettendorff_catecismo_1687/g, 'Bettendorff')}{' '}
+                · passagem {change.ordinal}
+              </h4>
+              <p>
+                <strong>Antes:</strong>{' '}
+                <code
+                  style={{ display: 'block', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                >
+                  {change.before}
+                </code>
+              </p>
+              <p>
+                <strong>Depois:</strong>{' '}
+                <code
+                  style={{ display: 'block', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                >
+                  {change.after}
+                </code>
+              </p>
+            </article>
+          ))}
+          <p>
+            Esta confirmação aceita a edição da árvore; as referências históricas salvas são
+            preservadas.
+          </p>
+        </section>
+      )}
       {belongsToCurrentDraft && (
         <section className="source-review-result" aria-label="Resultado atual do rascunho">
           <h3>Resultado atual do rascunho</h3>

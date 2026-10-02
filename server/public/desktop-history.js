@@ -17,6 +17,11 @@
   };
   function element(tag, text, parent) {
     const node = document.createElement(tag);
+    if (['input', 'textarea', 'select', 'form'].includes(tag)) {
+      node.autocomplete = 'off';
+      node.setAttribute('data-1p-ignore', 'true');
+      node.setAttribute('data-lpignore', 'true');
+    }
     if (text !== undefined && text !== null) node.textContent = String(text);
     parent?.append(node);
     return node;

@@ -69,6 +69,10 @@ export function operationRemovalChoices(node: AuthorNode): OperationRemovalChoic
       return [];
     if (method !== 'compose' && args.some((child) => !scalar(child.node))) return [];
     branches = method === 'compose' ? [...receiver, ...args] : receiver;
+  } else if (body.kind === 'call' && body.method === 'v') {
+    if (body.children.length !== 1 || !['arg0', 'kw:noun'].includes(body.children[0].slot))
+      return [];
+    branches = body.children;
   } else return [];
   // A scalar in a structural role is not a documented predicate operation.
   // Refuse this shape rather than silently discarding a visible operand.
