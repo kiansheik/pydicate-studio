@@ -35,3 +35,13 @@
 
 Read current state/open questions before editing. Preserve source bytes, editorial
 approval boundaries and live data. No cleanup alone authorizes deployment.
+
+
+Grammar correction workflow: `runtime/grammar-repair.cjs` keeps scoped targets,
+checks and clerical-note guards; `runtime/analysis-service.cjs` owns attempts,
+progress, observation confirmation, deadlines and cancellation. `analysis-store`
+reads legacy inline state and packs large exact payloads into hash-verified files
+under its records directory; preserve that directory in full on backup/export.
+`server/ai.cjs` projects browser history without model replay/baseline bodies.
+`AnalysisSupport`, `domain/analysis` and `grammar-diagnostic` present provisional
+forms distinctly from complete validation and source approval.

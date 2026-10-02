@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { performance } = require('node:perf_hooks');
 const { createHash, randomUUID } = require('node:crypto');
 const { loadSharedAuthoring } = require('./shared-authoring.cjs');
 const { INTERPRETATION_GUIDE } = require('./interpretation-context.cjs');
@@ -8,6 +9,12 @@ const { pendingContext } = require('./pending-context.cjs');
 
 const REPAIR_STRATEGY = `You are helping a linguist or Tupi speaker correct their local grammar in Pydicate Studio.
 Respond in clear Portuguese, explaining linguistic rules, observed forms and contrasts before technical details.
+Work surgically: start with the exact submitted target and the contributor's note. The note is evidence,
+not proof of an engine defect. Obtain only the rules and contrasts needed for this target; expand context
+only to resolve a concrete ambiguity. Do not reanalyse or translate the whole containing passage.
+Give a short proposed rule and expected target form early, then perform the smallest justified edit.
+Once the target and required regression checks pass, finish promptly; do not explore unrelated rules.
+Keep clerical grammar-note updates short and last. Notes do not need an engine reload or corpus test.
 The submitted correction authorizes iterative edits and local tests in the selected grammar repository only.
 Preserve the exact submitted expression, existing work, historical corpus and all ground truth.
 The target can be a selected subtree or an unsaved replacement shared definition. Its containing tree
@@ -37,7 +44,11 @@ const REPAIR_TOOLS = [
     name: 'grammar_context',
     description:
       'Read the submitted correction and its actual lexical/source context, including pending drafts.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    inputSchema: {
+      type: 'object',
+      properties: { includeContainingTree: { type: 'boolean' } },
+      additionalProperties: false,
+    },
   },
   {
     name: 'grammar_files',
@@ -63,7 +74,7 @@ const REPAIR_TOOLS = [
   {
     name: 'grammar_edit',
     description:
-      'Replace one unique exact excerpt in an existing grammar file. Requires its current SHA-256. Automatically reloads the engine and checks the submitted expression and all corpus sources; returns a saved change receipt.',
+      'Replace one unique exact excerpt in an existing grammar file. Requires its current SHA-256. Python edits automatically reload the engine and check the submitted expression and all corpus sources. Markdown guide edits save a guarded receipt without rerunning those checks; the final attempt check remains mandatory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -150,6 +161,8 @@ function createGrammarRepair({
   getConfig,
   projectInterpretations = async () => undefined,
   stateDirectory,
+  onProgress = async () => {},
+  clock = () => performance.now(),
 }) {
   async function fileMetadata(root, relative) {
     if (
@@ -428,10 +441,20 @@ function createGrammarRepair({
       throw fail('STALE_PROJECT', 'O projeto ou a pasta da gramática mudou.');
   }
   async function check(job) {
+    const timings = {};
+    const stage = async (phase, work) => {
+      await onProgress(job, { phase });
+      const start = clock();
+      try {
+        return await work();
+      } finally {
+        timings[phase] = Math.max(0, clock() - start);
+      }
+    };
     await assertWorkspace(job);
     if (!reloadProject)
       throw fail('ENGINE_UNAVAILABLE', 'A atualização da gramática não está disponível.');
-    const project = await reloadProject(job.projectId);
+    const project = await stage('grammar-reload', () => reloadProject(job.projectId));
     await assertWorkspace(job);
     const repair = job.input.grammarRepair;
     const context = {
@@ -442,25 +465,45 @@ function createGrammarRepair({
       revisionId: repair.revisionId,
       sharedDefinition: repair.sharedDefinition,
     };
-    const evaluated = await evaluateTarget(context, repair.raw);
+    const evaluated = await stage('grammar-target', () => evaluateTarget(context, repair.raw));
+    const words = (value) => (value ?? '').normalize('NFC').replace(/\s+/gu, '');
+    const matches =
+      evaluated.evaluationStatus !== 'partial' &&
+      words(evaluated.surface) === words(repair.intendedSurface);
+    // This is a target observation, not a corpus validation or source approval.
+    const candidate = {
+      engineFingerprint: project.engineFingerprint,
+      expression: repair.raw,
+      surface: evaluated.surface ?? '',
+      intendedSurface: repair.intendedSurface,
+      matches,
+      evaluationStatus: evaluated.evaluationStatus,
+      failures: evaluated.failures ?? [],
+    };
+    candidate.id = hash(JSON.stringify(candidate));
+    candidate.validation = 'pending';
+    await onProgress(job, { phase: 'grammar-context-check', candidate, timings: { ...timings } });
     const parent =
       repair.contextRaw && repair.contextRaw !== repair.raw
-        ? await evaluateTarget(context, repair.contextRaw)
+        ? await stage('grammar-parent', () => evaluateTarget(context, repair.contextRaw))
         : evaluated;
     const passage =
       repair.sharedDefinition && repair.passageBaseline
-        ? await request('evaluate_expression', {
-            ...repair.insertion,
-            projectId: job.projectId,
-            passageId: job.passageId,
-            sourceId: job.input.sourceId,
-            revisionId: repair.revisionId,
-            raw: repair.passageRaw,
-          })
+        ? await stage('grammar-passage', () =>
+            request('evaluate_expression', {
+              ...repair.insertion,
+              projectId: job.projectId,
+              passageId: job.passageId,
+              sourceId: job.input.sourceId,
+              revisionId: repair.revisionId,
+              raw: repair.passageRaw,
+            }),
+          )
         : undefined;
-    const snapshot = await request('grammar_regression', { projectId: job.projectId });
+    const snapshot = await stage('grammar-corpus', () =>
+      request('grammar_regression', { projectId: job.projectId }),
+    );
     const comparison = loadSharedAuthoring().compareGrammarSnapshots(repair.baseline, snapshot);
-    const words = (value) => (value ?? '').normalize('NFC').replace(/\s+/gu, '');
     const parentCheck = compareEvaluation(
       repair.contextRaw ?? repair.raw,
       repair.parentBaseline,
@@ -497,14 +540,12 @@ function createGrammarRepair({
         !repair.baseline.sources[source]?.error ||
         repair.baseline.sources[source].error !== snapshot.sources[source]?.error,
     );
-    return {
+    const verification = {
       engineFingerprint: project.engineFingerprint,
       expression: repair.raw,
       surface: evaluated.surface,
       intendedSurface: repair.intendedSurface,
-      matches:
-        evaluated.evaluationStatus !== 'partial' &&
-        words(evaluated.surface) === words(repair.intendedSurface),
+      matches,
       failures: evaluated.failures ?? [],
       parent: parentCheck,
       ...(passageCheck ? { passage: passageCheck } : {}),
@@ -519,7 +560,11 @@ function createGrammarRepair({
         !unexpectedChanges.length &&
         !coverageChanges.length,
       comparison,
+      timings,
     };
+    candidate.validation = verification.regressionsHealthy ? 'verified' : 'review-required';
+    await onProgress(job, { phase: 'grammar-checked', candidate, timings: { ...timings } });
+    return verification;
   }
   async function call(job, name, args, { signal } = {}) {
     const tool = REPAIR_TOOLS.find((tool) => tool.name === name);
@@ -576,7 +621,9 @@ function createGrammarRepair({
           ...context,
           raw: job.input.grammarRepair.sharedDefinition
             ? job.input.grammarRepair.passageRaw
-            : (job.input.grammarRepair.contextRaw ?? job.input.raw),
+            : ((args.includeContainingTree
+                ? job.input.grammarRepair.contextRaw
+                : job.input.grammarRepair.raw) ?? job.input.raw),
           action: 'explain',
         }),
       };
@@ -628,7 +675,11 @@ function createGrammarRepair({
       );
     const content =
       file.content.slice(0, index) + args.newText + file.content.slice(index + args.oldText.length);
-    if (content === file.content) return { unchanged: true, verification: await check(job) };
+    const bookkeeping = GRAMMAR_GUIDES.includes(file.path);
+    if (content === file.content)
+      return bookkeeping
+        ? { unchanged: true, bookkeeping: true }
+        : { unchanged: true, verification: await check(job) };
     const receipt = {
       id: randomUUID(),
       jobId: job.id,
@@ -664,6 +715,9 @@ function createGrammarRepair({
     } finally {
       await fs.rm(temporary, { force: true });
     }
+    // Only allowlisted Markdown guides take this path. Python rules/tests still
+    // receive the complete atomic check. The attempt's final check remains mandatory.
+    if (bookkeeping) return { receipt, bookkeeping: true };
     // Never strand an unchecked syntax/import change in the shared grammar.
     // A failed check restores only this exact write, never somebody else's edit.
     try {

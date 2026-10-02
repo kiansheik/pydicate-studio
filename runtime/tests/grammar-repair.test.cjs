@@ -560,15 +560,16 @@ test('grammar tool receipts and visible results commit together with one fewer d
     newText: 'morerobiare',
   };
   const result = await running.callTool('grammar_edit', args, { operationId: 'checked-edit' });
-  assert.deepEqual(observations, [
-    { receipt: false, edits: 0, events: 0, verified: false },
-    { receipt: true, edits: 1, events: 1, verified: true },
-  ]);
+  assert.deepEqual(observations.at(-1), { receipt: true, edits: 1, events: 1, verified: true });
+  assert(
+    observations.slice(0, -1).every((value) => !value.receipt && !value.edits && !value.events),
+  );
+  const writes = observations.length;
   assert.deepEqual(
     await running.callTool('grammar_edit', args, { operationId: 'checked-edit' }),
     result,
   );
-  assert.equal(observations.length, 2, 'replay must not write or apply the edit again');
+  assert.equal(observations.length, writes, 'replay must not write or apply the edit again');
   const journal = JSON.parse(
     await fs.readFile(
       path.join(f.engine, 'state/analysis/grammar-edits', result.receipt.id + '.json'),
@@ -1340,4 +1341,225 @@ test('failed repair is checked and resumes from compact receipts rather than rep
   detail = await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id });
   assert.equal(detail.job.attempts.length, 2);
   assert.equal(detail.job.attempts[0].checkpoint.messages[0].content.length, 1600000);
+});
+
+test('target result arrives before corpus validation with deterministic local stage timings', async (t) => {
+  let elapsed = 0,
+    checking = false,
+    target;
+  const f = await fixture(t, {
+    clock: () => elapsed,
+    onProgress: async (job, progress) => {
+      if (progress.candidate?.validation === 'pending')
+        target = structuredClone(progress.candidate);
+    },
+    interceptRequest(method) {
+      if (checking && method === 'evaluate_expression') elapsed += 40;
+      if (checking && method === 'grammar_regression') {
+        assert.equal(target.validation, 'pending');
+        assert.equal(target.surface, 'mororerobiare');
+        elapsed += 3000;
+      }
+    },
+  });
+  const job = await f.job();
+  checking = true;
+  const verification = await f.repair.check(job);
+  assert.equal(verification.timings['grammar-target'], 40);
+  assert.equal(verification.timings['grammar-corpus'], 3000);
+  assert.equal(verification.regressionsHealthy, true);
+});
+
+test('allowlisted grammar-note edits save a guarded receipt without reopening or scanning the corpus', async (t) => {
+  const f = await fixture(t),
+    job = await f.job();
+  await fs.writeFile(path.join(f.engine, 'AGENT_NOTES.md'), 'Existing note\n');
+  const beforeRequests = f.requests.length;
+  const file = await f.repair.call(job, 'grammar_read', { path: 'AGENT_NOTES.md' });
+  const result = await f.repair.call(job, 'grammar_edit', {
+    path: file.path,
+    expectedHash: file.hash,
+    oldText: 'Existing note',
+    newText: 'Existing note\nScoped rule evidence',
+  });
+  assert.equal(result.bookkeeping, true);
+  assert.equal(result.verification, undefined);
+  assert.equal(f.reloads(), 0);
+  assert.equal(f.requests.length, beforeRequests);
+  assert.match(
+    await fs.readFile(path.join(f.engine, 'AGENT_NOTES.md'), 'utf8'),
+    /Scoped rule evidence/,
+  );
+  await f.repair.check(job); // Final attempt validation remains available/required.
+  assert.equal(f.reloads(), 1);
+});
+
+test('selected target context is narrow by default and containing context is explicit', async (t) => {
+  const f = await fixture(t);
+  f.params.grammarRepair.selectedNode = { id: 'left', start: 0, end: 11, code: 'moro.var(1)' };
+  const job = await f.job();
+  const focused = await f.repair.call(job, 'grammar_context', {});
+  assert.equal(focused.context.raw, 'moro.var(1)');
+  const containing = await f.repair.call(job, 'grammar_context', { includeContainingTree: true });
+  assert.equal(containing.context.raw, f.params.grammarRepair.raw);
+});
+
+test('early form confirmation is durable, bound to the displayed candidate and does not approve or stop validation', async (t) => {
+  let checking = false,
+    release,
+    running;
+  const f = await fixture(t, {
+    interceptRequest(method) {
+      if (checking && method === 'grammar_regression')
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+    },
+  });
+  f.params.grammarRepair.intendedSurface = 'mororerobiare';
+  const service = f.service(async (options) => {
+    running = options;
+    checking = true;
+    await options.callTool('reload_engine', {}, { operationId: 'check-early' });
+    return { text: 'Checked observation' };
+  });
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(() => release);
+  const get = () => service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id });
+  const early = (await get()).job;
+  assert.equal(early.status, 'running');
+  assert.equal(early.phase, 'grammar-corpus');
+  assert.equal(early.grammarCandidate.validation, 'pending');
+  assert.equal(early.grammarVerification, undefined);
+  const confirm = {
+    projectId: f.project.id,
+    jobId: job.id,
+    candidateId: early.grammarCandidate.id,
+    operationId: 'confirm-early',
+  };
+  await assert.rejects(
+    service.invoke('analysis_confirm_grammar', { ...confirm, candidateId: 'different' }),
+    { code: 'STALE_CANDIDATE' },
+  );
+  const before = await f.draftStore.load(f.project.id);
+  const confirmed = await service.invoke('analysis_confirm_grammar', confirm);
+  assert.equal(confirmed.status, 'running');
+  assert.equal(confirmed.grammarConfirmation.candidateId, confirm.candidateId);
+  assert.equal(running.signal.aborted, false);
+  await service.invoke('analysis_confirm_grammar', confirm);
+  assert.deepEqual(await f.draftStore.load(f.project.id), before);
+  await assert.rejects(
+    service.invoke('analysis_confirm_grammar', { ...confirm, candidateId: 'different' }),
+    { code: 'OPERATION_CONFLICT' },
+  );
+  checking = false;
+  release({
+    engineFingerprint: f.project.engineFingerprint,
+    sources: {
+      source: {
+        rows: [
+          {
+            ordinal: 1,
+            codeFingerprint: 'same-expression',
+            surface: 'mororerobiare',
+            annotated: 'mororerobiare',
+            reference: 'mororerobiare',
+          },
+        ],
+      },
+    },
+  });
+  await waitFor(async () => (await get()).job.status === 'ready-for-review');
+  const final = (await get()).job;
+  assert.equal(final.grammarCandidate.validation, 'verified');
+  assert.equal(final.grammarConfirmation.candidateId, final.grammarCandidate.id);
+  const persisted = await service.store.load(f.project.id);
+  assert.equal(persisted.jobs[job.id].grammarConfirmation.candidateId, confirm.candidateId);
+});
+
+test('Cancel aborts inference even when its metadata write exceeds the storage limit', async (t) => {
+  const f = await fixture(t);
+  let running, aborted;
+  const service = f.service((options) => {
+    running = options;
+    return new Promise((resolve, reject) => {
+      options.signal.addEventListener(
+        'abort',
+        () => {
+          aborted = true;
+          reject(options.signal.reason);
+        },
+        { once: true },
+      );
+    });
+  });
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(() => running);
+  const size = (await fs.stat(service.store.filename(f.project.id))).size;
+  service.store.maxBytes = size;
+  const cancelling = assert.rejects(
+    service.invoke('analysis_cancel', {
+      projectId: f.project.id,
+      jobId: job.id,
+      operationId: 'cancel-full',
+    }),
+    /64 MiB/,
+  );
+  // The abort is synchronous after reading state, before the failed durable write.
+  await waitFor(() => aborted);
+  await cancelling;
+  service.store.maxBytes = 64 * 1024 * 1024;
+  await waitFor(
+    async () =>
+      (await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id })).job
+        .status !== 'running',
+  );
+});
+
+test('the owner deadline aborts a simulated provider and keeps verification and explicit resume semantics', async (t) => {
+  const f = await fixture(t, { repairTimeoutMs: 150 });
+  let runs = 0;
+  const service = f.service((options) => {
+    runs++;
+    return new Promise((resolve, reject) => {
+      if (options.signal.aborted) return reject(options.signal.reason);
+      options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+    });
+  });
+  const job = await service.invoke('analysis_submit', f.params);
+  const finished = await waitFor(async () => {
+    const value = (await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id }))
+      .job;
+    return value.status === 'blocked' && value;
+  });
+  assert.equal(finished.error.code, 'JOB_TIMEOUT');
+  assert.equal(finished.grammarVerification.comparison.checked, 1);
+  assert.equal(runs, 1);
+  assert(Number.isFinite(Date.parse(finished.deadlineAt)));
+});
+
+test('read reconciliation does not leave an ownerless persisted job analysing forever', async (t) => {
+  const f = await fixture(t),
+    service = f.service(async () => ({ text: 'No change' }));
+  const job = await service.invoke('analysis_submit', f.params);
+  await waitFor(
+    async () =>
+      !['queued', 'running'].includes(
+        (await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id })).job
+          .status,
+      ),
+  );
+  await service.store.transact(f.project.id, (state) => {
+    const saved = state.jobs[job.id];
+    saved.status = 'running';
+    saved.phase = 'grammar_read';
+    saved.lease = { ownerId: 'dead-owner', attemptId: saved.attempts.at(-1).id };
+  });
+  const recovered = (
+    await service.invoke('analysis_get', { projectId: f.project.id, jobId: job.id })
+  ).job;
+  assert.equal(recovered.status, 'blocked');
+  assert.equal(recovered.error.code, 'INTERRUPTED');
+  assert.equal(recovered.lease, undefined);
+  assert.equal(recovered.summary, 'No change');
 });

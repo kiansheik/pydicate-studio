@@ -265,6 +265,18 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       conversation: analysisFixture.conversations.find((item) => item.id === job.conversationId),
     };
   }
+  if (method === 'analysis_confirm_grammar') {
+    const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
+    if (job.grammarCandidate?.id !== params.candidateId) throw new Error('SIMULATED stale result');
+    job.grammarConfirmation = {
+      candidateId: String(params.candidateId),
+      at: new Date().toISOString(),
+    };
+    job.updatedAt = new Date().toISOString();
+    saveAnalysisFixture();
+    control.emit({ type: 'analysis', projectId: project.id });
+    return structuredClone(job);
+  }
   if (method === 'analysis_steer') {
     const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
     if (job.status !== 'running') throw new Error('SIMULATED correction finished');
@@ -454,6 +466,7 @@ function answer(method: string, params: Record<string, unknown>): unknown {
   if (method === 'analysis_cancel' || method === 'analysis_retry' || method === 'analysis_resume') {
     const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
     job.status = method === 'analysis_cancel' ? 'cancelled' : 'queued';
+    job.updatedAt = new Date().toISOString();
     saveAnalysisFixture();
     return structuredClone(job);
   }
