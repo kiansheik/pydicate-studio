@@ -6,7 +6,7 @@ const { createScratchService } = require('./scratch-service.cjs');
 const { createStudioMcpGateway } = require('./studio-mcp-gateway.cjs');
 const { createEvidenceImages } = require('./evidence-images.cjs');
 const { createExternalAnalysisRunner } = require('./analysis-external.cjs');
-const { runAgent, normalizeBudgets } = require('./agent-runner.cjs');
+const { runAgent, normalizeBudgets, GRAMMAR_REPAIR_TIMEOUT_MS } = require('./agent-runner.cjs');
 const { isReconstruction } = require('./analysis-input.cjs');
 const { createGrammarRepair, REPAIR_TOOLS, REPAIR_STRATEGY } = require('./grammar-repair.cjs');
 const validate = require('./validation.cjs');
@@ -81,6 +81,7 @@ function createAnalysisService({
   projectInterpretations = async () => undefined,
   store = new AnalysisStore(path.join(stateDirectory, 'records')),
   autoRun = true,
+  repairTimeoutMs = GRAMMAR_REPAIR_TIMEOUT_MS,
 }) {
   if (!draftStore)
     throw new Error('O serviço de análise exige o gravador de rascunhos do aplicativo.');
@@ -93,6 +94,30 @@ function createAnalysisService({
     getConfig,
     projectInterpretations,
     stateDirectory: path.join(stateDirectory, 'grammar-edits'),
+    onProgress: async (job, progress) => {
+      const handle = active.get(job.id);
+      if (!handle) return;
+      await mutateJob(
+        job.id,
+        (value) => {
+          value.phase = progress.phase;
+          if (progress.phase === 'grammar-reload') {
+            delete value.grammarVerification;
+            delete value.grammarCandidate;
+          }
+          if (progress.candidate) value.grammarCandidate = progress.candidate;
+          if (progress.timings) value.grammarTimings = progress.timings;
+          value.events.push({
+            type: 'grammar-progress',
+            phase: progress.phase,
+            attemptId: handle.attemptId,
+            at: now(),
+            timings: progress.timings,
+          });
+        },
+        { attemptId: handle.attemptId, allowTerminal: true },
+      );
+    },
   });
   const initialized = new Map(),
     locations = new Map(),
@@ -113,6 +138,17 @@ function createAnalysisService({
     if (!record) return record;
     const { interpretationNotes: _privateNotes, ...publicRecord } = record;
     record = publicRecord;
+    if (record.input?.task === 'grammar-repair' && !record.attemptStartedAt) {
+      const startedAt = record.attempts?.at(-1)?.startedAt;
+      if (startedAt)
+        record = {
+          ...record,
+          attemptStartedAt: startedAt,
+          deadlineAt:
+            record.deadlineAt ??
+            new Date(Date.parse(startedAt) + GRAMMAR_REPAIR_TIMEOUT_MS).toISOString(),
+        };
+    }
     const project = getProject();
     const published = canonicalPassage(record.passageId);
     return record.projectId === project?.id && project.passages.some((p) => p.id === published)
@@ -937,6 +973,9 @@ function createAnalysisService({
         value.status = 'running';
         value.currentAttemptId = attemptId;
         value.phase = 'input';
+        value.attemptStartedAt = now();
+        if (value.input.grammarRepair)
+          value.deadlineAt = new Date(Date.now() + repairTimeoutMs).toISOString();
         delete value.error;
         value.lease = { ownerId, attemptId, startedAt: now() };
         value.attempts.push({
@@ -952,6 +991,30 @@ function createAnalysisService({
             : {}),
         });
       });
+      if (job.input.grammarRepair) {
+        // The owner bounds preparation + provider work, not only the runner.
+        // On expiry close new work while retaining ownership for atomic cleanup.
+        handle.deadline = setTimeout(
+          () => {
+            controller.abort(
+              error(
+                'JOB_TIMEOUT',
+                'A correção atingiu o limite de 15 minutos. O trabalho salvo foi preservado; retome explicitamente após a verificação.',
+              ),
+            );
+            void mutateJob(
+              jobId,
+              (value) => {
+                value.status = 'cancelling';
+                value.phase = 'grammar-draining';
+                value.error = { code: 'JOB_TIMEOUT', message: controller.signal.reason.message };
+              },
+              { attemptId, allowTerminal: true },
+            ).catch(() => {});
+          },
+          Math.max(0, Date.parse(job.deadlineAt) - Date.now()),
+        );
+      }
       handle.conversationId = job.conversationId;
       handle.enginePath = job.input.grammarRepair?.enginePath;
       const previousState = await store.read(job.projectId);
@@ -1089,6 +1152,7 @@ function createAnalysisService({
           );
         },
       });
+      clearTimeout(handle.deadline);
       handle.steeringClosed = true;
       handle.steer = null;
       await handle.steeringDelivery;
@@ -1235,6 +1299,7 @@ function createAnalysisService({
           }
         });
     } finally {
+      clearTimeout(handle.deadline);
       handle.steeringClosed = true;
       handle.steer = null;
       await handle.steeringDelivery;
@@ -1333,6 +1398,40 @@ function createAnalysisService({
   async function invoke(method, params = {}) {
     currentProject(params.projectId);
     await initialize(params.projectId);
+    if (method === 'analysis_list' || method === 'analysis_get') {
+      const state = await store.read(params.projectId);
+      if (
+        Object.values(state.jobs).some(
+          (value) => ['running', 'cancelling'].includes(value.status) && !active.has(value.id),
+        )
+      ) {
+        await store.transact(params.projectId, (next) => {
+          for (const value of Object.values(next.jobs)) {
+            if (!['running', 'cancelling'].includes(value.status) || active.has(value.id)) continue;
+            value.status =
+              value.status === 'cancelling' && value.error?.code !== 'JOB_TIMEOUT'
+                ? 'cancelled'
+                : 'blocked';
+            value.phase = 'interrupted';
+            value.updatedAt = now();
+            value.error = {
+              code: 'INTERRUPTED',
+              message:
+                'A tentativa não está mais ativa no servidor. O trabalho salvo foi preservado; confira antes de retomar explicitamente.',
+            };
+            const attempt = value.attempts.at(-1);
+            if (attempt) {
+              attempt.status = value.status;
+              attempt.finishedAt = now();
+              attempt.error = value.error;
+              preserveInterruptedResponse(value, attempt);
+            }
+            finishSteering(value);
+            delete value.lease;
+          }
+        });
+      }
+    }
     if (method === 'analysis_submit') return present(await submit(params));
     if (method === 'analysis_steer') return present(await steer(params));
     if (method === 'analysis_external_start') {
@@ -1520,6 +1619,50 @@ function createAnalysisService({
         candidates: job.candidateIds.map((id) => present(state.candidates[id])),
       };
     }
+    if (method === 'analysis_confirm_grammar') {
+      requireId(params.operationId, 'operação');
+      requireId(params.candidateId, 'resultado');
+      const signature = digest({ jobId: job.id, candidateId: params.candidateId });
+      const prior = own(
+        (await store.read(params.projectId)).operations,
+        'grammar-confirm:' + params.operationId,
+      );
+      if (prior) {
+        if (prior.digest !== signature)
+          throw error('OPERATION_CONFLICT', 'A confirmação repetida mudou de resultado.');
+        return present(await jobById(job.id));
+      }
+      assertFresh(job);
+      const draft = (await draftStore.load(params.projectId))?.drafts[job.passageId];
+      if (draft?.revisionId !== job.input.baseRevisionId)
+        throw error('DRAFT_CONFLICT', 'O rascunho mudou. Confira o resultado da revisão atual.');
+      return present(
+        await mutateJob(job.id, (value, state) => {
+          const candidate = value.grammarCandidate;
+          if (
+            !value.input.grammarRepair ||
+            !candidate ||
+            candidate.id !== params.candidateId ||
+            !candidate.matches ||
+            candidate.evaluationStatus !== 'complete' ||
+            candidate.engineFingerprint !== getProject()?.engineFingerprint ||
+            ['cancelled', 'cancelling', 'failed', 'blocked'].includes(value.status)
+          )
+            throw error(
+              'STALE_CANDIDATE',
+              'Este resultado não pode ser confirmado. Confira a forma atual.',
+            );
+          // An observation acknowledgement only: no draft/source/reference write,
+          // provider restart, cancellation, or change to required validation.
+          value.grammarConfirmation = {
+            candidateId: candidate.id,
+            at: now(),
+            confirmedBy: params.confirmedBy ?? null,
+          };
+          state.operations['grammar-confirm:' + params.operationId] = { digest: signature };
+        }),
+      );
+    }
     if (method === 'analysis_accept') {
       requireId(params.operationId, 'operação');
       if (params.passageId !== undefined && !samePassage(params.passageId, job.passageId))
@@ -1651,6 +1794,19 @@ function createAnalysisService({
     if (method === 'analysis_cancel') {
       requireId(params.operationId, 'operação');
       const key = 'cancel:' + params.operationId;
+      const previous = own((await store.read(params.projectId)).operations, key);
+      if (previous && previous.jobId !== job.id)
+        throw error('OPERATION_CONFLICT', 'Operação de outra análise.');
+      // Stop inference even if the durable cancellation hits the size/disk limit.
+      // Atomic grammar calls still drain and perform their required final check.
+      const cancelling = active.get(job.id);
+      if (
+        !previous &&
+        cancelling &&
+        cancelling.attemptId === job.lease?.attemptId &&
+        !terminal.has(job.status)
+      )
+        cancelling.controller.abort(error('CANCELLED', 'Análise cancelada pelo contribuinte.'));
       const result = await store.transact(params.projectId, (state) => {
         const prior = own(state.operations, key);
         const value = state.jobs[job.id];

@@ -76,6 +76,8 @@ export interface AnalysisJob {
   input: AnalysisInput;
   status: AnalysisStatus;
   phase?: string;
+  attemptStartedAt?: string;
+  deadlineAt?: string;
   createdAt: string;
   updatedAt: string;
   error?: string | { message: string; code?: string };
@@ -94,6 +96,18 @@ export interface AnalysisJob {
     attemptId?: string;
   }[];
   usage?: Record<string, number>;
+  grammarCandidate?: {
+    id: string;
+    engineFingerprint: string;
+    expression: string;
+    surface: string;
+    intendedSurface: string;
+    matches: boolean;
+    evaluationStatus: string;
+    validation: 'pending' | 'verified' | 'review-required';
+  };
+  grammarConfirmation?: { candidateId: string; at: string };
+  grammarTimings?: Record<string, number>;
   grammarVerification?: {
     surface?: string;
     intendedSurface?: string;
@@ -434,8 +448,16 @@ export function canAcceptCandidate(
   );
 }
 export function analysisProgress(job: AnalysisJob): string {
+  if (job.phase === 'grammar-draining')
+    return 'Limite atingido; encerrando e verificando trabalho salvo…';
   if (job.status !== 'running') return analysisLabels[job.status];
   const phase = job.phase ?? '';
+  if (phase === 'grammar-reload') return 'Recarregando a gramática…';
+  if (phase === 'grammar-target') return 'Avaliando somente o alvo…';
+  if (/^grammar-(context-check|parent|passage)$/.test(phase))
+    return 'Verificando a árvore de contexto…';
+  if (phase === 'grammar-corpus') return 'Forma avaliada; verificando outras passagens…';
+  if (phase === 'grammar-checked') return 'Verificação concluída; finalizando a resposta…';
   if (phase === 'provider-tools-check') return 'Verificando as ferramentas do Studio…';
   if (/dictionary|lexicon/.test(phase)) return 'Consultando o dicionário…';
   if (/search|construction|reuse/.test(phase)) return 'Buscando construções…';
@@ -443,4 +465,37 @@ export function analysisProgress(job: AnalysisJob): string {
   if (/compare/.test(phase)) return 'Comparando as formas…';
   if (/context|input/.test(phase)) return 'Preparando a fonte…';
   return analysisLabels[job.status];
+}
+
+/** Small display projection; full tool bodies stay in durable history. */
+export function analysisTechnicalLog(job: AnalysisJob): string {
+  return JSON.stringify(
+    (job.events ?? []).slice(-40).map((event) => ({
+      type: event.type,
+      phase: event.phase,
+      tool: event.tool,
+      at: event.at,
+      ...(event.text ? { text: event.text.slice(0, 500) } : {}),
+      ...(event.result !== undefined
+        ? { result: 'Resultado completo preservado no histórico do servidor.' }
+        : {}),
+    })),
+    null,
+    2,
+  );
+}
+export function analysisLiveness(job: AnalysisJob, time = Date.now()): string {
+  const started = Date.parse(job.attemptStartedAt ?? job.createdAt);
+  if (!Number.isFinite(started)) return '';
+  const elapsed = Math.max(0, Math.floor((time - started) / 60000));
+  const last = Date.parse(job.events?.at(-1)?.at ?? job.attemptStartedAt ?? job.createdAt);
+  const quiet = Number.isFinite(last) ? Math.max(0, Math.floor((time - last) / 60000)) : 0;
+  const deadline = Date.parse(job.deadlineAt ?? '');
+  return (
+    `${elapsed} min nesta tentativa` +
+    (quiet >= 2 ? ` · Sem novo evento há ${quiet} min.` : '') +
+    (Number.isFinite(deadline) && time >= deadline
+      ? ' Limite atingido; aguardando encerramento e verificação segura. Você pode cancelar; retomar exige uma ação explícita.'
+      : '')
+  );
 }

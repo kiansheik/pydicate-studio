@@ -303,3 +303,34 @@ describe('analysis review boundaries', () => {
     expect(item.entry.entryIndex).toBe(9336);
   });
 });
+
+it('reports stalled repair elapsed time and bounds technical logs without altering durable events', async () => {
+  const { analysisLiveness, analysisTechnicalLog, analysisProgress } = await import('./analysis');
+  const observed = {
+    ...job,
+    status: 'running' as const,
+    phase: 'grammar-corpus',
+    attemptStartedAt: '2026-10-02T20:46:25Z',
+    deadlineAt: '2026-10-02T21:01:25Z',
+    events: [
+      {
+        type: 'tool-result',
+        tool: 'grammar_read',
+        at: '2026-10-02T20:49:41Z',
+        result: { content: 'x'.repeat(100000) },
+      },
+    ],
+  };
+  expect(analysisLiveness(observed, Date.parse('2026-10-02T21:08:25Z'))).toContain(
+    '22 min nesta tentativa',
+  );
+  expect(analysisLiveness(observed, Date.parse('2026-10-02T21:08:25Z'))).toContain(
+    'Sem novo evento há 18 min',
+  );
+  expect(analysisLiveness(observed, Date.parse('2026-10-02T21:08:25Z'))).toContain(
+    'Limite atingido',
+  );
+  expect(analysisProgress(observed)).toContain('verificando outras passagens');
+  expect(analysisTechnicalLog(observed).length).toBeLessThan(1000);
+  expect(observed.events[0].result.content.length).toBe(100000);
+});
