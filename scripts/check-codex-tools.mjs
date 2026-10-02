@@ -7,12 +7,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { CodexProvider } = require('../electron/provider-codex.cjs');
-const { JsonLineRpc } = require('../electron/provider-rpc.cjs');
-const { createStudioMcpGateway } = require('../electron/studio-mcp-gateway.cjs');
-const { tools, GUIDE } = require('../electron/scratch-service.cjs');
-const { REPAIR_TOOLS, REPAIR_STRATEGY } = require('../electron/grammar-repair.cjs');
-const { runAgent } = require('../electron/agent-runner.cjs');
+const { CodexProvider } = require('../runtime/provider-codex.cjs');
+const { JsonLineRpc } = require('../runtime/provider-rpc.cjs');
+const { createStudioMcpGateway } = require('../runtime/studio-mcp-gateway.cjs');
+const { tools, GUIDE } = require('../runtime/scratch-service.cjs');
+const { REPAIR_TOOLS, REPAIR_STRATEGY } = require('../runtime/grammar-repair.cjs');
+const { runAgent } = require('../runtime/agent-runner.cjs');
 const model = 'gpt-5.6-terra';
 const expected = [
   'studio_guide',

@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import type { StudioProject } from '../src/domain/types';
 
 const require = createRequire(import.meta.url);
-const { PythonWorker } = require('../electron/python-worker.cjs');
+const { PythonWorker } = require('../runtime/python-worker.cjs');
 const parent = process.env.PYDICATE_PROJECT_PARENT ?? path.resolve('..');
 const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 

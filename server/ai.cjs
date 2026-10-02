@@ -1,15 +1,44 @@
 'use strict';
 const { AsyncLocalStorage } = require('node:async_hooks');
-const { DraftStore } = require('../electron/draft-store.cjs');
+const { DraftStore } = require('../runtime/draft-store.cjs');
 const { fault } = require('./store.cjs');
 const READ = new Set(['ai_status','ai_history','ai_prompt_preview','analysis_list','analysis_get']);
 const WRITE = new Set(['ai_configure','ai_start','ai_cancel','ai_accept','analysis_submit','analysis_submit_batch',
-  'analysis_accept','analysis_cancel','analysis_retry','analysis_resume','analysis_steer','analysis_new_conversation',
+  'analysis_accept','analysis_confirm_grammar','analysis_cancel','analysis_retry','analysis_resume','analysis_steer','analysis_new_conversation',
   'analysis_select_conversation','analysis_composer']);
 const METHODS = new Set([...READ,...WRITE]);
 // Claude API (a server-wide key) stays unavailable here; Claude Code runs under
 // each contributor's own subscription and is therefore allowed.
 const HOSTED_PROVIDERS = new Set(['codex','claude-code']);
+
+// Browser history needs the observed work, not model replay checkpoints or corpus baselines.
+// The complete records and tool receipts remain in AnalysisStore for recovery/export.
+function browserJob(job) {
+  if (!job?.input) return job;
+  const { grammarRepair, diagnostic, ...input } = job.input;
+  return { ...job, input,
+    attempts: job.attempts?.map(({checkpoint, followUpContext, ...attempt}) => ({...attempt,
+      ...(checkpoint ? {checkpoint: {version: checkpoint.version, phase: checkpoint.phase}} : {})})),
+    events: job.events?.map(event => {
+      const {result, arguments: args, ...small} = event;
+      if (result === undefined) return small;
+      if (Buffer.byteLength(JSON.stringify(result)) <= 8192) return {...small, result};
+      let value = result;
+      if (Array.isArray(result?.content)) {
+        const text = result.content.find(block => block.type === 'text')?.text;
+        if (typeof text === 'string' && text.length <= 8 * 1024 * 1024) {
+          try { value = JSON.parse(text); } catch {}
+        }
+      }
+      return {...small, result: {
+        isError: Boolean(result?.isError || value?.isError || value?.error),
+        rolledBack: Boolean(value?.rolledBack || value?.receipt?.rolledBack),
+        summary: 'Resultado completo preservado no histórico do servidor.',
+        ...(value?.path ? {path: value.path} : {}),
+      }};
+    }),
+  };
+}
 
 // Human acceptance uses the same receipt contract as desktop, inside PostgreSQL's
 // transaction and claim checks. No background agent can directly save a human draft.
@@ -81,7 +110,7 @@ function createHostedAI({ store, emit = () => {}, claudeStatus = async () => nul
   }
   async function run(method, params, context, invoke) {
     await authorize(method, params, context, invoke);
-    const result = await requests.run(context, () => invoke(method, params));
+    const result = await requests.run(context, () => invoke(method, method === 'analysis_confirm_grammar' ? {...params, confirmedBy: context.user.id} : params));
     if (method === 'ai_start') {
       legacyRequests.set(params.requestId, {passageId:params.passageId});
       if (legacyRequests.size > 256) legacyRequests.delete(legacyRequests.keys().next().value);
@@ -93,6 +122,8 @@ function createHostedAI({ store, emit = () => {}, claudeStatus = async () => nul
       result.versions = snapshot.versions;
       emit({type:'draft-change',projectId:params.projectId,passageId:result.draft.passageId});
     }
+    if (result?.job) result.job = browserJob(result.job);
+    else if (result?.input) return browserJob(result);
     if (method === 'analysis_list') result.background.detail = 'As análises continuam no servidor quando você fecha esta aba. Tentativas interrompidas exigem uma nova tentativa explícita.';
     if (method === 'ai_status') result.providers = result.providers.filter(provider => HOSTED_PROVIDERS.has(provider.id));
     return result;
@@ -102,4 +133,4 @@ function createHostedAI({ store, emit = () => {}, claudeStatus = async () => nul
   const currentUser = () => requests.getStore()?.user || null;
   return { drafts, run, currentUser };
 }
-module.exports = { createHostedAI, METHODS, HOSTED_PROVIDERS };
+module.exports = { createHostedAI, METHODS, HOSTED_PROVIDERS, browserJob };

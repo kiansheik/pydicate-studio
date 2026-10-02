@@ -27,7 +27,7 @@ def main():
     ui_rows={row['ordinal']:row for row in ui_report.get('rows',[])} if ui_report.get('sourceSha256')==hashlib.sha256(before).hexdigest() else {}
     snapshots=[repository_snapshot(corpus,CORPUS_ROOTS),repository_snapshot(args.parent/'nhe-enga',ENGINE_ROOTS)]
     repo_signatures=lambda values:{v['name']:(v['revision'],v['fingerprint']) for v in values}
-    proof_files=['src/components/AuthoringEditor.tsx', 'src/domain/authoring.ts', 'src/useStudio.ts', 'src/styles.css', 'python/adapter.py', 'python/authoring_runtime.py', 'python/authoring_service.py', 'python/studio_authoring.py', 'python/worker.py', 'python/navarro_search.py', 'electron/main.cjs', 'electron/next-service.cjs', 'electron/python-worker.cjs', 'electron/preload.cjs', 'electron/validation.cjs', 'src/App.tsx']
+    proof_files=['src/components/AuthoringEditor.tsx', 'src/domain/authoring.ts', 'src/useStudio.ts', 'src/styles.css', 'python/adapter.py', 'python/authoring_runtime.py', 'python/authoring_service.py', 'python/studio_authoring.py', 'python/worker.py', 'python/navarro_search.py', 'runtime/next-service.cjs', 'runtime/python-worker.cjs', 'runtime/validation.cjs', 'src/App.tsx']
     proof_hashes={**ui_report.get('authoringUiSha256',{}),**ui_report.get('integrationSha256',{})}
     studio_root=Path(__file__).resolve().parents[1]
     proof_current=all(proof_hashes.get(name)==hashlib.sha256((studio_root/name).read_bytes()).hexdigest() for name in proof_files)

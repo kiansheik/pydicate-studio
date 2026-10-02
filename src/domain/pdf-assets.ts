@@ -4,8 +4,7 @@
  * CMaps are fetched per document. Scanned witnesses are exactly the documents
  * that need them, and a missing decoder is silent: the worker warns, skips the
  * image and the page renders blank. The build copies these files from
- * `pdfjs-dist` to `/pdfjs` beside the application; the desktop protocol handler
- * and the hosted server both serve that path.
+ * `pdfjs-dist` to `/pdfjs` beside the application; the hosted server serves that path.
  */
 export const supportDirectory = '/pdfjs/';
 

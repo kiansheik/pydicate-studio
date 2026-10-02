@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { createProviderService } = require('../electron/provider-service.cjs');
+const { createProviderService } = require('../runtime/provider-service.cjs');
 
 (async () => {
   const stateDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'pydicate-ai-smoke-'));

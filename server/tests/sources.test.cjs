@@ -19,7 +19,7 @@ test('hosted contributor creates an empty source, attaches a PDF and restores it
   execFileSync('git', ['-C', corpus, 'add', '.']);
   execFileSync('git', ['-C', corpus, '-c', 'user.name=Studio Test', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'disposable fixture']);
   const stateDirectory = path.join(directory, 'state');
-  const store = await createTestStore(stateDirectory, { validateEnvelope: require('../../electron/validation.cjs').envelope });
+  const store = await createTestStore(stateDirectory, { validateEnvelope: require('../../runtime/validation.cjs').envelope });
   await store.db.query('INSERT INTO users VALUES($1,$2,$3,$4,$5,0,$6)', ['source-author', 'author@example.invalid', 'Author', 'contributor', 'fixture', Date.now()]);
   const context = { user: store.publicUser(await store.user('source-author')), clientId: 'source-tab' };
   const config = { stateDirectory, applicationDirectory: path.resolve(__dirname, '../..'), parent: directory, python: process.env.PYDICATE_PYTHON || 'python3' };

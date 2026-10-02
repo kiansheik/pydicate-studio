@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStudio, type Studio } from '../src/useStudio';
 import { createExampleProject } from '../src/domain/example';
 import type { DraftEnvelope, StudioProject } from '../src/domain/types';
@@ -22,7 +22,7 @@ interface Request {
 }
 interface Pending extends Request {
   resolve: () => void;
-  reject: (message: string) => void;
+  reject: (message: string, code?: string) => void;
 }
 interface NextControl {
   project: StudioProject;
@@ -34,7 +34,7 @@ interface NextControl {
   saved: Record<string, DraftEnvelope>;
   makeProject: typeof makeProject;
   release: (method: string, raw?: string) => void;
-  reject: (method: string, message: string) => void;
+  reject: (method: string, message: string, code?: string) => void;
   emit: (event: unknown) => void;
   preview?: SourcePreview;
   publicationPreview?: Partial<SourcePreview>;
@@ -58,7 +58,11 @@ declare global {
 
 function makeProject(id = 'simulated:a', raw = 'alpha'): StudioProject {
   const fixture = createExampleProject();
-  const sourceId = new URLSearchParams(location.search).get('source') ?? 'araujo_catecismo_1686';
+  const search = new URLSearchParams(location.search);
+  // Source-switching URLs must not move the fixture's existing corpus rows.
+  const sourceId = search.has('sources')
+    ? 'araujo_catecismo_1686'
+    : (search.get('source') ?? 'araujo_catecismo_1686');
   return {
     ...fixture,
     id,
@@ -133,10 +137,10 @@ const control: NextControl = {
     if (index < 0) throw new Error(`No pending simulated ${method} ${raw || ''}`);
     control.pending.splice(index, 1)[0].resolve();
   },
-  reject(method, message) {
+  reject(method, message, code) {
     const index = control.pending.findIndex((request) => request.method === method);
     if (index < 0) throw new Error(`No pending simulated ${method}`);
-    control.pending.splice(index, 1)[0].reject(message);
+    control.pending.splice(index, 1)[0].reject(message, code);
   },
   emit(event) {
     for (const listener of listeners) listener(event);
@@ -260,6 +264,18 @@ function answer(method: string, params: Record<string, unknown>): unknown {
       candidates: analysisFixture.candidates.filter((item) => item.jobId === job.id),
       conversation: analysisFixture.conversations.find((item) => item.id === job.conversationId),
     };
+  }
+  if (method === 'analysis_confirm_grammar') {
+    const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
+    if (job.grammarCandidate?.id !== params.candidateId) throw new Error('SIMULATED stale result');
+    job.grammarConfirmation = {
+      candidateId: String(params.candidateId),
+      at: new Date().toISOString(),
+    };
+    job.updatedAt = new Date().toISOString();
+    saveAnalysisFixture();
+    control.emit({ type: 'analysis', projectId: project.id });
+    return structuredClone(job);
   }
   if (method === 'analysis_steer') {
     const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
@@ -450,6 +466,7 @@ function answer(method: string, params: Record<string, unknown>): unknown {
   if (method === 'analysis_cancel' || method === 'analysis_retry' || method === 'analysis_resume') {
     const job = analysisFixture.jobs.find((item) => item.id === params.jobId)!;
     job.status = method === 'analysis_cancel' ? 'cancelled' : 'queued';
+    job.updatedAt = new Date().toISOString();
     saveAnalysisFixture();
     return structuredClone(job);
   }
@@ -756,7 +773,7 @@ async function bridgeRequest(method: string, params: Record<string, unknown> = {
       control.pending.push({
         ...request,
         resolve: () => resolve(structuredClone(answer(method, params))),
-        reject: (message) => reject(new Error(message)),
+        reject: (message, code) => reject(Object.assign(new Error(message), code ? { code } : {})),
       }),
     );
   }
@@ -838,8 +855,18 @@ if (new URLSearchParams(location.search).has('passage-admin')) {
   };
 }
 
+// Most race contracts operate on passage A. Startup ordering has dedicated cases
+// using ?startup; other fixtures explicitly select their intended initial passage.
+const fixtureSelection = localStorage.getItem('simulated-selection:simulated:a') ?? 'passage-a';
 function Harness() {
   const studio = useStudio();
+  const selectedFixture = useRef(false);
+  useEffect(() => {
+    if (!studio.navigationReady || selectedFixture.current) return;
+    selectedFixture.current = true;
+    if (!new URLSearchParams(location.search).has('startup'))
+      studio.setSelectedId(fixtureSelection);
+  }, [studio.navigationReady]);
   const [pendingDraftId, setPendingDraftId] = useState<string | null>(null);
   window.__nextStudio = studio;
   return (
@@ -908,6 +935,11 @@ function Harness() {
   );
 }
 if (new URLSearchParams(location.search).has('workspace')) {
+  const fixtureUrl = new URL(location.href);
+  if (!fixtureUrl.searchParams.has('passage') && !fixtureUrl.searchParams.has('startup')) {
+    fixtureUrl.searchParams.set('passage', fixtureSelection);
+    history.replaceState(null, '', fixtureUrl);
+  }
   void (async () => {
     for (const href of ['/src/styles.css', '/src/authoring.css', '/src/theme.css']) {
       const style = document.createElement('link');

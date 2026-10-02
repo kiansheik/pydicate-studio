@@ -66,7 +66,7 @@ test('dictionary iframe relays bounded trusted activity through its verified par
   await page.route('**/__activity_dictionary_bridge.js', async (route) =>
     route.fulfill({
       contentType: 'text/javascript',
-      body: await readFile('electron/dictionary/bridge.js', 'utf8'),
+      body: await readFile('runtime/dictionary/bridge.js', 'utf8'),
     }),
   );
   await page.route('**/nhe-enga/?*', (route) =>

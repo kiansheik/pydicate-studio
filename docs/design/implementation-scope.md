@@ -1,25 +1,25 @@
-# Implemented scope and remaining boundaries
+# Supported scope
 
-The initial 0067-only implementation at `0af3937` has been extended in place. Araújo is the active source; Bettendorff is excluded. [Current state](../agent/current-state.md) and [coverage](../coverage/araujo.md) describe the verified version; the supplied product design remains the wider roadmap.
+Pydicate Studio is a collaborative server and browser editor. The Node service
+serves the compiled React application, owns the selected Python engine and corpus,
+and stores shared user drafts/history in PostgreSQL. [Current state](../agent/current-state.md)
+records verified checkpoints; [local setup](../local-setup.md) and
+[deployment](../../deploy/collab/README.md) describe supported commands.
 
-## Authoring and identity
+Source, draft, proposal, generated output and approved reference remain separate.
+Incomplete source is recoverable draft text; only explicit reviewed publication
+changes canonical source/reference files. Identity, version, engine and evidence
+guards preserve concurrent work and unknown source bytes. PDF region edits
+autosave; new evidence and contributor submissions remain attributed.
 
-Original bytes, editable raw text, recursive construction cards, lexical references and runtime projections are separate. Raw text is authoritative while incomplete; valid parses and runtime-enriched trees are accepted only for the requesting revision. UTF-16 span edits preserve grouping; whole-file AST formatting is never used. Runtime roles come from the selected engine, not operator characters. Unknown constructs remain intact with diagnostics and a clear Python adapter extension point.
+The native Electron shell, native file pickers, installer, updater and bundled
+Python/Git distributions are retired. Shared authoring, AI/MCP, validation, PDF,
+dictionary and Python bridge services live under `runtime/`. Existing state paths,
+research schemas and archive formats are retained; historical import readers stay
+available to preserve previously migrated material.
 
-Source-side IDs use a supported `# @note studio:v1` extension. Existing unmarked entries use a persistent sequence registry; unrelated edits and unambiguous insertions preserve IDs. Ambiguous identical insertions retain the old draft as an orphan rather than silently assigning it. New reading drafts reserve their eventual source identity before an analysis exists. Reference records remain the upstream sequential editorial workflow, with legacy provenance distinguished from explicit new approval.
-
-## Source, drafts and evidence
-
-Atomic local draft saves accept invalid/empty analysis and editorial fields. Applying source is separate: a concrete diff, source/dependency freshness checks, atomic replacement and recovery bytes. Metadata changes replace only edited adjacent directives. Unsupported multiline scalar source metadata is kept as a draft rather than silently truncated. PDF region storage uses unrotated PDF points and a managed fingerprinted asset; source comments contain the stable pointer. Scholarly locators stay human-editable beside the expression.
-
-Verification does not approve. Explicit reference approval delegates upstream sequencing/target rules and uses an atomic persistence sink. Git sharing exports a reviewable binary patch, including local source/reference differences; it does not commit or push on the contributor's behalf. Managed PDF assets, local drafts and private AI history are not silently included in the patch.
-
-## Providers and distribution
-
-Codex App Server and Claude Messages streaming adapters are implemented. Codex generation was authenticated and exercised; Claude authentication works but generation is blocked by account credit. Results bind project, passage, revision and model/context; accepting one is a human action. The current provider context includes textual evidence and PDF coordinates, not page pixels. Grammar repair assistance creates a separate proposed response, without automatic engine mutation.
-
-The developer desktop uses installed Node/Python and sibling repositories. Exact dirty dependency contents are recorded in a manifest and patches. An installer, bundled interpreter, portable PDF contribution bundle and automated remote pull-request publishing remain outside this version. Native validation used a vector PDF fixture; rare PDF codec/resource combinations and the user's actual historical scan are not certified by that fixture.
-
-## Evidence standard
-
-[Coverage](../coverage/araujo.json) keeps parse/tree/span/evaluation/structural/UI checks distinct. [Critic reviews](../reviews/) contain findings, corrections and limits from three different rounds. Equality to a historical surface never implies editorial approval or structural equivalence.
+Hosted AI requires capability/configuration and authenticated provider accounts.
+Grammar repair uses checked scoped engine edits and regression gates; it does not
+approve research. Routine validation never makes paid provider requests.
+Optional actual-corpus fixtures and historical comparison reports can differ from
+current selected engine data; generated equality is not linguistic correctness.

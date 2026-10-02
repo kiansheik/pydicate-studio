@@ -460,7 +460,7 @@ test('the solver cannot report draft adoption while the project is opening', asy
       });
   });
   await page.getByRole('button', { name: 'Abrir projeto', exact: true }).click();
-  await page.getByRole('button', { name: /Abrir projeto existente/ }).click();
+  await page.getByRole('button', { name: /Abrir espaço compartilhado/ }).click();
   await expect(page.getByTestId('solver-use-0')).toBeDisabled();
   expect(await labRequests(page)).not.toContain('parser_lab_judgment');
   await expect(page.getByTestId('solver-imported')).toHaveCount(0);

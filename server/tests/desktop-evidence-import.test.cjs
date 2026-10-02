@@ -5,8 +5,8 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { createHash } = require('node:crypto');
-const { createEvidenceService } = require('../../electron/evidence-service.cjs');
-const { makePdfFixture } = require('../../electron/tests/pdf-fixture.cjs');
+const { createEvidenceService } = require('../../runtime/evidence-service.cjs');
+const { makePdfFixture } = require('../../runtime/tests/pdf-fixture.cjs');
 const { importDesktopEvidence } = require('../desktop-evidence-import.cjs');
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 async function fixture(t) {

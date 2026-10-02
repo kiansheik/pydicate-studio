@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {spawn}=require('node:child_process');
 const {config}=require('./config.cjs');
-if(process.platform!=='linux')throw new Error('Collaboration mode requires Linux. Desktop mode remains cross-platform.');
+if(process.platform!=='linux')throw new Error('The collaborative server requires Linux and util-linux (flock). Use a Linux container on macOS/Windows.');
 const settings=config();fs.mkdirSync(settings.stateDirectory,{recursive:true,mode:0o700});
 // Kernel-held lock: survives multiple launch attempts and is released even after a crash.
 const child=spawn('flock',['--no-fork','--nonblock','--conflict-exit-code','73',path.join(settings.stateDirectory,'owner.lock'),process.execPath,path.join(__dirname,'index.cjs')],

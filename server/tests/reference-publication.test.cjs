@@ -78,7 +78,7 @@ test(
       ]);
     }
     store = await createTestStore(stateDirectory, {
-      validateEnvelope: require('../../electron/validation.cjs').envelope,
+      validateEnvelope: require('../../runtime/validation.cjs').envelope,
     });
     const { Auth, hashPassword } = require('../auth.cjs');
     const password = 'disposable reference publication password';

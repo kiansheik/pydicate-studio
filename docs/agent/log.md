@@ -1,3 +1,34 @@
+## 2026-10-02 — Surgical grammar feedback and bounded durable history
+
+Investigated the slow correction workflow from verified open PR #18 (`64632e2`)
+in an isolated writable checkout. Confirmed whole-project JSON rewrite/64 MiB
+limit, duplicated tool/checkpoint payload paths, cancellation persisting before
+abort, containing-tree context for selected targets, redundant reload prompt
+instructions and corpus scans for clerical Markdown edits. The specific live
+record's composition and actual provider stall remain unmeasured.
+
+Implemented narrow context, early provisional target/explicit form confirmation,
+mandatory validation stages/timings, note-only fast path, bounded browser logs,
+queue target/date provenance, owner deadline and orphan reconciliation. Durable
+content-addressed payloads preserve exact inputs/history/tool replay/checkpoints;
+cancel aborts before saving. No pruning, new provider calls, engine rules, corpus
+changes or deployment. The user subsequently authorized a push and stacked
+draft PR after final checks; no merge/deploy. See
+[handoff](session-handoffs/2026-10-02-surgical-grammar-workflow.md).
+
+## 2026-10-01 — Retire the desktop product, retain shared server services
+
+Prepared `refactor/server-only` from PR #16 at `4d0a60c`, targeting
+`unlocked-light-deploy` so the review diff excludes unrelated unmerged work.
+Moved shared Python/AI/MCP/PDF/storage services and tests to `runtime/`;
+removed native launch, packaging, updater, installer UI and desktop telemetry.
+Preserved server history/import readers, archives, schemas and source data.
+Routine deployment no longer discovers desktop profiles; legacy migration is
+explicit and requires an existing allowlisted browser-storage export.
+Carried applicable PR #17 server/browser regressions and corrected browser
+fixtures to assert structured error codes. No merge, deployment or live changes.
+See [handoff](session-handoffs/2026-10-01-server-only-cleanup.md).
+
 ## 2026-10-01 — Steer active grammar corrections
 
 Added durable same-turn Codex steering instead of a second queued analysis.

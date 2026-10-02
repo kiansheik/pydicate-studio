@@ -4,9 +4,9 @@ The current checkout is baseline `07c3dbd` plus the uncommitted ground-truth sho
 
 ## Ownership and transport
 
-The Electron main process owns the project/profile writer and queue. An authenticated local transport delegates scoped MCP calls to this owner; external clients never open draft/state files for writing. Candidate revisions live in the analysis store, separate from human draft envelopes. Human acceptance uses revision-checked draft commands and records acceptance provenance atomically in the resulting draft. Legacy AI histories remain readable, without invented traces.
+The server runtime owns the project/profile writer and queue. An authenticated local transport delegates scoped MCP calls to this owner; external clients never open draft/state files for writing. Candidate revisions live in the analysis store, separate from human draft envelopes. Human acceptance uses revision-checked draft commands and records acceptance provenance atomically in the resulting draft. Legacy AI histories remain readable, without invented traces.
 
-Root owns `electron/analysis-service.cjs`, store/queue/input/evidence orchestration, `electron/next-service.cjs`, `electron/main.cjs`, `electron/draft-store.cjs`, validation, `src/useStudio.ts`, existing draft/model types, evidence image backend and integration verification. UI owns App/support-pane/assistant/PDF renderer code, workspace migration, new `src/domain/analysis.ts`, CSS and UI tests. Provider owns provider adapters and a new iterative runner. Authoring owns shared headless compiler, scoped scratch operations and MCP gateway, tests and tool inventory. Coordinate changes to existing domain code with root.
+Root owns `runtime/analysis-service.cjs`, store/queue/input/evidence orchestration, `runtime/next-service.cjs`, `server/studio.cjs`, `runtime/draft-store.cjs`, validation, `src/useStudio.ts`, existing draft/model types, evidence image backend and integration verification. UI owns App/support-pane/assistant/PDF renderer code, workspace migration, new `src/domain/analysis.ts`, CSS and UI tests. Provider owns provider adapters and a new iterative runner. Authoring owns shared headless compiler, scoped scratch operations and MCP gateway, tests and tool inventory. Coordinate changes to existing domain code with root.
 
 ## Renderer methods
 

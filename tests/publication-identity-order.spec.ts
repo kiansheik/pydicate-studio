@@ -402,7 +402,7 @@ for (const { dirtySibling, straddlesPublication } of [
         try {
           await window.studio!.saveDrafts(local);
         } catch (reason) {
-          error = String(reason);
+          error = (reason as Error & { code?: string }).code ?? String(reason);
         }
         localStorage.setItem('peer-envelope', JSON.stringify(local));
         return {
@@ -422,7 +422,7 @@ for (const { dirtySibling, straddlesPublication } of [
     expect(result.local.drafts['passage-a'].organization?.position).toBe(2);
     if (dirtySibling) {
       expect(result.accepted).not.toContain('passage-b');
-      expect(result.error).toContain('DRAFT_CONFLICT');
+      expect(result.error).toBe('DRAFT_CONFLICT');
       expect(writes).toHaveLength(1);
       expect(writes[0].changes).toEqual([expect.objectContaining({ id: 'passage-b', version: 4 })]);
       expect(result.local.drafts['passage-b'].notes).toBe('Edição local não confirmada');
@@ -750,10 +750,10 @@ test('the hosted bridge adopts only the atomic publication receipt and never ret
       await window.studio!.saveDrafts(draft);
       return '';
     } catch (error) {
-      return String(error);
+      return (error as Error & { code?: string }).code ?? String(error);
     }
   });
-  expect(conflict).toContain('DRAFT_CONFLICT');
+  expect(conflict).toBe('DRAFT_CONFLICT');
   expect(writes[1].changes).toEqual([expect.objectContaining({ id: 'passage-b', version: 4 })]);
   expect(stored.drafts['passage-b'].notes).toBe('Edição remota não carregada');
   expect(stored.drafts[pending]).toBeUndefined();

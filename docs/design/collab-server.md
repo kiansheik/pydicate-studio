@@ -1,7 +1,7 @@
 # Optional collaboration server — research, Git and identity
 
 This is a single-workspace, invitation-only Linux mode of the existing Studio, not a replacement
-for Electron. The hosted HTML loads the existing compiled React editor plus a browser transport
+for the server runtime. The hosted HTML loads the existing compiled React editor plus a browser transport
 and collaboration panel. The real Node/Python authoring service evaluates the selected trusted
 corpus and grammar; no simulated linguistic output replaces it. Run through `npm run collab` or
 the [Makefile deployment workflow](../../deploy/collab/README.md). PostgreSQL 17 is required for
@@ -86,7 +86,7 @@ an exactly-once-delivery guarantee across crashes.
 
 ## PostgreSQL and deployment integrity
 
-The optional `server/` package pins `pg` independently of desktop dependencies. All SQL is
+The `server/` package pins `pg` independently of browser dependencies. All SQL is
 parameterized; transactions use one bound connection. Versioned/checksummed migrations run before
 service startup. An exclusive database advisory lock and Linux filesystem lock keep one web
 instance in charge of the selected filesystem/Python runtime. Lost DB ownership fails closed.
@@ -109,7 +109,7 @@ confirmation plus a safety checkpoint and leaves the app stopped until matched s
 is checked. A reviewed converter imports a legacy SQLite pilot only into an empty PostgreSQL DB;
 it never silently starts fresh and abandons the old data.
 
-The desktop envelope validator still limits the active workspace to 5,000 drafts; hosted aggregate
+The shared runtime envelope validator still limits the active workspace to 5,000 drafts; hosted aggregate
 payload is capped at 64 MiB and individual HTTP save patches at 4 MiB. These are active-workspace
 limits, **not** deletion or retention limits for historical PostgreSQL rows. PDFs retain the
 100 MiB per-upload/250 MiB managed-original allowance. Plan archival/sharding before those active
@@ -154,7 +154,7 @@ two-hour idle expiry. Secure/HttpOnly host-only cookies, exact-Origin checks and
 protect mutations. Static assets and authenticated PDFs have explicit route/path boundaries.
 
 Hosted RPCs have a separate allowlist. Contributors draft/evaluate/comment; reviewers/admins may
-publish reviewed source and approve references. Unknown desktop methods, arbitrary filesystem
+publish reviewed source and approve references. Unknown runtime methods, arbitrary filesystem
 paths, parser-lab, external agents and recovery writes remain denied. The Navarro website
 is served through authenticated, allowlisted routes with exact dataset/iframe identity checks.
 The selected engine/repositories are trusted Python, not a sandbox for arbitrary contributor

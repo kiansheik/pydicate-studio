@@ -409,7 +409,7 @@ export function AssistantPanel(props: AssistantProps) {
       <div className="assistant-panel">
         <h3>Assistência de IA</h3>
         <p>
-          As conexões Codex e Claude estão disponíveis no aplicativo desktop. Nenhum provedor foi
+          As conexões Codex e Claude estão disponíveis no servidor colaborativo. Nenhum provedor foi
           conectado nesta visualização.
         </p>
       </div>
@@ -534,7 +534,7 @@ export function AssistantPanel(props: AssistantProps) {
           <summary>Configuração e dados enviados</summary>
           <p>
             Codex usa o login do aplicativo de linha de comando: <code>codex login</code>. Claude
-            usa <code>ANTHROPIC_API_KEY</code> no ambiente do processo desktop; a chave não entra na
+            usa <code>ANTHROPIC_API_KEY</code> no ambiente do servidor; a chave não entra na
             interface. Para uma chave com vários workspaces, configure também{' '}
             <code>ANTHROPIC_WORKSPACE_ID</code>.
           </p>

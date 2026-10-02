@@ -14,6 +14,8 @@ import {
   analysisActivity,
   analysisLabels,
   analysisProgress,
+  analysisTechnicalLog,
+  analysisLiveness,
   analysisStreamText,
   mergeAnalysisDetails,
   analysisTasks,
@@ -63,6 +65,18 @@ function readableText(text: string) {
         <code key={index}>{part.slice(1, -1)}</code>
       ),
     );
+}
+function RepairLiveStatus({ job }: { job: AnalysisJob }) {
+  const [time, setTime] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setTime(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, [job.id]);
+  return (
+    <p className="analysis-liveness" role="status">
+      {analysisLiveness(job, time)}
+    </p>
+  );
 }
 export function useAnalysisWorkspace(studio: Studio) {
   const [listing, setListing] = useState<AnalysisListing>(emptyAnalysis);
@@ -1161,7 +1175,8 @@ export function AnalysisSupport({
       setReplyJobId(job.id);
       setScope('passage');
       if (candidate) onPreview();
-      composer.current?.focus();
+      // The preview and reply task can replace the composer during this render.
+      requestAnimationFrame(() => composer.current?.focus());
     });
   }
   async function accept(candidate: AnalysisCandidate) {
@@ -1256,8 +1271,12 @@ export function AnalysisSupport({
           }}
         >
           IA{' '}
-          {jobs.some((job) => job.status === 'ready-for-review') && (
-            <span aria-label="Há propostas prontas">●</span>
+          {currentJobs.some((job) => job.status === 'ready-for-review') ? (
+            <span aria-label="Há propostas prontas nesta conversa">●</span>
+          ) : (
+            jobs.some((job) => job.status === 'ready-for-review') && (
+              <span aria-label="Há propostas prontas em outras conversas">○</span>
+            )
           )}
         </button>
         <button
@@ -1388,7 +1407,16 @@ export function AnalysisSupport({
                     'local'}{' '}
                   · {analysisLabels[job.status]}
                 </button>
-                <small>{analysisTasks[job.input.task]}</small>
+                <small>
+                  {analysisTasks[job.input.task]}
+                  {job.input.task === 'grammar-repair' && job.input.tentativeReading && (
+                    <> · {job.input.tentativeReading}</>
+                  )}
+                  {' · '}
+                  <time dateTime={job.createdAt}>
+                    {new Date(job.createdAt).toLocaleString('pt-BR')}
+                  </time>
+                </small>
               </div>
             ))}
             <details>
@@ -1608,6 +1636,8 @@ export function AnalysisSupport({
                 <strong>{analysisTasks[job.input.task]}</strong>
                 <span className={`analysis-status is-${job.status}`}>{analysisProgress(job)}</span>
               </header>
+              {job.input.task === 'grammar-repair' &&
+                ['running', 'cancelling'].includes(job.status) && <RepairLiveStatus job={job} />}
               {job.status === 'queued' && job.input.task === 'grammar-repair' && (
                 <p className="analysis-waiting" role="status">
                   {currentJobs.some(
@@ -1640,11 +1670,65 @@ export function AnalysisSupport({
                   <p>{readableText(job.summary)}</p>
                 </div>
               )}
+              {job.grammarCandidate && (
+                <section className="grammar-verification" aria-label="Resultado do alvo">
+                  <strong>Forma do alvo avaliada</strong>
+                  <p lang="tpw">{job.grammarCandidate.surface || 'Sem resultado'}</p>
+                  <details>
+                    <summary>Expressão exata</summary>
+                    <code>{job.grammarCandidate.expression}</code>
+                  </details>
+                  <p role="status">
+                    {job.grammarCandidate.validation === 'pending'
+                      ? 'Verificação das outras passagens pendente. Este resultado ainda não está validado.'
+                      : job.grammarCandidate.validation === 'verified'
+                        ? 'Verificações automáticas concluídas. A decisão linguística continua sendo sua.'
+                        : 'Outras passagens ou a árvore de contexto precisam de revisão.'}
+                  </p>
+                  {job.grammarConfirmation?.candidateId === job.grammarCandidate.id ? (
+                    <p>
+                      Confirmação desta forma registrada. Isso não aprova a fonte nem dispensa as
+                      verificações.
+                    </p>
+                  ) : (
+                    job.grammarCandidate.matches &&
+                    job.grammarCandidate.evaluationStatus === 'complete' &&
+                    !['cancelled', 'cancelling', 'failed', 'blocked'].includes(job.status) && (
+                      <button
+                        disabled={busy || job.input.baseRevisionId !== passageRevision}
+                        onClick={() =>
+                          void operation(async () => {
+                            await invoke('analysis_confirm_grammar', {
+                              projectId: studio.project.id,
+                              jobId: job.id,
+                              candidateId: job.grammarCandidate!.id,
+                              operationId: crypto.randomUUID(),
+                            });
+                            await analysis.loadJob(job.id);
+                            await refresh();
+                          })
+                        }
+                      >
+                        Esta forma está correta
+                      </button>
+                    )
+                  )}
+                  {!!job.grammarTimings && (
+                    <small>
+                      Avaliação do alvo:{' '}
+                      {((job.grammarTimings['grammar-target'] ?? 0) / 1000).toFixed(1)} s
+                      {job.grammarTimings['grammar-corpus'] !== undefined &&
+                        ` · Corpus: ${(job.grammarTimings['grammar-corpus'] / 1000).toFixed(1)} s`}
+                      {' · Tempo do motor local; não inclui o tempo da IA.'}
+                    </small>
+                  )}
+                </section>
+              )}
               {job.grammarVerification && (
                 <section className="grammar-verification" aria-label="Verificação da correção">
                   <strong>
                     {job.grammarVerification.matches &&
-                    job.grammarVerification.regressionsHealthy !== false
+                    job.grammarVerification.regressionsHealthy === true
                       ? 'Forma pretendida obtida'
                       : 'Resultado da verificação'}
                   </strong>
@@ -2044,7 +2128,7 @@ export function AnalysisSupport({
                 </ul>
                 <details>
                   <summary>Registro técnico</summary>
-                  <pre>{JSON.stringify(job.events ?? [], null, 2)}</pre>
+                  <pre>{analysisTechnicalLog(job)}</pre>
                 </details>
                 {job.usage && (
                   <p>

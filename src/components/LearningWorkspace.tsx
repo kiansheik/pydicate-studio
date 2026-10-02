@@ -50,7 +50,7 @@ import '../learning.css';
 {"id":"referencia","title":"Forma, análise e referência não são a mesma coisa","terms":["ground truth","referência","concluída","publicar","aprovar","morfema","SUBJECT","OBJECT","erro"],"body":"A forma é a realização produzida pelo motor. A análise é a estrutura que a produziu. A referência é o registro revisado preservado no corpus. Dois códigos podem dar a mesma forma sem fazer a mesma afirmação gramatical. Confira as anotações SUBJECT e OBJECT; não infira papéis de uma tradução automática.","ui":"Compare a forma realizada, Morfemas e Código. No trabalho normal, revise a diferença antes de publicar na fonte. Aprovar Ground Truth é uma ação separada. As tentativas do tutorial nunca publicam nem aprovam registros.","code":"-(+nde * mondarõ).imp()","related":["editor","escopo"]}
 */
 /** @studio-guide
-{"id":"documentacao","title":"Como esta referência acompanha o código","terms":["documentação","implementação","build","docstring","comentário","gerar","agente"],"body":"O build reúne verbetes escritos em comentários do Studio, comentários e docstrings Python do motor e das fontes .tu.py, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.","ui":"Busque um assunto em Guia, uma assinatura em Implementação ou uma construção em Exemplos. Dentro de cada verbete há o caminho da fonte. No aplicativo desktop, a biblioteca é reconstruída para o projeto local aberto.","code":"npm run docs:build\nnpm run docs:check","related":["referencia"]}
+{"id":"documentacao","title":"Como esta referência acompanha o código","terms":["documentação","implementação","build","docstring","comentário","gerar","agente"],"body":"O build reúne verbetes escritos em comentários do Studio, comentários e docstrings Python do motor e das fontes .tu.py, assinaturas Python e exemplos reais das fontes .tu.py. A lista de exemplos inclui suas operações e o estado da comparação com o registro salvo. Uma lição só fica disponível enquanto seu exemplo final conserva a mesma estrutura e coincide com uma referência aprovada.","ui":"Busque um assunto em Guia, uma assinatura em Implementação ou uma construção em Exemplos. Dentro de cada verbete há o caminho da fonte. No servidor colaborativo, a biblioteca usa o projeto e o motor configurados.","code":"npm run docs:build\nnpm run docs:check","related":["referencia"]}
 */
 
 const bundled = compiled as unknown as LearningLibrary;
@@ -359,8 +359,8 @@ function LessonPractice({
       {!lesson.available && <p role="alert">{lesson.reason}</p>}
       {!local && (
         <p className="learning-boundary">
-          Leitura dos exemplos da compilação. Abra este corpus no aplicativo desktop para editar e
-          conferir sua tentativa no motor local.
+          Leitura dos exemplos da compilação. Abra este corpus no servidor colaborativo para editar
+          e conferir sua tentativa no motor local.
         </p>
       )}
       <section className="lesson-step" aria-label="Etapa atual">
@@ -582,7 +582,9 @@ function LessonPractice({
               passage={passage}
             />
           ) : (
-            <p>As perguntas à IA ficam disponíveis com o projeto aberto no aplicativo desktop.</p>
+            <p>
+              As perguntas à IA ficam disponíveis com o projeto aberto no servidor colaborativo.
+            </p>
           )}
         </section>
       )}

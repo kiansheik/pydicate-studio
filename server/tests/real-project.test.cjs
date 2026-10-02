@@ -6,7 +6,7 @@ test('real selected Python engine opens and evaluates through hosted adapter wit
     skip: !process.env.COLLAB_REAL_PROJECT, timeout: 180000,
 }, async (t) => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-real-hosted-'));
-    const validate = require('../../electron/validation.cjs');
+    const validate = require('../../runtime/validation.cjs');
     const store = await createTestStore(directory, { validateEnvelope: validate.envelope });
     await store.db.prepare("INSERT INTO users VALUES($1,$2,$3,$4,$5,0,$6)").run('test-reviewer', 'test@example.org', 'Fixture reviewer', 'reviewer', 'test-only', Date.now());
     const runtime = await createStudio({ stateDirectory: directory, applicationDirectory: path.resolve(__dirname, '../..'), parent: process.env.COLLAB_REAL_PROJECT, python: process.env.PYDICATE_PYTHON || 'python3' }, store);

@@ -8,10 +8,25 @@ from ops import Remote
 
 class ReleaseTests(unittest.TestCase):
     def setUp(self):
+        legacy = patch.dict(os.environ, {'COLLAB_IMPORT_LEGACY_DESKTOP': '1'})
+        legacy.start(); self.addCleanup(legacy.stop)
         credentials = patch('codex_auth.install')
         credentials.start(); self.addCleanup(credentials.stop)
         mocked = patch('desktop_sync.prepare_local_bundle', return_value=None)
         mocked.start(); self.addCleanup(mocked.stop)
+
+    def test_default_deploy_does_not_scan_legacy_profiles(self):
+        remote = Remote()
+        with patch.dict(os.environ, {'COLLAB_IMPORT_LEGACY_DESKTOP': '0'}), \
+                patch('evidence_sync.prepare_local_bundle') as evidence, \
+                patch('desktop_sync.prepare_local_bundle') as research, \
+                patch.object(remote, 'inventory') as inventory, \
+                patch.object(remote, 'prepare_release', return_value='a'*40) as prepare, \
+                patch.object(remote, 'deploy_release') as deploy:
+            remote.deploy()
+        evidence.assert_not_called(); research.assert_not_called(); inventory.assert_not_called()
+        prepare.assert_called_once_with('main', False, False)
+        deploy.assert_called_once_with('a'*40, '', '')
 
     def fixture(self, missing=None):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)

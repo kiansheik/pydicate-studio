@@ -4,7 +4,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
-const { validateNotebook, identity } = require('../electron/lexical-notes-service.cjs');
+const { validateNotebook, identity } = require('../runtime/lexical-notes-service.cjs');
 const { same } = require('./store.cjs');
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 function portableSource(value) {

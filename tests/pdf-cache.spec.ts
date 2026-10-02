@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 const require = createRequire(import.meta.url);
-const { makePdfFixture } = require('../electron/tests/pdf-fixture.cjs') as {
+const { makePdfFixture } = require('../runtime/tests/pdf-fixture.cjs') as {
   makePdfFixture: (options: { paddingBytes: number }) => Buffer;
 };
 const bytes = makePdfFixture({ paddingBytes: 2 * 1024 * 1024 });

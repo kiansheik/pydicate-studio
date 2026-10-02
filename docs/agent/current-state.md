@@ -1,5 +1,60 @@
 # Current state
 
+## Surgical grammar workflow and bounded analysis storage (review, not deployed)
+
+`improve/surgical-grammar` is based on the still-open PR #18 head `64632e2`,
+verified against GitHub on 2026-10-02. The original checkout's unrelated dirty
+work is preserved. No engine rule, corpus, provider attempt or live state changed.
+The user subsequently authorized a push and stacked draft PR after final checks;
+merge and deployment remain unauthorized.
+
+Selected-target context is narrow by default, with explicit containing-tree
+expansion. Integrated prompts no longer request redundant reloads after checked
+Python edits. Allowlisted Markdown-note edits retain hash guards and durable
+receipts without reopening/scanning the corpus; Python edits and final attempt
+validation keep every existing safety check.
+
+Target evaluation now appears before corpus verification, explicitly provisional.
+A hash-bound human form confirmation records an observation, not a source/draft
+approval or a validation bypass. The UI shows exact target, validation stage,
+local stage timings, elapsed/quiet time, deadline cleanup, and queue target/date
+provenance; large technical bodies/checkpoints stay out of browser history payloads.
+
+The reported 64 MiB error is the entire project analysis JSON write limit.
+Large inputs/tool results/checkpoints are retained in atomic hash-verified payload
+files under `analysis/records/payloads`, with a bounded index and legacy inline
+reading. Cancellation aborts inference before its metadata write; owner deadlines
+cover preparation/provider work, and ownerless persisted runs reconcile to blocked
+without starting another attempt. No payloads/history are pruned. Backups must
+retain the complete records directory; older runtimes cannot read a new packed
+index (they preserve it and report an error). See the
+[handoff](session-handoffs/2026-10-02-surgical-grammar-workflow.md) for measurements,
+checks, production uncertainties and rollout limits.
+
+## Server-only product cleanup (review, not deployed)
+
+The cleanup branch starts from PR #16 at `4d0a60c` and targets
+`unlocked-light-deploy`, keeping its 35 unrelated unmerged commits out of the diff.
+PR #17 remains open and unchanged; its server/browser fixes are carried here,
+while its obsolete desktop telemetry repair is omitted.
+
+The server's shared Python bridge, authoring/AI/MCP, validation, PDF/dictionary
+and compatible storage services move from `electron/` to `runtime/`, with shared
+service tests retained. Native entrypoints, installer/updater, packaged toolchains,
+desktop launch tests/scripts and dependencies are removed. The browser installer
+UI and desktop usage panel are retired; hosted reports remain in the team panel.
+
+`npm run build` builds the browser and shared runtime; `npm start`/`collab` launch
+the locked Linux server. Setup/authentication/deployment guidance describes the
+server product. Normal deployment no longer discovers desktop profiles. Existing
+legacy archives, import/history readers and data formats remain compatible; old
+Chromium buffers require an existing allowlisted JSON export for explicit import.
+This dependency/build change requires a full deployment when separately approved.
+No live service, data, credentials, releases or sibling repositories are changed.
+
+Earlier entries below are historical verification checkpoints. Native paths and
+release results describe what was tested at the time, not supported current APIs.
+
 ## Steering and bounded grammar corrections (live)
 
 Grammar repair now has a 15-minute agent deadline per attempt. Steering does not

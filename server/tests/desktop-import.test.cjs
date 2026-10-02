@@ -3,7 +3,7 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs/promises'), os = require('node:os'), path = require('node:path');
 const { createHash } = require('node:crypto');
 const { createTestStore } = require('./helpers.cjs');
-const validate = require('../../electron/validation.cjs');
+const validate = require('../../runtime/validation.cjs');
 const { passageMappings, importDesktopDrafts, readDesktopBundle } = require('../desktop-import.cjs');
 const at = '2026-09-26T12:00:00.000Z', digest = 'a'.repeat(64), file = 'sha256:' + 'f'.repeat(64);
 function passage(id, ordinal = 1, overrides = {}) {

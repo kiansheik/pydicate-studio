@@ -10,7 +10,7 @@ test('hosted refresh replaces a failed worker even when the project fingerprint 
         engineFingerprint: 'engine:unchanged', diagnostics: [], repositories: [], passages: [],
         sources: [{ id: 'source', title: 'Source', year: '', fileName: 'source.tu.py', passageCount: 0 }] };
     let failNextOpen = false, seeds = 0;
-    t.mock.method(require('../../electron/python-worker.cjs'), 'PythonWorker', function () {
+    t.mock.method(require('../../runtime/python-worker.cjs'), 'PythonWorker', function () {
         const failOpen = failNextOpen;
         failNextOpen = false;
         const worker = {
@@ -28,7 +28,7 @@ test('hosted refresh replaces a failed worker even when the project fingerprint 
         workers.push(worker);
         return worker;
     });
-    t.mock.method(require('../../electron/next-service.cjs'), 'createNextService', options => ({
+    t.mock.method(require('../../runtime/next-service.cjs'), 'createNextService', options => ({
         invoke: (method, params) => options.getWorker().request(method, params),
         close: async () => {}, hasWork: () => false,
     }));

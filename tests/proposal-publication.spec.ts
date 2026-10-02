@@ -67,8 +67,8 @@ for (const entry of ['passage', 'ground-truth'] as const) {
     await expect(editor).toBeVisible();
     await expect(page.getByTestId('generated-surface')).toHaveText(`SIMULADO:${noun}`);
     await expect(
-      editor.getByRole('button', { name: 'De baixo para cima', exact: true }),
-    ).toHaveAttribute('aria-pressed', 'true');
+      editor.getByRole('button', { name: 'Árvore da esquerda para a direita', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'false');
     await expect
       .poll(() =>
         page.evaluate((id) => window.__nextControl.saved['simulated:a'].drafts[id].raw, pendingId),

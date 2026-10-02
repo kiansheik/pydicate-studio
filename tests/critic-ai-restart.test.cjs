@@ -6,7 +6,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { once } = require('node:events');
-const { createProviderService } = require('../electron/provider-service.cjs');
+const { createProviderService } = require('../runtime/provider-service.cjs');
 
 // Independent Round 3 tests. Every provider and context transport is local and
 // synthetic. No account, network, real corpus, or upstream repository is used.
@@ -94,7 +94,7 @@ test('a killed service recovers its actual partial checkpoint and retries under 
     [
       '-e',
       childSource,
-      path.resolve(__dirname, '../electron/provider-service.cjs'),
+      path.resolve(__dirname, '../runtime/provider-service.cjs'),
       directory,
       JSON.stringify(request),
       partial,

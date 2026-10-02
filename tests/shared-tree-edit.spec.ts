@@ -166,8 +166,10 @@ async function openReference(
   if ((await page.getByTestId('generated-surface').innerText()) === 'SIMULADO:beta')
     await page.getByRole('button', { name: 'Passagem anterior', exact: true }).click();
   await expect(page.getByTestId('generated-surface')).toHaveText(`SIMULADO:${raw}`);
+  await page.getByRole('tab', { name: 'Passagem', exact: true }).click();
   await page
-    .locator('.expression-canvas [data-canvas-key="main:root/left"] > [aria-pressed]')
+    .getByRole('tabpanel', { name: 'Passagem', exact: true })
+    .locator('[data-canvas-key="main:root/left"] > [aria-pressed]')
     .click();
   const inspector = page.getByRole('region', { name: `Estrutura de ${name}`, exact: true });
   await expect(
@@ -402,8 +404,10 @@ test('a proposed shared definition can request grammar repair without replacing 
   ).toHaveLength(0);
   await page.reload();
   await expect(page.getByTestId('generated-surface')).toHaveText(`SIMULADO:${passageRaw}`);
+  await page.getByRole('tab', { name: 'Passagem', exact: true }).click();
   await page
-    .locator('.expression-canvas [data-canvas-key="main:root/left"] > [aria-pressed]')
+    .getByRole('tabpanel', { name: 'Passagem', exact: true })
+    .locator('[data-canvas-key="main:root/left"] > [aria-pressed]')
     .click();
   await page
     .getByRole('region', { name: 'Estrutura de enosem', exact: true })

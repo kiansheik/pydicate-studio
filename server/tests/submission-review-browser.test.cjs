@@ -78,7 +78,7 @@ test(
       ]);
     }
     store = await createTestStore(stateDirectory, {
-      validateEnvelope: require('../../electron/validation.cjs').envelope,
+      validateEnvelope: require('../../runtime/validation.cjs').envelope,
     });
     const { Auth, hashPassword } = require('../auth.cjs');
     const password = 'disposable reference publication password';
@@ -121,7 +121,7 @@ test(
     const user = store.publicUser(await store.user('fixture')),
       context = { user, clientId: 'fixture-admin-tab' };
     const pdf = path.join(directory, 'scan.pdf');
-    await fs.writeFile(pdf, require('../../electron/tests/pdf-fixture.cjs').makePdfFixture());
+    await fs.writeFile(pdf, require('../../runtime/tests/pdf-fixture.cjs').makePdfFixture());
     const submissions = new (require('../submissions.cjs').Submissions)(store);
     const submitted = [];
     for (const passage of original.passages) {
