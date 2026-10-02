@@ -45,3 +45,10 @@ under its records directory; preserve that directory in full on backup/export.
 `server/ai.cjs` projects browser history without model replay/baseline bodies.
 `AnalysisSupport`, `domain/analysis` and `grammar-diagnostic` present provisional
 forms distinctly from complete validation and source approval.
+
+Builder recipes: `src/components/BuilderGuide.tsx` exposes the in-app guide;
+`src/domain/builder-guide.json` is shared recipe data. `scripts/build-builder-guide.py`
+produces the portable `docs/construction-cheatsheet.md`; its `--check` and
+`python/tests/test_builder_guide.py` protect alignment and executable examples.
+Common operation shortcuts and mode controls remain in `ExpressionCanvas` and
+use the existing `OperationPreview`/canvas scoped edit pipeline.
