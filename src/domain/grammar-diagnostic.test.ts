@@ -102,3 +102,45 @@ it('exports successful and failing steps with exact context and distinguishes em
   );
   expect(tree.prompt).toContain('Proponha quais elementos ou operações acrescentar');
 });
+
+it('keeps the saved selection identity separate from IDs inside an isolated target tree', () => {
+  const project = createExampleProject();
+  const node = (id: string, code: string, start: number): AuthorNode => ({
+    id,
+    code,
+    start,
+    end: start + code.length,
+    kind: 'reference',
+    label: code,
+    children: [],
+  });
+  const root: AuthorNode = {
+    ...node('root', 'a * b', 0),
+    kind: 'binary',
+    operator: '*',
+    evaluation: { status: 'ok', surface: 'target surface' },
+    children: [
+      { slot: 'left', node: node('root/left', 'a', 0) },
+      { slot: 'right', node: node('root/right', 'b', 4) },
+    ],
+  };
+  const selectedNode = { id: 'root/left', code: 'a * b', start: 1, end: 6 };
+  const { evidence, prompt } = grammarDiagnostic(
+    project,
+    project.passages[0],
+    { raw: 'a * b', root },
+    { mode: 'engine', integrated: true },
+    { containingExpression: '(a * b) * c', selectedNode },
+  );
+  expect(evidence.expression).toBe('a * b');
+  expect(evidence.currentSurface).toBe('target surface');
+  expect(evidence.parentExpression).toBe('(a * b) * c');
+  expect(evidence.selectedNodeId).toBe('root/left');
+  expect(evidence.selectedNode).toEqual(selectedNode);
+  expect(evidence.stepsExpression).toBe('a * b');
+  expect(evidence.steps.map((step) => step.expression)).toEqual(['a * b', 'a', 'b']);
+  expect(prompt).toContain('A expressão completa permanece como contexto: (a * b) * c.');
+  const embedded = JSON.parse(prompt.match(/```json\n([\s\S]*?)\n```/)![1]);
+  expect(embedded.parentExpression).toBe(evidence.parentExpression);
+  expect(embedded.selectedNode).toEqual(selectedNode);
+});

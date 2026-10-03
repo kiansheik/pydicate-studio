@@ -807,9 +807,6 @@ def lexicon_result(payload, corpus, path, namespace):
         from reference_uses import reference_uses
         usage = reference_uses(corpus, entry['name'], entry['sourcePath'], entry['line']) if entry.get('sourcePath') and entry.get('line') else {'uses':[], 'diagnostics':['Declaração de origem indisponível.']}
         return {**entry, 'expandedStructure':shape(value), 'runtimeTree':runtime_graph(value), 'authoring':expression_tree(entry['expression']), 'namedReference':expression_tree(entry['name']), 'editScopes':['occurrence','source','shared'], 'affectedUses':entry['uses'], 'projectUses':usage, 'safeOccurrenceExpansion':safe_expansion}
-    from lexical_search import Document, Query
-    query = Query(payload.get('query', ''))
-    matches = []
     for entry in entries:
         try:
             value = namespace[entry['name']]
@@ -817,12 +814,10 @@ def lexicon_result(payload, corpus, path, namespace):
                 entry['surface'] = str(evaluation_snapshot(value).eval())
         except Exception:
             pass
-        match = query.match(Document(name=entry['name'],
-            forms=[('name', entry['name']), ('surface', entry.get('surface'))], definition=entry['definition']))
-        if match or query.empty:
-            matches.append((match.rank if match else (0, 0, 0), entry))
-    matches.sort(key=lambda row: (row[0], row[1]['name']))
-    return {'query':payload.get('query',''),'total':len(matches),'results':[entry for _,entry in matches[:payload.get('limit',40)]]}
+    if payload['action'] == 'lexicon_catalog':
+        return {'entries': entries}
+    from lexical_search import search_catalog
+    return search_catalog(entries, payload.get('query', ''), payload.get('limit', 40))
 
 def approve_authoritatively(payload, corpus):
     """Approve only the selected passage; gaps contain no synthesized references."""
@@ -884,7 +879,7 @@ def approve_authoritatively(payload, corpus):
     journal={'version':2,**journal_rows[0],'files':journal_rows,'kind':'reference-approval',
              'ordinal':ordinal,'reviewedSurface':rendered,'status':'prepared'}
     fresh=ProjectAdapter(); fresh.parent=corpus.parent
-    if fresh._engine_fingerprint(fresh._snapshots())!=payload['engineFingerprint']:
+    if fresh._engine_fingerprint(fresh._snapshots(metadata=False))!=payload['engineFingerprint']:
         raise AdapterError('O corpus ou a gramática mudou. Atualize e reconcilie o rascunho.', 'STALE_ENGINE')
     def fail(message,code): raise ValueError(message)
     apply_reviewed_files(members,Path(payload['stateDir'])/'recovery'/(str(uuid.uuid4())+'.json'),journal,fail)
@@ -954,7 +949,7 @@ def main():
                 elif payload.get('action') == 'dictionary_predicate':
                     result = dictionary_predicate(payload,namespace)
                 else:
-                    result=lexicon_result(payload,corpus,path,namespace) if payload.get('action') in {'lexicon','lexicon_inspect','lexicon_context'} else realize(payload['raw'],namespace,include_morphology=payload.get('includeMorphology') is True)
+                    result=lexicon_result(payload,corpus,path,namespace) if payload.get('action') in {'lexicon','lexicon_catalog','lexicon_inspect','lexicon_context'} else realize(payload['raw'],namespace,include_morphology=payload.get('includeMorphology') is True)
         print(json.dumps({'result':result},ensure_ascii=False))
     except Exception as error:
         print(json.dumps({'error':{'message':f'{type(error).__name__}: {error}','code':getattr(error,'code','ENGINE_CONTEXT_ERROR')}},ensure_ascii=False))

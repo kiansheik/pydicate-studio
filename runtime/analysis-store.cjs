@@ -26,7 +26,7 @@ const blank = (projectId) => ({
   operations: {},
   decisions: [],
 });
-function validate(value, projectId) {
+function validate(value, projectId, inputValidated = () => {}, trustedInput = () => null) {
   if (
     !value ||
     value.version !== 1 ||
@@ -42,21 +42,26 @@ function validate(value, projectId) {
   if (!Array.isArray(value.decisions)) throw new Error('Decisões de análise inválidas.');
   for (const [key, job] of Object.entries(value.jobs)) {
     id(key, 'análise');
+    const trusted = trustedInput(job),
+      input = trusted || job.input;
     if (
       job.id !== key ||
       job.projectId !== projectId ||
       !statuses.has(job.status) ||
-      !job.input ||
-      job.input.projectId !== projectId ||
-      job.input.passageId !== job.passageId ||
+      !input ||
+      input.projectId !== projectId ||
+      input.passageId !== job.passageId ||
       !Array.isArray(job.attempts) ||
       !Array.isArray(job.candidateIds) ||
       !Array.isArray(job.questions)
     )
       throw new Error('Análise persistida inválida.');
-    const { digest: savedDigest, ...packet } = job.input;
-    if (savedDigest !== digest(packet))
-      throw new Error('O pacote de entrada da análise foi alterado.');
+    if (!trusted) {
+      const { digest: savedDigest, ...packet } = input;
+      if (savedDigest !== digest(packet))
+        throw new Error('O pacote de entrada da análise foi alterado.');
+    }
+    inputValidated(job, input);
   }
   for (const [key, candidate] of Object.entries(value.candidates)) {
     if (
@@ -86,10 +91,15 @@ function validate(value, projectId) {
 }
 /** The server owner is the sole writer; external clients only call its commands. */
 class AnalysisStore {
-  constructor(directory, { maxBytes = MAX_BYTES } = {}) {
+  constructor(directory, { maxBytes = MAX_BYTES, maxPayloadCacheBytes = MAX_BYTES } = {}) {
     this.directory = directory;
     this.maxBytes = maxBytes;
     this.writes = new Map();
+    this.payloadSlots = new WeakMap();
+    this.payloadTexts = new Map();
+    this.payloadReads = new Map();
+    this.payloadCacheBytes = 0;
+    this.maxPayloadCacheBytes = maxPayloadCacheBytes;
   }
   filename(projectId) {
     id(projectId, 'projeto');
@@ -103,7 +113,19 @@ class AnalysisStore {
         throw new Error('Arquivo excede 64 MiB. Exporte/arquive análises antes de continuar.');
       const record = JSON.parse(await fs.readFile(filename, 'utf8'));
       try {
-        return validate(await this.inflate(record), projectId);
+        // Input validation must not retain every historical grammar baseline.
+        // The caller receives the same independent, mutable values on access.
+        return validate(await this.inflate(record), projectId, (job, input) => {
+          const slot = this.payloadSlots.get(job)?.get('input');
+          if (slot) {
+            slot.validatedInput = {
+              projectId: input.projectId,
+              passageId: input.passageId,
+              digest: input.digest,
+            };
+            slot.release();
+          }
+        });
       } catch (error) {
         throw new Error(error.message);
       }
@@ -115,11 +137,21 @@ class AnalysisStore {
     }
   }
   async pack(state) {
-    const packed = structuredClone(state),
+    // Copy only the index containers we replace. A full project clone eagerly
+    // hydrates and duplicates all historical payloads, even for a text delta.
+    const packed = { ...state, jobs: {}, operations: {} },
       refs = [];
+    delete packed.payloadStorage;
     const directory = path.join(this.directory, 'payloads');
     const saved = new Set();
-    const save = async (value, location, parent, key) => {
+    const save = async (source, location, parent, key) => {
+      const slot = this.payloadSlots.get(source)?.get(key);
+      if (slot?.untouched()) {
+        refs.push({ path: location, hash: slot.hash, bytes: slot.bytes });
+        parent[key] = null;
+        return;
+      }
+      const value = source[key];
       if (value === undefined) return;
       const bytes = Buffer.from(JSON.stringify(value));
       if (bytes.length > MAX_BYTES)
@@ -127,7 +159,10 @@ class AnalysisStore {
           new Error('Payload de análise excede 64 MiB; os dados anteriores foram preservados.'),
           { code: 'ANALYSIS_STORAGE_LIMIT' },
         );
-      if (bytes.length < 16 * 1024) return;
+      if (bytes.length < 16 * 1024) {
+        parent[key] = value;
+        return;
+      }
       const hash = createHash('sha256').update(bytes).digest('hex');
       await fs.mkdir(directory, { recursive: true, mode: 0o700 });
       const filename = path.join(directory, hash + '.json');
@@ -168,17 +203,33 @@ class AnalysisStore {
       refs.push({ path: location, hash, bytes: bytes.length });
       parent[key] = null;
     };
-    for (const [id, job] of Object.entries(packed.jobs)) {
-      await save(job.input, ['jobs', id, 'input'], job, 'input');
-      for (let i = 0; i < (job.events ?? []).length; i++)
+    const copyWithout = (value, omitted) =>
+      Object.fromEntries(
+        Object.keys(value)
+          .filter((key) => !omitted.includes(key))
+          .map((key) => [key, value[key]]),
+      );
+    for (const [id, original] of Object.entries(state.jobs)) {
+      const job = copyWithout(original, ['input', 'events', 'attempts']);
+      packed.jobs[id] = job;
+      await save(original, ['jobs', id, 'input'], job, 'input');
+      if (original.events !== undefined)
+        job.events = original.events.map((event) => copyWithout(event, ['result', 'arguments']));
+      job.attempts = original.attempts.map((attempt) =>
+        copyWithout(attempt, ['checkpoint', 'followUpContext']),
+      );
+      for (let i = 0; i < (original.events ?? []).length; i++)
         for (const key of ['result', 'arguments'])
-          await save(job.events[i][key], ['jobs', id, 'events', i, key], job.events[i], key);
+          await save(original.events[i], ['jobs', id, 'events', i, key], job.events[i], key);
       for (let i = 0; i < job.attempts.length; i++)
         for (const key of ['checkpoint', 'followUpContext'])
-          await save(job.attempts[i][key], ['jobs', id, 'attempts', i, key], job.attempts[i], key);
+          await save(original.attempts[i], ['jobs', id, 'attempts', i, key], job.attempts[i], key);
     }
-    for (const [id, operation] of Object.entries(packed.operations))
-      await save(operation.result, ['operations', id, 'result'], operation, 'result');
+    for (const [id, original] of Object.entries(state.operations)) {
+      const operation = copyWithout(original, ['result']);
+      packed.operations[id] = operation;
+      await save(original, ['operations', id, 'result'], operation, 'result');
+    }
     if (
       refs.length > 100000 ||
       refs.reduce((total, ref) => total + ref.bytes, 0) > 256 * 1024 * 1024
@@ -188,6 +239,52 @@ class AnalysisStore {
       );
     if (refs.length) packed.payloadStorage = { version: 1, refs };
     return packed;
+  }
+  async payloadText(ref) {
+    const filename = path.join(this.directory, 'payloads', ref.hash + '.json');
+    const info = await fs.stat(filename);
+    if (info.size !== ref.bytes) throw new Error('Tamanho do payload de análise inválido.');
+    const identity = [info.dev, info.ino, info.size, info.mtimeMs, info.ctimeMs].join(':');
+    const cached = this.payloadTexts.get(ref.hash);
+    if (cached?.identity === identity) {
+      this.payloadTexts.delete(ref.hash);
+      this.payloadTexts.set(ref.hash, cached);
+      return cached.text;
+    }
+    const key = ref.hash + ':' + identity;
+    if (this.payloadReads.has(key)) return this.payloadReads.get(key);
+    const pending = (async () => {
+      const bytes = await fs.readFile(filename);
+      if (
+        bytes.length !== ref.bytes ||
+        createHash('sha256').update(bytes).digest('hex') !== ref.hash
+      )
+        throw new Error('Hash do payload de análise inválido.');
+      const text = bytes.toString('utf8');
+      // Fail on malformed JSON even if no caller inspects this historical field.
+      JSON.parse(text);
+      const previous = this.payloadTexts.get(ref.hash);
+      if (previous) {
+        this.payloadCacheBytes -= previous.bytes;
+        this.payloadTexts.delete(ref.hash);
+      }
+      if (ref.bytes <= this.maxPayloadCacheBytes) {
+        this.payloadTexts.set(ref.hash, { text, identity, bytes: ref.bytes });
+        this.payloadCacheBytes += ref.bytes;
+        while (this.payloadCacheBytes > this.maxPayloadCacheBytes) {
+          const oldest = this.payloadTexts.keys().next().value;
+          this.payloadCacheBytes -= this.payloadTexts.get(oldest).bytes;
+          this.payloadTexts.delete(oldest);
+        }
+      }
+      return text;
+    })();
+    this.payloadReads.set(key, pending);
+    try {
+      return await pending;
+    } finally {
+      if (this.payloadReads.get(key) === pending) this.payloadReads.delete(key);
+    }
   }
   async inflate(state) {
     if (!state.payloadStorage) return state;
@@ -212,17 +309,14 @@ class AnalysisStore {
       total += ref.bytes;
       if (total > 256 * 1024 * 1024)
         throw new Error('Payloads de análise excedem o limite de recuperação.');
-      let value = cache.get(ref.hash);
-      if (value === undefined) {
-        const filename = path.join(this.directory, 'payloads', ref.hash + '.json');
-        const stat = await fs.stat(filename);
-        if (stat.size !== ref.bytes) throw new Error('Tamanho do payload de análise inválido.');
-        const bytes = await fs.readFile(filename);
-        if (createHash('sha256').update(bytes).digest('hex') !== ref.hash)
-          throw new Error('Hash do payload de análise inválido.');
-        value = JSON.parse(bytes.toString('utf8'));
-        cache.set(ref.hash, value);
+      let cached = cache.get(ref.hash);
+      if (cached && cached.bytes !== ref.bytes)
+        throw new Error('Tamanho do payload de análise inválido.');
+      if (!cached) {
+        cached = { text: await this.payloadText(ref), bytes: ref.bytes };
+        cache.set(ref.hash, cached);
       }
+      const text = cached.text;
       let parent = state;
       for (const key of ref.path.slice(0, -1)) {
         if (!Object.hasOwn(parent, key) || !parent[key] || typeof parent[key] !== 'object')
@@ -232,7 +326,40 @@ class AnalysisStore {
       const key = ref.path.at(-1);
       if (!Object.hasOwn(parent, key) || parent[key] !== null)
         throw new Error('Destino de payload de análise alterado.');
-      parent[key] = structuredClone(value);
+      // Accessors are ordinary JSON/structuredClone-compatible properties.
+      // Each occurrence parses independently, so editing one reference never
+      // changes a sibling with the same content hash or a different read.
+      let loaded = false,
+        value;
+      const get = () => {
+        if (!loaded) {
+          value = JSON.parse(text);
+          loaded = true;
+        }
+        return value;
+      };
+      const slot = {
+        hash: ref.hash,
+        bytes: ref.bytes,
+        untouched: () => !loaded && Object.getOwnPropertyDescriptor(parent, key)?.get === get,
+        current: () => Object.getOwnPropertyDescriptor(parent, key)?.get === get,
+        release: () => {
+          loaded = false;
+          value = undefined;
+        },
+      };
+      Object.defineProperty(parent, key, {
+        enumerable: true,
+        configurable: true,
+        get,
+        set: (next) => {
+          loaded = true;
+          value = next;
+        },
+      });
+      let slots = this.payloadSlots.get(parent);
+      if (!slots) this.payloadSlots.set(parent, (slots = new Map()));
+      slots.set(key, slot);
     }
     delete state.payloadStorage;
     return state;
@@ -251,7 +378,20 @@ class AnalysisStore {
         const state = await this.load(projectId);
         const result = await update(state);
         state.revision++;
-        validate(state, projectId);
+        validate(
+          state,
+          projectId,
+          (job, input) => {
+            const slot = this.payloadSlots.get(job)?.get('input');
+            // Inputs remain immutable. A fully checked unchanged input can return
+            // to its original reference instead of keeping its baseline in memory.
+            if (slot?.current() && slot.validatedInput?.digest === input.digest) slot.release();
+          },
+          (job) => {
+            const slot = this.payloadSlots.get(job)?.get('input');
+            return slot?.untouched() ? slot.validatedInput : null;
+          },
+        );
         // Large immutable/replayed payloads are stored once by content hash.
         // Never trim human text, baselines, tool receipts or resumable checkpoints.
         const contents = JSON.stringify(await this.pack(state));
@@ -296,6 +436,8 @@ class AnalysisStore {
   }
   async close() {
     await Promise.allSettled([...this.writes.values()]);
+    this.payloadTexts.clear();
+    this.payloadCacheBytes = 0;
   }
 }
 module.exports = { AnalysisStore, digest, statuses };

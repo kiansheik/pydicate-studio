@@ -4,6 +4,7 @@ const { spawn } = require('node:child_process');
 const { METHODS: AI, createHostedAI } = require('./ai.cjs');
 const { fault, identifier } = require('./store.cjs');
 const { capturePublication, finalizePublication } = require('./publication-finalization.cjs');
+const { Queue } = require('./queue.cjs');
 // Deliberately NOT the entire desktop bridge. New desktop methods stay denied.
 const READ = new Set(`corpus_health render learning_library parse_expression evaluate_expression predicate_catalog
 predicate_create composition_define node_definition source_preview source_new_preview source_create
@@ -20,25 +21,13 @@ function authorizeMethod(method, role, aiEnabled = false) {
     if (REVIEW.has(method) && !['reviewer', 'admin'].includes(role))
         throw fault(403, 'REVIEWER_REQUIRED', 'Somente revisores podem publicar na fonte ou aprovar referências.');
 }
-class Queue {
-    constructor() { this.tail = Promise.resolve(); this.count = 0; this.users = new Map(); }
-    run(userId, action) {
-        if (this.count >= 32 || (this.users.get(userId) || 0) >= 8)
-            return Promise.reject(fault(429, 'ENGINE_BUSY', 'Aguarde as operações em andamento.'));
-        this.count++;
-        this.users.set(userId, (this.users.get(userId) || 0) + 1);
-        const pending = this.tail.catch(() => { }).then(action);
-        this.tail = pending;
-        return pending.finally(() => { this.count--; this.users.set(userId, this.users.get(userId) - 1); });
-    }
-}
-async function createStudio(config, store, emit = () => { }) {
+async function createStudio(config, store, emit = () => { }, diagnostics) {
     // Lazy imports allow HTTP/auth tests to run without Electron or corpus fixtures.
     const { PythonWorker } = require('../runtime/python-worker.cjs');
     const { createNextService } = require('../runtime/next-service.cjs');
     const validate = require('../runtime/validation.cjs');
     let project, worker, pickedFile = null, service;
-    const queue = new Queue(), previews = new Map();
+    const queue = new Queue({ observe: observation => diagnostics?.observe(observation) }), previews = new Map();
     let deferSourceChange = false, deferredSourceChange = false;
     function sourceChanged() {
         if (deferSourceChange) { deferredSourceChange = true; return; }
@@ -115,7 +104,7 @@ async function createStudio(config, store, emit = () => { }) {
             const next = await open();
             emit({type:'source-change',projectId:next.id,engineFingerprint:next.engineFingerprint});
             return next;
-        }), emit,
+        }, 'grammar-reload'), emit,
         duringProjectWrite: action => action(),
         adoptProject: value => { project = validate.project(value); store.context = {projectId:project.id,engineFingerprint:project.engineFingerprint,appRelease:config.release||'development'}; },
         chooseFile: async () => pickedFile,
@@ -157,7 +146,7 @@ async function createStudio(config, store, emit = () => { }) {
     }
     async function invoke(method, input, context) {
         if (method === 'dictionary_status') return dictionary.status(input);
-        return queue.run(context.user.id, () => invokeNow(method, input, context));
+        return queue.run(context.user.id, () => invokeNow(method, input, context), method);
     }
     async function invokeNow(method, input, context) {
         if (method === 'dictionary_status')
@@ -250,8 +239,11 @@ async function createStudio(config, store, emit = () => { }) {
                 deferSourceChange = false;
                 if (deferredSourceChange) { deferredSourceChange = false; sourceChanged(); }
             }
-        }),
+        }, 'submission-review'),
         get project() { return project; }, hasWork: () => service.hasWork(), dictionary, hasPassage, passage, validateChanges, invoke,
+        diagnostics: () => ({ queueDepth: queue.count, workerPending: worker?.pending.size ?? null,
+            workerFailed: worker ? Number(Boolean(worker.failed)) : null, analysisBusy: Number(service.hasWork()),
+            dbTotal: store.db.pool.totalCount, dbIdle: store.db.pool.idleCount, dbWaiting: store.db.pool.waitingCount }),
         // PDF bytes do not use the serialized grammar worker queue. Each range
         // still revalidates the authenticated user, project and source binding.
         openPdf: async (params, context) => {
@@ -264,7 +256,7 @@ async function createStudio(config, store, emit = () => { }) {
             try { return await service.openEvidence({ projectId: project.id, sourceId: params.sourceId, assetId: params.assetId }); }
             catch (error) { error.status ||= error.code === 'ENOENT' ? 404 : 422; error.code ||= 'EVIDENCE_ERROR'; throw error; }
         },
-        refresh: context => queue.run(context.user.id, async () => { await store.assertUser(context.user); return open(); }),
+        refresh: context => queue.run(context.user.id, async () => { await store.assertUser(context.user); return open(); }, 'refresh'),
         upload: (file, params, context) => queue.run(context.user.id, async () => {
             if(store.db.unavailable) throw fault(503, 'DATABASE_UNAVAILABLE', 'Banco de dados indisponível.');
             const user = await store.assertUser(context.user);
@@ -288,7 +280,7 @@ async function createStudio(config, store, emit = () => { }) {
             finally {
                 pickedFile = null;
             }
-        }),
+        }, 'upload'),
         close: async () => { await queue.tail.catch(() => { }); await service.close(); worker?.close(); },
     };
 }

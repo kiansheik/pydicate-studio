@@ -656,6 +656,12 @@ test('shared-definition morphology uses the declaration namespace instead of the
   page,
 }) => {
   const editing = await editor(page);
+  await editing.getByLabel('Expressão da árvore compartilhada', { exact: true }).fill(proposedRaw);
+  await expect(editing.getByLabel('Resultado da árvore compartilhada')).toContainText(proposedRaw);
+  await editing.getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await editing
+    .locator(':scope > .expression-canvas [data-canvas-key="main:root/right"] > [aria-pressed]')
+    .click();
   await expect
     .poll(() =>
       page.evaluate(
@@ -667,10 +673,12 @@ test('shared-definition morphology uses the declaration namespace instead of the
       ),
     )
     .toBeGreaterThan(0);
-  const requests = await page.evaluate(() =>
-    window.__nextControl.requests.filter(
-      (item) => item.params.raw === 'Verb("enosem")' && item.params.includeMorphology === true,
-    ),
+  const requests = await page.evaluate(
+    (raw) =>
+      window.__nextControl.requests.filter(
+        (item) => item.params.raw === raw && item.params.includeMorphology === true,
+      ),
+    proposedRaw,
   );
   expect(requests.length).toBeGreaterThan(0);
   for (const request of requests) {
@@ -685,9 +693,7 @@ test('shared-definition morphology uses the declaration namespace instead of the
       passageId: 'passage-a',
     });
   }
-  await expect(editing.getByLabel('Resultado da árvore compartilhada')).toContainText(
-    definitionRaw,
-  );
+  await expect(editing.getByLabel('Resultado da árvore compartilhada')).toContainText(proposedRaw);
   expect(await savedRaw(page)).toBe(passageRaw);
 });
 

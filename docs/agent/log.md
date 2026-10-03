@@ -1,3 +1,14 @@
+## 2026-10-03 — Memory, responsiveness and operational diagnostics
+
+Matched the user's interrupted subtree repair to a V8 heap crash, reproduced
+large allocations with a private copy of real history, and removed eager whole-
+project duplication without changing its durable format. Added lifecycle race
+regressions, selected-target diagnostic boundaries, lazy draft search projection,
+on-demand morphology and capped numeric performance history/admin reporting.
+Local runtime298/domain292 checks and production build pass; recorded additional
+search profiling, hosted checks and rollout evidence in the
+[handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
+
 ## 2026-10-02 — Contextual Portuguese builder recipes and unary controls
 
 Inspected actual operators, corpus method usage and builder drag/scoped edit

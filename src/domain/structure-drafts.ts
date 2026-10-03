@@ -15,6 +15,7 @@ export interface StructureDraft {
 export function structureDrafts(project: StudioProject, envelope: DraftEnvelope): StructureDraft[] {
   if (project.id !== envelope.projectId || project.mode !== 'local') return [];
   const passages = new Map(project.passages.map((passage) => [passage.id, passage]));
+  const pendingContexts = pendingInsertionContexts(project, envelope);
   return Object.values(envelope.drafts).flatMap((draft) => {
     if (draft.organization?.deleted) return [];
     const passage = passages.get(draft.passageId);
@@ -28,7 +29,7 @@ export function structureDrafts(project: StudioProject, envelope: DraftEnvelope)
       passageId: draft.passageId,
       sourceId: passage?.sourceId ?? 'araujo_catecismo_1686',
       revisionId: draft.revisionId,
-      ...pendingInsertionContexts(project, envelope)[draft.passageId],
+      ...pendingContexts[draft.passageId],
     };
     const entries: StructureDraft[] = [];
     if (draft.raw?.trim() && draft.raw !== passage?.sourceExpression)
@@ -59,7 +60,9 @@ export function registerStructureContext(read: () => SearchContext | undefined) 
 export function withStructureContext(method: string, params: Record<string, unknown>) {
   const context = currentContext?.();
   const pending =
-    typeof params.passageId === 'string' ? context?.pendingContexts?.[params.passageId] : undefined;
+    typeof params.passageId === 'string' && params.passageId.startsWith('pending:')
+      ? context?.pendingContexts?.[params.passageId]
+      : undefined;
   if (!['structure_search', 'structure_resolve', 'structure_prepare'].includes(method))
     return pending ? { ...params, ...pending } : params;
   return context

@@ -2132,6 +2132,9 @@ test('automatic morpheme tracing follows selection in existing ancestor result b
   page,
 }, testInfo) => {
   const requests = await openCanvas(page, 'og * (emi * tym)');
+  // The root needs no trace; do not enqueue a second full engine evaluation on open.
+  await page.waitForTimeout(200);
+  expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(0);
   await expect(page.getByRole('button', { name: 'Rastrear morfemas · experimental' })).toHaveCount(
     0,
   );
@@ -2148,7 +2151,7 @@ test('automatic morpheme tracing follows selection in existing ancestor result b
   await expect(card(page, 'main:root/left').locator('[data-morpheme-highlight]')).toHaveCount(0);
   const raw = await page.locator('#canvas-raw').textContent();
   const evidenceRequests = requests.filter((request) => request.params.includeMorphology).length;
-  expect(evidenceRequests).toBeGreaterThan(0);
+  expect(evidenceRequests).toBe(1);
   await node(page, 'main:root/right/left').click();
   await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText('emi');
   await expect(card(page, 'main:root/right').locator('[data-morpheme-highlight]')).toHaveText(
@@ -2160,6 +2163,11 @@ test('automatic morpheme tracing follows selection in existing ancestor result b
   expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(
     evidenceRequests,
   );
+  await node(page, 'main:root').click();
+  await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
+  await node(page, 'main:root/right/right').click();
+  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText('tym');
+  expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(1);
   await expect(page.locator('#canvas-raw')).toHaveText(raw!);
   await expect(page.locator('#canvas-history')).toHaveText('0');
   await svg(page).screenshot({ path: testInfo.outputPath('morpheme-trace.png') });
@@ -2197,12 +2205,12 @@ test('morpheme tracing clears stale highlights when the draft changes during eva
       await route.fulfill({ json: result });
     });
   });
-  await expect.poll(() => requested).toBe(true);
   await page
     .locator('.canvas-view-options')
     .getByRole('button', { name: 'Expandir tudo', exact: true })
     .click();
   await node(page, 'main:root/right/right').click();
+  await expect.poll(() => requested).toBe(true);
   await page.evaluate(() => window.canvasReplaceRaw('(oré * tym).var(1)'));
   await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
   await expect(card(page, 'main:root')).not.toHaveAttribute('data-morpheme-trace');

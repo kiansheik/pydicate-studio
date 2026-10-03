@@ -31,6 +31,7 @@ export function useMorphemeTrace(input: {
     inactive,
   } = input;
   const hasRoot = !!root;
+  const needsTrace = !!selectedId && !!root && selectedId !== root.id;
   const identity = JSON.stringify([
     raw,
     pieceId,
@@ -46,7 +47,8 @@ export function useMorphemeTrace(input: {
     error?: string;
   } | null>(null);
   useEffect(() => {
-    if (inactive || !raw.trim() || !root) return;
+    if (inactive || !needsTrace || !raw.trim() || !root) return;
+    if (snapshot?.identity === identity && snapshot.result) return;
     let active = true;
     setSnapshot({ identity });
     const timer = window.setTimeout(() => {
@@ -81,7 +83,7 @@ export function useMorphemeTrace(input: {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [identity, hasRoot, inactive]);
+  }, [identity, hasRoot, inactive, needsTrace]);
   const current = snapshot?.identity === identity ? snapshot : null;
   const graph = useMemo(
     () => (root && current?.result?.tree ? expressionGraph(root, raw, current.result.tree) : null),
@@ -99,6 +101,6 @@ export function useMorphemeTrace(input: {
     graph,
     trace,
     error: current?.error,
-    pending: !!raw.trim() && !current?.result && !current?.error,
+    pending: needsTrace && !!raw.trim() && !current?.result && !current?.error,
   };
 }

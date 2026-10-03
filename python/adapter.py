@@ -94,7 +94,7 @@ def _git(root: Path, *args: str, binary: bool = False):
     return result.stdout if binary else result.stdout.decode("utf-8").strip()
 
 
-def repository_snapshot(root: Path, roots: tuple[str, ...]) -> dict:
+def repository_snapshot(root: Path, roots: tuple[str, ...], *, metadata: bool = True) -> dict:
     if Path(_git(root, "rev-parse", "--show-toplevel")).resolve() != root.resolve():
         raise AdapterError(f"{root.name} precisa ser a raiz de um clone Git.")
     revision = _git(root, "rev-parse", "HEAD")
@@ -115,10 +115,14 @@ def repository_snapshot(root: Path, roots: tuple[str, ...]) -> dict:
             with path.open("rb") as handle:
                 while block := handle.read(1024 * 1024):
                     hasher.update(block)
-    return {"name": root.name, "path": str(root), "revision": revision,
-            "branch": _git(root, "rev-parse", "--abbrev-ref", "HEAD"),
-            "dirty": bool(_git(root, "status", "--porcelain", "--untracked-files=normal")),
-            "fingerprint": "sha256:" + hasher.hexdigest()}
+    snapshot = {"name": root.name, "path": str(root), "revision": revision,
+                "fingerprint": "sha256:" + hasher.hexdigest()}
+    # Freshness guards need the exact same HEAD, path set and content digest.
+    # Branch/status describe the project UI but add no material to that digest.
+    if metadata:
+        snapshot.update(branch=_git(root, "rev-parse", "--abbrev-ref", "HEAD"),
+                        dirty=bool(_git(root, "status", "--porcelain", "--untracked-files=normal")))
+    return snapshot
 
 
 def _offset(text: str, position: tuple[int, int]) -> int:
@@ -323,15 +327,15 @@ class ProjectAdapter:
         from authoring_service import AuthoringService
         return AuthoringService(self).invoke(method, params)
 
-    def _snapshots(self) -> list[dict]:
+    def _snapshots(self, *, metadata: bool = True) -> list[dict]:
         assert self.parent
-        return [repository_snapshot(self.parent / "oldtupicorpus", CORPUS_ROOTS),
-                repository_snapshot(self.parent / "nhe-enga", ENGINE_ROOTS)]
+        return [repository_snapshot(self.parent / "oldtupicorpus", CORPUS_ROOTS, metadata=metadata),
+                repository_snapshot(self.parent / "nhe-enga", ENGINE_ROOTS, metadata=metadata)]
 
     @staticmethod
     def _engine_fingerprint(snapshots: list[dict]) -> str:
         # Corpus fingerprint includes lexicon definitions; no clean-HEAD claim.
-        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'source_catalog.py', 'passage_insertion.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'structure_warmup.py', 'lexical_metadata.py', 'semantic_context.py', 'node_definitions.py', 'lexical_publication.py', 'shared_definition.py', 'shared_definition_imports.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
+        runtime_files = ('adapter.py', 'authoring_runtime.py', 'authoring_service.py', 'studio_authoring.py', 'source_catalog.py', 'passage_insertion.py', 'navarro_search.py', 'active_lexicon.py', 'rendered_structures.py', 'structure_warmup.py', 'lexical_search.py', 'lexical_metadata.py', 'semantic_context.py', 'node_definitions.py', 'lexical_publication.py', 'shared_definition.py', 'shared_definition_imports.py', 'publication_regression.py', 'reviewed_files.py', 'worker.py')
         implementation = digest(b"".join((Path(__file__).parent / name).read_bytes() for name in runtime_files))
         material = ADAPTER_VERSION + ":" + sys.version + ":" + implementation + ":" + ":".join(item["fingerprint"] for item in snapshots)
         return "sha256:" + digest(material.encode())
@@ -489,7 +493,7 @@ class ProjectAdapter:
             details = " ".join(diagnostics[3:])[:3000]
             raise AdapterError("Nenhuma passagem pôde ser lida em historic/*.tu.py. Verifique os arquivos do projeto. " + details,
                                "NO_PASSAGES")
-        if self._engine_fingerprint(self._snapshots()) != self._engine_fingerprint(snapshots):
+        if self._engine_fingerprint(self._snapshots(metadata=False)) != self._engine_fingerprint(snapshots):
             raise AdapterError("Os arquivos mudaram durante a leitura. Atualize o projeto.", "STALE_PROJECT")
         registry.save()
         project = {"id": project_id, "name": "Corpus local de tupi antigo", "mode": "local", "passages": passages, "sources": sources,
@@ -505,7 +509,7 @@ class ProjectAdapter:
             raise AdapterError("Revisão de rascunho inválida.", "INVALID_REQUEST")
         if self.project is None or self.parent is None:
             raise AdapterError("Abra um projeto antes de realizar a análise.", "NO_PROJECT")
-        fingerprint = self._engine_fingerprint(self._snapshots())
+        fingerprint = self._engine_fingerprint(self._snapshots(metadata=False))
         if request["engineFingerprint"] != fingerprint or self.project["engineFingerprint"] != fingerprint:
             raise AdapterError("O projeto ou a gramática mudou. Atualize o projeto antes de realizar novamente.", "STALE_ENGINE")
         lexicon = self.parent / "oldtupicorpus/historic/lexicon.tu.py"
@@ -532,7 +536,7 @@ class ProjectAdapter:
             result = json.loads(process.stdout)
         except (OSError, subprocess.SubprocessError, ValueError) as exc:
             raise AdapterError(f"Não foi possível iniciar a gramática Python: {exc}", "ENGINE_ERROR") from exc
-        if self._engine_fingerprint(self._snapshots()) != fingerprint:
+        if self._engine_fingerprint(self._snapshots(metadata=False)) != fingerprint:
             raise AdapterError("A gramática mudou durante a realização. Atualize o projeto.", "STALE_ENGINE")
         return {"revisionId": request["revisionId"], "engineFingerprint": fingerprint,
                 "expression": expression_for(analysis), **result, "origin": "engine"}

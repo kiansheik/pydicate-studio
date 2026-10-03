@@ -5,6 +5,7 @@ const { Auth } = require('./auth.cjs');
 const { mailer } = require('./mail.cjs');
 const { createStudio } = require('./studio.cjs');
 const { createHttp } = require('./http.cjs');
+const { createDiagnostics } = require('./diagnostics.cjs');
 async function main() {
     if (process.env.COLLAB_OWNER_LOCK !== '1')
         throw new Error('Start through npm run collab (single-owner lock).');
@@ -20,14 +21,17 @@ async function main() {
     store.context = {appRelease: settings.release};
     const auth = new Auth(store, { origin: settings.origin, secure: settings.secure, sendMail: mailer(settings.python) });
     let http, runtime;
+    const diagnostics = createDiagnostics({ directory: settings.stateDirectory, release: settings.release,
+        runtime: () => runtime?.diagnostics() ?? {} });
     try {
-        runtime = await createStudio(settings, store, event => http?.emit(event));
-        http = createHttp({ config: settings, store, auth, runtime });
+        runtime = await createStudio(settings, store, event => http?.emit(event), diagnostics);
+        http = createHttp({ config: settings, store, auth, runtime, diagnostics });
         await new Promise((resolve, reject) => { http.server.once('error', reject); http.server.listen(settings.port, settings.host, resolve); });
         console.log('Pydicate collaboration server ready on ' + settings.host + ':' + settings.port);
     }
     catch (error) {
         await runtime?.close();
+        await diagnostics.close();
         await store.close();
         throw error;
     }
@@ -45,6 +49,7 @@ async function main() {
         deadline.unref();
         await http.close();
         await runtime.close();
+        await diagnostics.close();
         await Promise.allSettled([...auth.deliveries]);
         if(digestTask)await digestTask;
         await store.close();

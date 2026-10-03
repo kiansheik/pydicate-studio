@@ -339,10 +339,10 @@ function createGrammarRepair({
         failures: evaluation.failures,
       },
       { ...repair, baselineEngineFingerprint: baseline.engineFingerprint, integrated: true },
+      { containingExpression: contextRaw, selectedNode },
     );
     diagnostic.evidence.contextExpression = contextRaw;
     diagnostic.evidence.passageExpression = repair.passageRaw;
-    diagnostic.evidence.selectedNode = selectedNode;
     diagnostic.evidence.sharedDefinition = sharedDefinition;
     if (sharedDefinition && evaluation.definitionContext)
       diagnostic.evidence.targetDefinitionContext = evaluation.definitionContext;

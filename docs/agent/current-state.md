@@ -1,3 +1,16 @@
+# Performance and interrupted subtree repairs (2026-10-03)
+
+Confirmed the live interruption was V8 heap exhaustion, not full disks: the
+container restarted exactly after the reported partial response. Implemented
+compatible lazy analysis payloads/shallow packing, shutdown admission fencing,
+correct selected/containing-tree diagnostics, demand-driven morphology and lazy
+draft search projection. Real copied-history mixed read/write work is about six
+times faster with roughly 66% less peak RSS. Bounded numeric server diagnostics
+now retain up to seven days/32MiB and are exposed in the existing admin report.
+Local tests and independent review pass; live rollout verification is recorded in
+the [handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
+No provider attempt or linguistic rule was changed during these checks.
+
 # Builder recipes and common unary controls (2026-10-02)
 
 Implemented in isolated `feat/builder-cheatsheet` from merged main `6e6351c`;

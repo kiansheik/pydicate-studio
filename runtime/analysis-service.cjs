@@ -122,11 +122,27 @@ function createAnalysisService({
   const initialized = new Map(),
     locations = new Map(),
     active = new Map(),
-    toolCalls = new Map();
+    toolCalls = new Map(),
+    admissions = new Set();
   const ownerId = randomUUID();
   let closed = false,
-    scheduling = false,
-    scheduleAgain = false;
+    scheduling = null,
+    scheduled = false,
+    scheduleAgain = false,
+    closing = null;
+  function assertOpen() {
+    if (closed) throw error('SERVICE_CLOSED', 'O serviço de análise está sendo encerrado.');
+  }
+  async function admit(action) {
+    assertOpen();
+    const pending = Promise.resolve().then(action);
+    admissions.add(pending);
+    try {
+      return await pending;
+    } finally {
+      admissions.delete(pending);
+    }
+  }
   const currentProject = (projectId) => {
     const project = getProject();
     if (!project || project.id !== projectId || project.mode !== 'local')
@@ -745,6 +761,7 @@ function createAnalysisService({
     return { ...packet, digest: digest(packet) };
   }
   async function submit(params, execution = 'provider') {
+    assertOpen();
     requireId(params.operationId, 'operação');
     requireId(params.passageId, 'passagem');
     requireId(params.revisionId, 'revisão');
@@ -784,6 +801,7 @@ function createAnalysisService({
       input.digest = digest(input);
     }
     const job = await store.transact(params.projectId, (state) => {
+      assertOpen();
       const repeated = own(state.operations, commandKey);
       if (repeated) {
         if (repeated.digest !== signature)
@@ -954,6 +972,7 @@ function createAnalysisService({
     return result;
   }
   async function execute(jobId) {
+    if (closed) return;
     const controller = new AbortController(),
       attemptId = 'attempt:' + randomUUID();
     const handle = {
@@ -968,6 +987,7 @@ function createAnalysisService({
     let job;
     try {
       job = await mutateJob(jobId, (value, state) => {
+        assertOpen();
         if (value.status !== 'queued') throw error('STALE_ATTEMPT', 'A análise saiu da fila.');
         assertFresh(value);
         value.status = 'running';
@@ -1238,6 +1258,9 @@ function createAnalysisService({
         { attemptId },
       );
     } catch (reason) {
+      // A dispatch waiting for its first durable write is still queued. Leave
+      // that untouched for the next owner if shutdown wins admission.
+      if (!job && reason?.code === 'SERVICE_CLOSED') return;
       if (job?.input.grammarRepair) {
         if (!controller.signal.aborted) controller.abort(reason);
         // Revoke new calls, then retain engine ownership until every in-flight
@@ -1311,7 +1334,14 @@ function createAnalysisService({
     }
   }
   function kick() {
-    if (autoRun && !closed) queueMicrotask(() => schedule().catch(() => {}));
+    if (!autoRun || closed || scheduled) return;
+    // Count the queued microtask as busy too: maintenance must not acquire its
+    // lease in the gap between a completed attempt and the next dispatch.
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      void schedule().catch(() => {});
+    });
   }
   function repairFollowUpContext(job, state) {
     const ancestors = [],
@@ -1353,18 +1383,19 @@ function createAnalysisService({
       })),
     };
   }
-  async function schedule() {
-    if (closed || !autoRun) return;
+  function schedule() {
+    if (closed || !autoRun) return Promise.resolve();
     if (scheduling) {
       scheduleAgain = true;
-      return;
+      return scheduling;
     }
-    scheduling = true;
-    try {
+    scheduling = (async () => {
       const project = getProject();
       if (!project || project.mode !== 'local') return;
       await initialize(project.id);
+      if (closed) return;
       const state = await store.read(project.id);
+      if (closed) return;
       const runningThreads = new Set(
         [...active.keys()].map((id) => state.jobs[id]?.conversationId),
       );
@@ -1387,15 +1418,29 @@ function createAnalysisService({
         if (handle) handle.promise = promise;
         void promise.catch(() => {});
       }
-    } finally {
-      scheduling = false;
+    })().finally(() => {
+      scheduling = null;
       if (scheduleAgain) {
         scheduleAgain = false;
         kick();
       }
-    }
+    });
+    return scheduling;
   }
   async function invoke(method, params = {}) {
+    if (
+      [
+        'analysis_submit',
+        'analysis_submit_batch',
+        'analysis_external_start',
+        'analysis_retry',
+        'analysis_resume',
+      ].includes(method)
+    )
+      return admit(() => invokeNow(method, params));
+    return invokeNow(method, params);
+  }
+  async function invokeNow(method, params) {
     currentProject(params.projectId);
     await initialize(params.projectId);
     if (method === 'analysis_list' || method === 'analysis_get') {
@@ -1837,6 +1882,7 @@ function createAnalysisService({
       const key = (method === 'analysis_resume' ? 'resume:' : 'retry:') + params.operationId;
       const signature = digest({ jobId: job.id, instruction });
       const changed = await store.transact(params.projectId, (state) => {
+        assertOpen();
         const prior = own(state.operations, key);
         if (prior) {
           if (prior.jobId !== job.id || (prior.digest && prior.digest !== signature))
@@ -1892,14 +1938,15 @@ function createAnalysisService({
     scratch,
     gateway,
     callTool,
-    start: async () => {
-      const project = getProject();
-      if (project?.mode === 'local') await initialize(project.id);
-      kick();
-    },
-    hasWork: () => active.size > 0,
-    async close() {
-      if (closed) return;
+    start: () =>
+      admit(async () => {
+        const project = getProject();
+        if (project?.mode === 'local') await initialize(project.id);
+        kick();
+      }),
+    hasWork: () => active.size > 0 || admissions.size > 0 || scheduled || Boolean(scheduling),
+    close() {
+      if (closing) return closing;
       closed = true;
       for (const handle of active.values())
         handle.controller.abort(
@@ -1908,9 +1955,13 @@ function createAnalysisService({
             'O aplicativo foi encerrado. A tentativa foi preservada; repetir pode consumir uso adicional.',
           ),
         );
-      await Promise.allSettled([...active.values()].map((handle) => handle.promise));
-      await gateway.close();
-      await store.close();
+      closing = (async () => {
+        await Promise.allSettled([...admissions, scheduling]);
+        await Promise.allSettled([...active.values()].map((handle) => handle.promise));
+        await gateway.close();
+        await store.close();
+      })();
+      return closing;
     },
   };
 }

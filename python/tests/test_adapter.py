@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -179,6 +180,36 @@ class AdapterTests(unittest.TestCase):
         (self.corpus / "historic/new.tu.py").write_text("l = []\n", encoding="utf-8")
         untracked = repository_snapshot(self.corpus, CORPUS_ROOTS)
         self.assertNotEqual(edited["fingerprint"], untracked["fingerprint"])
+
+    def test_fingerprint_only_snapshot_skips_ui_metadata_and_keeps_exact_freshness(self):
+        from adapter import _git
+        def snapshots():
+            full = repository_snapshot(self.corpus, CORPUS_ROOTS)
+            with patch('adapter._git', wraps=_git) as commands:
+                content = repository_snapshot(self.corpus, CORPUS_ROOTS, metadata=False)
+            self.assertEqual(content, {key: value for key, value in full.items()
+                                      if key not in {'branch', 'dirty'}})
+            self.assertEqual([call.args[1:3] for call in commands.call_args_list],
+                             [('rev-parse', '--show-toplevel'), ('rev-parse', 'HEAD'), ('ls-files', '-z')])
+            return content['fingerprint']
+        before = snapshots()
+        # Same-size dirty edits are hashed, regardless of Git status or mtime.
+        self.source.write_text(self.source.read_text().replace('mysterious', 'mysterioUs'), encoding='utf-8')
+        edited = snapshots()
+        self.assertNotEqual(before, edited)
+        extra = self.corpus / 'historic/untracked.tu.py'
+        extra.write_text('l = []\n', encoding='utf-8')
+        untracked = snapshots()
+        self.assertNotEqual(edited, untracked)
+        extra.unlink()
+        self.assertEqual(snapshots(), edited)
+        self.source.unlink()
+        deleted = snapshots()
+        self.assertNotEqual(deleted, edited)
+        self.git(self.corpus, 'add', '.')
+        self.git(self.corpus, '-c', 'user.name=Studio Test', '-c', 'user.email=test@example.invalid',
+                 'commit', '--quiet', '-m', 'changed fixture')
+        self.assertNotEqual(snapshots(), deleted)
 
     def test_stale_fingerprint_rejected_before_engine_execution(self):
         adapter = self.adapter()

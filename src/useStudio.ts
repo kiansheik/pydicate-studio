@@ -166,16 +166,29 @@ export function useStudio() {
         return {
           projectId: current.project.id,
           engineFingerprint: current.project.engineFingerprint,
-          drafts: structureDrafts(current.project, current.envelope),
-          pendingContexts: pendingInsertionContexts(current.project, current.envelope),
+          // Most invokes need neither the reuse index nor pending namespaces.
+          // Read these only when the requested operation actually uses them.
+          get drafts() {
+            return structureDrafts(current.project, current.envelope);
+          },
+          get pendingContexts() {
+            return pendingInsertionContexts(current.project, current.envelope);
+          },
         };
       }),
     [],
   );
-  const structureWarmupKey =
-    ready && !busy && project.mode === 'local'
-      ? JSON.stringify([project.id, project.engineFingerprint, structureDrafts(project, envelope)])
-      : '';
+  const structureWarmupKey = useMemo(
+    () =>
+      ready && !busy && project.mode === 'local'
+        ? JSON.stringify([
+            project.id,
+            project.engineFingerprint,
+            structureDrafts(project, envelope),
+          ])
+        : '',
+    [ready, busy, project, envelope],
+  );
   useEffect(() => {
     if (!structureWarmupKey) return;
     const timer = setTimeout(() => {

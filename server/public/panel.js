@@ -146,6 +146,18 @@
     const report=element('div',undefined,section);
     async function showReport(days) {
       const data=await api.request('/api/admin/report?days='+days);report.replaceChildren();
+      const diagnostic=data.diagnostics,current=diagnostic?.current,latestWindow=diagnostic?.latestWindow;
+      element('h3','Desempenho do servidor',report);
+      const mib=value=>Number.isFinite(value)?(value/1048576).toFixed(0)+' MiB':'indisponível';
+      const gib=value=>Number.isFinite(value)?(value/1073741824).toFixed(1)+' GiB':'indisponível';
+      const ms=value=>Number.isFinite(value)?value.toFixed(1)+' ms':'indisponível';
+      if(current){
+        element('p',`Heap: ${mib(current.memory.heapUsedBytes)} de ${mib(current.memory.heapLimitBytes)} · RSS: ${mib(current.memory.rssBytes)}.`,report);
+        element('p',`Memória do contêiner: ${mib(current.cgroup.memoryCurrentBytes)} de ${current.cgroup.memoryUnlimited?'sem limite':mib(current.cgroup.memoryLimitBytes)} · event loop p95: ${ms(current.eventLoop.p95Ms)}.`,report);
+        element('p',`Disco do estado: ${gib(current.filesystem?.availableBytes)} livres de ${gib(current.filesystem?.totalBytes)}.`,report);
+        element('p',latestWindow?`Janela de ${new Date(latestWindow.at).toLocaleTimeString('pt-BR')}: ${latestWindow.totals.count} operações · p95 aproximado: ${ms(latestWindow.totals.p95Ms)} · maior espera na fila: ${ms(latestWindow.totals.maxQueueMs)}.`:'Aguardando a primeira janela de operações.',report);
+        element('p',`Amostra de ${new Date(current.at).toLocaleString('pt-BR')}. Diagnósticos: até ${diagnostic.retentionDays} dias e ${mib(diagnostic.maxBytes)}; gravação ${diagnostic.storageStatus==='ok'?'disponível':'indisponível'}.`,report);
+      }else element('p','Diagnósticos do servidor ainda indisponíveis.',report);
       element('h3',days===0?'Tempo ativo e contribuições — todo o histórico':'Tempo ativo e contribuições — 7 dias',report);
       const active=new Map((data.activeTime?.users??[]).map(user=>[user.userId,user]));
       const credited=new Map((data.contributions??[]).map(user=>[user.userId,user]));
@@ -161,7 +173,7 @@
       element('p',data.activeTime?.measurement??'',report);element('p',data.note,report);
       const details=element('details',undefined,report);element('summary','Detalhes por passagem e operação',details);element('pre',JSON.stringify(data,null,2),details);
     }
-    button('Relatório de atividade — 7 dias',async()=>showReport(7),section);
+    button('Atividade e desempenho — 7 dias',async()=>showReport(7),section);
     button('Tempo e créditos — todo o histórico',async()=>showReport(0),section);
     button('Exportar relatório — todo o histórico',async()=>api.download(await api.request('/api/admin/report?days=0'),'studio-usage-report.json'),section);
   }
