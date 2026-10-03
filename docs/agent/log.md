@@ -1,13 +1,18 @@
-## 2026-10-03 — Memory, responsiveness and operational diagnostics
+## 2026-10-03 — Deployed memory, search and bounded diagnostics fixes
 
-Matched the user's interrupted subtree repair to a V8 heap crash, reproduced
-large allocations with a private copy of real history, and removed eager whole-
-project duplication without changing its durable format. Added lifecycle race
-regressions, selected-target diagnostic boundaries, lazy draft search projection,
-on-demand morphology and capped numeric performance history/admin reporting.
-Local runtime298/domain292 checks and production build pass; recorded additional
-search profiling, hosted checks and rollout evidence in the
-[handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
+Matched the subtree repair interruption to V8 heap exhaustion; preserved all
+saved work while implementing compatible lazy history payloads, lifecycle
+admission fencing, scoped diagnostics, on-demand morphology and lazy draft
+projection. Exact-content guards remain; bounded lexical catalogs improve
+repeated live variable search from ~2.85s to ~0.64s. Added numeric operational
+history with seven-day/32MiB retention and authenticated admin visibility.
+
+Private release `9121153` is healthy on Hetzner after verified analysis/database
+backups and unchanged research parity (278 drafts,2,679 revisions,356 analysis
+files plus evidence/corpus/engine/provenance). GitHub publishing was rejected by
+automatic review; no push occurred. Local runtime/domain/hosted/portable Python
+and targeted real-corpus/browser checks pass. No provider attempt was resumed.
+See [handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
 
 ## 2026-10-02 — Contextual Portuguese builder recipes and unary controls
 

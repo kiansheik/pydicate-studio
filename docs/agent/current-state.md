@@ -1,15 +1,23 @@
 # Performance and interrupted subtree repairs (2026-10-03)
 
-Confirmed the live interruption was V8 heap exhaustion, not full disks: the
-container restarted exactly after the reported partial response. Implemented
-compatible lazy analysis payloads/shallow packing, shutdown admission fencing,
-correct selected/containing-tree diagnostics, demand-driven morphology and lazy
-draft search projection. Real copied-history mixed read/write work is about six
-times faster with roughly 66% less peak RSS. Bounded numeric server diagnostics
-now retain up to seven days/32MiB and are exposed in the existing admin report.
-Local tests and independent review pass; live rollout verification is recorded in
-the [handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
-No provider attempt or linguistic rule was changed during these checks.
+Live private release `912115346163bd0c125b55affffbbe38d6526715` fixes the observed
+V8 heap crash during analysis progress/history work. Compatible lazy payloads and
+shallow packing cut peak RSS roughly66% in the copied-history fixture. Admission
+fencing protects shutdown; target diagnostics distinguish isolated and containing
+trees; UI morphology is demand-driven and draft search projection is lazy.
+
+Exact-content freshness guards retain HEAD/path/content checks while omitting
+unused Git metadata. Bounded lexical catalogs reduce repeated live `ikó` search
+from ~2.85 s to ~0.64 s; tested render requests improve more modestly. Numeric
+memory/CPU/queue/event-loop/disk diagnostics now persist up to seven days/32MiB and
+appear in the existing admin report. Public health, authenticated probes, backup
+integrity and before/after research parity passed. No inference or grammar rule
+was changed; the interrupted repair remains saved for explicit resume.
+
+The isolated local branch is `fix/performance-history`. Automatic review blocked
+GitHub publication, so the tested bundle was deployed directly to the authorized
+Hetzner host; upstream main does not yet contain it. Full evidence and validation
+boundaries are in the [handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
 
 # Builder recipes and common unary controls (2026-10-02)
 
