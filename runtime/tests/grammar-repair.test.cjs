@@ -211,6 +211,113 @@ async function waitFor(fn) {
   throw new Error('Fixture did not finish');
 }
 
+test('a selected grammar repair recovers a reused PID and completes authenticated MCP editing', async (t) => {
+  const f = await fixture(t);
+  const discovery = path.join(f.engine, 'state/analysis/mcp/mcp-owner.json');
+  await fs.mkdir(path.dirname(discovery), { recursive: true });
+  await fs.writeFile(
+    discovery,
+    JSON.stringify({
+      version: 1,
+      pid: process.pid,
+      socketPath: path.join(os.tmpdir(), 'pydicate-mcp-stale' + process.pid, 'owner.sock'),
+      startedAt: '2026-10-03T13:02:48.605Z',
+      protocol: 'authenticated-local-mcp',
+    }),
+  );
+  let runs = 0;
+  const service = f.service(async ({ input, mcp }) => {
+    runs++;
+    assert.equal(input.scope, 'constituent');
+    assert.equal(input.raw, 'moro.var(1)');
+    assert.equal(input.grammarRepair.contextRaw, f.params.grammarRepair.raw);
+    const socket = require('node:net').createConnection(mcp.env.STUDIO_MCP_SOCKET);
+    let sequence = 0,
+      buffer = '';
+    const pending = new Map();
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      let end;
+      while ((end = buffer.indexOf('\n')) >= 0) {
+        const reply = JSON.parse(buffer.slice(0, end));
+        buffer = buffer.slice(end + 1);
+        pending.get(reply.id)?.(reply);
+        pending.delete(reply.id);
+      }
+    });
+    const rpc = (method, params) =>
+      new Promise((resolve, reject) => {
+        const id = ++sequence;
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error('Fixture MCP timeout'));
+        }, 5000);
+        pending.set(id, (result) => {
+          clearTimeout(timer);
+          resolve(result);
+        });
+        socket.write(
+          JSON.stringify({
+            token: mcp.env.STUDIO_MCP_TOKEN,
+            message: { jsonrpc: '2.0', id, method, params },
+          }) + '\n',
+        );
+      });
+    try {
+      await new Promise((resolve, reject) => {
+        socket.once('connect', resolve);
+        socket.once('error', reject);
+      });
+      assert.ok((await rpc('initialize', { protocolVersion: '2025-11-25' })).result);
+      const catalog = await rpc('tools/list', {});
+      assert.ok(catalog.result.tools.some((tool) => tool.name === 'grammar_edit'));
+      const read = await rpc('tools/call', {
+        name: 'grammar_read',
+        arguments: { path: 'tupi/tupi/verb.py' },
+      });
+      const file = read.result.structuredContent;
+      const edited = await rpc('tools/call', {
+        name: 'grammar_edit',
+        arguments: {
+          path: file.path,
+          expectedHash: file.hash,
+          oldText: 'mororerobiare',
+          newText: 'morerobiare',
+        },
+      });
+      assert.equal(edited.result.isError, undefined);
+      assert.equal(edited.result.structuredContent.verification.matches, true);
+      return { text: 'Fixture correction completed through authenticated MCP.' };
+    } finally {
+      socket.destroy();
+    }
+  });
+  const job = await service.invoke('analysis_submit', {
+    ...f.params,
+    grammarRepair: {
+      ...f.params.grammarRepair,
+      selectedNode: { id: 'left', start: 0, end: 11, code: 'moro.var(1)' },
+    },
+  });
+  const completed = await waitFor(async () => {
+    const { job: current } = await service.invoke('analysis_get', {
+      projectId: f.project.id,
+      jobId: job.id,
+    });
+    return (
+      ['needs-input', 'ready-for-review', 'failed', 'blocked'].includes(current.status) && current
+    );
+  });
+  assert.equal(completed.status, 'needs-input', completed.error?.message);
+  assert.equal(completed.grammarVerification.matches, true);
+  assert.equal(completed.grammarEdits.length, 1);
+  assert.equal(runs, 1);
+  assert.equal(
+    (await f.draftStore.load(f.project.id)).drafts[f.params.passageId].raw,
+    f.params.grammarRepair.raw,
+  );
+});
+
 test('capture uses the selected grammar and saved expression, preserves the intended form and rejects a stale dialog', async (t) => {
   const f = await fixture(t),
     job = await f.job();

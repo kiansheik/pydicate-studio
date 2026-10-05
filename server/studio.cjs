@@ -109,6 +109,16 @@ async function createStudio(config, store, emit = () => { }, diagnostics) {
         adoptProject: value => { project = validate.project(value); store.context = {projectId:project.id,engineFingerprint:project.engineFingerprint,appRelease:config.release||'development'}; },
         chooseFile: async () => pickedFile,
     });
+    // Prove the local authoring transport is usable before advertising health.
+    // Binding its socket starts no analysis, provider request or grammar edit.
+    if (config.aiEnabled) {
+        try { await service.analysis.gateway.start(); }
+        catch (error) {
+            try { await service.close(); }
+            finally { worker?.close(); }
+            throw error;
+        }
+    }
     const hasPassage = async (id) => {
         if (project.passages.some(p => p.id === id)) return true;
         const drafts = (await store.snapshot(project.id)).envelope?.drafts || {};

@@ -7,6 +7,56 @@ const { randomBytes, createHash } = require('node:crypto');
 const { StringDecoder } = require('node:string_decoder');
 const { MAX_PAYLOAD } = require('./scratch-service.cjs');
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
+// The hosted process owns server/start.cjs's kernel workspace lock. This queue
+// serializes gateways in that process; it is not a cross-process recovery lock.
+const profileOperations = new Map();
+function serialProfile(profile, action) {
+  const pending = (profileOperations.get(profile) ?? Promise.resolve())
+    .catch(() => {})
+    .then(action);
+  profileOperations.set(profile, pending);
+  return pending.finally(() => {
+    if (profileOperations.get(profile) === pending) profileOperations.delete(profile);
+  });
+}
+const gatewayError = (code, message) => Object.assign(new Error(message), { code });
+const closedError = () => gatewayError('MCP_CLOSED', 'O serviço de ferramentas foi encerrado.');
+function localEndpoint(value) {
+  if (typeof value !== 'string' || value.length > 1024 || value.includes('\0')) return false;
+  return process.platform === 'win32'
+    ? /^\\\\\.\\pipe\\pydicate-mcp-\d+-[a-f0-9]{32}$/.test(value)
+    : path.isAbsolute(value) &&
+        path.basename(value) === 'owner.sock' &&
+        /^pydicate-mcp-[A-Za-z0-9]+$/.test(path.basename(path.dirname(value)));
+}
+function ownerListening(endpoint) {
+  if (!localEndpoint(endpoint))
+    return Promise.reject(
+      gatewayError(
+        'OWNER_INVALID',
+        'O registro das ferramentas é inválido; foi preservado para revisão da administração.',
+      ),
+    );
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection(endpoint);
+    const finish = (reason, alive) => {
+      socket.destroy();
+      if (reason)
+        reject(
+          gatewayError(
+            'OWNER_UNVERIFIED',
+            'Não foi possível verificar o serviço de ferramentas existente; tente novamente ou avise a administração.',
+          ),
+        );
+      else resolve(alive);
+    };
+    socket.setTimeout(1000, () => finish(new Error('timeout')));
+    socket.once('connect', () => finish(null, true));
+    socket.once('error', (reason) =>
+      finish(['ENOENT', 'ECONNREFUSED'].includes(reason.code) ? null : reason, false),
+    );
+  });
+}
 function protocolError(id, code, message, data) {
   return { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data ? { data } : {}) } };
 }
@@ -40,69 +90,99 @@ function createStudioMcpGateway({
   isJobActive = async () => true,
 }) {
   const scopes = new Map(),
-    sockets = new Set();
+    sockets = new Set(),
+    pendingScopes = new Set(),
+    ownerId = randomBytes(32).toString('hex');
   let server,
     ownerDirectory,
     socketPath,
     startPromise,
+    profile,
+    closing,
+    closed = false,
     ownsDiscovery = false;
   const discoveryPath = path.join(stateDirectory, 'mcp-owner.json');
-  async function start() {
+  async function releaseOwner() {
+    for (const socket of sockets) socket.destroy();
+    if (server?.listening) await new Promise((resolve) => server.close(resolve));
+    if (ownerDirectory) await fs.rm(ownerDirectory, { recursive: true, force: true });
+    if (ownsDiscovery) {
+      try {
+        const current = JSON.parse(await fs.readFile(discoveryPath, 'utf8'));
+        // A failed/old gateway must never remove another gateway's marker.
+        if (current.ownerId === ownerId && current.socketPath === socketPath)
+          await fs.unlink(discoveryPath);
+      } catch (reason) {
+        if (reason.code !== 'ENOENT') throw reason;
+      }
+      ownsDiscovery = false;
+    }
+  }
+  function start() {
+    if (closed) return Promise.reject(closedError());
     if (startPromise) return startPromise;
     startPromise = (async () => {
       await fs.mkdir(stateDirectory, { recursive: true, mode: 0o700 });
-      try {
-        const previous = JSON.parse(await fs.readFile(discoveryPath, 'utf8'));
-        if (Number.isSafeInteger(previous.pid)) {
+      profile = await fs.realpath(stateDirectory);
+      return serialProfile(profile, async () => {
+        try {
+          if (closed) throw closedError();
           try {
-            process.kill(previous.pid, 0);
-            throw Object.assign(new Error('Another Studio MCP owner already holds this profile.'), {
-              code: 'OWNER_ACTIVE',
-            });
+            const previous = JSON.parse(await fs.readFile(discoveryPath, 'utf8'));
+            // PIDs repeat after container restarts. Only the bounded local endpoint
+            // can establish whether this discovery record still names a listener.
+            if (await ownerListening(previous.socketPath))
+              throw gatewayError(
+                'OWNER_ACTIVE',
+                'Outro serviço do Studio já está usando estas ferramentas. Aguarde ou avise a administração.',
+              );
+            if (closed) throw closedError();
+            await fs.unlink(discoveryPath);
           } catch (error) {
-            if (error.code !== 'ESRCH') throw error;
+            if (error.code !== 'ENOENT') throw error;
           }
+          if (closed) throw closedError();
+          ownerDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'pydicate-mcp-'));
+          await fs.chmod(ownerDirectory, 0o700);
+          // Windows IPC endpoints are named pipes rather than filesystem sockets.
+          // The random name is only an address: every request still requires the
+          // existing per-attempt authentication token.
+          socketPath =
+            process.platform === 'win32'
+              ? `\\\\.\\pipe\\pydicate-mcp-${process.pid}-${randomBytes(16).toString('hex')}`
+              : path.join(ownerDirectory, 'owner.sock');
+          server = net.createServer(onConnection);
+          await new Promise((resolve, reject) => {
+            server.once('error', reject);
+            server.listen(socketPath, resolve);
+          });
+          if (process.platform !== 'win32') await fs.chmod(socketPath, 0o600);
+          if (closed) throw closedError();
+          await fs.writeFile(
+            discoveryPath,
+            JSON.stringify({
+              version: 1,
+              pid: process.pid,
+              ownerId,
+              socketPath,
+              startedAt: new Date().toISOString(),
+              protocol: 'authenticated-local-mcp',
+              scopesDirectory: path.join(stateDirectory, 'mcp-scopes'),
+            }),
+            { flag: 'wx', mode: 0o600 },
+          );
+          ownsDiscovery = true;
+          if (closed) throw closedError();
+          return { discoveryPath, socketPath };
+        } catch (error) {
+          await releaseOwner();
+          throw error;
         }
-        await fs.unlink(discoveryPath);
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-      ownerDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'pydicate-mcp-'));
-      await fs.chmod(ownerDirectory, 0o700);
-      // Windows IPC endpoints are named pipes rather than filesystem sockets.
-      // The random name is only an address: every request still requires the
-      // existing per-attempt authentication token.
-      socketPath =
-        process.platform === 'win32'
-          ? `\\\\.\\pipe\\pydicate-mcp-${process.pid}-${randomBytes(16).toString('hex')}`
-          : path.join(ownerDirectory, 'owner.sock');
-      server = net.createServer(onConnection);
-      await new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(socketPath, resolve);
       });
-      if (process.platform !== 'win32') await fs.chmod(socketPath, 0o600);
-      try {
-        await fs.writeFile(
-          discoveryPath,
-          JSON.stringify({
-            version: 1,
-            pid: process.pid,
-            socketPath,
-            startedAt: new Date().toISOString(),
-            protocol: 'authenticated-local-mcp',
-            scopesDirectory: path.join(stateDirectory, 'mcp-scopes'),
-          }),
-          { flag: 'wx', mode: 0o600 },
-        );
-        ownsDiscovery = true;
-      } catch (error) {
-        server.close();
-        await fs.rm(ownerDirectory, { recursive: true, force: true });
-        throw error;
-      }
-      return { discoveryPath, socketPath };
-    })();
+    })().catch((reason) => {
+      startPromise = undefined;
+      throw reason;
+    });
     return startPromise;
   }
   function onConnection(socket) {
@@ -321,8 +401,20 @@ function createStudioMcpGateway({
       }
     }
   }
-  async function openScope({ jobId, attemptId, expiresInMs = 30 * 60_000, untilClosed = false }) {
+  function openScope(params) {
+    if (closed) return Promise.reject(closedError());
+    const pending = prepareScope(params);
+    pendingScopes.add(pending);
+    return pending.finally(() => pendingScopes.delete(pending));
+  }
+  async function prepareScope({
+    jobId,
+    attemptId,
+    expiresInMs = 30 * 60_000,
+    untilClosed = false,
+  }) {
     await start();
+    if (closed) throw closedError();
     if (typeof jobId !== 'string' || typeof attemptId !== 'string' || !jobId || !attemptId)
       throw new Error('A job and execution attempt are required for MCP.');
     if (!(await isJobActive(jobId, attemptId)))
@@ -342,7 +434,6 @@ function createStudioMcpGateway({
       inFlight: 0,
       idleWaiters: new Set(),
     };
-    scopes.set(token, scope);
     const directory = path.join(stateDirectory, 'mcp-scopes');
     await fs.mkdir(directory, { recursive: true, mode: 0o700 });
     const configPath = path.join(
@@ -393,6 +484,11 @@ function createStudioMcpGateway({
       await fs.rm(configPath, { force: true });
     };
     scope.revoke = revoke;
+    if (closed) {
+      await revoke();
+      throw closedError();
+    }
+    scopes.set(token, scope);
     return {
       ...descriptor,
       close: revoke,
@@ -403,15 +499,19 @@ function createStudioMcpGateway({
           : new Promise((resolve) => scope.idleWaiters.add(resolve)),
     };
   }
-  async function close() {
-    for (const scope of [...scopes.values()]) await scope.revoke();
-    for (const socket of sockets) socket.destroy();
-    if (server?.listening) await new Promise((resolve) => server.close(resolve));
-    if (ownerDirectory) await fs.rm(ownerDirectory, { recursive: true, force: true });
-    if (ownsDiscovery) {
-      await fs.rm(discoveryPath, { force: true });
-      ownsDiscovery = false;
-    }
+  function close() {
+    if (closing) return closing;
+    closed = true;
+    closing = (async () => {
+      await Promise.allSettled([startPromise, ...pendingScopes]);
+      const release = async () => {
+        for (const scope of [...scopes.values()]) await scope.revoke();
+        await releaseOwner();
+      };
+      if (profile) await serialProfile(profile, release);
+      else await release();
+    })();
+    return closing;
   }
   return { start, openScope, close, discoveryPath };
 }

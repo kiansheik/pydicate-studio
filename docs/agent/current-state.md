@@ -1,3 +1,17 @@
+# MCP owner recovery (2026-10-05)
+
+The latest grammar repair failed because an October3 discovery file survived the
+crash and its PID was reused by the replacement server, although its socket was
+gone. This is not an admin permission failure. Gateway startup now verifies the
+bounded local endpoint, retries failed initialization, preserves real owners and
+serializes lifecycle cleanup. AI-enabled hosted startup checks this transport
+before reporting healthy, without starting inference.
+
+Provider-free tests cover a selected grammar edit through actual authenticated
+MCP after stale-PID recovery. Research and the saved request remain intact; no
+linguistic rule is changed by these fixes. See the
+[handoff](session-handoffs/2026-10-05-mcp-owner-recovery.md) for tests and rollout.
+
 # Performance and interrupted subtree repairs (2026-10-03)
 
 Live private release `912115346163bd0c125b55affffbbe38d6526715` fixes the observed

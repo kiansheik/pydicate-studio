@@ -1,3 +1,13 @@
+## 2026-10-05 — Stale MCP discovery and reliable hosted readiness
+
+Matched OWNER_ACTIVE to a pre-crash discovery record whose PID15 was reused but
+whose socket no longer existed. Fixed bounded endpoint recovery, rejected-start
+retry and owner-checked lifecycle cleanup. Hosted AI readiness now exercises the
+actual gateway before health succeeds. Added provider-free authenticated selected
+grammar repair and startup/race regressions. Preserved earlier performance code
+and the failed saved correction; no linguistic rule or provider request changed.
+See [handoff](session-handoffs/2026-10-05-mcp-owner-recovery.md).
+
 ## 2026-10-03 — Deployed memory, search and bounded diagnostics fixes
 
 Matched the subtree repair interruption to V8 heap exhaustion; preserved all
