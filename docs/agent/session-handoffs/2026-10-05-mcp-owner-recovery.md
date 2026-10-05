@@ -83,7 +83,36 @@ was introduced.
 
 ## Remaining questions / next prompt
 
-Record protected private deployment, fresh live owner/socket readiness and exact
-before/after research parity. Suggested next prompt: “Resume the saved correction
+The protected private deployment, live socket readiness and research parity
+passed. The original failed attempt remains historical until explicitly resumed.
+Suggested next prompt: “Resume the saved correction
 in Studio and inspect its checked rule change and target result.” Do not trigger
 that inference implicitly while verifying this infrastructure fix.
+
+
+## Verified live rollout
+
+Private local branch `fix/mcp-owner-recovery` contains code release
+`5ce7a309b32b56eca014ca0a0676c9bcd4b56d82`, deployed directly to the existing
+Hetzner server from a verified Git bundle (no GitHub push). Light rollout took
+41.9 seconds; the server-side production build and health check passed.
+
+The stale discovery record and complete analysis archive are preserved in
+`light-backups/owner-recovery-20261005T142124-87a4b8/`; the database checkpoint is
+`light-backups/20261005T142153-a1af1a/`. Before/after parity found no differences
+in nine research database tables (278 drafts, 2,682 revisions), all 357 analysis
+record/payload files, 614 provenance files, seven evidence files and 147 inspected
+corpus/engine files. No research pruning, dependency sync or credential change.
+
+Actual application startup created the new owner at 2026-10-05 14:21:55.733 UTC,
+again PID15, with a new random owner identity and discovery mode0600. A direct
+connection to its actual live socket returned the expected authentication
+rejection (-32001) for an invalid token, proving that startup/listening works
+without granting an unscoped client access. Public/application health identifies
+the exact release. The positive authenticated read/edit/check path was verified
+against disposable fixtures, without production inference.
+
+The user's saved job still has exactly one failed attempt, zero grammar edits and
+its historical OWNER_ACTIVE error; no attempt was silently resumed. Refreshing
+Studio and using Retomar análise reuses that saved request through the now-ready
+owner. The `ba'e`/`sara` linguistic change itself has not been applied by this task.

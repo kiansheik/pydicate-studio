@@ -6,6 +6,10 @@ retry and owner-checked lifecycle cleanup. Hosted AI readiness now exercises the
 actual gateway before health succeeds. Added provider-free authenticated selected
 grammar repair and startup/race regressions. Preserved earlier performance code
 and the failed saved correction; no linguistic rule or provider request changed.
+Deployed private code release `5ce7a30`: production build, fresh actual gateway
+readiness/authentication rejection and research parity passed. Runtime308 and
+hosted132 tests pass; ten conditional hosted scenarios were skipped. The saved
+failed attempt remains historical for explicit resume. No GitHub push.
 See [handoff](session-handoffs/2026-10-05-mcp-owner-recovery.md).
 
 ## 2026-10-03 — Deployed memory, search and bounded diagnostics fixes
