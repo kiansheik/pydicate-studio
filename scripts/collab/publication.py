@@ -86,7 +86,12 @@ def collect(host, name, dest, review_sha='', publish_current=False):
                 head = run([*safe, '-c', 'user.name=Pydicate Studio', '-c', 'user.email=studio@academiatupi.com',
                             'commit-tree', tree, '-p', head], data=message.encode(), capture=True).decode().strip()
             # No checkout/reset: changes saved after capture remain working edits.
-            index.replace(index_lock)
+            # Exports can live on a separate volume. Fill our exclusively held
+            # lock on the repository filesystem; only the final install renames.
+            with index.open('rb') as source, index_lock.open('wb') as target:
+                shutil.copyfileobj(source, target)
+                target.flush()
+                os.fsync(target.fileno())
             recovery = dest / 'git-recovery.json'
             write_json(recovery, {'oldHead': manifest['head'], 'newHead': head, 'indexLock': str(index_lock),
                                   'note': 'If interrupted, inspect ref and index before resuming Git operations.'})

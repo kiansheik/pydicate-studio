@@ -1,3 +1,12 @@
+# Publication across volumes (2026-10-08)
+
+Publication now fills its exclusive repository index lock by copy/fsync before
+the same-filesystem atomic install. Manifest scanning compares upstream to index
+and index to working files using a private timestamp-preserving index copy,
+avoiding the live Git 2.43 sparse-worktree crash and metadata writes.
+Live read-only probes succeed for both repositories. Deployment validation is
+recorded in the [handoff](session-handoffs/2026-10-08-publication-volumes.md).
+
 # MCP owner recovery (2026-10-05)
 
 Live private release `5ce7a309b32b56eca014ca0a0676c9bcd4b56d82` is deployed and
@@ -56,9 +65,31 @@ existing stale-context guarded evaluator and never modify a draft.
 Portable documentation is [construction-cheatsheet.md](../construction-cheatsheet.md),
 generated from the in-app data; recipe and interaction checks plus provenance
 are recorded in the [handoff](session-handoffs/2026-10-02-builder-cheatsheet.md).
-The prior grammar workflow and server-only changes are merged on main but the
-live app remains `85ddedd`. No deployment occurred: legacy pruning can delete
-research provenance and approval to skip it is still pending with the parent.
+PR20 is merged; main and the healthy live app are now
+`921b502fd076e86f9a44ea4836e4b93c458ec298`, whose tree equals tested feature
+commit `cc958a4`. Exact-main Checks and hosted CI both completed successfully.
+The full deployment includes the surgical grammar workflow and server-only
+runtime extraction. The user authorized skipping legacy pruning for this rollout;
+no research archives, images or backups were pruned and credentials were retained.
+
+Stopped full backup `manual-main-guide-20261002T232050-e89c57` includes database,
+workspace/config/data, import provenance and the complete analysis records
+directory. Manifest hashes, exact record round-trip and readable database dump
+were verified. After rollout and example checks, all 181 corpus files, 157 engine
+files and 614 provenance files match the deployment report, including dirty work.
+
+The one-time wrapper's post-deploy root `git status` refreshed both `.git/index`
+files to root:root 0600, causing the user's guide Git128 error. The existing
+23:30 UTC upstream check restored application ownership through `workspace_writes`;
+our guarded repair correctly made no mutation after finding ownership restored.
+Both private verification scripts now set `GIT_OPTIONAL_LOCKS=0`. Node-user Git
+reads and two actual guarded evaluator calls now succeed: `abé * ybaka * yby * abá`
+produces `ybaka yby abá abé` in 0.871/0.851 seconds with no providers; stale-engine
+rejection remains intact. Public health and container identity match the release.
+The live browser's successful retry still needs observation in the user's cloud
+session; reopening the guide remounts an example preview after the earlier error.
+
+Earlier review/deployment notes below are historical checkpoints.
 
 # Current state
 

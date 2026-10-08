@@ -1,3 +1,11 @@
+## 2026-10-08 — Publication index and sparse Git failures
+
+Fixed EXDEV after exports moved to a separate volume; preserve the exclusive
+index lock and ref rollback. Avoid a reproducible Git 2.43 sparse-worktree crash
+by scanning through a private index with its original timestamp. Added cross-volume,
+rename deletion, copy failure and live-index preservation regression coverage.
+See [handoff](session-handoffs/2026-10-08-publication-volumes.md).
+
 ## 2026-10-05 — Stale MCP discovery and reliable hosted readiness
 
 Matched OWNER_ACTIVE to a pre-crash discovery record whose PID15 was reused but
@@ -27,6 +35,24 @@ files plus evidence/corpus/engine/provenance). GitHub publishing was rejected by
 automatic review; no push occurred. Local runtime/domain/hosted/portable Python
 and targeted real-corpus/browser checks pass. No provider attempt was resumed.
 See [handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
+
+## 2026-10-02 — Full preserved rollout and guide evaluator recovery
+
+PR20 merged into main `921b502`; exact-main Checks and hosted gates completed
+successfully. Deployed the full image using existing Host operations with the
+explicitly authorized one-time prune skip. Verified stopped backup
+`manual-main-guide-20261002T232050-e89c57`, full analysis-record archive parity and
+readable database dump. Source identities/dirty status and all 181 corpus,
+157 engine and 614 provenance file hashes remain unchanged; existing configuration
+metadata retained. Public `/healthz` and container are healthy at the exact SHA.
+
+Our wrapper's post-deploy root Git status refreshed indices to root-only ownership,
+causing the reported guide evaluator Git128 error. The existing 23:30 UTC updater
+restored ownership; guarded repair declined to change already-correct files.
+Private verification scripts now disable optional Git index writes. Actual deployed
+guarded evaluator repeats produce `ybaka yby abá abé` in 0.871/0.851 seconds,
+reject stale context and make zero provider calls. Successful cloud-browser retry
+remains to be observed. See [handoff](session-handoffs/2026-10-02-builder-cheatsheet.md).
 
 ## 2026-10-02 — Contextual Portuguese builder recipes and unary controls
 
