@@ -618,7 +618,10 @@
   stroke: var(--canvas-coreference);
   stroke-width: 1.6;
   stroke-dasharray: 6 5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
+.canvas-coreference-link polygon,
 .canvas-coreference-link circle {
   fill: var(--canvas-coreference);
 }
@@ -633,18 +636,25 @@
   stroke: var(--tree-canvas);
   stroke-width: 5px;
 }
+.canvas-coreference-origin {
+  fill: var(--tree-canvas) !important;
+  stroke: var(--canvas-coreference);
+  stroke-width: 1.6;
+}
 .canvas-coreference-hit {
-  fill: transparent;
+  fill: var(--tree-canvas);
+  stroke: var(--canvas-coreference);
+  stroke-width: 1;
   pointer-events: all;
 }
-.canvas-coreference-link.is-external[role='link'] {
+.canvas-coreference-chip[role='link'] {
   cursor: pointer;
 }
-.canvas-coreference-link.is-external[role='link']:hover text,
-.canvas-coreference-link.is-external[role='link']:focus-visible text {
+.canvas-coreference-chip[role='link']:hover text,
+.canvas-coreference-chip[role='link']:focus-visible text {
   text-decoration: underline;
 }
-.canvas-coreference-link.is-external:focus-visible {
+.canvas-coreference-chip:focus-visible {
   outline: none;
 }
 .canvas-coreference-link.is-missing path,

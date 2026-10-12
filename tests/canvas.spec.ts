@@ -3165,29 +3165,21 @@ test('a referential third-person pronoun anchors its antecedent, draws the link 
   const raw = 'ikó * ae';
   await openCanvas(page, raw);
   const initial = await page.evaluate(() => window.canvasSnapshot);
-  await menu(page, 'main:root', 'Criar pronome de 3ª pessoa referencial desta estrutura…');
-  const dialog = page.getByRole('dialog', { name: 'Criar pronome referencial', exact: true });
-  const label = dialog.getByRole('textbox', { name: /Rótulo do antecedente/ });
-  await expect(label).toHaveValue('ikó');
-  await label.fill('two words');
-  await expect(dialog.getByRole('alert')).toContainText('sem espaços');
-  await label.fill('oiko');
-  await dialog.getByRole('button', { name: 'Criar pronome', exact: true }).click();
+  await menu(page, 'main:root', 'Criar pronome de 3ª pessoa referencial desta estrutura');
+  await expect(page.getByRole('dialog', { name: 'Criar pronome referencial' })).toHaveCount(0);
   await ready(page);
-  await expect(page.locator('#canvas-raw')).toHaveText('(studio_anchor(ikó * ae, "oiko"))');
+  await expect(page.locator('#canvas-raw')).toHaveText('(studio_anchor(ikó * ae, "ikó"))');
   const [fragment] = (await page.evaluate(() => window.canvasSnapshot)).canvas.fragments;
-  expect(fragment.raw).toBe('studio_ref(+ae, "oiko")');
-  await expect(card(page, 'main:root').locator('.canvas-coreference-badge')).toContainText(
-    '⚑ oiko',
-  );
+  expect(fragment.raw).toBe('studio_ref(+ae, "ikó")');
+  await expect(card(page, 'main:root').locator('.canvas-coreference-badge')).toContainText('⚑');
   const pronoun = card(page, `${fragment.id}:root`);
-  await expect(pronoun.locator('.canvas-coreference-badge')).toContainText('↩ oiko');
+  await expect(pronoun.locator('.canvas-coreference-badge')).toContainText('↩');
   // The wrapper is an annotation, not another tree level: the loose piece's
   // root is the +ae operation and it realizes exactly like plain +ae.
   await expect(card(page, `${fragment.id}:root/arg0`)).toHaveCount(0);
   await expect(svg(page).locator('.canvas-coreference-link')).toHaveCount(1);
   await expect(svg(page).locator('.canvas-coreference-link.is-external')).toHaveCount(0);
-  await menu(page, `${fragment.id}:root`, 'Ir ao antecedente oiko');
+  await menu(page, `${fragment.id}:root`, 'Ir ao antecedente');
   await expect(node(page, 'main:root')).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
   await ready(page);
@@ -3215,16 +3207,126 @@ test('an existing pronoun links to an antecedent in another passage and can be u
   )) as string;
   await menu(page, `main:${pronoun}`, 'Ligar a um antecedente…');
   const dialog = page.getByRole('dialog', { name: 'Ligar a um antecedente', exact: true });
-  await expect(dialog.getByRole('radio', { name: /teko · passagem 12/ })).toBeChecked();
+  await expect(
+    dialog.getByRole('radio', { name: /tekokatuetérerekoara oemimotarybo · passagem 12/ }),
+  ).toBeChecked();
+  await expect(dialog).not.toContainText('teko ·');
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Ligar', exact: true }).click();
   await ready(page);
   await expect(page.locator('#canvas-raw')).toHaveText('ikó * (studio_ref(+ae, "teko"))');
-  const chip = svg(page).getByRole('link', { name: 'Abrir antecedente teko na passagem 12' });
-  await expect(chip).toContainText('↗ teko · passagem 12');
+  const chip = svg(page).getByRole('link', { name: 'Abrir antecedente na passagem 12' });
+  await expect(chip).toContainText('↗ Antecedente · passagem 12');
+  await svg(page).screenshot({ path: '.local/coreference-external.png' });
   await chip.click();
   expect(await page.evaluate(() => window.canvasOpenedPassage)).toBe('passage-12');
   await menu(page, `main:${pronoun}`, 'Desfazer ligação ao antecedente');
   await ready(page);
   await expect(page.locator('#canvas-raw')).toHaveText('ikó * ((+ae))');
   await expect(svg(page).locator('.canvas-coreference-link')).toHaveCount(0);
+});
+
+test('automatic antecedent identifiers avoid work links and reuse an existing anchor', async ({
+  page,
+}) => {
+  await openCanvas(page, 'ikó * ae', undefined, false, undefined, {
+    workCoreferences: [
+      {
+        role: 'anchor',
+        label: 'ikó',
+        passageId: 'p12',
+        ordinal: 12,
+        title: 'Passagem 12',
+        text: 'outro antecedente',
+      },
+      {
+        role: 'reference',
+        label: 'ikó2',
+        passageId: 'p13',
+        ordinal: 13,
+        title: 'Passagem 13',
+        text: 'referência sem antecedente',
+      },
+    ],
+  });
+  await menu(page, 'main:root', 'Criar pronome de 3ª pessoa referencial desta estrutura');
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('(studio_anchor(ikó * ae, "ikó3"))');
+  const first = await page.evaluate(() => window.canvasSnapshot);
+  expect(first.canvas.fragments[0].raw).toBe('studio_ref(+ae, "ikó3")');
+  await expect(card(page, 'main:root').locator('.canvas-coreference-badge')).not.toContainText(
+    'ikó3',
+  );
+  await menu(page, 'main:root', 'Criar pronome de 3ª pessoa referencial desta estrutura');
+  await ready(page);
+  const next = await page.evaluate(() => window.canvasSnapshot);
+  expect(next.raw).toBe(first.raw);
+  expect(next.canvas.fragments.map((piece) => piece.raw)).toEqual([
+    'studio_ref(+ae, "ikó3")',
+    'studio_ref(+ae, "ikó3")',
+  ]);
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(first);
+});
+
+test('referential links attach to visible cards and avoid intervening nodes after a move', async ({
+  page,
+}) => {
+  const raw = 'studio_anchor(ikó * ae, "private_anchor")';
+  const canvas: CanvasState = {
+    fragments: [
+      { id: 'pronoun', raw: 'studio_ref(+ae, "private_anchor")', x: 850, y: 100 },
+      { id: 'blocker', raw: 'abá', x: 380, y: 70 },
+    ],
+    positions: { 'main:root': { x: 0, y: 100 } },
+  };
+  await openCanvas(page, raw, canvas);
+  const path = svg(page).locator('[data-coreference-route]');
+  await expect(path).toHaveCount(1);
+  const check = async () => {
+    const collisions = await svg(page).evaluate((element) => {
+      const route = element.querySelector<SVGPathElement>('[data-coreference-route]')!;
+      const rects = [...element.querySelectorAll<SVGRectElement>('.runtime-node-body')].map(
+        (rect) => rect.getBoundingClientRect(),
+      );
+      const matrix = route.getScreenCTM()!;
+      const length = route.getTotalLength();
+      let collisions = 0;
+      for (let distance = 1; distance < length - 1; distance += 2) {
+        const point = route.getPointAtLength(distance);
+        const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        if (
+          rects.some(
+            (rect) =>
+              screen.x > rect.left + 1 &&
+              screen.x < rect.right - 1 &&
+              screen.y > rect.top + 1 &&
+              screen.y < rect.bottom - 1,
+          )
+        )
+          collisions++;
+      }
+      return collisions;
+    });
+    expect(collisions).toBe(0);
+  };
+  await check();
+  expect(await card(page, 'main:root').locator('title').allTextContents()).not.toEqual(
+    expect.arrayContaining([expect.stringContaining('private_anchor')]),
+  );
+  await svg(page).screenshot({ path: '.local/coreference-route-before.png' });
+  const before = await path.getAttribute('d');
+  const start = await center(node(page, 'pronoun:root'));
+  const destination = await blankCanvasPoint(page);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(destination.x, destination.y, { steps: 8 });
+  await expect(path).not.toHaveAttribute('d', before!);
+  await check();
+  await page.mouse.up();
+  await ready(page);
+  await expect(path).not.toHaveAttribute('d', before!);
+  await check();
+  await svg(page).screenshot({ path: '.local/coreference-route-after.png' });
 });

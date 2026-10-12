@@ -1,3 +1,13 @@
+# Hidden pronoun IDs and routed links (2026-10-12)
+
+Pronoun creation is immediate and generates a unique internal identifier.
+Badges, menus, picker, inspector and ordinary tooltips hide it. Existing source
+IDs remain compatible. Dashed links attach to visible cards/pills and route
+around node/label/control envelopes, including live drag positions; external
+chips occupy a separate lane with their own click target. Build and focused
+checks pass; rollout verification is pending. See the
+[handoff](session-handoffs/2026-10-12-coreference-ui-routing.md).
+
 # Referential pronoun release candidate (2026-10-12)
 
 App-only candidate based on live `7bd59ae`; transparent `studio_anchor` /
