@@ -3341,7 +3341,7 @@ test('referential links attach to visible cards and avoid intervening nodes afte
   await svg(page).screenshot({ path: '.local/coreference-route-after.png' });
 });
 
-test('the real saved 38-node tree has a compact phrase-to-phrase link on first render', async ({
+test('the real saved 38-node tree preserves positions and draws a compact phrase-to-phrase link', async ({
   page,
 }) => {
   const parsed = run('parse_expression', { raw: realCoreferenceTree.raw }).root as AuthorNode;
