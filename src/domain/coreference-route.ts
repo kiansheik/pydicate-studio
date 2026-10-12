@@ -4,13 +4,19 @@ export interface LinkPoint {
   x: number;
   y: number;
 }
+export interface LinkRect extends LinkPoint {
+  width: number;
+  height: number;
+}
 export interface LinkCard extends LinkPoint {
   id: string;
   width: number;
   height: number;
   topSpace?: number;
-  /** Operation pills sit inside a larger envelope of labels/results. */
-  body?: { x: number; y: number; width: number; height: number };
+  /** Prefer the rendered phrase result as the link endpoint. */
+  body?: LinkRect;
+  /** Separate visible parts leave empty space between a pill and its result usable. */
+  obstacles?: LinkRect[];
 }
 interface Box {
   left: number;
@@ -94,32 +100,87 @@ export function routeCoreference(
   const source = cards.find((card) => card.id === sourceId),
     target = cards.find((card) => card.id === targetId);
   if (!source || !target || sourceId === targetId) return null;
-  const boxes = cards.map((card) => ({
-    left: card.x - clearance,
-    right: card.x + card.width + 30 + clearance,
-    top: card.y - (card.topSpace ?? 36) - clearance,
-    bottom: card.y + card.height + clearance,
-  }));
+  const boxes = cards.flatMap((card) => {
+    const body = card.body ?? card;
+    const parts = card.obstacles ?? [
+      {
+        x: card.x,
+        y: card.y - (card.topSpace ?? 36),
+        width: card.width + 30,
+        height: card.height + (card.topSpace ?? 36),
+      },
+    ];
+    return parts
+      .filter(
+        (part) =>
+          !parts.some(
+            (other) =>
+              other !== part &&
+              (other.width > part.width + 0.01 || other.height > part.height + 0.01) &&
+              part.x >= other.x - 0.01 &&
+              part.y >= other.y - 0.01 &&
+              part.x + part.width <= other.x + other.width + 0.01 &&
+              part.y + part.height <= other.y + other.height + 0.01,
+          ),
+      )
+      .map((part) => ({
+        left: part.x - clearance,
+        right: part.x + part.width + clearance,
+        top: part.y - clearance,
+        bottom: part.y + part.height + clearance,
+        owner: card.id,
+        endpoint:
+          !card.obstacles ||
+          (Math.abs(part.x - body.x) < 0.01 &&
+            Math.abs(part.y - body.y) < 0.01 &&
+            Math.abs(part.width - body.width) < 0.01 &&
+            Math.abs(part.height - body.height) < 0.01),
+      }));
+  });
+  const distance = (a: LinkPoint, b: LinkPoint) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
   const ports = (card: LinkCard) => {
     const body = card.body ?? card;
+    const lead = clearance + 8;
+    const bounds = card.obstacles
+      ? {
+          left: body.x - lead,
+          right: body.x + body.width + lead,
+          top: body.y - lead,
+          bottom: body.y + body.height + lead,
+        }
+      : {
+          left: card.x - lead,
+          right: card.x + card.width + 30 + lead,
+          top: card.y - (card.topSpace ?? 36) - lead,
+          bottom: card.y + card.height + lead,
+        };
     const candidates = [
       {
         point: { x: body.x, y: body.y + body.height / 2 },
-        escape: { x: card.x - clearance, y: body.y + body.height / 2 },
+        escape: { x: bounds.left, y: body.y + body.height / 2 },
         direction: 0,
       },
-    ];
-    // Going below an operation pill would cross its displayed result.
-    if (!card.body)
-      candidates.push({
-        point: { x: card.x + card.width / 2, y: card.y + card.height },
-        escape: { x: card.x + card.width / 2, y: card.y + card.height + clearance },
+      {
+        point: { x: body.x + body.width, y: body.y + body.height / 2 },
+        escape: { x: bounds.right, y: body.y + body.height / 2 },
+        direction: 0,
+      },
+      {
+        point: { x: body.x + body.width / 2, y: body.y },
+        escape: { x: body.x + body.width / 2, y: bounds.top },
         direction: 1,
-      });
+      },
+      {
+        point: { x: body.x + body.width / 2, y: body.y + body.height },
+        escape: { x: body.x + body.width / 2, y: bounds.bottom },
+        direction: 1,
+      },
+    ];
     return candidates.filter(
       (port) =>
         !boxes.some(
-          (box, index) => cards[index].id !== card.id && crosses(port.point, port.escape, box),
+          (box) =>
+            !(box.owner === card.id && box.endpoint) && crosses(port.point, port.escape, box),
         ) &&
         !boxes.some(
           (box) =>
@@ -163,9 +224,11 @@ export function routeCoreference(
   const startPorts = new Map<number, (typeof starts)[number]>();
   for (const port of starts) {
     const state = index(port.escape) * 2 + port.direction;
-    costs.set(state, clearance);
+    const cost = distance(port.point, port.escape);
+    if (cost >= (costs.get(state) ?? Infinity)) continue;
+    costs.set(state, cost);
     startPorts.set(state, port);
-    queue.push({ state, cost: clearance, priority: clearance + heuristic(port.escape) });
+    queue.push({ state, cost, priority: cost + heuristic(port.escape) });
   }
   const clearEdges = new Map<string, boolean>();
   let best: { state: number; cost: number; end: (typeof ends)[number] } | undefined;
@@ -178,7 +241,8 @@ export function routeCoreference(
       from = point(cell);
     const end = goals.get(cell);
     if (end) {
-      const cost = item.cost + clearance + (direction === end.direction ? 0 : 18);
+      const cost =
+        item.cost + distance(end.point, end.escape) + (direction === end.direction ? 0 : 18);
       if (!best || cost < best.cost) best = { state: item.state, cost, end };
     }
     const x = cell % nx,
@@ -219,5 +283,28 @@ export function routeCoreference(
   return simplify(route.reverse());
 }
 export function coreferencePath(points: LinkPoint[]) {
-  return points.map((p, index) => `${index ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
+  if (!points.length) return '';
+  let path = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const before = points[i - 1],
+      corner = points[i],
+      after = points[i + 1];
+    // Stay inside the router's clearance: curves never cut through a visible box.
+    const radius = Math.min(
+      8,
+      Math.hypot(corner.x - before.x, corner.y - before.y) / 2,
+      Math.hypot(after.x - corner.x, after.y - corner.y) / 2,
+    );
+    const entry = {
+      x: corner.x - Math.sign(corner.x - before.x) * radius,
+      y: corner.y - Math.sign(corner.y - before.y) * radius,
+    };
+    const exit = {
+      x: corner.x + Math.sign(after.x - corner.x) * radius,
+      y: corner.y + Math.sign(after.y - corner.y) * radius,
+    };
+    path += ` L ${entry.x} ${entry.y} Q ${corner.x} ${corner.y} ${exit.x} ${exit.y}`;
+  }
+  const end = points[points.length - 1];
+  return path + ` L ${end.x} ${end.y}`;
 }

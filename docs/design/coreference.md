@@ -52,14 +52,17 @@ analysis prompt explains that a reference stands for its antecedent.
   de antecedente** act on the exact wrapper and preserve meaning wrappers.
   Removing an anchor that is still referenced leaves those pronouns without an
   antecedent and says so.
-- Small **⚑** and **↩** badges beside the card mark antecedents and references;
-  tooltips name their roles. Their placement avoids the incoming tree edge label. The inspector,
+- Small **⚑** and **↩** badges inside the result/card mark antecedents and references;
+  tooltips name their roles. Linked phrase borders use the same accent. The inspector,
   notices, tooltips and navigation use the structure's text or role, not its ID.
 - Dashed links use obstacle-aware orthogonal routing with a hollow source dot
-  and an arrow at the antecedent. Endpoints attach to the visible card/pill;
-  paths clear all visible nodes, labels, result envelopes and side controls.
+  and an arrow at the antecedent. Endpoints prefer the rendered phrase result, with the pill as a fallback when
+  no result is displayed. Four validated side ports and separate obstacles for
+  visible parts leave empty space between labels, pills and results usable.
+  Paths clear cards, labels and controls; bounded rounded bends retain clearance.
   Saved positions, orientation, expansion and live drag previews supply the
-  actual geometry. The router prefers short routes with fewer bends.
+  actual geometry. The router uses actual escape distances and prefers short routes with fewer
+  bends. Dashed strokes and endpoint cues remain legible at overview zoom.
 - Cross-passage chips occupy a separate left lane included in the canvas bounds.
   Their links use the same router; only the chip is the clickable hit area.
   Unresolved references show **Pronome sem antecedente**. If overlapping cards

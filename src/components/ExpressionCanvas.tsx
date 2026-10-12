@@ -41,7 +41,7 @@ import {
 } from '../domain/canvas';
 import { ReferenceInspector } from './ReferenceInspector';
 import { expressionGraph, definitionBody, coreferenceWrappers } from '../domain/expression-tree';
-import { coreferencePath, routeCoreference } from '../domain/coreference-route';
+import { coreferencePath, routeCoreference, type LinkCard } from '../domain/coreference-route';
 import {
   coreferenceLinks,
   coreferenceSource,
@@ -1235,6 +1235,9 @@ export function ExpressionCanvas({
           'stroke',
           'stroke-width',
           'stroke-dasharray',
+          'vector-effect',
+          'stroke-linejoin',
+          'stroke-linecap',
           'font-family',
           'font-size',
           'font-weight',
@@ -1432,27 +1435,48 @@ export function ExpressionCanvas({
       const label = position.node.attributes.coreferenceAnchor;
       if (typeof label === 'string') anchors.set(label, [...(anchors.get(label) ?? []), position]);
     }
-    const cards = [...layout.positions.values()].map((position) => {
+    const cards: LinkCard[] = [...layout.positions.values()].map((position) => {
       const point = pointFor(position);
       const width = treeNodeWidth(point.node),
         height = treeNodeHeight(point.node);
+      const junction = isOperationJunction(point.node),
+        preview = treeEvaluationPreview(point.node);
       const operationWidth = Math.min(width, Math.max(66, [...point.node.label].length * 8 + 24));
-      return {
-        id: point.key,
-        x: point.x,
-        y: point.y,
-        width,
-        height,
-        topSpace: point.node.id === 'root' ? 40 : 26,
-        body: isOperationJunction(point.node)
-          ? {
-              x: point.x + (width - operationWidth) / 2,
-              y: point.y + 30,
-              width: operationWidth,
-              height: 40,
-            }
-          : undefined,
+      const pill = {
+        x: point.x + (width - operationWidth) / 2,
+        y: point.y + 30,
+        width: operationWidth,
+        height: 40,
       };
+      const result = { x: point.x, y: point.y + 77, width, height: height - 81 };
+      const body = junction ? (preview ? result : pill) : { x: point.x, y: point.y, width, height };
+      const connector = {
+        x: point.x + (orientation === 'horizontal' ? -15 : width / 2 - 7),
+        y: point.y + (orientation === 'horizontal' ? 43 : -15),
+        width: 14,
+        height: 14,
+      };
+      const obstacles = [body, connector];
+      if (junction) {
+        if (preview) obstacles.push(pill);
+        obstacles.push({ x: point.x, y: point.y + 5, width, height: 20 });
+      }
+      if (point.children.length)
+        obstacles.push({ x: point.x + width + 5, y: point.y + 38, width: 24, height: 24 });
+      if (point.node.id === 'root')
+        obstacles.push({ x: point.x, y: point.y - 27, width: 140, height: 16 });
+      return { id: point.key, x: point.x, y: point.y, width, height, body, obstacles };
+    });
+    const edgeLabels: LinkCard[] = layout.edges.map((edge) => {
+      const target = pointFor(layout.positions.get(edge.target)!);
+      const width = [...edge.label].length * 7 + 4;
+      const x =
+        orientation === 'horizontal'
+          ? target.x - 12 - width
+          : target.x + treeNodeWidth(target.node) / 2 + 14;
+      const y = orientation === 'horizontal' ? target.y + 29 : target.y - 35;
+      const body = { x, y, width, height: 16 };
+      return { id: 'edge-label:' + edge.id, ...body, body, obstacles: [body] };
     });
     const externalPositions = [...layout.positions.values()].filter(
       (position) =>
@@ -1467,7 +1491,7 @@ export function ExpressionCanvas({
       height: 40,
       topSpace: 0,
     }));
-    const obstacles = [...cards, ...chips];
+    const obstacles = [...cards, ...chips, ...edgeLabels];
     const drawRoute = (source: string, target: string) => {
       const points = routeCoreference(obstacles, source, target);
       if (!points)
@@ -1481,12 +1505,28 @@ export function ExpressionCanvas({
         before = points[points.length - 2];
       const dx = Math.sign(end.x - before.x),
         dy = Math.sign(end.y - before.y);
+      const terminalLength = Math.hypot(end.x - before.x, end.y - before.y);
+      const previous = points[points.length - 3];
+      const rounded = previous
+        ? Math.min(
+            8,
+            terminalLength / 2,
+            Math.hypot(before.x - previous.x, before.y - previous.y) / 2,
+          )
+        : 0;
+      const arrow = Math.min(24, 8 / camera.zoom, (terminalLength - rounded) * 0.8);
+      const half = arrow / 2;
       return (
         <>
           <path data-coreference-route="true" d={coreferencePath(points)} />
-          <circle className="canvas-coreference-origin" cx={start.x} cy={start.y} r={3} />
+          <circle
+            className="canvas-coreference-origin"
+            cx={start.x}
+            cy={start.y}
+            r={Math.min(10, 3.5 / camera.zoom)}
+          />
           <polygon
-            points={`${end.x},${end.y} ${end.x - dx * 8 - dy * 4},${end.y - dy * 8 + dx * 4} ${end.x - dx * 8 + dy * 4},${end.y - dy * 8 - dx * 4}`}
+            points={`${end.x},${end.y} ${end.x - dx * arrow - dy * half},${end.y - dy * arrow + dx * half} ${end.x - dx * arrow + dy * half},${end.y - dy * arrow - dx * half}`}
           />
         </>
       );
@@ -1558,7 +1598,7 @@ export function ExpressionCanvas({
         ),
       ];
     });
-  }, [layout, orientation, dragPreview, workLinks, props.onOpenPassage]);
+  }, [layout, orientation, dragPreview, workLinks, props.onOpenPassage, camera.zoom]);
   const nodeElements = useMemo(
     () =>
       [...layout.positions.values()].map((original) => {
@@ -1613,7 +1653,7 @@ export function ExpressionCanvas({
             data-morpheme-trace={nodeTrace?.status}
             data-evaluation-state={preview?.status}
             data-lexical-status={node.attributes.lexicalStatus}
-            className={`runtime-node canvas-node ${junction ? 'runtime-junction canvas-operation' : ''} ${hole ? 'canvas-hole' : ''} ${preview ? 'canvas-' + preview.status : ''} ${selected === point.key ? 'is-selected' : ''} ${matches.has(point.key) ? 'is-match' : ''} ${dragPreview?.target === point.key ? 'is-drop-target' : ''} ${dragPreview?.keys.includes(point.key) ? 'is-dragging' : ''}`}
+            className={`runtime-node canvas-node ${node.attributes.coreferenceAnchor || node.attributes.coreferenceReference ? 'has-coreference' : ''} ${junction ? 'runtime-junction canvas-operation' : ''} ${hole ? 'canvas-hole' : ''} ${preview ? 'canvas-' + preview.status : ''} ${selected === point.key ? 'is-selected' : ''} ${matches.has(point.key) ? 'is-match' : ''} ${dragPreview?.target === point.key ? 'is-drop-target' : ''} ${dragPreview?.keys.includes(point.key) ? 'is-dragging' : ''}`}
             onContextMenu={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -1627,7 +1667,11 @@ export function ExpressionCanvas({
             )}
             {(typeof node.attributes.coreferenceAnchor === 'string' ||
               typeof node.attributes.coreferenceReference === 'string') && (
-              <text className="canvas-coreference-badge" x={nodeWidth + 17} y={-7}>
+              <text
+                className="canvas-coreference-badge"
+                x={junction && !preview ? nodeWidth + 17 : nodeWidth - 19}
+                y={junction ? (preview ? 94 : -7) : 21}
+              >
                 <title>
                   {[
                     typeof node.attributes.coreferenceAnchor === 'string' && 'Antecedente',
@@ -1701,7 +1745,8 @@ export function ExpressionCanvas({
               }}
             >
               <title>
-                {node.attributes.coreferenceAnchor || node.attributes.coreferenceReference
+                {node.expression?.code?.includes('studio_anchor(') ||
+                node.expression?.code?.includes('studio_ref(')
                   ? 'Estrutura com ligação referencial'
                   : node.expression?.code}
                 {hypothesisDetails ? `\n${hypothesisDetails}` : ''}
@@ -2384,7 +2429,6 @@ export function ExpressionCanvas({
             }
           }}
         >
-          <title>Composição Pydicate e peças soltas</title>
           <desc>
             Cada cartão ou ligação preserva uma etapa do código. Arraste uma peça para um encaixe
             vazio para conectar; sobre outra peça para trocar. O menu de contexto oferece as mesmas

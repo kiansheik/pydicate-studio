@@ -1,3 +1,14 @@
+# Pronoun routing checked on the actual full tree (2026-10-12)
+
+The user's Chrome render exposed a forced left-pill port and oversized node
+obstacles. Links now join the displayed phrase results, choose among four clear
+sides, use separate rendered-part/edge-label obstacles, and round bends. Inside
+badges, accented result borders and zoom-legible cues identify the endpoints.
+The exact saved 38-node SVG supplies a regression fixture; 307 unit and five
+browser checks pass, including saved positions before fitting, full expansion,
+result/control/label collision checks and a compactness bound. Rollout pending.
+See [handoff](session-handoffs/2026-10-12-coreference-real-tree.md).
+
 # Hidden pronoun IDs and routed links (2026-10-12)
 
 Pronoun creation is immediate and generates a unique internal identifier.

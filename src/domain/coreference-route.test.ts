@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import realTree from '../../tests/fixtures/coreference-real-tree.json';
 import { routeCoreference, type LinkCard, type LinkPoint } from './coreference-route';
 const card = (id: string, x: number, y: number, width = 180, height = 100): LinkCard => ({
   id,
@@ -29,8 +30,12 @@ function clear(points: LinkPoint[], cards: LinkCard[]) {
 }
 function onBorder(p: LinkPoint, node: LinkCard) {
   return (
-    (p.x === node.x && p.y >= node.y && p.y <= node.y + node.height) ||
-    (p.y === node.y + node.height && p.x >= node.x && p.x <= node.x + node.width)
+    ((p.x === node.x || p.x === node.x + node.width) &&
+      p.y >= node.y &&
+      p.y <= node.y + node.height) ||
+    ((p.y === node.y || p.y === node.y + node.height) &&
+      p.x >= node.x &&
+      p.x <= node.x + node.width)
   );
 }
 describe('referential link routing', () => {
@@ -75,18 +80,60 @@ describe('referential link routing', () => {
       expect(onBorder(route[route.length - 1], nodes[1])).toBe(true);
     }
   });
-  it('attaches operation links to the visible pill rather than its label/result envelope', () => {
-    const source = { ...card('a', 0, 0, 240, 180), body: { x: 87, y: 30, width: 66, height: 40 } };
+  it('can use the nearest clear side of a rendered phrase result', () => {
+    const source = {
+      ...card('a', 0, 0, 240, 180),
+      body: { x: 0, y: 77, width: 240, height: 95 },
+      obstacles: [
+        { x: 0, y: 77, width: 240, height: 95 },
+        { x: 87, y: 30, width: 66, height: 40 },
+      ],
+    };
     const target = {
-      ...card('b', 700, 0, 240, 180),
-      body: { x: 787, y: 30, width: 66, height: 40 },
+      ...card('b', 400, 0, 240, 180),
+      body: { x: 400, y: 77, width: 240, height: 95 },
+      obstacles: [
+        { x: 400, y: 77, width: 240, height: 95 },
+        { x: 487, y: 30, width: 66, height: 40 },
+      ],
     };
     const route = routeCoreference([source, target], 'a', 'b')!;
-    expect(route[0]).toEqual({ x: 87, y: 50 });
-    expect(route[route.length - 1]).toEqual({ x: 787, y: 50 });
+    expect(route).toEqual([
+      { x: 240, y: 124.5 },
+      { x: 400, y: 124.5 },
+    ]);
+  });
+  it('keeps the real 38-node saved tree link compact and outside rendered parts', () => {
+    const nodes = realTree.geometry.nodes.map((node) => ({
+      ...node,
+      obstacles: node.obstacles.filter((part) => part.class !== 'canvas-coreference-badge'),
+    }));
+    const labels = realTree.geometry.edgeLabels.map((label, index) => ({
+      ...label,
+      id: 'edge-label:' + index,
+      body: label,
+      obstacles: [label],
+    }));
+    const route = routeCoreference(
+      [...nodes, ...labels],
+      realTree.coreference.sourceId,
+      realTree.coreference.targetId,
+    )!;
+    expect(route).not.toBeNull();
+    const length = route
+      .slice(1)
+      .reduce((sum, p, i) => sum + Math.abs(p.x - route[i].x) + Math.abs(p.y - route[i].y), 0);
+    const source = nodes.find((n) => n.id === realTree.coreference.sourceId)!.body;
+    const target = nodes.find((n) => n.id === realTree.coreference.targetId)!.body;
+    expect(onBorder(route[0], { id: 'source', ...source })).toBe(true);
+    expect(onBorder(route[route.length - 1], { id: 'target', ...target })).toBe(true);
+    expect(length).toBeLessThan(1100);
+    expect(route.length).toBeLessThanOrEqual(8);
     clear(route, [
-      { id: 'a', ...source.body },
-      { id: 'b', ...target.body },
+      ...nodes.flatMap((node) =>
+        node.obstacles.map((part, i) => ({ id: node.id + ':' + i, ...part })),
+      ),
+      ...labels,
     ]);
   });
 

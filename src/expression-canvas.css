@@ -617,6 +617,7 @@
   fill: none;
   stroke: var(--canvas-coreference);
   stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
   stroke-dasharray: 6 5;
   stroke-linejoin: round;
   stroke-linecap: round;
@@ -636,10 +637,16 @@
   stroke: var(--tree-canvas);
   stroke-width: 5px;
 }
+.canvas-node.has-coreference .runtime-result-background,
+.canvas-node.has-coreference:not(.canvas-operation) .runtime-node-body {
+  stroke: var(--canvas-coreference);
+  stroke-width: 1.5;
+}
 .canvas-coreference-origin {
   fill: var(--tree-canvas) !important;
   stroke: var(--canvas-coreference);
   stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
 }
 .canvas-coreference-hit {
   fill: var(--tree-canvas);

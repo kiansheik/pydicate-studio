@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
+import realCoreferenceTree from './fixtures/coreference-real-tree.json' with { type: 'json' };
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -77,6 +78,7 @@ async function openCanvas(
     hidden?: boolean;
     withoutEvidence?: boolean;
     workCoreferences?: CanvasFixture['workCoreferences'];
+    projection?: AuthorNode;
   } = {},
 ) {
   const requests: { method: string; params: Record<string, unknown> }[] = [];
@@ -105,6 +107,12 @@ async function openCanvas(
       };
     else if (request.method === 'structure_resolve')
       result = { surface: 'ypy', expression: 'ypy', kind: 'reference', source };
+    else if (
+      options.projection &&
+      request.method === 'evaluate_expression' &&
+      request.params.raw === raw
+    )
+      result = { tree: options.projection, failures: [] };
     else result = run(request.method, request.params);
     await route.fulfill({ json: result });
   });
@@ -132,7 +140,9 @@ async function openCanvas(
       });
     },
     {
-      ...run('fixture', { raw }),
+      ...(options.projection
+        ? { raw, root: options.projection, evaluatedRoot: options.projection, failures: [] }
+        : run('fixture', { raw })),
       ...(options.withoutEvidence ? { evaluatedRoot: undefined } : {}),
       canvas,
       hidden: options.hidden,
@@ -3329,4 +3339,95 @@ test('referential links attach to visible cards and avoid intervening nodes afte
   await expect(path).not.toHaveAttribute('d', before!);
   await check();
   await svg(page).screenshot({ path: '.local/coreference-route-after.png' });
+});
+
+test('the real saved 38-node tree has a compact phrase-to-phrase link on first render', async ({
+  page,
+}) => {
+  const parsed = run('parse_expression', { raw: realCoreferenceTree.raw }).root as AuthorNode;
+  for (const source of flattenNodes(parsed)) {
+    const snapshot = realCoreferenceTree.geometry.nodes.find((node) => node.nodeId === source.id);
+    if (!snapshot) continue;
+    const result = snapshot.texts.find((text) =>
+      /runtime-result-text|runtime-leaf-result/.test(text.class),
+    );
+    const surface = result?.lines?.map((line) => line.text).join(' ') || result?.text || '';
+    source.evaluation = { status: 'ok', surface };
+    source.definition =
+      snapshot.texts.find((text) => text.class === 'runtime-node-definition')?.text || '';
+  }
+  await page.setViewportSize({ width: 1920, height: 1400 });
+  await openCanvas(
+    page,
+    realCoreferenceTree.raw,
+    realCoreferenceTree.canvas as CanvasState,
+    false,
+    undefined,
+    {
+      fit: false,
+      projection: parsed,
+    },
+  );
+  // First paint preserves the actual saved arrangement before any Adjust/Expand-all action.
+  expect((await page.evaluate(() => window.canvasSnapshot)).canvas.positions).toEqual(
+    realCoreferenceTree.canvas.positions,
+  );
+  while (
+    await svg(page)
+      .getByRole('button', { name: /^Expandir / })
+      .count()
+  ) {
+    await svg(page)
+      .getByRole('button', { name: /^Expandir / })
+      .first()
+      .press('Enter');
+  }
+  const path = svg(page).locator('[data-coreference-route]');
+  await expect(path).toHaveCount(1);
+  await expect(svg(page).locator('[data-canvas-key]')).toHaveCount(38);
+  const check = async () => {
+    const report = await svg(page).evaluate((element) => {
+      const path = element.querySelector<SVGPathElement>('[data-coreference-route]')!;
+      const matrix = path.getScreenCTM()!;
+      const boxes = [
+        ...element.querySelectorAll<SVGGraphicsElement>(
+          '.runtime-node-body,.runtime-result-background,.runtime-operation-name,.runtime-edge text,.runtime-collapse,.canvas-port',
+        ),
+      ].map((box) => box.getBoundingClientRect());
+      let crossings = 0;
+      for (let distance = 2; distance < path.getTotalLength() - 2; distance += 2) {
+        const point = path.getPointAtLength(distance),
+          screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        if (
+          boxes.some(
+            (box) =>
+              screen.x > box.left + 1 &&
+              screen.x < box.right - 1 &&
+              screen.y > box.top + 1 &&
+              screen.y < box.bottom - 1,
+          )
+        )
+          crossings++;
+      }
+      const points = [path.getPointAtLength(0), path.getPointAtLength(path.getTotalLength())];
+      return {
+        length: path.getTotalLength(),
+        crossings,
+        points: points.map((p) => ({ x: p.x, y: p.y })),
+      };
+    });
+    expect(report.crossings).toBe(0);
+    expect(report.length).toBeLessThan(1100);
+  };
+  await check();
+  expect((await page.evaluate(() => window.canvasSnapshot)).canvas.positions).toEqual(
+    realCoreferenceTree.canvas.positions,
+  );
+  await svg(page).screenshot({ path: '.local/coreference-real-tree.png' });
+  await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await check();
+  await svg(page).screenshot({ path: '.local/coreference-real-tree-fitted.png' });
+  await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
+  await expect(path).toHaveCount(1);
+  await expect(svg(page).locator('[data-canvas-key]')).toHaveCount(38);
 });
