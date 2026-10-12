@@ -385,8 +385,22 @@ class Host:
         repo=self.workspace/name
         if git(repo,'remote','get-url','origin')!=REPOS[name]:raise ValueError('Unexpected origin')
         base=git(repo,'rev-parse','origin/main')
-        changed=run(['git','-c','safe.directory='+str(repo),'-C',repo,'diff','--name-only','-z','origin/main'],capture=True).decode().split('\0')
-        changed+=run(['git','-c','safe.directory='+str(repo),'-C',repo,'ls-files','--others','--exclude-standard','-z'],capture=True).decode().split('\0')
+        # Git 2.43 can crash comparing an older tree directly to a sparse
+        # worktree. Compare through the index instead, retaining both sides of
+        # renames so deleted paths enter the snapshot too. This is a conservative
+        # candidate union: working edits may undo an indexed change from base.
+        safe=['git','-c','safe.directory='+str(repo),'-C',repo]
+        # Sparse-index expansion can write even with optional locks disabled.
+        # Never let a read-only manifest refresh the application's live index.
+        with tempfile.TemporaryDirectory(prefix='studio-changes-') as temporary:
+            index=pathlib.Path(temporary)/'index'
+            # Preserve mtime so Git's racy-clean detection still checks edits
+            # made within the original index timestamp's resolution.
+            shutil.copy2(repo/'.git/index',index)
+            readonly={**os.environ,'GIT_OPTIONAL_LOCKS':'0','GIT_INDEX_FILE':str(index)}
+            changed=run([*safe,'diff','--cached','--no-renames','--name-only','-z','origin/main'],capture=True,env=readonly).decode().split('\0')
+            changed+=run([*safe,'diff','--no-renames','--name-only','-z'],capture=True,env=readonly).decode().split('\0')
+            changed+=run([*safe,'ls-files','--others','--exclude-standard','-z'],capture=True,env=readonly).decode().split('\0')
         files=sorted(set(filter(None,changed)))
         rows=[];skipped=[]
         for file in files:

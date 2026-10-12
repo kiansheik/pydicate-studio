@@ -26,17 +26,26 @@ export interface GrammarRepairRequest {
   integrated?: boolean;
 }
 
+/** An isolated target tree keeps its own node IDs and offsets. Its saved
+ * occurrence in the containing expression is separate source evidence. */
+export interface GrammarDiagnosticContext {
+  containingExpression: string;
+  selectedNode?: Pick<AuthorNode, 'id' | 'code' | 'start' | 'end'>;
+}
+
 /** A reproducible handoff for a coding agent; preparing it never invokes a provider. */
 export function grammarDiagnostic(
   project: StudioProject,
   passage: Passage,
   report: CanvasDiagnostic,
   request: GrammarRepairRequest = { mode: 'engine' },
+  context?: GrammarDiagnosticContext,
 ) {
   const engine = project.repositories.find((repository) => repository.name === 'nhe-enga');
   const corpus = project.repositories.find((repository) => repository.name === 'oldtupicorpus');
   const nodes = flattenNodes(report.root);
   const target = diagnosticTarget(report);
+  const parentExpression = context?.containingExpression ?? report.raw;
   const steps = nodes.map((node) => ({
     nodeId: node.id,
     expression: node.code,
@@ -60,9 +69,12 @@ export function grammarDiagnostic(
     ordinal: passage.ordinal,
     fragmentId: report.fragmentId ?? null,
     revisionId: report.revisionId ?? null,
-    selectedNodeId: report.selectedNodeId ?? report.root.id,
+    selectedNodeId: context?.selectedNode?.id ?? report.selectedNodeId ?? report.root.id,
+    ...(context?.selectedNode
+      ? { selectedNode: context.selectedNode, stepsExpression: report.raw }
+      : {}),
     expression: target.code,
-    parentExpression: report.raw,
+    parentExpression,
     sharedDefinition: report.sharedDefinition ?? null,
     currentSurface: target.evaluation?.status === 'ok' ? target.evaluation.surface : null,
     recordedTarget: passage.acceptedReference,
@@ -79,7 +91,7 @@ export function grammarDiagnostic(
     `Repositório da gramática: ${engine?.path ?? 'nhe-enga (localize o clone selecionado pelo Studio)'}.`,
     `Contexto lexical: ${corpus?.path ?? 'oldtupicorpus'}/historic/${passage.sourceId}.tu.py, passagem ${passage.ordinal}.`,
     `Forma pretendida indicada pelo linguista: ${JSON.stringify(request.intendedSurface?.trim() || null)}. Explicação: ${request.explanation?.trim() || '(não fornecida)'}.`,
-    `Alvo da correção: ${target.code}. A forma pretendida se refere somente a este trecho. A expressão completa permanece como contexto: ${report.raw}. Verifique também a árvore completa após cada edição.`,
+    `Alvo da correção: ${target.code}. A forma pretendida se refere somente a este trecho. A expressão completa permanece como contexto: ${parentExpression}. Verifique também a árvore completa após cada edição.`,
     ...(report.sharedDefinition
       ? [
           `Esta árvore é uma proposta para a definição reutilizada ${report.sharedDefinition.name}. A correção da gramática não publica a nova definição; ela ainda precisa da revisão da fonte e da regressão de todas as referências.`,

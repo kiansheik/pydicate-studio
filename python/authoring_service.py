@@ -14,10 +14,13 @@ import sys
 import tempfile
 import unicodedata
 import uuid
-from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots, encode_source_text, validate_translations, validate_prayer_name
+from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots, encode_source_text, validate_translations, validate_prayer_name, STUDIO_HELPER_SOURCE
 
 
 def digest(data): return 'sha256:' + hashlib.sha256(data).hexdigest()
+
+LEXICON_CATALOG_ENTRIES = 8
+LEXICON_CATALOG_BYTES = 8 * 1024 * 1024
 
 
 class AuthoringService:
@@ -46,7 +49,7 @@ class AuthoringService:
 
     def fresh(self, params=None):
         self.require_project()
-        fingerprint=self.adapter._engine_fingerprint(self.adapter._snapshots())
+        fingerprint=self.adapter._engine_fingerprint(self.adapter._snapshots(metadata=False))
         if fingerprint != self.adapter.project['engineFingerprint'] or (params and params.get('engineFingerprint',fingerprint)!=fingerprint): self.error('O corpus ou a gramática mudou. Atualize e reconcilie o rascunho.','STALE_ENGINE')
         return fingerprint
 
@@ -175,16 +178,17 @@ class AuthoringService:
         return self._checked_dictionary_result({**result,'engineFingerprint':fingerprint,'revisionId':params.get('revisionId','')},entry)
 
     def _preview(self,path,before,after,extra_changes=(),annotation_review=False,**details):
-        # A copy with an occurrence gloss has an explicit source-local helper;
-        # the resulting file never depends on an invisible Studio builtin.
+        # Occurrence glosses and coreference links use explicit source-local
+        # helpers; the resulting file never depends on an invisible Studio builtin.
         decoded = after.decode('utf-8')
         parsed_file = ast.parse(decoded,filename=str(path))
-        needs_define = any(isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=='studio_define' for node in ast.walk(parsed_file))
-        has_define = any(isinstance(node,ast.FunctionDef) and node.name=='studio_define' for node in parsed_file.body)
-        if needs_define and not has_define:
+        used = {node.func.id for node in ast.walk(parsed_file) if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id in STUDIO_HELPER_SOURCE}
+        defined = {node.name for node in parsed_file.body if isinstance(node,ast.FunctionDef)}
+        missing = [name for name in STUDIO_HELPER_SOURCE if name in used and name not in defined]
+        if missing:
             initial = next((node for node in parsed_file.body if isinstance(node,ast.Assign) and isinstance(node.value,(ast.List,ast.Tuple)) and any(isinstance(t,ast.Name) and t.id=='l' for t in node.targets)),None)
             offset = sum(map(len,decoded.splitlines(keepends=True)[:initial.lineno-1])) if initial else 0
-            helper = 'def studio_define(value, definition):\n    result = value.copy()\n    result.definition = definition\n    return result\n\n'
+            helper = ''.join(STUDIO_HELPER_SOURCE[name] for name in missing)
             after = (decoded[:offset]+helper+decoded[offset:]).encode('utf-8')
         # Verify resulting source syntax before making a reviewable patch.
         ast.parse(after.decode('utf-8'),filename=str(path))
@@ -534,7 +538,7 @@ class AuthoringService:
         return self._preview(path,primary['before'],primary['after'],extra_changes=[item for item in changes if item is not primary],recovery=True,reviewSummary=review_summary)
 
     def lexicon_search(self,params):
-        context=self.structure_context(params); self.fresh(params)
+        context=self.structure_context(params); fingerprint=self.fresh(params)
         owner=self._definition_context(params['definitionContext']) if params.get('definitionContext') is not None else None
         query={'query':str(params.get('query','')),'limit':max(1,min(100,int(params.get('limit',40))))}
         if owner:
@@ -556,8 +560,32 @@ class AuthoringService:
                 except DefinitionImportError as error:
                     entry['reuseBlockedReason']=str(error)
         else:
-            result=self.child({'action':'lexicon',**context,**query})
+            # Only the saved declaration namespace affects this catalog. Raw
+            # drafts and search terms do not run here; scoped definition tabs
+            # retain their separate declaration/import checks above.
+            key=(str(self.corpus.resolve()),self.adapter.project['id'],fingerprint,
+                 context['sourceId'],context['line'])
+            cache=getattr(self.adapter,'lexicon_catalog_cache',{})
+            cached=cache.get(key)
+            catalog=json.loads(cached[0]) if cached else self.child({'action':'lexicon_catalog',**context})
+            from lexical_search import search_catalog
+            result=search_catalog(catalog['entries'],**query)
         self.fresh(params)
+        if not owner:
+            # Publish only after the second exact-content guard. Serialized
+            # entries are detached on every hit and never retain engine objects.
+            if cached:
+                cache.pop(key)
+                cache[key]=cached
+            else:
+                serialized=json.dumps(catalog,ensure_ascii=False,separators=(',',':'))
+                size=len(serialized.encode('utf-8'))
+                if size<=LEXICON_CATALOG_BYTES:
+                    cache[key]=(serialized,size)
+                    while (len(cache)>LEXICON_CATALOG_ENTRIES or
+                           sum(item[1] for item in cache.values())>LEXICON_CATALOG_BYTES):
+                        cache.pop(next(iter(cache)))
+                    self.adapter.lexicon_catalog_cache=cache
         return result
 
     def structure_context(self, params):

@@ -58,7 +58,13 @@ export type CanvasAction =
     }
   | { type: 'add'; raw: string; fragmentId?: string; position?: CanvasPoint }
   | { type: 'position'; address: CanvasAddress; position: CanvasPoint }
-  | { type: 'replace'; source: CanvasAddress; raw: string }
+  | {
+      type: 'replace';
+      source: CanvasAddress;
+      raw: string;
+      /** A companion loose piece created in the same undoable transaction. */
+      add?: { raw: string; position?: CanvasPoint };
+    }
   | { type: 'argument'; source: CanvasAddress; slot: string | null; text: string }
   | { type: 'make-main'; source: CanvasAddress; position?: CanvasPoint };
 
@@ -346,6 +352,7 @@ export function editCanvas(document: CanvasDocument, action: CanvasAction): Canv
             action.raw,
           );
       }
+      if (action.add) add(action.add.raw, undefined, action.add.position);
     } else if (action.type === 'remove') {
       if (source.root || !isCanvasHole(source.node)) remove(source);
     } else if (action.type === 'detach' || action.type === 'duplicate') {

@@ -12,7 +12,7 @@ import hashlib
 import inspect
 import json
 
-from studio_authoring import expression_tree, parse_ast
+from studio_authoring import COREFERENCE_HELPERS, coreference_call, expression_tree, parse_ast
 
 
 REGISTRY = '_studio_semantic_declarations'
@@ -102,6 +102,9 @@ def _scoped_definition(syntax, declarations, active=(), max_depth=MAX_DEPTH):
         return defined[1]
     if isinstance(syntax, ast.Call) and isinstance(syntax.func, ast.Attribute) and syntax.func.attr == 'copy':
         return _scoped_definition(syntax.func.value, declarations, active, max_depth)
+    linked = coreference_call(syntax)
+    if linked:
+        return _scoped_definition(linked[1], declarations, active, max_depth)
     if isinstance(syntax, ast.Name):
         name = syntax.id
         declaration = declarations.get(name)
@@ -168,6 +171,9 @@ operations never masquerade as newly defined composite meanings.
                 return primitive(defined[0], active)
             if isinstance(syntax.func, ast.Attribute) and syntax.func.attr == 'copy':
                 return primitive(syntax.func.value, active)
+            linked = coreference_call(syntax)
+            if linked:
+                return primitive(linked[1], active)
         return False
 
     def evaluated_declaration(name, declaration):
@@ -184,7 +190,7 @@ operations never masquerade as newly defined composite meanings.
         # without that expansion instead.
         unsupported = [node.func.id for node in ast.walk(syntax)
                        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                       and node.func.id not in CONSTRUCTORS | {'studio_define'}]
+                       and node.func.id not in CONSTRUCTORS | {'studio_define'} | COREFERENCE_HELPERS]
         if unsupported:
             problem(f'{name}: construção por helper não expandida ({", ".join(sorted(set(unsupported)))}).')
             expansions[name] = None
@@ -242,7 +248,13 @@ operations never masquerade as newly defined composite meanings.
                 result[field] = node[field]
         syntax = parse_ast(node['code'])
         defined = _definition_call(syntax)
-        leaf = primitive(syntax)
+        linked = coreference_call(syntax)
+        if linked:
+            # The label names an antecedent elsewhere in the same work; the
+            # wrapped form (usually +ae) keeps its own meaning below.
+            result['coreference'] = {'role': 'anchor' if linked[0] == 'studio_anchor' else 'reference',
+                                     'label': linked[2]}
+        leaf = primitive(syntax) and not linked
         explicit = defined[1] if defined else None
         if explicit is not None:
             key = 'baseDefinition' if leaf else 'compositeDefinition'
@@ -286,7 +298,7 @@ operations never masquerade as newly defined composite meanings.
         if isinstance(syntax, ast.Call) and isinstance(syntax.func, ast.Name) and syntax.func.id in CONSTRUCTORS:
             return result
         for child in node['children']:
-            if defined and child['slot'] in ('arg1', 'kw:definition'):
+            if (defined or linked) and child['slot'] in ('arg1', 'kw:definition'):
                 continue
             projected = visit(child['node'], depth + 1, active, source,
                               suppress_base or bool(defined and leaf))

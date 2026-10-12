@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { AnalysisStore } = require('../analysis-store.cjs');
+const { AnalysisStore, digest } = require('../analysis-store.cjs');
 
 async function store(t) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-analysis-storage-'));
@@ -216,4 +216,186 @@ test('a reader waiting on a rejected oversized write sees committed history rath
   release();
   await rejected;
   assert.deepEqual((await reading).decisions, [{ text: 'committed' }]);
+});
+
+test('payload values remain independently mutable across repeated references, reads, JSON and clones', async (t) => {
+  const original = await store(t),
+    projectId = 'local:mutable-payloads';
+  const result = { content: '🌿'.repeat(10000), nested: { steps: ['original'] } };
+  await original.transact(projectId, (state) => {
+    state.operations.first = { result };
+    state.operations.second = { result };
+  });
+  const [first, second] = await Promise.all([original.read(projectId), original.read(projectId)]);
+  const json = JSON.parse(JSON.stringify(first));
+  const cloned = structuredClone(first);
+  first.operations.first.result.nested.steps.push('first read only');
+  json.operations.first.result.nested.steps.push('JSON only');
+  cloned.operations.first.result.nested.steps.push('clone only');
+  assert.deepEqual(first.operations.second.result, result);
+  assert.deepEqual(second.operations.first.result, result);
+  assert.deepEqual(second.operations.second.result, result);
+
+  const reply = await original.transact(projectId, (state) => {
+    state.operations.first.result.nested.steps.push('persisted');
+    return state.operations.first;
+  });
+  reply.result.nested.steps.push('reply only');
+  const reopened = await new AnalysisStore(original.directory).read(projectId);
+  assert.deepEqual(reopened.operations.first.result.nested.steps, ['original', 'persisted']);
+  assert.deepEqual(reopened.operations.second.result, result);
+});
+
+test('payload replacements, removed fields and redefined properties survive the shallow index write', async (t) => {
+  const original = await store(t),
+    projectId = 'local:replace-payloads';
+  const result = { content: 'x'.repeat(20000) };
+  await original.transact(projectId, (state) => {
+    for (const key of ['replace', 'remove', 'undefined', 'redefine', 'untouched'])
+      state.operations[key] = { result };
+  });
+  await original.transact(projectId, (state) => {
+    state.operations.replace.result = { content: 'replaced' };
+    delete state.operations.remove.result;
+    state.operations.undefined.result = undefined;
+    Object.defineProperty(state.operations.redefine, 'result', {
+      value: { content: 'new descriptor' },
+      enumerable: true,
+      configurable: true,
+    });
+  });
+  const reopened = await new AnalysisStore(original.directory).read(projectId);
+  assert.deepEqual(reopened.operations.replace.result, { content: 'replaced' });
+  assert.equal(Object.hasOwn(reopened.operations.remove, 'result'), false);
+  assert.equal(Object.hasOwn(reopened.operations.undefined, 'result'), false);
+  assert.deepEqual(reopened.operations.redefine.result, { content: 'new descriptor' });
+  assert.deepEqual(reopened.operations.untouched.result, result);
+  const index = JSON.parse(await fs.readFile(original.filename(projectId), 'utf8'));
+  assert.deepEqual(
+    index.payloadStorage.refs.map((ref) => ref.path),
+    [['operations', 'untouched', 'result']],
+  );
+});
+
+test('validated lazy inputs retain routing and digest guards on metadata and nested input edits', async (t) => {
+  const original = await store(t),
+    projectId = 'local:input-guards';
+  const packet = { projectId, passageId: 'passage:test', context: { baseline: 'x'.repeat(20000) } };
+  const input = { ...packet, digest: digest(packet) };
+  await original.transact(projectId, (state) => {
+    state.jobs.job = {
+      id: 'job',
+      projectId,
+      passageId: packet.passageId,
+      status: 'queued',
+      input,
+      attempts: [],
+      candidateIds: [],
+      questions: [],
+    };
+  });
+  await original.transact(projectId, (state) => {
+    state.jobs.job.status = 'blocked';
+  });
+  const before = await fs.readFile(original.filename(projectId));
+  await assert.rejects(
+    original.transact(projectId, (state) => {
+      state.jobs.job.passageId = 'passage:different';
+    }),
+    /Análise persistida inválida/,
+  );
+  await assert.rejects(
+    original.transact(projectId, (state) => {
+      state.jobs.job.input.context.baseline = 'changed without digest';
+    }),
+    /pacote de entrada.*alterado/,
+  );
+  assert.deepEqual(await fs.readFile(original.filename(projectId)), before);
+
+  const newPacket = { ...packet, context: { baseline: 'replacement'.repeat(2000) } };
+  const newInput = { ...newPacket, digest: digest(newPacket) };
+  await original.transact(projectId, (state) => {
+    state.jobs.job.input = newInput;
+  });
+  const reopened = await new AnalysisStore(original.directory).read(projectId);
+  assert.deepEqual(reopened.jobs.job.input, newInput);
+  assert.equal(reopened.jobs.job.status, 'blocked');
+});
+
+test('a warm payload cache detects same-size corruption and preserves committed bytes', async (t) => {
+  const original = await store(t),
+    projectId = 'local:cached-integrity';
+  await original.transact(projectId, (state) => {
+    state.operations.tool = { result: { content: 'x'.repeat(20000) } };
+  });
+  const before = await fs.readFile(original.filename(projectId));
+  const index = JSON.parse(before),
+    ref = index.payloadStorage.refs[0];
+  const filename = path.join(original.directory, 'payloads', ref.hash + '.json');
+  // Warm the shared serialized cache; no caller needs to inspect this result.
+  await original.read(projectId);
+  const bytes = await fs.readFile(filename);
+  await fs.writeFile(filename, Buffer.from(bytes.toString().replace('x', 'y')));
+  const later = new Date(Date.now() + 1000);
+  await fs.utimes(filename, later, later);
+  await assert.rejects(original.read(projectId), /Hash do payload.*inválido/);
+  await assert.rejects(
+    original.transact(projectId, (state) => {
+      state.decisions.push('new');
+    }),
+    /preservado/,
+  );
+  assert.deepEqual(await fs.readFile(original.filename(projectId)), before);
+});
+
+test('serialized cache eviction does not discard or alias live payloads from earlier reads', async (t) => {
+  const original = await store(t),
+    projectId = 'local:bounded-cache';
+  original.maxPayloadCacheBytes = 25000;
+  await original.transact(projectId, (state) => {
+    state.operations.first = { result: { content: 'a'.repeat(20000) } };
+    state.operations.second = { result: { content: 'b'.repeat(20000) } };
+  });
+  const first = await original.read(projectId);
+  const second = await original.read(projectId);
+  await original.close();
+  assert.equal(first.operations.first.result.content, 'a'.repeat(20000));
+  assert.equal(first.operations.second.result.content, 'b'.repeat(20000));
+  first.operations.second.result.content = 'mutated after cache close';
+  assert.equal(second.operations.second.result.content, 'b'.repeat(20000));
+  assert.equal(
+    (await original.read(projectId)).operations.second.result.content,
+    'b'.repeat(20000),
+  );
+});
+
+test('unused payloads are still checked for malformed JSON and conflicting reference sizes', async (t) => {
+  const original = await store(t),
+    projectId = 'local:unused-integrity';
+  await original.transact(projectId, (state) => {
+    const result = { content: 'x'.repeat(20000) };
+    state.operations.first = { result };
+    state.operations.second = { result };
+  });
+  const index = JSON.parse(await fs.readFile(original.filename(projectId), 'utf8'));
+  index.payloadStorage.refs[1].bytes++;
+  await fs.writeFile(original.filename(projectId), JSON.stringify(index));
+  await assert.rejects(original.read(projectId), /Tamanho do payload.*inválido/);
+
+  const invalid = '{"content":' + ' '.repeat(20000);
+  const hash = require('node:crypto').createHash('sha256').update(invalid).digest('hex');
+  for (const ref of index.payloadStorage.refs) {
+    ref.hash = hash;
+    ref.bytes = Buffer.byteLength(invalid);
+  }
+  await fs.writeFile(path.join(original.directory, 'payloads', hash + '.json'), invalid);
+  const committed = JSON.stringify(index);
+  await fs.writeFile(original.filename(projectId), committed);
+  await assert.rejects(
+    original.transact(projectId, (state) => {
+      state.decisions.push('metadata only');
+    }),
+    /preservado/,
+  );
+  assert.equal(await fs.readFile(original.filename(projectId), 'utf8'), committed);
 });

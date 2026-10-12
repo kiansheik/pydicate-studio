@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
+import realCoreferenceTree from './fixtures/coreference-real-tree.json' with { type: 'json' };
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -72,7 +73,13 @@ async function openCanvas(
   canvas: CanvasState = { fragments: [], positions: {} },
   dictionary = false,
   beforeOpen?: () => Promise<void>,
-  options: { fit?: boolean; hidden?: boolean; withoutEvidence?: boolean } = {},
+  options: {
+    fit?: boolean;
+    hidden?: boolean;
+    withoutEvidence?: boolean;
+    workCoreferences?: CanvasFixture['workCoreferences'];
+    projection?: AuthorNode;
+  } = {},
 ) {
   const requests: { method: string; params: Record<string, unknown> }[] = [];
   await page.route('**/__canvas_rpc', async (route) => {
@@ -100,6 +107,12 @@ async function openCanvas(
       };
     else if (request.method === 'structure_resolve')
       result = { surface: 'ypy', expression: 'ypy', kind: 'reference', source };
+    else if (
+      options.projection &&
+      request.method === 'evaluate_expression' &&
+      request.params.raw === raw
+    )
+      result = { tree: options.projection, failures: [] };
     else result = run(request.method, request.params);
     await route.fulfill({ json: result });
   });
@@ -127,10 +140,13 @@ async function openCanvas(
       });
     },
     {
-      ...run('fixture', { raw }),
+      ...(options.projection
+        ? { raw, root: options.projection, evaluatedRoot: options.projection, failures: [] }
+        : run('fixture', { raw })),
       ...(options.withoutEvidence ? { evaluatedRoot: undefined } : {}),
       canvas,
       hidden: options.hidden,
+      workCoreferences: options.workCoreferences,
     } as CanvasFixture,
   );
   await beforeOpen?.();
@@ -2132,6 +2148,9 @@ test('automatic morpheme tracing follows selection in existing ancestor result b
   page,
 }, testInfo) => {
   const requests = await openCanvas(page, 'og * (emi * tym)');
+  // The root needs no trace; do not enqueue a second full engine evaluation on open.
+  await page.waitForTimeout(200);
+  expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(0);
   await expect(page.getByRole('button', { name: 'Rastrear morfemas · experimental' })).toHaveCount(
     0,
   );
@@ -2148,7 +2167,7 @@ test('automatic morpheme tracing follows selection in existing ancestor result b
   await expect(card(page, 'main:root/left').locator('[data-morpheme-highlight]')).toHaveCount(0);
   const raw = await page.locator('#canvas-raw').textContent();
   const evidenceRequests = requests.filter((request) => request.params.includeMorphology).length;
-  expect(evidenceRequests).toBeGreaterThan(0);
+  expect(evidenceRequests).toBe(1);
   await node(page, 'main:root/right/left').click();
   await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText('emi');
   await expect(card(page, 'main:root/right').locator('[data-morpheme-highlight]')).toHaveText(
@@ -2160,6 +2179,11 @@ test('automatic morpheme tracing follows selection in existing ancestor result b
   expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(
     evidenceRequests,
   );
+  await node(page, 'main:root').click();
+  await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
+  await node(page, 'main:root/right/right').click();
+  await expect(card(page, 'main:root').locator('[data-morpheme-highlight]')).toHaveText('tym');
+  expect(requests.filter((request) => request.params.includeMorphology)).toHaveLength(1);
   await expect(page.locator('#canvas-raw')).toHaveText(raw!);
   await expect(page.locator('#canvas-history')).toHaveText('0');
   await svg(page).screenshot({ path: testInfo.outputPath('morpheme-trace.png') });
@@ -2197,12 +2221,12 @@ test('morpheme tracing clears stale highlights when the draft changes during eva
       await route.fulfill({ json: result });
     });
   });
-  await expect.poll(() => requested).toBe(true);
   await page
     .locator('.canvas-view-options')
     .getByRole('button', { name: 'Expandir tudo', exact: true })
     .click();
   await node(page, 'main:root/right/right').click();
+  await expect.poll(() => requested).toBe(true);
   await page.evaluate(() => window.canvasReplaceRaw('(oré * tym).var(1)'));
   await expect(svg(page).locator('[data-morpheme-highlight]')).toHaveCount(0);
   await expect(card(page, 'main:root')).not.toHaveAttribute('data-morpheme-trace');
@@ -3143,4 +3167,267 @@ test('the mode control selects indicative without requiring boolean source code'
   await page.getByRole('button', { name: 'Desfazer edição na árvore' }).click();
   await ready(page);
   await expect(page.locator('#canvas-raw')).toHaveText('ikó * ae');
+});
+
+test('a referential third-person pronoun anchors its antecedent, draws the link and undoes atomically', async ({
+  page,
+}) => {
+  const raw = 'ikó * ae';
+  await openCanvas(page, raw);
+  const initial = await page.evaluate(() => window.canvasSnapshot);
+  await menu(page, 'main:root', 'Criar pronome de 3ª pessoa referencial desta estrutura');
+  await expect(page.getByRole('dialog', { name: 'Criar pronome referencial' })).toHaveCount(0);
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('(studio_anchor(ikó * ae, "ikó"))');
+  const [fragment] = (await page.evaluate(() => window.canvasSnapshot)).canvas.fragments;
+  expect(fragment.raw).toBe('studio_ref(+ae, "ikó")');
+  await expect(card(page, 'main:root').locator('.canvas-coreference-badge')).toContainText('⚑');
+  const pronoun = card(page, `${fragment.id}:root`);
+  await expect(pronoun.locator('.canvas-coreference-badge')).toContainText('↩');
+  // The wrapper is an annotation, not another tree level: the loose piece's
+  // root is the +ae operation and it realizes exactly like plain +ae.
+  await expect(card(page, `${fragment.id}:root/arg0`)).toHaveCount(0);
+  await expect(svg(page).locator('.canvas-coreference-link')).toHaveCount(1);
+  await expect(svg(page).locator('.canvas-coreference-link.is-external')).toHaveCount(0);
+  await menu(page, `${fragment.id}:root`, 'Ir ao antecedente');
+  await expect(node(page, 'main:root')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(initial);
+  await expect(svg(page).locator('.canvas-coreference-link')).toHaveCount(0);
+});
+
+test('an existing pronoun links to an antecedent in another passage and can be unlinked', async ({
+  page,
+}) => {
+  await openCanvas(page, 'ikó * +ae', undefined, false, undefined, {
+    workCoreferences: [
+      {
+        role: 'anchor',
+        label: 'teko',
+        passageId: 'passage-12',
+        ordinal: 12,
+        title: 'Passagem 12',
+        text: 'tekokatuetérerekoara oemimotarybo',
+      },
+    ],
+  });
+  const pronoun = (await page.evaluate(
+    () => window.canvasFixture.root!.children[1].node.id,
+  )) as string;
+  await menu(page, `main:${pronoun}`, 'Ligar a um antecedente…');
+  const dialog = page.getByRole('dialog', { name: 'Ligar a um antecedente', exact: true });
+  await expect(
+    dialog.getByRole('radio', { name: /tekokatuetérerekoara oemimotarybo · passagem 12/ }),
+  ).toBeChecked();
+  await expect(dialog).not.toContainText('teko ·');
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Ligar', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * (studio_ref(+ae, "teko"))');
+  const chip = svg(page).getByRole('link', { name: 'Abrir antecedente na passagem 12' });
+  await expect(chip).toContainText('↗ Antecedente · passagem 12');
+  await svg(page).screenshot({ path: '.local/coreference-external.png' });
+  await chip.click();
+  expect(await page.evaluate(() => window.canvasOpenedPassage)).toBe('passage-12');
+  await menu(page, `main:${pronoun}`, 'Desfazer ligação ao antecedente');
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('ikó * ((+ae))');
+  await expect(svg(page).locator('.canvas-coreference-link')).toHaveCount(0);
+});
+
+test('automatic antecedent identifiers avoid work links and reuse an existing anchor', async ({
+  page,
+}) => {
+  await openCanvas(page, 'ikó * ae', undefined, false, undefined, {
+    workCoreferences: [
+      {
+        role: 'anchor',
+        label: 'ikó',
+        passageId: 'p12',
+        ordinal: 12,
+        title: 'Passagem 12',
+        text: 'outro antecedente',
+      },
+      {
+        role: 'reference',
+        label: 'ikó2',
+        passageId: 'p13',
+        ordinal: 13,
+        title: 'Passagem 13',
+        text: 'referência sem antecedente',
+      },
+    ],
+  });
+  await menu(page, 'main:root', 'Criar pronome de 3ª pessoa referencial desta estrutura');
+  await ready(page);
+  await expect(page.locator('#canvas-raw')).toHaveText('(studio_anchor(ikó * ae, "ikó3"))');
+  const first = await page.evaluate(() => window.canvasSnapshot);
+  expect(first.canvas.fragments[0].raw).toBe('studio_ref(+ae, "ikó3")');
+  await expect(card(page, 'main:root').locator('.canvas-coreference-badge')).not.toContainText(
+    'ikó3',
+  );
+  await menu(page, 'main:root', 'Criar pronome de 3ª pessoa referencial desta estrutura');
+  await ready(page);
+  const next = await page.evaluate(() => window.canvasSnapshot);
+  expect(next.raw).toBe(first.raw);
+  expect(next.canvas.fragments.map((piece) => piece.raw)).toEqual([
+    'studio_ref(+ae, "ikó3")',
+    'studio_ref(+ae, "ikó3")',
+  ]);
+  await page.getByRole('button', { name: 'Desfazer edição na árvore', exact: true }).click();
+  await ready(page);
+  expect(await page.evaluate(() => window.canvasSnapshot)).toEqual(first);
+});
+
+test('referential links attach to visible cards and avoid intervening nodes after a move', async ({
+  page,
+}) => {
+  const raw = 'studio_anchor(ikó * ae, "private_anchor")';
+  const canvas: CanvasState = {
+    fragments: [
+      { id: 'pronoun', raw: 'studio_ref(+ae, "private_anchor")', x: 850, y: 100 },
+      { id: 'blocker', raw: 'abá', x: 380, y: 70 },
+    ],
+    positions: { 'main:root': { x: 0, y: 100 } },
+  };
+  await openCanvas(page, raw, canvas);
+  const path = svg(page).locator('[data-coreference-route]');
+  await expect(path).toHaveCount(1);
+  const check = async () => {
+    const collisions = await svg(page).evaluate((element) => {
+      const route = element.querySelector<SVGPathElement>('[data-coreference-route]')!;
+      const rects = [...element.querySelectorAll<SVGRectElement>('.runtime-node-body')].map(
+        (rect) => rect.getBoundingClientRect(),
+      );
+      const matrix = route.getScreenCTM()!;
+      const length = route.getTotalLength();
+      let collisions = 0;
+      for (let distance = 1; distance < length - 1; distance += 2) {
+        const point = route.getPointAtLength(distance);
+        const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        if (
+          rects.some(
+            (rect) =>
+              screen.x > rect.left + 1 &&
+              screen.x < rect.right - 1 &&
+              screen.y > rect.top + 1 &&
+              screen.y < rect.bottom - 1,
+          )
+        )
+          collisions++;
+      }
+      return collisions;
+    });
+    expect(collisions).toBe(0);
+  };
+  await check();
+  expect(await card(page, 'main:root').locator('title').allTextContents()).not.toEqual(
+    expect.arrayContaining([expect.stringContaining('private_anchor')]),
+  );
+  await svg(page).screenshot({ path: '.local/coreference-route-before.png' });
+  const before = await path.getAttribute('d');
+  const start = await center(node(page, 'pronoun:root'));
+  const destination = await blankCanvasPoint(page);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(destination.x, destination.y, { steps: 8 });
+  await expect(path).not.toHaveAttribute('d', before!);
+  await check();
+  await page.mouse.up();
+  await ready(page);
+  await expect(path).not.toHaveAttribute('d', before!);
+  await check();
+  await svg(page).screenshot({ path: '.local/coreference-route-after.png' });
+});
+
+test('the real saved 38-node tree preserves positions and draws a compact phrase-to-phrase link', async ({
+  page,
+}) => {
+  const parsed = run('parse_expression', { raw: realCoreferenceTree.raw }).root as AuthorNode;
+  for (const source of flattenNodes(parsed)) {
+    const snapshot = realCoreferenceTree.geometry.nodes.find((node) => node.nodeId === source.id);
+    if (!snapshot) continue;
+    const result = snapshot.texts.find((text) =>
+      /runtime-result-text|runtime-leaf-result/.test(text.class),
+    );
+    const surface = result?.lines?.map((line) => line.text).join(' ') || result?.text || '';
+    source.evaluation = { status: 'ok', surface };
+    source.definition =
+      snapshot.texts.find((text) => text.class === 'runtime-node-definition')?.text || '';
+  }
+  await page.setViewportSize({ width: 1920, height: 1400 });
+  await openCanvas(
+    page,
+    realCoreferenceTree.raw,
+    realCoreferenceTree.canvas as CanvasState,
+    false,
+    undefined,
+    {
+      fit: false,
+      projection: parsed,
+    },
+  );
+  // First paint preserves the actual saved arrangement before any Adjust/Expand-all action.
+  expect((await page.evaluate(() => window.canvasSnapshot)).canvas.positions).toEqual(
+    realCoreferenceTree.canvas.positions,
+  );
+  while (
+    await svg(page)
+      .getByRole('button', { name: /^Expandir / })
+      .count()
+  ) {
+    await svg(page)
+      .getByRole('button', { name: /^Expandir / })
+      .first()
+      .press('Enter');
+  }
+  const path = svg(page).locator('[data-coreference-route]');
+  await expect(path).toHaveCount(1);
+  await expect(svg(page).locator('[data-canvas-key]')).toHaveCount(38);
+  const check = async () => {
+    const report = await svg(page).evaluate((element) => {
+      const path = element.querySelector<SVGPathElement>('[data-coreference-route]')!;
+      const matrix = path.getScreenCTM()!;
+      const boxes = [
+        ...element.querySelectorAll<SVGGraphicsElement>(
+          '.runtime-node-body,.runtime-result-background,.runtime-operation-name,.runtime-edge text,.runtime-collapse,.canvas-port',
+        ),
+      ].map((box) => box.getBoundingClientRect());
+      let crossings = 0;
+      for (let distance = 2; distance < path.getTotalLength() - 2; distance += 2) {
+        const point = path.getPointAtLength(distance),
+          screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        if (
+          boxes.some(
+            (box) =>
+              screen.x > box.left + 1 &&
+              screen.x < box.right - 1 &&
+              screen.y > box.top + 1 &&
+              screen.y < box.bottom - 1,
+          )
+        )
+          crossings++;
+      }
+      const points = [path.getPointAtLength(0), path.getPointAtLength(path.getTotalLength())];
+      return {
+        length: path.getTotalLength(),
+        crossings,
+        points: points.map((p) => ({ x: p.x, y: p.y })),
+      };
+    });
+    expect(report.crossings).toBe(0);
+    expect(report.length).toBeLessThan(1100);
+  };
+  await check();
+  expect((await page.evaluate(() => window.canvasSnapshot)).canvas.positions).toEqual(
+    realCoreferenceTree.canvas.positions,
+  );
+  await svg(page).screenshot({ path: '.local/coreference-real-tree.png' });
+  await tools(page).getByRole('button', { name: 'Ajustar', exact: true }).click();
+  await check();
+  await svg(page).screenshot({ path: '.local/coreference-real-tree-fitted.png' });
+  await page.getByRole('button', { name: 'Expandir tudo', exact: true }).click();
+  await expect(path).toHaveCount(1);
+  await expect(svg(page).locator('[data-canvas-key]')).toHaveCount(38);
 });

@@ -10,7 +10,7 @@ import hashlib
 import inspect
 import json
 from pathlib import Path
-from studio_authoring import expression_tree, parse_ast
+from studio_authoring import STUDIO_HELPER_SOURCE, coreference_call, expression_tree, parse_ast
 from lexical_metadata import lexical_status
 
 
@@ -153,7 +153,7 @@ def inventory(raw, corpus, source_path, namespace, source_line=None, runtime_gra
                  stack, actual_bound, candidate, {'parameter': node.id, 'argument': code(actual, actual_text)})
             return
         name = node.id if isinstance(node, ast.Name) else node.func.id if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) else None
-        if name and name != 'studio_define' and lexical(name):
+        if name and name not in STUDIO_HELPER_SOURCE and lexical(name):
             item = entry(name)
             occurrence_id = 'occurrence:' + hashlib.sha256((fingerprint + ':' + route + ':' + item['id']).encode()).hexdigest()[:24]
             occurrence = {'id': occurrence_id, 'lexicalId': item['id'], 'name': name,
@@ -259,15 +259,20 @@ def inventory(raw, corpus, source_path, namespace, source_line=None, runtime_gra
         if value is not None and isinstance(meaning, ast.Constant) and isinstance(meaning.value, str): return value
         return None
 
+    def annotated_value(syntax):
+        # Meaning and coreference wrappers annotate one visible construction.
+        linked = coreference_call(syntax)
+        return linked[1] if linked else definition_value(syntax)
+
     class MeaningTransparent(ast.NodeTransformer):
         def visit_Call(self, node):
-            value = definition_value(node)
+            value = annotated_value(node)
             return self.visit(value) if value is not None else self.generic_visit(node)
 
     def structural_identity(syntax):
         structural = MeaningTransparent().visit(copy.deepcopy(syntax))
         references = sorted({(node.id, entry(node.id)['id']) for node in ast.walk(structural)
-                             if isinstance(node, ast.Name) and node.id != 'studio_define' and lexical(node.id)})
+                             if isinstance(node, ast.Name) and node.id not in STUDIO_HELPER_SOURCE and lexical(node.id)})
         material = json.dumps({'syntax': ast.dump(structural, include_attributes=False), 'lexicalIds': references}, sort_keys=True)
         return digest(material), structural
 
@@ -297,7 +302,14 @@ def inventory(raw, corpus, source_path, namespace, source_line=None, runtime_gra
         # the outer edit span and note identity, but traverse the value's real
         # operation children without introducing a second visible level.
         body = node
-        while definition_value(parse_ast(body['code'])) is not None:
+        coreference = []
+        meaning_node = node if meaning_value is not None else None
+        while annotated_value(body_syntax := parse_ast(body['code'])) is not None:
+            linked = coreference_call(body_syntax)
+            if meaning_node is None and not linked:
+                meaning_node, meaning_value = body, definition_value(body_syntax)
+            if linked:
+                coreference.append({'role': 'anchor' if linked[0] == 'studio_anchor' else 'reference', 'label': linked[2]})
             wrapped = next((child['node'] for child in body['children']
                             if child['slot'] in ('arg0', 'kw:value')), None)
             if wrapped is None: break
@@ -312,7 +324,7 @@ def inventory(raw, corpus, source_path, namespace, source_line=None, runtime_gra
             # A local meaning wrapper remains the same underlying lexical word
             # or construction for reusable notes; each visible scope still has
             # its own occurrence and explicit meaning below.
-            if (meaning_value is not None or node['kind'] == 'reference') and isinstance(structural, ast.Name) and lexical(structural.id):
+            if (meaning_value is not None or coreference or node['kind'] == 'reference') and isinstance(structural, ast.Name) and lexical(structural.id):
                 item = entry(structural.id)
             else:
                 identifier = 'construction:' + node_fingerprint.removeprefix('sha256:')[:24]
@@ -339,13 +351,14 @@ def inventory(raw, corpus, source_path, namespace, source_line=None, runtime_gra
                           editable=bool(node['capabilities'].get('edit')) and body['kind'] not in ('literal', 'hole', 'unsupported')
                                    and (body['kind'] != 'reference' or hasattr(namespace.get(body['code']), 'eval')),
                           hasDefinitionOverride=meaning_value is not None)
+        if coreference: occurrence['coreference'] = coreference
         occurrence['runtimeNodeIds'] = [value['id'] for value in graph.get('nodes', [])
                                         if value.get('sourceNodeId') == node['id'] or any(
                                             source.get('sourceNodeId') == node['id'] for source in value.get('sourceOccurrences', []))]
         for key in ('baseDefinition', 'compositeDefinition', 'lexicalStatus', 'evaluation', 'runtimeType', 'category'):
             if key in facts: occurrence[key] = facts[key]
         if meaning_value is not None:
-            wrapped = next((child['node'] for child in node['children'] if child['slot'] in ('arg0', 'kw:value')), None)
+            wrapped = next((child['node'] for child in meaning_node['children'] if child['slot'] in ('arg0', 'kw:value')), None)
             base = evidence_nodes.get(wrapped['id'], {}) if wrapped else {}
             for key in ('compositeDefinition', 'baseDefinition'):
                 if isinstance(base.get(key), str):

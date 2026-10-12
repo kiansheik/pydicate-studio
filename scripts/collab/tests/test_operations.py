@@ -156,6 +156,9 @@ class OperationsTests(unittest.TestCase):
         g('sparse-checkout','set','--no-cone','/historic/')
         self.assertFalse((repo/'ground_truth/omitted.txt').exists())
         (repo/'historic/test.tu.py').write_text('snapshot\n')
+        index=(repo/'.git/index').read_bytes()
+        host.changes('oldtupicorpus')
+        self.assertEqual((repo/'.git/index').read_bytes(),index)
         with self.offline_publication(host):host.collect('oldtupicorpus',host.root/'export',publish_current=True)
         self.assertEqual(g('status','--porcelain'),'')
         self.assertEqual(g('ls-files','-t','ground_truth/omitted.txt'),'S ground_truth/omitted.txt')
@@ -195,6 +198,50 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual((repo/'.git/index').read_bytes(),index)
         self.assertEqual((repo/'historic/test.tu.py').read_text(),'snapshot\n')
         self.assertFalse((repo/'.git/index.lock').exists())
+
+    def test_publication_does_not_rename_across_export_filesystem(self):
+        import errno
+        host,repo,g=self.fixture();replace=pathlib.Path.replace
+        (repo/'historic/test.tu.py').write_text('snapshot\n')
+        def separate_device(path,target):
+            if path.name=='capture.index':raise OSError(errno.EXDEV,'Invalid cross-device link')
+            return replace(path,target)
+        with self.offline_publication(host),patch.object(pathlib.Path,'replace',separate_device):
+            dest=host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('show','HEAD:historic/test.tu.py'),'snapshot')
+        self.assertEqual(g('status','--porcelain'),'')
+        g('bundle','verify',str(dest/'repository.bundle'))
+
+    def test_index_copy_failure_keeps_head_index_and_working_edits(self):
+        host,repo,g=self.fixture();head=g('rev-parse','HEAD')
+        index=(repo/'.git/index').read_bytes()
+        (repo/'historic/test.tu.py').write_text('snapshot\n')
+        with self.offline_publication(host),patch('publication.shutil.copyfileobj',side_effect=OSError('disk full')):
+            with self.assertRaisesRegex(OSError,'disk full'):
+                host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('rev-parse','HEAD'),head)
+        self.assertEqual((repo/'.git/index').read_bytes(),index)
+        self.assertEqual((repo/'historic/test.tu.py').read_text(),'snapshot\n')
+        self.assertFalse((repo/'.git/index.lock').exists())
+
+    def test_changes_compare_through_index_and_keep_rename_deletions(self):
+        from host import run
+        host,repo,g=self.fixture()
+        g('mv','historic/test.tu.py','historic/renamed.tu.py')
+        g('commit','-m','rename')
+        (repo/'historic/renamed.tu.py').write_text('working edit\n')
+        def no_direct_tree_worktree(args,**kwargs):
+            if 'diff' in args and 'origin/main' in args and '--cached' not in args:
+                raise AssertionError('Unsafe direct tree-to-sparse-worktree diff')
+            return run(args,**kwargs)
+        with patch('host.run',side_effect=no_direct_tree_worktree):
+            manifest=host.changes('oldtupicorpus')
+        self.assertEqual([r['path'] for r in manifest['files']],['historic/renamed.tu.py','historic/test.tu.py'])
+        self.assertIsNone(manifest['files'][1]['sha256'])
+        with self.offline_publication(host):
+            host.collect('oldtupicorpus',host.root/'export',publish_current=True)
+        self.assertEqual(g('show','HEAD:historic/renamed.tu.py'),'working edit')
+        self.assertEqual(g('status','--porcelain'),'')
 
     def test_review_hash_covers_executable_mode(self):
         host,repo,g=self.fixture();source=repo/'historic/test.tu.py'

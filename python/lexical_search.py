@@ -79,3 +79,17 @@ class Query:
                 matches.append(Match((1 if whole else 5, spelling, position),
                                      'relaxed' if spelling else 'definition', 'definition', spelling))
         return min(matches, key=lambda match: match.rank) if matches else None
+
+
+def search_catalog(entries, query='', limit=40):
+    """Rank a complete, already realized catalog without changing its entries."""
+    lookup = Query(query)
+    matches = []
+    for entry in entries:
+        match = lookup.match(Document(name=entry['name'],
+            forms=[('name', entry['name']), ('surface', entry.get('surface'))],
+            definition=entry['definition']))
+        if match or lookup.empty:
+            matches.append((match.rank if match else (0, 0, 0), entry))
+    matches.sort(key=lambda row: (row[0], row[1]['name']))
+    return {'query': query, 'total': len(matches), 'results': [entry for _, entry in matches[:limit]]}

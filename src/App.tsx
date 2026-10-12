@@ -8,7 +8,7 @@ import { TranslationFields } from './components/TranslationFields';
 import { MorphemeText } from './components/MorphemeHighlight';
 import type { MorphemeSurfaceHighlight } from './domain/morpheme-display';
 import { sameTranslations } from './domain/translations';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -78,6 +78,7 @@ import type { Studio } from './useStudio';
 import { NewSourceDialog } from './components/NewSourceDialog';
 import { projectSources, sourceLabel } from './domain/sources';
 import { analysisAvailable } from './domain/capabilities';
+import { collectWorkCoreferences } from './domain/coreference';
 
 const LearningWorkspace = lazy(() =>
   import('./components/LearningWorkspace').then((module) => ({
@@ -167,6 +168,16 @@ function Projections({
   onSharedTreeNavigationChange?: (target: SharedTreeNavigation | null) => void;
 }) {
   const { draft, passage, result } = studio;
+  const workCoreferences = useMemo(
+    () =>
+      collectWorkCoreferences(
+        studio.project.passages,
+        studio.envelope.drafts,
+        passage.sourceId,
+        passage.id,
+      ),
+    [studio.project.passages, studio.envelope.drafts, passage.sourceId, passage.id],
+  );
   if (studio.project.mode === 'local' && tab === 'Árvore')
     return (
       <PydicateTree
@@ -197,6 +208,8 @@ function Projections({
         onLexicalPreview={lexicalPreview}
         onInspectLexeme={inspectLexeme}
         onAskAI={analysisAvailable() ? askAI : undefined}
+        workCoreferences={workCoreferences}
+        onOpenPassage={(id) => studio.setSelectedId(id)}
       />
     );
   if (studio.project.mode === 'local' && ['Construção', 'Código'].includes(tab))

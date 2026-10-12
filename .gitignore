@@ -1,10 +1,18 @@
 node_modules/
 dist/
 runtime/authoring/shared-bundle.cjs
+electron/
 .local/
 test-results/
 playwright-report/
 *.tsbuildinfo
+
+# Packaging output, bundled runtimes and release binaries.
+build/
+release/
+*.dmg
+*.blockmap
+
 __pycache__/
 *.py[cod]
 .DS_Store

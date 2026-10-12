@@ -1,3 +1,127 @@
+# Main consolidation (2026-10-12)
+
+The user authorized committing and publishing all pending Studio work to main.
+Current product code/tests/configs match deployed `312eba3` byte-for-byte;
+additional changes are ignore rules and historical/deployment documentation.
+The private release ancestry is being retained for reproducible future deploys.
+Formatting and diff checks are clean; earlier build, 307 unit and five focused
+browser checks remain applicable to these identical product bytes.
+See [handoff](session-handoffs/2026-10-12-main-consolidation.md).
+
+# Pronoun routing checked on the actual full tree (2026-10-12)
+
+The user's Chrome render exposed a forced left-pill port and oversized node
+obstacles. Links now join the displayed phrase results, choose among four clear
+sides, use separate rendered-part/edge-label obstacles, and round bends. Inside
+badges, accented result borders and zoom-legible cues identify the endpoints.
+The exact saved 38-node SVG supplies a regression fixture; 307 unit and five
+browser checks pass, including saved positions before fitting, full expansion,
+result/control/label collision checks and a compactness bound. Release
+`312eba3` is deployed and healthy; backup integrity and preservation checks pass.
+The user confirmed that the updated rendering looks much better.
+See [handoff](session-handoffs/2026-10-12-coreference-real-tree.md).
+
+# Hidden pronoun IDs and routed links (2026-10-12)
+
+Pronoun creation is immediate and generates a unique internal identifier.
+Badges, menus, picker, inspector and ordinary tooltips hide it. Existing source
+IDs remain compatible. Dashed links attach to visible cards/pills and route
+around node/label/control envelopes, including live drag positions; external
+chips occupy a separate lane with their own click target. Build and focused
+checks pass (306 unit / four browser). Private release `3ff54eb` is deployed
+and publicly healthy; backup integrity and research parity pass. See the
+[handoff](session-handoffs/2026-10-12-coreference-ui-routing.md).
+
+# Referential pronouns deployed (2026-10-12)
+
+Private release `400f0b253db882146906b02e3ee883f1ba9f13d3` is healthy on the
+collaborative server, based on live `7bd59ae` with only the pronoun feature added.
+Build, 300 unit tests, seven local real-engine tests, two browser tests and
+305 runtime tests pass (three optional runtime skips). Six read-only tests also
+pass against the deployed real engine. Checkpoint checksum/readability and
+complete analysis archive verification pass; before/after parity preserves
+280 drafts, 3368 revisions, all nine tracked tables and every checked research,
+evidence/import and analysis file. Engine/corpus revisions and application-owned
+Git indexes are unchanged. No source publication, pruning or credential replacement.
+See [deployment handoff](session-handoffs/2026-10-12-coreference-deployment.md).
+
+## 2026-10-12 — Referential third-person pronouns
+
+Added `studio_anchor`/`studio_ref` source annotations. Any node can become an
+antecedent, and a form (usually `+ae`) can refer back to it from any passage of
+the same work, with realization unchanged. The canvas offers create/link/go
+to/unlink actions, badges, dashed links and a cross-passage chip. Léxico, the
+semantic context and the AI prompt carry the link. New tests: 7 Python and
+8 vitest unit tests, plus 2 browser tests. Pre-existing failures reproduced
+unchanged on a reversed-diff copy: 2 in test_authoring and 6 in canvas.spec.
+See the [handoff](session-handoffs/2026-10-12-referential-pronouns.md).
+
+## 2026-10-08 — Engine spacing versus qualification gate
+
+Traced passage118 mismatch to nominal subject/adjunct joining in nhe-enga and
+whitespace collapse in oldtupicorpus's annotation-derived export. Fixed only the
+engine joiner locally, preserving strict publication equality and saved approval.
+82 engine +4 gate tests pass;160-line comparison changes only this one space.
+See [handoff](session-handoffs/2026-10-08-engine-spacing.md).
+
+## 2026-10-08 — Publication index and sparse Git failures
+
+Fixed EXDEV after exports moved to a separate volume; preserve the exclusive
+index lock and ref rollback. Avoid a reproducible Git 2.43 sparse-worktree crash
+by scanning through a private index with its original timestamp. Added cross-volume,
+rename deletion, copy failure and live-index preservation regression coverage.
+Deployed private release 7bd59ae with research parity; all 33 focused tests pass.
+The complete publication command succeeded and opened corpus PR7 and grammar PR28.
+See [handoff](session-handoffs/2026-10-08-publication-volumes.md).
+
+## 2026-10-05 — Stale MCP discovery and reliable hosted readiness
+
+Matched OWNER_ACTIVE to a pre-crash discovery record whose PID15 was reused but
+whose socket no longer existed. Fixed bounded endpoint recovery, rejected-start
+retry and owner-checked lifecycle cleanup. Hosted AI readiness now exercises the
+actual gateway before health succeeds. Added provider-free authenticated selected
+grammar repair and startup/race regressions. Preserved earlier performance code
+and the failed saved correction; no linguistic rule or provider request changed.
+Deployed private code release `5ce7a30`: production build, fresh actual gateway
+readiness/authentication rejection and research parity passed. Runtime308 and
+hosted132 tests pass; ten conditional hosted scenarios were skipped. The saved
+failed attempt remains historical for explicit resume. No GitHub push.
+See [handoff](session-handoffs/2026-10-05-mcp-owner-recovery.md).
+
+## 2026-10-03 — Deployed memory, search and bounded diagnostics fixes
+
+Matched the subtree repair interruption to V8 heap exhaustion; preserved all
+saved work while implementing compatible lazy history payloads, lifecycle
+admission fencing, scoped diagnostics, on-demand morphology and lazy draft
+projection. Exact-content guards remain; bounded lexical catalogs improve
+repeated live variable search from ~2.85s to ~0.64s. Added numeric operational
+history with seven-day/32MiB retention and authenticated admin visibility.
+
+Private release `9121153` is healthy on Hetzner after verified analysis/database
+backups and unchanged research parity (278 drafts,2,679 revisions,356 analysis
+files plus evidence/corpus/engine/provenance). GitHub publishing was rejected by
+automatic review; no push occurred. Local runtime/domain/hosted/portable Python
+and targeted real-corpus/browser checks pass. No provider attempt was resumed.
+See [handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
+
+## 2026-10-02 — Full preserved rollout and guide evaluator recovery
+
+PR20 merged into main `921b502`; exact-main Checks and hosted gates completed
+successfully. Deployed the full image using existing Host operations with the
+explicitly authorized one-time prune skip. Verified stopped backup
+`manual-main-guide-20261002T232050-e89c57`, full analysis-record archive parity and
+readable database dump. Source identities/dirty status and all 181 corpus,
+157 engine and 614 provenance file hashes remain unchanged; existing configuration
+metadata retained. Public `/healthz` and container are healthy at the exact SHA.
+
+Our wrapper's post-deploy root Git status refreshed indices to root-only ownership,
+causing the reported guide evaluator Git128 error. The existing 23:30 UTC updater
+restored ownership; guarded repair declined to change already-correct files.
+Private verification scripts now disable optional Git index writes. Actual deployed
+guarded evaluator repeats produce `ybaka yby abá abé` in 0.871/0.851 seconds,
+reject stale context and make zero provider calls. Successful cloud-browser retry
+remains to be observed. See [handoff](session-handoffs/2026-10-02-builder-cheatsheet.md).
+
 ## 2026-10-02 — Contextual Portuguese builder recipes and unary controls
 
 Inspected actual operators, corpus method usage and builder drag/scoped edit

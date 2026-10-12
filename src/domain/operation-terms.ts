@@ -269,6 +269,20 @@ export function operationTerm(input: OperationTermInput): OperationTerm {
           'Define o significado desta composição sem alterar os sentidos das suas peças. A revisão registra o conjunto no léxico.',
         syntax: 'studio_define()',
       };
+    if (name === 'studio_anchor')
+      return {
+        label: 'Antecedente referencial',
+        description:
+          'Marca esta estrutura como antecedente que pronomes da mesma obra podem retomar. A forma realizada não muda.',
+        syntax: 'studio_anchor()',
+      };
+    if (name === 'studio_ref')
+      return {
+        label: 'Pronome referencial',
+        description:
+          'Liga esta forma (geralmente +ae) ao antecedente com o mesmo rótulo. A forma realizada não muda.',
+        syntax: 'studio_ref()',
+      };
     return {
       label: name ? `Construção: ${name}` : 'Construção reutilizada',
       description:

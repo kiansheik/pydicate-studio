@@ -45,7 +45,7 @@ function client(req) { const value = req.headers['x-studio-client']; if (typeof 
     throw fault(400, 'CLIENT_REQUIRED', 'Identificação da aba ausente.'); return value; }
 function integer(value, min = 0, max = Number.MAX_SAFE_INTEGER) { const n = Number(value); if (!Number.isSafeInteger(n) || n < min || n > max)
     throw fault(400, 'INVALID_NUMBER', 'Número inválido.'); return n; }
-function createHttp({ config, store, auth, runtime }) {
+function createHttp({ config, store, auth, runtime, diagnostics }) {
     const identity = new (require("./identity.cjs").AcademiaIdentity)(store,auth,config.identity);
     auth.identity=identity;
     const { ProviderVault } = require('./provider-vault.cjs');
@@ -241,7 +241,8 @@ function createHttp({ config, store, auth, runtime }) {
             }
             if (route === '/api/admin/report' && req.method === 'GET') {
                 admin(session);
-                return json(res, 200, await store.report(integer(url.searchParams.get('days') ?? 7, 0, 365000)));
+                return json(res, 200, { ...await store.report(integer(url.searchParams.get('days') ?? 7, 0, 365000)),
+                    diagnostics: diagnostics ? await diagnostics.report() : { available: false } });
             }
             if (route === '/api/pdf' && req.method === 'POST') {
                 if (uploading)

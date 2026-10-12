@@ -1,3 +1,120 @@
+# Main consolidation (2026-10-12)
+
+The user authorized committing and publishing all pending Studio work to main.
+Current product code/tests/configs match deployed `312eba3` byte-for-byte;
+additional changes are ignore rules and historical/deployment documentation.
+The private release ancestry is being retained for reproducible future deploys.
+Formatting and diff checks are clean; earlier build, 307 unit and five focused
+browser checks remain applicable to these identical product bytes.
+See [handoff](session-handoffs/2026-10-12-main-consolidation.md).
+
+# Pronoun routing checked on the actual full tree (2026-10-12)
+
+The user's Chrome render exposed a forced left-pill port and oversized node
+obstacles. Links now join the displayed phrase results, choose among four clear
+sides, use separate rendered-part/edge-label obstacles, and round bends. Inside
+badges, accented result borders and zoom-legible cues identify the endpoints.
+The exact saved 38-node SVG supplies a regression fixture; 307 unit and five
+browser checks pass, including saved positions before fitting, full expansion,
+result/control/label collision checks and a compactness bound. Release
+`312eba3` is deployed and healthy; backup integrity and preservation checks pass.
+The user confirmed that the updated rendering looks much better.
+See [handoff](session-handoffs/2026-10-12-coreference-real-tree.md).
+
+# Hidden pronoun IDs and routed links (2026-10-12)
+
+Pronoun creation is immediate and generates a unique internal identifier.
+Badges, menus, picker, inspector and ordinary tooltips hide it. Existing source
+IDs remain compatible. Dashed links attach to visible cards/pills and route
+around node/label/control envelopes, including live drag positions; external
+chips occupy a separate lane with their own click target. Build and focused
+checks pass (306 unit / four browser). Private release `3ff54eb` is deployed
+and publicly healthy; backup integrity and research parity pass. See the
+[handoff](session-handoffs/2026-10-12-coreference-ui-routing.md).
+
+# Referential pronouns deployed (2026-10-12)
+
+Private release `400f0b253db882146906b02e3ee883f1ba9f13d3` is healthy on the
+collaborative server, based on live `7bd59ae` with only the pronoun feature added.
+Build, 300 unit tests, seven local real-engine tests, two browser tests and
+305 runtime tests pass (three optional runtime skips). Six read-only tests also
+pass against the deployed real engine. Checkpoint checksum/readability and
+complete analysis archive verification pass; before/after parity preserves
+280 drafts, 3368 revisions, all nine tracked tables and every checked research,
+evidence/import and analysis file. Engine/corpus revisions and application-owned
+Git indexes are unchanged. No source publication, pruning or credential replacement.
+See [deployment handoff](session-handoffs/2026-10-12-coreference-deployment.md).
+
+# Referential third-person pronouns (2026-10-12)
+
+Any tree node can be marked as an antecedent (`studio_anchor(value, "label")`).
+A form, usually `+ae`, can refer back to it (`studio_ref(+ae, "label")`) from the
+same passage, a loose piece or another passage of the same work. Realization is
+unchanged. The canvas offers creation and linking from the context menu, plus
+⚑/↩ badges, a dashed link and a chip that opens the other passage. Léxico,
+the semantic context and the AI prompt carry the link. Publication writes only
+the helpers a file uses. Not deployed and no corpus change. See the
+[contract](../design/coreference.md) and the
+[handoff](session-handoffs/2026-10-12-referential-pronouns.md).
+
+# Engine spacing / qualification mismatch (2026-10-08)
+
+Diagnosed the qualification mismatch for Araújo1686:118: saved/ordinary output
+has two spaces, annotation-derived dictionary output collapses them. Local
+nhe-enga nominal joiner fix removes the duplicate separator. All 82 engine tests
+and four qualification gate tests pass; only passage118 changes among160.
+Not deployed; the approved record remains unchanged and needs a corrected save.
+See [handoff](session-handoffs/2026-10-08-engine-spacing.md).
+
+# Publication across volumes (2026-10-08)
+
+Publication now fills its exclusive repository index lock by copy/fsync before
+the same-filesystem atomic install. Manifest scanning compares upstream to index
+and index to working files using a private timestamp-preserving index copy,
+avoiding the live Git 2.43 sparse-worktree crash and metadata writes.
+Live private release `7bd59ae` is healthy; all 33 focused operations tests pass.
+Research parity passed and `make collab-publish-all` completed, opening
+oldtupicorpus PR7 and nhe-enga PR28 (unmerged). Deployment validation is
+recorded in the [handoff](session-handoffs/2026-10-08-publication-volumes.md).
+
+# MCP owner recovery (2026-10-05)
+
+Live private release `5ce7a309b32b56eca014ca0a0676c9bcd4b56d82` is deployed and
+verified. The latest grammar repair failed because an October3 discovery file survived the
+crash and its PID was reused by the replacement server, although its socket was
+gone. This is not an admin permission failure. Gateway startup now verifies the
+bounded local endpoint, retries failed initialization, preserves real owners and
+serializes lifecycle cleanup. AI-enabled hosted startup checks this transport
+before reporting healthy, without starting inference.
+
+Provider-free tests cover a selected grammar edit through actual authenticated
+MCP after stale-PID recovery. All 308 runtime tests and 132 hosted tests passed (ten conditional hosted skips).
+The actual live gateway now owns a fresh socket and enforces scope authentication.
+Research parity passed; the saved request remains intact; no
+linguistic rule is changed by these fixes. See the
+[handoff](session-handoffs/2026-10-05-mcp-owner-recovery.md) for tests and rollout.
+
+# Performance and interrupted subtree repairs (2026-10-03)
+
+Live private release `912115346163bd0c125b55affffbbe38d6526715` fixes the observed
+V8 heap crash during analysis progress/history work. Compatible lazy payloads and
+shallow packing cut peak RSS roughly66% in the copied-history fixture. Admission
+fencing protects shutdown; target diagnostics distinguish isolated and containing
+trees; UI morphology is demand-driven and draft search projection is lazy.
+
+Exact-content freshness guards retain HEAD/path/content checks while omitting
+unused Git metadata. Bounded lexical catalogs reduce repeated live `ikó` search
+from ~2.85 s to ~0.64 s; tested render requests improve more modestly. Numeric
+memory/CPU/queue/event-loop/disk diagnostics now persist up to seven days/32MiB and
+appear in the existing admin report. Public health, authenticated probes, backup
+integrity and before/after research parity passed. No inference or grammar rule
+was changed; the interrupted repair remains saved for explicit resume.
+
+The isolated local branch is `fix/performance-history`. Automatic review blocked
+GitHub publication, so the tested bundle was deployed directly to the authorized
+Hetzner host; upstream main does not yet contain it. Full evidence and validation
+boundaries are in the [handoff](session-handoffs/2026-10-03-performance-and-repair-recovery.md).
+
 # Builder recipes and common unary controls (2026-10-02)
 
 Implemented in isolated `feat/builder-cheatsheet` from merged main `6e6351c`;
@@ -18,9 +135,31 @@ existing stale-context guarded evaluator and never modify a draft.
 Portable documentation is [construction-cheatsheet.md](../construction-cheatsheet.md),
 generated from the in-app data; recipe and interaction checks plus provenance
 are recorded in the [handoff](session-handoffs/2026-10-02-builder-cheatsheet.md).
-The prior grammar workflow and server-only changes are merged on main but the
-live app remains `85ddedd`. No deployment occurred: legacy pruning can delete
-research provenance and approval to skip it is still pending with the parent.
+PR20 is merged; main and the healthy live app are now
+`921b502fd076e86f9a44ea4836e4b93c458ec298`, whose tree equals tested feature
+commit `cc958a4`. Exact-main Checks and hosted CI both completed successfully.
+The full deployment includes the surgical grammar workflow and server-only
+runtime extraction. The user authorized skipping legacy pruning for this rollout;
+no research archives, images or backups were pruned and credentials were retained.
+
+Stopped full backup `manual-main-guide-20261002T232050-e89c57` includes database,
+workspace/config/data, import provenance and the complete analysis records
+directory. Manifest hashes, exact record round-trip and readable database dump
+were verified. After rollout and example checks, all 181 corpus files, 157 engine
+files and 614 provenance files match the deployment report, including dirty work.
+
+The one-time wrapper's post-deploy root `git status` refreshed both `.git/index`
+files to root:root 0600, causing the user's guide Git128 error. The existing
+23:30 UTC upstream check restored application ownership through `workspace_writes`;
+our guarded repair correctly made no mutation after finding ownership restored.
+Both private verification scripts now set `GIT_OPTIONAL_LOCKS=0`. Node-user Git
+reads and two actual guarded evaluator calls now succeed: `abé * ybaka * yby * abá`
+produces `ybaka yby abá abé` in 0.871/0.851 seconds with no providers; stale-engine
+rejection remains intact. Public health and container identity match the release.
+The live browser's successful retry still needs observation in the user's cloud
+session; reopening the guide remounts an example preview after the earlier error.
+
+Earlier review/deployment notes below are historical checkpoints.
 
 # Current state
 

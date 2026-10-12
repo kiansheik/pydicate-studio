@@ -17,7 +17,7 @@ import traceback
 from contextlib import redirect_stdout
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from studio_authoring import expression_tree, source_entries, METHODS, parse_ast, is_slot
+from studio_authoring import expression_tree, source_entries, METHODS, parse_ast, is_slot, STUDIO_HELPER_SOURCE, COREFERENCE_HELPERS, coreference_call
 from lexical_metadata import inherit_lexical_status, lexical_status, prepare_lexical_arguments, restore_namespace_lexical_status, verify_lexical_arguments
 from semantic_context import attach_definition_context, register_declarations
 
@@ -29,6 +29,27 @@ CONSTRUCTORS = {'Noun','ProperNoun','Pronoun','Verb','Adverb','Postposition','In
 def studio_define(value, definition):
     if not hasattr(value, 'eval') or not isinstance(definition, str): raise ValueError('Definição local inválida.')
     result = value.copy(); result.definition = definition; return result
+
+
+# Coreference is a source annotation: a labelled antecedent anywhere in the same
+# work, and a form (usually +ae) that refers back to it. Neither changes the
+# realized form; the link is read from source, never inferred from the engine.
+COREFERENCE_LABEL = re.compile(r"\w[\w'-]{0,39}")
+
+
+def studio_anchor(value, label):
+    if not hasattr(value, 'eval') or not isinstance(label, str) or not COREFERENCE_LABEL.fullmatch(label):
+        raise ValueError('Âncora referencial inválida.')
+    return value.copy()
+
+
+def studio_ref(value, label):
+    if not hasattr(value, 'eval') or not isinstance(label, str) or not COREFERENCE_LABEL.fullmatch(label):
+        raise ValueError('Referência a antecedente inválida.')
+    return value.copy()
+
+
+STUDIO_HELPERS = {'studio_define': studio_define, 'studio_anchor': studio_anchor, 'studio_ref': studio_ref}
 
 
 def configure(parent, engine_path=None):
@@ -44,7 +65,7 @@ def namespace_for(corpus, source_path, line):
     shared_statements = ast.parse(shared_path.read_text(encoding='utf-8')).body
     restore_namespace_lexical_status(namespace, shared_statements)
     register_declarations(namespace, shared_statements, shared_path)
-    namespace['studio_define'] = studio_define
+    namespace.update(STUDIO_HELPERS)
     namespace['__name__'] = 'historic._studio_source_context'
     # Keep source-local assignments/helpers and contextual mutations in execution
     # order. Ignore source collections and __main__; no source module is imported.
@@ -70,7 +91,7 @@ def namespace_for(corpus, source_path, line):
 
 
 def callable_allowed(name, value):
-    if name == 'studio_define' and value is studio_define: return True
+    if name in STUDIO_HELPERS and value is STUDIO_HELPERS[name]: return True
     if name.startswith('_'): return False
     if name in CONSTRUCTORS or name == 'cop': return inspect.isclass(value) and value.__module__.startswith('pydicate.')
     return inspect.isfunction(value) and (value.__module__.startswith('historic.') or value.__module__.startswith('pydicate.lang.tupilang'))
@@ -807,9 +828,6 @@ def lexicon_result(payload, corpus, path, namespace):
         from reference_uses import reference_uses
         usage = reference_uses(corpus, entry['name'], entry['sourcePath'], entry['line']) if entry.get('sourcePath') and entry.get('line') else {'uses':[], 'diagnostics':['Declaração de origem indisponível.']}
         return {**entry, 'expandedStructure':shape(value), 'runtimeTree':runtime_graph(value), 'authoring':expression_tree(entry['expression']), 'namedReference':expression_tree(entry['name']), 'editScopes':['occurrence','source','shared'], 'affectedUses':entry['uses'], 'projectUses':usage, 'safeOccurrenceExpansion':safe_expansion}
-    from lexical_search import Document, Query
-    query = Query(payload.get('query', ''))
-    matches = []
     for entry in entries:
         try:
             value = namespace[entry['name']]
@@ -817,12 +835,10 @@ def lexicon_result(payload, corpus, path, namespace):
                 entry['surface'] = str(evaluation_snapshot(value).eval())
         except Exception:
             pass
-        match = query.match(Document(name=entry['name'],
-            forms=[('name', entry['name']), ('surface', entry.get('surface'))], definition=entry['definition']))
-        if match or query.empty:
-            matches.append((match.rank if match else (0, 0, 0), entry))
-    matches.sort(key=lambda row: (row[0], row[1]['name']))
-    return {'query':payload.get('query',''),'total':len(matches),'results':[entry for _,entry in matches[:payload.get('limit',40)]]}
+    if payload['action'] == 'lexicon_catalog':
+        return {'entries': entries}
+    from lexical_search import search_catalog
+    return search_catalog(entries, payload.get('query', ''), payload.get('limit', 40))
 
 def approve_authoritatively(payload, corpus):
     """Approve only the selected passage; gaps contain no synthesized references."""
@@ -884,7 +900,7 @@ def approve_authoritatively(payload, corpus):
     journal={'version':2,**journal_rows[0],'files':journal_rows,'kind':'reference-approval',
              'ordinal':ordinal,'reviewedSurface':rendered,'status':'prepared'}
     fresh=ProjectAdapter(); fresh.parent=corpus.parent
-    if fresh._engine_fingerprint(fresh._snapshots())!=payload['engineFingerprint']:
+    if fresh._engine_fingerprint(fresh._snapshots(metadata=False))!=payload['engineFingerprint']:
         raise AdapterError('O corpus ou a gramática mudou. Atualize e reconcilie o rascunho.', 'STALE_ENGINE')
     def fail(message,code): raise ValueError(message)
     apply_reviewed_files(members,Path(payload['stateDir'])/'recovery'/(str(uuid.uuid4())+'.json'),journal,fail)
@@ -954,7 +970,7 @@ def main():
                 elif payload.get('action') == 'dictionary_predicate':
                     result = dictionary_predicate(payload,namespace)
                 else:
-                    result=lexicon_result(payload,corpus,path,namespace) if payload.get('action') in {'lexicon','lexicon_inspect','lexicon_context'} else realize(payload['raw'],namespace,include_morphology=payload.get('includeMorphology') is True)
+                    result=lexicon_result(payload,corpus,path,namespace) if payload.get('action') in {'lexicon','lexicon_catalog','lexicon_inspect','lexicon_context'} else realize(payload['raw'],namespace,include_morphology=payload.get('includeMorphology') is True)
         print(json.dumps({'result':result},ensure_ascii=False))
     except Exception as error:
         print(json.dumps({'error':{'message':f'{type(error).__name__}: {error}','code':getattr(error,'code','ENGINE_CONTEXT_ERROR')}},ensure_ascii=False))

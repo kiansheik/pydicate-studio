@@ -807,6 +807,144 @@ test('restart blocks ambiguous running attempt without rerun; explicit retry add
   assert.equal(done.job.input.digest, job.input.digest);
 });
 
+for (const boundary of ['scheduler read', 'attempt write']) {
+  test(`shutdown drains a pending ${boundary} without dispatching queued work`, async (t) => {
+    const entered = deferred(),
+      release = deferred();
+    t.after(() => release.resolve());
+    let calls = 0;
+    const f = await fixture(t, {
+      runner: async () => {
+        calls++;
+        return { text: 'Preserved queued interpretation.' };
+      },
+    });
+    const job = await f.service.invoke('analysis_submit', f.params({ task: 'translate-source' }));
+    await f.service.close();
+    const service = f.create({ autoRun: true });
+    const read = service.store.read.bind(service.store);
+    const transact = service.store.transact.bind(service.store);
+    let reads = 0;
+    if (boundary === 'scheduler read')
+      service.store.read = async (...args) => {
+        if (++reads === 2) {
+          entered.resolve();
+          await release.promise;
+        }
+        return read(...args);
+      };
+    else
+      service.store.transact = (...args) =>
+        transact(args[0], async (state) => {
+          entered.resolve();
+          await release.promise;
+          return args[1](state);
+        });
+    let scopeCalls = 0;
+    const openScope = service.gateway.openScope.bind(service.gateway);
+    service.gateway.openScope = (...args) => {
+      scopeCalls++;
+      return openScope(...args);
+    };
+    await service.start();
+    await entered.promise;
+    assert.equal(service.hasWork(), true, 'Pending dispatch must prevent maintenance');
+    let finished = false;
+    const closing = service.close();
+    assert.equal(service.close(), closing, 'Concurrent callers await the same shutdown');
+    void closing.then(() => {
+      finished = true;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(finished, false, 'Shutdown must drain the pending scheduler/write');
+    release.resolve();
+    await closing;
+    assert.equal(service.hasWork(), false);
+    assert.equal(scopeCalls, 0);
+    assert.equal(calls, 0);
+    const saved = (await service.store.load(projectId)).jobs[job.id];
+    assert.equal(saved.status, 'queued');
+    assert.equal(saved.attempts.length, 0);
+    const next = f.create({ autoRun: true });
+    await next.start();
+    assert.equal((await waitJob(next, job.id)).job.status, 'ready-for-review');
+    assert.equal(calls, 1, 'The next owner runs only the never-dispatched work');
+  });
+}
+
+test('shutdown fences late submission capture and all new queue admissions', async (t) => {
+  const entered = deferred(),
+    release = deferred();
+  t.after(() => release.resolve());
+  let calls = 0;
+  const f = await fixture(t, {
+    autoRun: true,
+    runner: async () => {
+      calls++;
+      return {};
+    },
+  });
+  f.setRequestHook(async (method) => {
+    if (method === 'dictionary_lookup') {
+      entered.resolve();
+      await release.promise;
+    }
+  });
+  const submitting = f.service.invoke('analysis_submit', f.params({ task: 'translate-source' }));
+  assert.equal(f.service.hasWork(), true);
+  await entered.promise;
+  const rejected = assert.rejects(submitting, { code: 'SERVICE_CLOSED' });
+  let finished = false;
+  const closing = f.service.close();
+  void closing.then(() => {
+    finished = true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(finished, false);
+  for (const method of [
+    'analysis_submit',
+    'analysis_submit_batch',
+    'analysis_external_start',
+    'analysis_retry',
+    'analysis_resume',
+  ])
+    await assert.rejects(f.service.invoke(method, f.params()), { code: 'SERVICE_CLOSED' });
+  await assert.rejects(f.service.start(), { code: 'SERVICE_CLOSED' });
+  release.resolve();
+  await rejected;
+  await closing;
+  assert.equal(f.service.hasWork(), false);
+  assert.equal(calls, 0);
+  assert.deepEqual((await f.service.store.load(projectId)).jobs, {});
+});
+
+test('polling preserves ownership during delayed attempt preparation and busy clears after completion', async (t) => {
+  const entered = deferred(),
+    release = deferred();
+  t.after(() => release.resolve());
+  const f = await fixture(t, { autoRun: true, runner: async () => ({ text: 'Prepared result.' }) });
+  const openScope = f.service.gateway.openScope.bind(f.service.gateway);
+  f.service.gateway.openScope = async (...args) => {
+    entered.resolve();
+    await release.promise;
+    return openScope(...args);
+  };
+  const job = await f.service.invoke('analysis_submit', f.params({ task: 'translate-source' }));
+  await entered.promise;
+  assert.equal(f.service.hasWork(), true);
+  for (let i = 0; i < 3; i++) {
+    const detail = await f.service.invoke('analysis_get', { projectId, jobId: job.id });
+    assert.equal(detail.job.status, 'running');
+    assert.equal(detail.job.lease.attemptId, detail.job.attempts[0].id);
+    assert.equal(detail.job.error, undefined);
+  }
+  release.resolve();
+  assert.equal((await waitJob(f.service, job.id)).job.status, 'ready-for-review');
+  for (let i = 0; i < 100 && f.service.hasWork(); i++)
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(f.service.hasWork(), false, 'An empty queue must become idle again');
+});
+
 test('budget pause resumes after restart with recovered tool receipt, saved candidate and fresh budgets', async (t) => {
   let requests = 0;
   const provider = {

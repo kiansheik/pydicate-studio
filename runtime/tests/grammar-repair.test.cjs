@@ -211,6 +211,113 @@ async function waitFor(fn) {
   throw new Error('Fixture did not finish');
 }
 
+test('a selected grammar repair recovers a reused PID and completes authenticated MCP editing', async (t) => {
+  const f = await fixture(t);
+  const discovery = path.join(f.engine, 'state/analysis/mcp/mcp-owner.json');
+  await fs.mkdir(path.dirname(discovery), { recursive: true });
+  await fs.writeFile(
+    discovery,
+    JSON.stringify({
+      version: 1,
+      pid: process.pid,
+      socketPath: path.join(os.tmpdir(), 'pydicate-mcp-stale' + process.pid, 'owner.sock'),
+      startedAt: '2026-10-03T13:02:48.605Z',
+      protocol: 'authenticated-local-mcp',
+    }),
+  );
+  let runs = 0;
+  const service = f.service(async ({ input, mcp }) => {
+    runs++;
+    assert.equal(input.scope, 'constituent');
+    assert.equal(input.raw, 'moro.var(1)');
+    assert.equal(input.grammarRepair.contextRaw, f.params.grammarRepair.raw);
+    const socket = require('node:net').createConnection(mcp.env.STUDIO_MCP_SOCKET);
+    let sequence = 0,
+      buffer = '';
+    const pending = new Map();
+    socket.on('data', (chunk) => {
+      buffer += chunk;
+      let end;
+      while ((end = buffer.indexOf('\n')) >= 0) {
+        const reply = JSON.parse(buffer.slice(0, end));
+        buffer = buffer.slice(end + 1);
+        pending.get(reply.id)?.(reply);
+        pending.delete(reply.id);
+      }
+    });
+    const rpc = (method, params) =>
+      new Promise((resolve, reject) => {
+        const id = ++sequence;
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error('Fixture MCP timeout'));
+        }, 5000);
+        pending.set(id, (result) => {
+          clearTimeout(timer);
+          resolve(result);
+        });
+        socket.write(
+          JSON.stringify({
+            token: mcp.env.STUDIO_MCP_TOKEN,
+            message: { jsonrpc: '2.0', id, method, params },
+          }) + '\n',
+        );
+      });
+    try {
+      await new Promise((resolve, reject) => {
+        socket.once('connect', resolve);
+        socket.once('error', reject);
+      });
+      assert.ok((await rpc('initialize', { protocolVersion: '2025-11-25' })).result);
+      const catalog = await rpc('tools/list', {});
+      assert.ok(catalog.result.tools.some((tool) => tool.name === 'grammar_edit'));
+      const read = await rpc('tools/call', {
+        name: 'grammar_read',
+        arguments: { path: 'tupi/tupi/verb.py' },
+      });
+      const file = read.result.structuredContent;
+      const edited = await rpc('tools/call', {
+        name: 'grammar_edit',
+        arguments: {
+          path: file.path,
+          expectedHash: file.hash,
+          oldText: 'mororerobiare',
+          newText: 'morerobiare',
+        },
+      });
+      assert.equal(edited.result.isError, undefined);
+      assert.equal(edited.result.structuredContent.verification.matches, true);
+      return { text: 'Fixture correction completed through authenticated MCP.' };
+    } finally {
+      socket.destroy();
+    }
+  });
+  const job = await service.invoke('analysis_submit', {
+    ...f.params,
+    grammarRepair: {
+      ...f.params.grammarRepair,
+      selectedNode: { id: 'left', start: 0, end: 11, code: 'moro.var(1)' },
+    },
+  });
+  const completed = await waitFor(async () => {
+    const { job: current } = await service.invoke('analysis_get', {
+      projectId: f.project.id,
+      jobId: job.id,
+    });
+    return (
+      ['needs-input', 'ready-for-review', 'failed', 'blocked'].includes(current.status) && current
+    );
+  });
+  assert.equal(completed.status, 'needs-input', completed.error?.message);
+  assert.equal(completed.grammarVerification.matches, true);
+  assert.equal(completed.grammarEdits.length, 1);
+  assert.equal(runs, 1);
+  assert.equal(
+    (await f.draftStore.load(f.project.id)).drafts[f.params.passageId].raw,
+    f.params.grammarRepair.raw,
+  );
+});
+
 test('capture uses the selected grammar and saved expression, preserves the intended form and rejects a stale dialog', async (t) => {
   const f = await fixture(t),
     job = await f.job();
@@ -241,7 +348,12 @@ test('capture uses the selected grammar and saved expression, preserves the inte
 });
 
 test('selected subtree repair validates saved spans, retains its parent and checks both after every edit', async (t) => {
-  const f = await fixture(t);
+  const f = await fixture(t, {
+    interceptRequest(method, params, surface) {
+      if (method === 'evaluate_expression' && params.raw.includes(' * '))
+        return { surface: `containing ${surface}`, evaluationStatus: 'complete', failures: [] };
+    },
+  });
   const selectedNode = { id: 'left', start: 0, end: 11, code: 'moro.var(1)' };
   selectedNode.end = selectedNode.code.length;
   const params = { ...f.params, grammarRepair: { ...f.params.grammarRepair, selectedNode } };
@@ -252,6 +364,19 @@ test('selected subtree repair validates saved spans, retains its parent and chec
   assert.deepEqual(input.grammarRepair.selectedNode, selectedNode);
   assert.equal(input.diagnostic.evidence.expression, selectedNode.code);
   assert.equal(input.diagnostic.evidence.contextExpression, f.params.grammarRepair.raw);
+  assert.equal(input.diagnostic.evidence.parentExpression, f.params.grammarRepair.raw);
+  assert.equal(input.diagnostic.evidence.selectedNodeId, selectedNode.id);
+  assert.deepEqual(input.diagnostic.evidence.selectedNode, selectedNode);
+  assert.equal(input.diagnostic.evidence.stepsExpression, selectedNode.code);
+  const promptEvidence = JSON.parse(input.diagnostic.prompt.match(/```json\n([\s\S]*?)\n```/)[1]);
+  assert.equal(promptEvidence.parentExpression, f.params.grammarRepair.raw);
+  assert.equal(promptEvidence.selectedNodeId, selectedNode.id);
+  assert(
+    input.diagnostic.prompt.includes(
+      `A expressão completa permanece como contexto: ${f.params.grammarRepair.raw}.`,
+    ),
+  );
+  assert.equal(input.grammarRepair.parentBaseline.surface, 'containing mororerobiare');
   for (const changed of [{ code: 'another' }, { end: 99 }, { start: 1 }, { id: 'missing' }])
     await assert.rejects(
       f.repair.capture({
@@ -273,7 +398,11 @@ test('selected subtree repair validates saved spans, retains its parent and chec
     newText: 'morerobiare',
   });
   assert.equal(result.verification.expression, selectedNode.code);
+  assert.equal(result.verification.surface, 'morerobiare');
+  assert.equal(result.verification.matches, true);
   assert.equal(result.verification.parent.expression, f.params.grammarRepair.raw);
+  assert.equal(result.verification.parent.surface, 'containing morerobiare');
+  assert.equal(result.verification.parent.regressed, false);
   assert.deepEqual(
     f.requests
       .slice(first)
@@ -285,10 +414,26 @@ test('selected subtree repair validates saved spans, retains its parent and chec
   const follow = await f.repair.capture({ ...params, description: 'Continue esta parte.' }, job);
   assert.equal(follow.raw, selectedNode.code);
   assert.deepEqual(follow.grammarRepair.selectedNode, selectedNode);
+  assert.equal(follow.diagnostic.evidence.parentExpression, f.params.grammarRepair.raw);
+  assert.equal(follow.diagnostic.evidence.selectedNodeId, selectedNode.id);
   assert.equal(
     (await f.draftStore.load(f.project.id)).drafts[f.params.passageId].raw,
     f.params.grammarRepair.raw,
   );
+});
+
+test('a matching containing tree cannot satisfy a different selected target', async (t) => {
+  const f = await fixture(t, {
+    interceptRequest(method, params) {
+      if (method === 'evaluate_expression' && params.raw.includes(' * '))
+        return { surface: 'morerobiare', evaluationStatus: 'complete', failures: [] };
+    },
+  });
+  f.params.grammarRepair.selectedNode = { id: 'left', start: 0, end: 11, code: 'moro.var(1)' };
+  const result = await f.repair.check(await f.job());
+  assert.equal(result.parent.surface, result.intendedSurface);
+  assert.equal(result.surface, 'mororerobiare');
+  assert.equal(result.matches, false);
 });
 
 test('a selected subtree cannot leave its containing tree with a new execution failure', async (t) => {
@@ -362,6 +507,8 @@ test('unsaved shared definition repairs use the guarded declaration evaluator fo
   assert.equal(input.raw, 'new_root');
   assert.equal(input.grammarRepair.contextRaw, 'new_root * new_suffix');
   assert.equal(input.grammarRepair.passageRaw, f.params.grammarRepair.raw);
+  assert.equal(input.diagnostic.evidence.parentExpression, 'new_root * new_suffix');
+  assert.equal(input.diagnostic.evidence.selectedNodeId, 'left');
   assert.deepEqual(input.diagnostic.evidence.targetDefinitionContext, { namespace: 'declaration' });
   const job = {
     id: 'job:definition',
@@ -444,6 +591,8 @@ test('loose fragment selection is verified against the saved fragment instead of
   assert.equal(input.grammarRepair.contextRaw, 'piece * suffix');
   assert.equal(input.grammarRepair.passageRaw, f.params.grammarRepair.raw);
   assert.equal(input.grammarRepair.targetPassage, null);
+  assert.equal(input.diagnostic.evidence.parentExpression, 'piece * suffix');
+  assert.equal(input.diagnostic.evidence.selectedNodeId, 'left');
 });
 
 test('explicit engine repair receives frozen scoped grammatical interpretations in its input and read context without granting notes write authority', async (t) => {
