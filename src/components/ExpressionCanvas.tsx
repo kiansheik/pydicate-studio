@@ -40,7 +40,16 @@ import {
   type CanvasState,
 } from '../domain/canvas';
 import { ReferenceInspector } from './ReferenceInspector';
-import { expressionGraph, definitionBody } from '../domain/expression-tree';
+import { expressionGraph, definitionBody, coreferenceWrappers } from '../domain/expression-tree';
+import {
+  COREFERENCE_LABEL,
+  coreferenceLinks,
+  coreferenceSource,
+  referentialPronoun,
+  suggestCoreferenceLabel,
+  type CoreferenceRole,
+  type WorkCoreference,
+} from '../domain/coreference';
 import {
   initialRuntimeOverview,
   isOperationJunction,
@@ -122,6 +131,9 @@ export interface ExpressionCanvasProps {
   onInspectLexeme?: (name: string) => void;
   onAskAI?: (sourceNodeId: string) => void;
   onPrepareDiagnostic?: (report: CanvasDiagnostic) => void;
+  /** Coreference links saved in the other passages of this work. */
+  workCoreferences?: WorkCoreference[];
+  onOpenPassage?: (passageId: string) => void;
   failures?: EvaluationFailure[];
   status?: string;
 }
@@ -367,6 +379,12 @@ export function ExpressionCanvas({
   } | null>(null);
   const [keptChildId, setKeptChildId] = useState('');
   const [definitionPanel, setDefinitionPanel] = useState<CanvasAddress | null>(null);
+  const [coreferencePanel, setCoreferencePanel] = useState<{
+    mode: 'pronoun' | 'link';
+    address: CanvasAddress;
+    session: string;
+    label: string;
+  } | null>(null);
   const [compositionDefinition, setCompositionDefinition] = useState('');
   const [compositionDictionary, setCompositionDictionary] =
     useState<DictionaryMeaningSelection | null>(null);
@@ -520,6 +538,19 @@ export function ExpressionCanvas({
       : 300;
     return { positions, edges, minX, minY, width: maxX - minX, height: maxY - minY };
   }, [pieces, collapsed, saved.positions, orientation]);
+  const canvasCoreferences = useMemo(
+    () =>
+      pieces.flatMap((piece) =>
+        coreferenceLinks(piece.root).map((link) => ({ ...link, pieceId: piece.id })),
+      ),
+    [pieces],
+  );
+  const workLinks = props.workCoreferences ?? [];
+  const anchorLabels = new Set(
+    [...canvasCoreferences, ...workLinks]
+      .filter((link) => link.role === 'anchor')
+      .map((link) => link.label),
+  );
   const selectedPosition = layout.positions.get(selected);
   const selectedPiece =
     selectedPosition?.piece ?? pieces.find((piece) => selected.startsWith(piece.id + ':'));
@@ -1388,6 +1419,89 @@ export function ExpressionCanvas({
       }),
     [layout, orientation, dragPreview],
   );
+  // Coreference is drawn beside the tree, never as one of its edges: a dashed
+  // link to an antecedent on this canvas, or a chip naming another passage.
+  const coreferenceElements = useMemo(() => {
+    const anchors = new Map<string, Positioned[]>();
+    for (const position of layout.positions.values()) {
+      const label = position.node.attributes.coreferenceAnchor;
+      if (typeof label === 'string') anchors.set(label, [...(anchors.get(label) ?? []), position]);
+    }
+    const corner = (position: Positioned) => {
+      const point = pointFor(position);
+      // The badge's left end: clear of the piece label and the edge labels.
+      return { x: point.x + 6, y: point.y - (point.node.id === 'root' ? 25 : 10) };
+    };
+    return [...layout.positions.values()].flatMap((position) => {
+      const label = position.node.attributes.coreferenceReference;
+      if (typeof label !== 'string') return [];
+      const from = corner(position);
+      const targets = anchors.get(label) ?? [];
+      if (targets.length)
+        return targets.map((target) => {
+          const to = corner(target);
+          const lift = 70 + Math.abs(from.x - to.x) * 0.12;
+          return (
+            <g key={`${position.key}->${target.key}`} className="canvas-coreference-link">
+              <title>{`Pronome referencial → antecedente ${label}`}</title>
+              <path
+                d={`M ${from.x} ${from.y} C ${from.x} ${from.y - lift} ${to.x} ${to.y - lift} ${to.x} ${to.y}`}
+              />
+              <circle cx={to.x} cy={to.y} r={3.5} />
+            </g>
+          );
+        });
+      const elsewhere = workLinks.find((link) => link.role === 'anchor' && link.label === label);
+      const text = elsewhere
+        ? `↗ ${label} · passagem ${elsewhere.ordinal}`
+        : `${label} sem antecedente`;
+      const chip = (
+        <>
+          <rect
+            className="canvas-coreference-hit"
+            x={from.x}
+            y={from.y - 44}
+            width={30 + [...text].length * 7}
+            height={44}
+          />
+          <path d={`M ${from.x} ${from.y} L ${from.x + 18} ${from.y - 26}`} />
+          <text x={from.x + 22} y={from.y - 28}>
+            {text}
+          </text>
+        </>
+      );
+      return [
+        elsewhere && props.onOpenPassage ? (
+          <g
+            key={position.key + '->external'}
+            className="canvas-coreference-link is-external"
+            role="link"
+            tabIndex={0}
+            aria-label={`Abrir antecedente ${label} na passagem ${elsewhere.ordinal}`}
+            // Not a pan gesture: the canvas would otherwise capture the pointer.
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => props.onOpenPassage?.(elsewhere.passageId)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') props.onOpenPassage?.(elsewhere.passageId);
+            }}
+          >
+            <title>{elsewhere.text}</title>
+            {chip}
+          </g>
+        ) : (
+          <g
+            key={position.key + '->missing'}
+            className={`canvas-coreference-link is-external${elsewhere ? '' : ' is-missing'}`}
+          >
+            <title>
+              {elsewhere?.text ?? 'Nenhuma estrutura desta obra está marcada com este rótulo.'}
+            </title>
+            {chip}
+          </g>
+        ),
+      ];
+    });
+  }, [layout, orientation, dragPreview, workLinks, props.onOpenPassage]);
   const nodeElements = useMemo(
     () =>
       [...layout.positions.values()].map((original) => {
@@ -1452,6 +1566,29 @@ export function ExpressionCanvas({
             {node.id === 'root' && (
               <text className="canvas-piece-label" x={0} y={-15}>
                 {point.piece.id === 'main' ? 'RESULTADO PRINCIPAL' : 'PEÇA SOLTA'}
+              </text>
+            )}
+            {(typeof node.attributes.coreferenceAnchor === 'string' ||
+              typeof node.attributes.coreferenceReference === 'string') && (
+              <text className="canvas-coreference-badge" x={0} y={node.id === 'root' ? -30 : -15}>
+                <title>
+                  {[
+                    typeof node.attributes.coreferenceAnchor === 'string' &&
+                      `Antecedente ${node.attributes.coreferenceAnchor}`,
+                    typeof node.attributes.coreferenceReference === 'string' &&
+                      `Retoma ${node.attributes.coreferenceReference}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </title>
+                {[
+                  typeof node.attributes.coreferenceAnchor === 'string' &&
+                    `⚑ ${node.attributes.coreferenceAnchor}`,
+                  typeof node.attributes.coreferenceReference === 'string' &&
+                    `↩ ${node.attributes.coreferenceReference}`,
+                ]
+                  .filter(Boolean)
+                  .join('  ')}
               </text>
             )}
             <g
@@ -1737,6 +1874,135 @@ export function ExpressionCanvas({
       setPalette({ target: bound(position.address), x: position.x, y: position.y });
     else setPalette({ x: camera.x, y: camera.y, initialMode: 'types' });
   }
+  function coreferenceLabel(position: Positioned | undefined, role: CoreferenceRole) {
+    const value =
+      position?.node.attributes[role === 'anchor' ? 'coreferenceAnchor' : 'coreferenceReference'];
+    return typeof value === 'string' ? value : undefined;
+  }
+  function openCoreferencePanel(mode: 'pronoun' | 'link') {
+    if (!menu || !menuScope) return;
+    const label =
+      mode === 'pronoun'
+        ? (coreferenceLabel(menuPosition, 'anchor') ??
+          suggestCoreferenceLabel(definitionBody(menuScope), anchorLabels))
+        : (coreferenceLabel(menuPosition, 'reference') ?? antecedentOptions[0]?.label ?? '');
+    setCoreferencePanel({ mode, address: menu.address, session, label });
+    setMenu(null);
+  }
+  function goToAntecedent(label: string) {
+    setMenu(null);
+    for (const piece of pieces) {
+      const node = piece.graph?.nodes.find((item) => item.attributes.coreferenceAnchor === label);
+      if (node) return api.focusNode(piece, node.id);
+    }
+    const elsewhere = workLinks.find((link) => link.role === 'anchor' && link.label === label);
+    if (elsewhere && props.onOpenPassage) props.onOpenPassage(elsewhere.passageId);
+    else setNotice(`Nenhuma estrutura desta obra está marcada como antecedente ${label}.`);
+  }
+  function removeCoreference(address: CanvasAddress, role: CoreferenceRole) {
+    const { node } = getScope(address);
+    const wrapper = node && coreferenceWrappers(node).find((item) => item.role === role);
+    if (!wrapper) return;
+    if (
+      commit({
+        type: 'replace',
+        source: { ...address, nodeId: wrapper.node.id },
+        raw: wrapper.value.code,
+      })
+    )
+      setNotice(
+        role === 'anchor' &&
+          [...canvasCoreferences, ...workLinks].some(
+            (link) => link.role === 'reference' && link.label === wrapper.label,
+          )
+          ? `Os pronomes que retomam ${wrapper.label} ficaram sem antecedente.`
+          : '',
+      );
+  }
+  function applyCoreference() {
+    const panel = coreferencePanel;
+    if (!panel || panel.session !== liveSession.current || coreferenceProblem) return;
+    const { node } = getScope(panel.address);
+    if (!node) return setNotice('Aguarde a árvore atual para criar a ligação.');
+    const label = panel.label.trim();
+    let done: boolean;
+    if (panel.mode === 'pronoun') {
+      const position = layout.positions.get(canvasPositionKey(panel.address));
+      const add = {
+        raw: referentialPronoun(label),
+        // Beside the whole forest, so the new piece never covers the tree.
+        position: { x: layout.minX + layout.width + 20, y: position?.y ?? camera.y },
+      };
+      done = coreferenceLabel(position, 'anchor')
+        ? commit({ type: 'add', ...add })
+        : commit({
+            type: 'replace',
+            source: panel.address,
+            raw: coreferenceSource('anchor', node.code, label),
+            add,
+          });
+      if (done)
+        setNotice(
+          `Pronome ↩ ${label} criado como peça solta (+ae na fala). Arraste-o para o lugar do pronome ou use Conectar.`,
+        );
+    } else {
+      const existing = coreferenceWrappers(node).find((item) => item.role === 'reference');
+      done = commit(
+        existing
+          ? {
+              type: 'replace',
+              source: { ...panel.address, nodeId: existing.node.id },
+              raw: coreferenceSource('reference', existing.value.code, label),
+            }
+          : {
+              type: 'replace',
+              source: panel.address,
+              raw: coreferenceSource('reference', node.code, label),
+            },
+      );
+    }
+    if (done) setCoreferencePanel(null);
+  }
+  const antecedentOptions = [
+    ...pieces.flatMap((piece) =>
+      (piece.graph?.nodes ?? []).flatMap((node) =>
+        typeof node.attributes.coreferenceAnchor === 'string'
+          ? [
+              {
+                label: node.attributes.coreferenceAnchor,
+                where: piece.id === 'main' ? 'nesta passagem' : 'peça solta',
+                text: treeEvaluationPreview(node)?.text || node.expression?.code || '',
+              },
+            ]
+          : [],
+      ),
+    ),
+    ...workLinks
+      .filter((link) => link.role === 'anchor')
+      .map((link) => ({ label: link.label, where: `passagem ${link.ordinal}`, text: link.text })),
+  ].filter(
+    (option, index, all) =>
+      all.findIndex((item) => item.label === option.label && item.where === option.where) === index,
+  );
+  const coreferencePosition = coreferencePanel
+    ? layout.positions.get(canvasPositionKey(coreferencePanel.address))
+    : undefined;
+  const coreferenceAnchored = coreferenceLabel(coreferencePosition, 'anchor');
+  const coreferenceProblem = !coreferencePanel
+    ? ''
+    : coreferencePanel.mode === 'link' && !antecedentOptions.length
+      ? 'Nenhuma estrutura desta obra está marcada como antecedente.'
+      : !COREFERENCE_LABEL.test(coreferencePanel.label.trim())
+        ? 'Use um rótulo curto de letras, números, _, - ou apóstrofo, sem espaços.'
+        : coreferencePanel.mode === 'pronoun' &&
+            !coreferenceAnchored &&
+            anchorLabels.has(coreferencePanel.label.trim())
+          ? 'Este rótulo já marca outra estrutura nesta obra.'
+          : '';
+  const menuAnchor = coreferenceLabel(menuPosition, 'anchor');
+  const menuReference = coreferenceLabel(menuPosition, 'reference');
+  const selectedAnchor = coreferenceLabel(selectedPosition, 'anchor');
+  const selectedReference = coreferenceLabel(selectedPosition, 'reference');
   const menuAction = (type: 'detach' | 'duplicate' | 'remove' | 'make-main') => {
     if (!menu) return;
     commit({
@@ -1762,6 +2028,7 @@ export function ExpressionCanvas({
             operationPanel ||
             removalPanel ||
             definitionPanel ||
+            coreferencePanel ||
             combination ||
             staged ||
             drag.current
@@ -1770,6 +2037,7 @@ export function ExpressionCanvas({
             setPalette(null);
             setOperationPanel(null);
             setRemovalPanel(null);
+            setCoreferencePanel(null);
             closeDefinition();
             setCombination(null);
             setStaged(null);
@@ -2067,6 +2335,7 @@ export function ExpressionCanvas({
             ações.
           </desc>
           {edgeElements}
+          {coreferenceElements}
           {nodeElements}
         </svg>
         <span className="runtime-canvas-hint canvas-hint">
@@ -2258,6 +2527,47 @@ export function ExpressionCanvas({
             >
               Definir significado do conjunto…
             </button>
+            <button
+              role="menuitem"
+              disabled={
+                !menuPosition?.piece.root || isCanvasHole(menuPosition.node.expression?.code ?? '')
+              }
+              onClick={() => openCoreferencePanel('pronoun')}
+            >
+              Criar pronome de 3ª pessoa referencial desta estrutura…
+            </button>
+            <button
+              role="menuitem"
+              disabled={
+                !menuPosition?.piece.root || isCanvasHole(menuPosition.node.expression?.code ?? '')
+              }
+              onClick={() => openCoreferencePanel('link')}
+            >
+              {menuReference ? 'Trocar o antecedente…' : 'Ligar a um antecedente…'}
+            </button>
+            {menuReference && (
+              <button role="menuitem" onClick={() => goToAntecedent(menuReference)}>
+                Ir ao antecedente {menuReference}
+              </button>
+            )}
+            {menuReference && (
+              <button
+                role="menuitem"
+                disabled={!menuPosition?.piece.root}
+                onClick={() => removeCoreference(menu.address, 'reference')}
+              >
+                Desfazer ligação ao antecedente
+              </button>
+            )}
+            {menuAnchor && (
+              <button
+                role="menuitem"
+                disabled={!menuPosition?.piece.root}
+                onClick={() => removeCoreference(menu.address, 'anchor')}
+              >
+                Remover marca de antecedente {menuAnchor}
+              </button>
+            )}
             <button
               role="menuitem"
               disabled={
@@ -2511,6 +2821,89 @@ export function ExpressionCanvas({
             </div>
           </div>
         )}
+        {coreferencePanel && (
+          <div
+            role="dialog"
+            aria-label={
+              coreferencePanel.mode === 'pronoun'
+                ? 'Criar pronome referencial'
+                : 'Ligar a um antecedente'
+            }
+            className="canvas-floating-panel canvas-coreference-panel"
+          >
+            {coreferencePanel.mode === 'pronoun' ? (
+              <>
+                <h3>Pronome referencial de 3ª pessoa</h3>
+                {coreferenceAnchored ? (
+                  <p>
+                    Esta estrutura já é o antecedente <strong>⚑ {coreferenceAnchored}</strong>.
+                  </p>
+                ) : (
+                  <label>
+                    Rótulo do antecedente (único nesta obra)
+                    <input
+                      {...workspaceAutofill}
+                      autoFocus
+                      value={coreferencePanel.label}
+                      maxLength={40}
+                      onChange={(event) =>
+                        setCoreferencePanel({ ...coreferencePanel, label: event.target.value })
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') applyCoreference();
+                      }}
+                    />
+                  </label>
+                )}
+                <p>
+                  Uma peça solta{' '}
+                  <code>{`studio_ref(+ae, ${JSON.stringify(coreferencePanel.label.trim())})`}</code>{' '}
+                  será criada. Na fala ela se realiza como <code>+ae</code>; na árvore, aponta para
+                  esta estrutura. Arraste-a para o lugar do pronome (por exemplo, o possuidor) ou
+                  use Conectar.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3>Ligar a um antecedente</h3>
+                <p>
+                  Esta forma passa a retomar a estrutura escolhida, nesta ou em outra passagem da
+                  obra. A forma realizada não muda.
+                </p>
+                <fieldset className="canvas-coreference-options">
+                  <legend>Antecedentes marcados</legend>
+                  {antecedentOptions.map((option) => (
+                    <label key={option.label + ':' + option.where}>
+                      <input
+                        type="radio"
+                        name="coreference-antecedent"
+                        checked={coreferencePanel.label === option.label}
+                        onChange={() =>
+                          setCoreferencePanel({ ...coreferencePanel, label: option.label })
+                        }
+                      />
+                      <span>
+                        <strong>⚑ {option.label}</strong> · {option.where}
+                        <small>{clip(option.text, 90)}</small>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              </>
+            )}
+            {coreferenceProblem && <p role="alert">{coreferenceProblem}</p>}
+            <div className="tree-scope-actions">
+              <button
+                autoFocus={coreferencePanel.mode === 'link' || !!coreferenceAnchored}
+                disabled={!!coreferenceProblem}
+                onClick={applyCoreference}
+              >
+                {coreferencePanel.mode === 'pronoun' ? 'Criar pronome' : 'Ligar'}
+              </button>
+              <button onClick={() => setCoreferencePanel(null)}>Cancelar</button>
+            </div>
+          </div>
+        )}
         {removalPanel && (
           <div role="dialog" aria-label="Retirar operação" className="canvas-floating-panel">
             <h3>Retirar só a operação</h3>
@@ -2737,6 +3130,29 @@ export function ExpressionCanvas({
                   'Aguardando a avaliação desta etapa.'
                 )}
               </p>
+              {(selectedAnchor || selectedReference) && (
+                <p className="canvas-coreference-summary">
+                  {selectedAnchor && (
+                    <span>
+                      ⚑ Antecedente <strong>{selectedAnchor}</strong> · retomado em{' '}
+                      {
+                        [...canvasCoreferences, ...workLinks].filter(
+                          (link) => link.role === 'reference' && link.label === selectedAnchor,
+                        ).length
+                      }{' '}
+                      lugar(es)
+                    </span>
+                  )}
+                  {selectedReference && (
+                    <span>
+                      ↩ Retoma{' '}
+                      <button type="button" onClick={() => goToAntecedent(selectedReference)}>
+                        {selectedReference}
+                      </button>
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
             {selectedScope &&
               ['binary', 'comparison'].includes(definitionBody(selectedScope).kind) && (

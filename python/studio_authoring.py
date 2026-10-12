@@ -10,6 +10,28 @@ from pathlib import Path
 
 SLOT_PREFIX = '__studio_slot_'
 
+# Exported source must execute outside Studio, so each used helper is written
+# into the file explicitly instead of depending on an invisible builtin.
+STUDIO_HELPER_SOURCE = {
+    'studio_define': 'def studio_define(value, definition):\n    result = value.copy()\n    result.definition = definition\n    return result\n\n',
+    'studio_anchor': 'def studio_anchor(value, label):\n    return value.copy()\n\n',
+    'studio_ref': 'def studio_ref(value, label):\n    return value.copy()\n\n',
+}
+
+COREFERENCE_HELPERS = frozenset({'studio_anchor', 'studio_ref'})
+
+
+def coreference_call(syntax):
+    """(helper, value, label) for a literal coreference wrapper, else None."""
+    if not (isinstance(syntax, ast.Call) and isinstance(syntax.func, ast.Name)
+            and syntax.func.id in COREFERENCE_HELPERS and len(syntax.args) == 2 and not syntax.keywords):
+        return None
+    label = syntax.args[1]
+    if isinstance(label, ast.Constant) and isinstance(label.value, str):
+        return syntax.func.id, syntax.args[0], label.value
+    return None
+
+
 SOURCE_TEXT_FIELDS = {'diplomatic': 'diplomatic', 'target': 'normalized_target',
                       'translation': 'translation', 'analysis': 'analysis', 'note': 'notes'}
 

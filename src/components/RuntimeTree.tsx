@@ -48,6 +48,7 @@ import type { CanvasDiagnostic } from '../domain/grammar-diagnostic';
 import type { EvaluationFailure } from '../domain/authoring';
 import type { MorphemeSurfaceHighlight } from '../domain/morpheme-display';
 import type { SharedTreeNavigation } from '../domain/shared-definition';
+import type { WorkCoreference } from '../domain/coreference';
 
 interface TreeEditingProps {
   onEditingSharedTree?: (name: string | null) => void;
@@ -72,6 +73,8 @@ interface TreeEditingProps {
   onInspectLexeme?: (name: string) => void;
   onAskAI?: (sourceNodeId: string) => void;
   onSurfaceHighlight?: (highlight: MorphemeSurfaceHighlight | null) => void;
+  workCoreferences?: WorkCoreference[];
+  onOpenPassage?: (passageId: string) => void;
 }
 
 function compact(text: string, length = 31) {

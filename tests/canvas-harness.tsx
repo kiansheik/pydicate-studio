@@ -10,6 +10,7 @@ export interface CanvasFixture extends CanvasEdit {
   evaluatedRoot?: AuthorNode | null;
   failures?: EvaluationFailure[];
   hidden?: boolean;
+  workCoreferences?: import('../src/domain/coreference').WorkCoreference[];
 }
 declare global {
   interface Window {
@@ -23,6 +24,7 @@ declare global {
     canvasDiagnostic?: CanvasDiagnostic;
     canvasClipboard?: string;
     canvasLexicalPreview?: import('../src/domain/authoring').SourcePreview;
+    canvasOpenedPassage?: string;
   }
 }
 const storageKey = 'canvas-browser-fixture';
@@ -157,6 +159,10 @@ function Harness() {
           }}
           canUndo={history.length > 0}
           canRedo={future.length > 0}
+          workCoreferences={initial.workCoreferences}
+          onOpenPassage={(id) => {
+            window.canvasOpenedPassage = id;
+          }}
         />
       )}
       <output id="canvas-raw">{draft.raw}</output>

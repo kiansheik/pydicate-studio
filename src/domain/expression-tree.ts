@@ -1,6 +1,7 @@
 import type { AuthorNode } from './authoring';
 import type { RuntimeGraph, RuntimeNode, RuntimePrimitive } from './runtime-tree';
 import { inlineCallArguments } from './inline-arguments';
+import { coreferenceWrapper, type CoreferenceWrapper } from './coreference';
 
 const kindNames: Record<string, string> = {
   binary: 'Operação',
@@ -52,15 +53,44 @@ function definitionValue(node: AuthorNode): AuthorNode | undefined {
     return values[0].node;
 }
 
-/** Literal definition wrappers annotate their value; they are not extra morphology steps. */
-export function definitionBody(node: AuthorNode): AuthorNode {
+/** Literal meaning and coreference wrappers annotate their value; they are not
+ * extra morphology steps. Returns the innermost value plus what was attached. */
+function annotations(node: AuthorNode) {
   let body = node;
-  let value = definitionValue(body);
-  while (value) {
-    body = value;
-    value = definitionValue(body);
+  let defined: AuthorNode | undefined;
+  let anchor: string | undefined;
+  let reference: string | undefined;
+  for (;;) {
+    const meaning = definitionValue(body);
+    if (meaning) {
+      defined ??= meaning;
+      body = meaning;
+      continue;
+    }
+    const link = coreferenceWrapper(body);
+    if (!link) return { body, defined, anchor, reference };
+    if (link.role === 'anchor') anchor ??= link.label;
+    else reference ??= link.label;
+    body = link.value;
   }
-  return body;
+}
+export function definitionBody(node: AuthorNode): AuthorNode {
+  return annotations(node).body;
+}
+
+/** Coreference wrappers around one visible node, outermost first, with their exact
+ * source nodes so a link can be relabelled or removed without touching meanings. */
+export function coreferenceWrappers(node: AuthorNode) {
+  const wrappers: (CoreferenceWrapper & { node: AuthorNode })[] = [];
+  let body = node;
+  for (;;) {
+    const meaning = definitionValue(body);
+    const link = meaning ? undefined : coreferenceWrapper(body);
+    if (link) wrappers.push({ ...link, node: body });
+    const next = meaning ?? link?.value;
+    if (!next) return wrappers;
+    body = next;
+  }
 }
 
 function sameSource(a: AuthorNode, b: AuthorNode): boolean {
@@ -110,8 +140,9 @@ function validSource(root: AuthorNode, raw: string) {
 
 /** One visible identity for every construction step, including repeated references.
  * Scalar call arguments live inline on their operation instead of child cards.
- * Literal studio_define wrappers retain their exact edit scope on the value's
- * existing visible node rather than adding a non-morphological operation level.
+ * Literal studio_define/studio_anchor/studio_ref wrappers retain their exact edit
+ * scope on the value's existing visible node rather than adding a
+ * non-morphological operation level; links become node attributes.
  * The source and UTF-16 spans remain the authoring authority. Runtime evidence
  * is optional and is attached only when the entire evaluated AST still matches.
  * A stale source tree yields null rather than a misleading editable projection. */
@@ -133,11 +164,14 @@ export function expressionGraph(
     diagnostics: [],
   };
   const visit = (source: AuthorNode, evaluated?: AuthorNode) => {
-    const body = definitionBody(source);
+    const annotated = annotations(source);
+    const body = annotated.body;
     const evaluatedBody = evaluated ? definitionBody(evaluated) : undefined;
-    const inherited = evaluated ? definitionValue(evaluated) : undefined;
+    const inherited = evaluated ? annotations(evaluated).defined : undefined;
     const inlineCall = inlineCallArguments(body);
     const attributes: Record<string, RuntimePrimitive> = { code: source.code };
+    if (annotated.anchor) attributes.coreferenceAnchor = annotated.anchor;
+    if (annotated.reference) attributes.coreferenceReference = annotated.reference;
     if (evaluated) {
       for (const key of [
         'runtimeType',

@@ -31,6 +31,8 @@ remains the definition/replacement target; operation edits use the evidenced
 inner source span so inline variants and operator changes retain the meaning.
 The Léxico inventory follows this visible projection; stored historical notebook
 records remain intact.
+`studio_anchor`/`studio_ref` coreference wrappers are projected the same way;
+see the [coreference contract](coreference.md).
 
 **Consultar Navarro** supplies an exact dictionary sense to either the local or
 general editor without replacing the subtree. Form citations show their context

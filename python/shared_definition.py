@@ -98,7 +98,7 @@ def edit_target(corpus, entry):
 
 
 def declaration_namespace(corpus, source_id, line, source_statements=None):
-    from authoring_runtime import namespace_for, studio_define
+    from authoring_runtime import STUDIO_HELPERS, namespace_for, studio_define
     from lexical_metadata import restore_namespace_lexical_status
     from semantic_context import register_declarations
     path = corpus / 'historic' / (source_id + '.tu.py')
@@ -113,7 +113,7 @@ def declaration_namespace(corpus, source_id, line, source_statements=None):
     namespace = {'__name__': 'historic._studio_definition_context',
                  '__package__': 'historic', '__file__': str(path)}
     exec(compile(ast.Module(body=statements, type_ignores=[]), str(path), 'exec'), namespace)
-    namespace['studio_define'] = studio_define
+    namespace.update(STUDIO_HELPERS)
     restore_namespace_lexical_status(namespace, statements)
     register_declarations(namespace, statements, path)
     return namespace

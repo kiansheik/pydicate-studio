@@ -14,7 +14,7 @@ import sys
 import tempfile
 import unicodedata
 import uuid
-from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots, encode_source_text, validate_translations, validate_prayer_name
+from studio_authoring import authoritative_metadata, expression_tree, source_entries, parse_ast, contains_slots, encode_source_text, validate_translations, validate_prayer_name, STUDIO_HELPER_SOURCE
 
 
 def digest(data): return 'sha256:' + hashlib.sha256(data).hexdigest()
@@ -178,16 +178,17 @@ class AuthoringService:
         return self._checked_dictionary_result({**result,'engineFingerprint':fingerprint,'revisionId':params.get('revisionId','')},entry)
 
     def _preview(self,path,before,after,extra_changes=(),annotation_review=False,**details):
-        # A copy with an occurrence gloss has an explicit source-local helper;
-        # the resulting file never depends on an invisible Studio builtin.
+        # Occurrence glosses and coreference links use explicit source-local
+        # helpers; the resulting file never depends on an invisible Studio builtin.
         decoded = after.decode('utf-8')
         parsed_file = ast.parse(decoded,filename=str(path))
-        needs_define = any(isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id=='studio_define' for node in ast.walk(parsed_file))
-        has_define = any(isinstance(node,ast.FunctionDef) and node.name=='studio_define' for node in parsed_file.body)
-        if needs_define and not has_define:
+        used = {node.func.id for node in ast.walk(parsed_file) if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id in STUDIO_HELPER_SOURCE}
+        defined = {node.name for node in parsed_file.body if isinstance(node,ast.FunctionDef)}
+        missing = [name for name in STUDIO_HELPER_SOURCE if name in used and name not in defined]
+        if missing:
             initial = next((node for node in parsed_file.body if isinstance(node,ast.Assign) and isinstance(node.value,(ast.List,ast.Tuple)) and any(isinstance(t,ast.Name) and t.id=='l' for t in node.targets)),None)
             offset = sum(map(len,decoded.splitlines(keepends=True)[:initial.lineno-1])) if initial else 0
-            helper = 'def studio_define(value, definition):\n    result = value.copy()\n    result.definition = definition\n    return result\n\n'
+            helper = ''.join(STUDIO_HELPER_SOURCE[name] for name in missing)
             after = (decoded[:offset]+helper+decoded[offset:]).encode('utf-8')
         # Verify resulting source syntax before making a reviewable patch.
         ast.parse(after.decode('utf-8'),filename=str(path))

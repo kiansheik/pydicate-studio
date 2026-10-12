@@ -17,7 +17,7 @@ import traceback
 from contextlib import redirect_stdout
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from studio_authoring import expression_tree, source_entries, METHODS, parse_ast, is_slot
+from studio_authoring import expression_tree, source_entries, METHODS, parse_ast, is_slot, STUDIO_HELPER_SOURCE, COREFERENCE_HELPERS, coreference_call
 from lexical_metadata import inherit_lexical_status, lexical_status, prepare_lexical_arguments, restore_namespace_lexical_status, verify_lexical_arguments
 from semantic_context import attach_definition_context, register_declarations
 
@@ -29,6 +29,27 @@ CONSTRUCTORS = {'Noun','ProperNoun','Pronoun','Verb','Adverb','Postposition','In
 def studio_define(value, definition):
     if not hasattr(value, 'eval') or not isinstance(definition, str): raise ValueError('Definição local inválida.')
     result = value.copy(); result.definition = definition; return result
+
+
+# Coreference is a source annotation: a labelled antecedent anywhere in the same
+# work, and a form (usually +ae) that refers back to it. Neither changes the
+# realized form; the link is read from source, never inferred from the engine.
+COREFERENCE_LABEL = re.compile(r"\w[\w'-]{0,39}")
+
+
+def studio_anchor(value, label):
+    if not hasattr(value, 'eval') or not isinstance(label, str) or not COREFERENCE_LABEL.fullmatch(label):
+        raise ValueError('Âncora referencial inválida.')
+    return value.copy()
+
+
+def studio_ref(value, label):
+    if not hasattr(value, 'eval') or not isinstance(label, str) or not COREFERENCE_LABEL.fullmatch(label):
+        raise ValueError('Referência a antecedente inválida.')
+    return value.copy()
+
+
+STUDIO_HELPERS = {'studio_define': studio_define, 'studio_anchor': studio_anchor, 'studio_ref': studio_ref}
 
 
 def configure(parent, engine_path=None):
@@ -44,7 +65,7 @@ def namespace_for(corpus, source_path, line):
     shared_statements = ast.parse(shared_path.read_text(encoding='utf-8')).body
     restore_namespace_lexical_status(namespace, shared_statements)
     register_declarations(namespace, shared_statements, shared_path)
-    namespace['studio_define'] = studio_define
+    namespace.update(STUDIO_HELPERS)
     namespace['__name__'] = 'historic._studio_source_context'
     # Keep source-local assignments/helpers and contextual mutations in execution
     # order. Ignore source collections and __main__; no source module is imported.
@@ -70,7 +91,7 @@ def namespace_for(corpus, source_path, line):
 
 
 def callable_allowed(name, value):
-    if name == 'studio_define' and value is studio_define: return True
+    if name in STUDIO_HELPERS and value is STUDIO_HELPERS[name]: return True
     if name.startswith('_'): return False
     if name in CONSTRUCTORS or name == 'cop': return inspect.isclass(value) and value.__module__.startswith('pydicate.')
     return inspect.isfunction(value) and (value.__module__.startswith('historic.') or value.__module__.startswith('pydicate.lang.tupilang'))

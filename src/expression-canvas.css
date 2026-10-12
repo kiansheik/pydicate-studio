@@ -1,12 +1,14 @@
 .expression-canvas {
   --canvas-error: #a5353f;
   --canvas-warning: #95661d;
+  --canvas-coreference: #7a4fb0;
   position: relative;
   padding: 14px 18px;
 }
 [data-theme='dark'] .expression-canvas {
   --canvas-error: #f39b9f;
   --canvas-warning: #e7be7a;
+  --canvas-coreference: #c9a8f2;
 }
 .canvas-toolbar {
   display: flex;
@@ -608,4 +610,84 @@
   stroke-linejoin: round;
   stroke-linecap: round;
   paint-order: stroke fill;
+}
+
+/* Coreference links sit outside the tree hierarchy: dashed, never a tree edge. */
+.canvas-coreference-link path {
+  fill: none;
+  stroke: var(--canvas-coreference);
+  stroke-width: 1.6;
+  stroke-dasharray: 6 5;
+}
+.canvas-coreference-link circle {
+  fill: var(--canvas-coreference);
+}
+.canvas-coreference-link text,
+.canvas-coreference-badge {
+  fill: var(--canvas-coreference);
+  font:
+    600 11px ui-sans-serif,
+    system-ui,
+    sans-serif;
+  paint-order: stroke;
+  stroke: var(--tree-canvas);
+  stroke-width: 5px;
+}
+.canvas-coreference-hit {
+  fill: transparent;
+  pointer-events: all;
+}
+.canvas-coreference-link.is-external[role='link'] {
+  cursor: pointer;
+}
+.canvas-coreference-link.is-external[role='link']:hover text,
+.canvas-coreference-link.is-external[role='link']:focus-visible text {
+  text-decoration: underline;
+}
+.canvas-coreference-link.is-external:focus-visible {
+  outline: none;
+}
+.canvas-coreference-link.is-missing path,
+.canvas-coreference-link.is-missing text {
+  stroke: var(--canvas-warning);
+}
+.canvas-coreference-link.is-missing text {
+  fill: var(--canvas-warning);
+  stroke: var(--tree-canvas);
+}
+.canvas-coreference-options {
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  overflow: auto;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--tree-line);
+  border-radius: 8px;
+}
+.canvas-coreference-options label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.canvas-coreference-options small {
+  display: block;
+  color: var(--tree-muted);
+}
+.canvas-coreference-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--canvas-coreference);
+  font-size: 13px;
+}
+.canvas-coreference-summary button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
 }

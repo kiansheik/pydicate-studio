@@ -1,3 +1,10 @@
+# Referential pronoun release candidate (2026-10-12)
+
+App-only candidate based on live `7bd59ae`; transparent `studio_anchor` /
+`studio_ref` helpers and the browser linking controls. Engine and corpus untouched.
+Build, 300 unit tests, seven real-engine tests and two isolated-port browser tests
+pass. Deployment and preservation results will be recorded in the deployment handoff.
+
 # Publication across volumes (2026-10-08)
 
 Publication now fills its exclusive repository index lock by copy/fsync before

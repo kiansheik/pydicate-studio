@@ -14,7 +14,7 @@ import re
 import tokenize
 import unicodedata
 
-from authoring_runtime import CONSTRUCTORS, evaluation_snapshot, interpret, namespace_for, shape, studio_define
+from authoring_runtime import CONSTRUCTORS, STUDIO_HELPERS, evaluation_snapshot, interpret, namespace_for, shape, studio_define
 from lexical_metadata import lexical_status, restore_namespace_lexical_status
 from rendered_structures import fingerprint, isolated_namespace
 from semantic_context import REGISTRY, declaration_current, declaration_meaning, register_declarations
@@ -421,7 +421,7 @@ def prepare_lexical_publication(payload, corpus):
     shared_statements = ast.parse(shared_path.read_text(encoding='utf-8')).body
     restore_namespace_lexical_status(shared, shared_statements)
     register_declarations(shared, shared_statements, shared_path)
-    shared['studio_define'] = studio_define
+    shared.update(STUDIO_HELPERS)
     occupied = _occupied(corpus, namespace, shared)
     published = dict(namespace)
     planned = {}
