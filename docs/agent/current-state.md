@@ -3,7 +3,9 @@
 The user authorized committing and publishing all pending Studio work to main.
 Current product code/tests/configs match deployed `312eba3` byte-for-byte;
 additional changes are ignore rules and historical/deployment documentation.
-The private release ancestry is being retained for reproducible future deploys.
+Main retains the private release ancestry for reproducible future deploys.
+The merge preserves the complete current snapshot, including newer deployment
+records; product bytes remain identical to the deployed release.
 Formatting and diff checks are clean; earlier build, 307 unit and five focused
 browser checks remain applicable to these identical product bytes.
 See [handoff](session-handoffs/2026-10-12-main-consolidation.md).
